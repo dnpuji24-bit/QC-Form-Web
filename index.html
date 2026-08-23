@@ -424,23 +424,32 @@
                   </td>
                 </tr>
 
-                <!-- Adjuvant -->
-                <tr class="bg-slate-50/60">
+                <!-- Adjuvant (Dosis Manual mL/L Air & Actual Usage Manual) -->
+                <tr class="bg-emerald-50/40">
                   <td class="p-2.5">
-                    <div class="font-bold text-slate-800" id="display_adjuvant">-</div>
-                    <input type="hidden" id="field_adjuvant">
-                    <div class="text-[10px] text-slate-400">Adjuvant / Perekat</div>
+                    <div class="font-bold text-slate-800 flex items-center gap-1.5">
+                      <span id="display_adjuvant">Agristick 400SL</span>
+                      <button type="button" onclick="promptEditAdjuvantName()" title="Ganti Nama Adjuvant" class="text-[11px] text-emerald-700 hover:text-emerald-900 p-0.5"><i class="fa-solid fa-pen-to-square"></i></button>
+                    </div>
+                    <input type="hidden" id="field_adjuvant" value="Agristick 400SL">
+                    <div class="text-[10px] text-slate-500 font-semibold">Adjuvant (Perekat/Perata)</div>
                   </td>
-                  <td class="p-2.5 text-center font-semibold text-slate-700">
-                    <span id="display_adjuvantDosage">0</span>
-                    <input type="hidden" id="field_adjuvantDosage" value="0">
+                  <td class="p-2">
+                    <div class="space-y-0.5">
+                      <input type="number" step="0.01" id="field_adjuvantDosage" oninput="calculateEstimatedUsages()" placeholder="0.5" class="w-full p-1 bg-white border border-emerald-300 rounded text-center text-xs font-bold text-emerald-950 focus:ring-1 focus:ring-emerald-500">
+                      <div class="text-[9px] text-emerald-700 text-center font-bold">mL / L air</div>
+                    </div>
                   </td>
-                  <td class="p-2.5 text-center font-bold text-emerald-800 bg-emerald-50/40">
-                    <span id="display_estAdjuvant">0</span>
+                  <td class="p-2.5 text-center font-bold text-emerald-800 bg-emerald-50/60">
+                    <span id="display_estAdjuvant">0 L</span>
                     <input type="hidden" id="field_estUsageAdjuvant" value="0">
+                    <div class="text-[9px] text-slate-500 font-normal">Liter</div>
                   </td>
                   <td class="p-2.5 bg-amber-50/30">
-                    <input type="number" step="0.01" id="field_actUsageAdjuvant" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
+                    <div class="space-y-0.5">
+                      <input type="number" step="0.01" id="field_actUsageAdjuvant" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
+                      <div class="text-[9px] text-amber-800 text-center font-bold">Liter</div>
+                    </div>
                   </td>
                 </tr>
               </tbody>
@@ -464,7 +473,7 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Water Rate (L/Ha)</label>
-                <input type="number" step="any" id="field_waterRate" placeholder="Contoh: 150" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white">
+                <input type="number" step="any" id="field_waterRate" oninput="calculateEstimatedUsages()" placeholder="Contoh: 150" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white">
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Water Quality (Kualitas Air)</label>
@@ -1319,10 +1328,11 @@
       document.getElementById('field_dosage4').value = bData.dosage4 || 0;
       document.getElementById('display_dosage4').textContent = bData.dosage4 ? formatNumber(bData.dosage4) : '0';
 
-      document.getElementById('field_adjuvant').value = bData.adjuvant || '';
-      document.getElementById('display_adjuvant').textContent = bData.adjuvant || '-';
-      document.getElementById('field_adjuvantDosage').value = bData.adjuvant_dosage || 0;
-      document.getElementById('display_adjuvantDosage').textContent = bData.adjuvant_dosage ? formatNumber(bData.adjuvant_dosage) : '0';
+      document.getElementById('field_adjuvant').value = bData.adjuvant || 'Agristick 400SL';
+      document.getElementById('display_adjuvant').textContent = bData.adjuvant || 'Agristick 400SL';
+      if (!document.getElementById('field_adjuvantDosage').value || document.getElementById('field_adjuvantDosage').value == '0') {
+        document.getElementById('field_adjuvantDosage').value = bData.adjuvant_dosage || '0.5';
+      }
 
       calculateEstimatedUsages();
     }
@@ -1336,18 +1346,19 @@
         document.getElementById('field_estUsagePesticide' + num).value = 0;
         document.getElementById('display_estPesticide' + num).textContent = '0';
       });
-      document.getElementById('field_adjuvant').value = '';
-      document.getElementById('display_adjuvant').textContent = '-';
-      document.getElementById('field_adjuvantDosage').value = 0;
-      document.getElementById('display_adjuvantDosage').textContent = '0';
+      document.getElementById('field_adjuvant').value = 'Agristick 400SL';
+      document.getElementById('display_adjuvant').textContent = 'Agristick 400SL';
+      document.getElementById('field_adjuvantDosage').value = '0.5';
       document.getElementById('field_estUsageAdjuvant').value = 0;
-      document.getElementById('display_estAdjuvant').textContent = '0';
+      document.getElementById('display_estAdjuvant').textContent = '0 L';
     }
 
     function calculateEstimatedUsages() {
       const isHold = (document.getElementById('field_status').value === 'Hold');
       const area = isHold ? 0 : parseFloat(document.getElementById('field_area').value) || 0;
+      const waterRate = parseFloat(document.getElementById('field_waterRate').value) || 0;
 
+      // Pesticide 1..4 (Dosis L/Ha atau Kg/Ha * Area Ha)
       ['1', '2', '3', '4'].forEach(num => {
         const dosage = parseFloat(document.getElementById('field_dosage' + num).value) || 0;
         const est = area * dosage;
@@ -1355,10 +1366,30 @@
         document.getElementById('display_estPesticide' + num).textContent = est > 0 ? formatNumber(est.toFixed(2)) : '0';
       });
 
-      const adjDosage = parseFloat(document.getElementById('field_adjuvantDosage').value) || 0;
-      const estAdj = area * adjDosage;
-      document.getElementById('field_estUsageAdjuvant').value = estAdj > 0 ? estAdj.toFixed(2) : 0;
-      document.getElementById('display_estAdjuvant').textContent = estAdj > 0 ? formatNumber(estAdj.toFixed(2)) : '0';
+      // Adjuvant (Dosis mL Adjuvant per Liter Air)
+      // Rumus: Total Air = (Water Rate L/Ha * Luas Ha)
+      // Estimasi Adjuvant (Liter) = (Dosis mL/L * Total Air L) / 1000
+      const adjDosageML = parseFloat(document.getElementById('field_adjuvantDosage').value) || 0;
+      let estAdjLiter = 0;
+      
+      if (adjDosageML > 0 && area > 0 && waterRate > 0) {
+        estAdjLiter = (adjDosageML * waterRate * area) / 1000.0;
+      } else if (adjDosageML > 0 && area > 0) {
+        // Jika water rate belum diisi, estimasi standar 150 L/Ha atau proporsional
+        estAdjLiter = (adjDosageML * 150 * area) / 1000.0;
+      }
+
+      document.getElementById('field_estUsageAdjuvant').value = estAdjLiter > 0 ? estAdjLiter.toFixed(2) : 0;
+      document.getElementById('display_estAdjuvant').textContent = estAdjLiter > 0 ? formatNumber(estAdjLiter.toFixed(2)) + ' L' : '0 L';
+    }
+
+    function promptEditAdjuvantName() {
+      const current = document.getElementById('field_adjuvant').value || 'Agristick 400SL';
+      const newName = prompt('Ubah Nama Adjuvant / Perekat:', current);
+      if (newName !== null && newName.trim() !== '') {
+        document.getElementById('field_adjuvant').value = newName.trim();
+        document.getElementById('display_adjuvant').textContent = newName.trim();
+      }
     }
 
     function formatNumber(val) {
@@ -1557,6 +1588,13 @@
       document.getElementById('field_actUsagePesticide3').value = rec.actUsagePesticide3 || '';
       document.getElementById('field_actUsagePesticide4').value = rec.actUsagePesticide4 || '';
       document.getElementById('field_actUsageAdjuvant').value = rec.actUsageAdjuvant || '';
+      if (rec.adjuvant) {
+        document.getElementById('field_adjuvant').value = rec.adjuvant;
+        document.getElementById('display_adjuvant').textContent = rec.adjuvant;
+      }
+      if (rec.adjuvantDosage) {
+        document.getElementById('field_adjuvantDosage').value = rec.adjuvantDosage;
+      }
 
       document.getElementById('field_waterRate').value = rec.waterRate || '';
       document.getElementById('field_waterQuality').value = rec.waterQuality || 'Clean';
