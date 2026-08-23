@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Form QC Aplikasi Semprot & Pemupukan</title>
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="apple-touch-icon" href="logo.png">
   <meta name="theme-color" content="#059669">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -39,28 +41,28 @@
 
   <!-- ==================== SECURITY LOCK SCREEN OVERLAY ==================== -->
   <div id="lockScreenOverlay" class="fixed inset-0 bg-slate-900/95 backdrop-blur-md z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl text-center space-y-5 border border-slate-100">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl text-center space-y-5 border border-slate-100 animate-in fade-in zoom-in duration-200">
       <div class="w-16 h-16 mx-auto bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 shadow-inner">
-        <i class="fa-solid fa-shield-halved text-2xl"></i>
+        <i class="fa-solid fa-lock text-2xl"></i>
       </div>
       <div>
-        <h2 class="text-lg font-bold text-slate-900">Akses Terkunci</h2>
-        <p class="text-xs text-slate-500 mt-1">Masukkan Kode Keamanan untuk membuka aplikasi Form QC di perangkat ini.</p>
+        <h2 class="text-lg font-bold text-slate-900">Akses Terkunci oleh Admin</h2>
+        <p class="text-xs text-slate-500 mt-1">Masukkan Kode Keamanan resmi dari Admin untuk membuka aplikasi di perangkat ini.</p>
       </div>
 
       <div class="space-y-3 text-left">
         <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">Kode Akses Keamanan</label>
-          <input type="password" id="auth_code_input" placeholder="Masukkan Kode PIN / Sandi" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-center text-sm font-bold tracking-widest text-slate-800 focus:bg-white">
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Kode Akses Keamanan (PIN)</label>
+          <input type="password" id="auth_code_input" placeholder="Masukkan Kode PIN dari Admin" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-center text-sm font-bold tracking-widest text-slate-800 focus:bg-white">
         </div>
-        <p id="auth_error_msg" class="text-[11px] text-red-600 font-semibold hidden text-center"><i class="fa-solid fa-circle-exclamation mr-1"></i>Kode keamanan salah!</p>
+        <p id="auth_error_msg" class="text-[11px] text-red-600 font-semibold hidden text-center"><i class="fa-solid fa-circle-exclamation mr-1"></i>Kode keamanan salah atau telah diubah Admin!</p>
       </div>
 
       <button type="button" onclick="verifySecurityCode()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm shadow-md active:scale-95 transition flex items-center justify-center space-x-2">
-        <i class="fa-solid fa-lock-open"></i>
+        <i class="fa-solid fa-key"></i>
         <span>Buka Akses Aplikasi</span>
       </button>
-      <p class="text-[10px] text-slate-400">Setelah kode benar, perangkat ini akan otomatis terbuka terus menerus.</p>
+      <p class="text-[10px] text-slate-400">Kode akses dikendalikan terpusat oleh Admin dari Google Spreadsheet / Apps Script.</p>
     </div>
   </div>
 
@@ -68,8 +70,8 @@
   <header class="bg-emerald-700 text-white sticky top-0 z-40 shadow-md">
     <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
       <div class="flex items-center space-x-3">
-        <div class="w-10 h-10 rounded-full bg-emerald-800 flex items-center justify-center border border-emerald-500 shadow-inner">
-          <i class="fa-solid fa-seedling text-emerald-300 text-lg"></i>
+        <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center border border-emerald-400 shadow overflow-hidden p-0.5">
+          <img src="logo.png" alt="UM Logo" onerror="this.parentElement.innerHTML='<i class=\'fa-solid fa-seedling text-emerald-600 text-lg\'></i>'" class="w-full h-full object-contain">
         </div>
         <div>
           <h1 class="text-lg font-bold leading-tight">Form QC Aplikasi</h1>
@@ -83,7 +85,7 @@
           <span id="netStatusDot" class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
           <span id="netStatusText">Online</span>
         </span>
-        <button onclick="syncMasterData()" title="Sinkronkan Master Data" class="p-2 rounded-lg bg-emerald-800 hover:bg-emerald-900 border border-emerald-600 active:scale-95 transition">
+        <button onclick="syncMasterData()" title="Sinkronkan Master Data & Cek Akses" class="p-2 rounded-lg bg-emerald-800 hover:bg-emerald-900 border border-emerald-600 active:scale-95 transition">
           <i class="fa-solid fa-arrows-rotate" id="syncIcon"></i>
         </button>
       </div>
@@ -591,27 +593,30 @@
     <!-- ==================== TAB 3: PENGATURAN & SINKRONISASI ==================== -->
     <section id="settingsTab" class="tab-content hidden space-y-4">
       
-      <!-- Security Passcode Card -->
+      <!-- Security Status Card (Admin Controlled - No Local Change) -->
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
         <div class="flex items-center justify-between border-b pb-2">
           <div class="flex items-center space-x-2 text-emerald-800 font-bold text-sm">
             <i class="fa-solid fa-shield-halved text-emerald-600"></i>
-            <span>Kode Keamanan Akses Perangkat</span>
+            <span>Keamanan Akses Perangkat</span>
           </div>
-          <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">Status: Terbuka</span>
+          <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full font-bold flex items-center space-x-1">
+            <i class="fa-solid fa-circle-check text-emerald-600"></i>
+            <span>Terverifikasi Admin</span>
+          </span>
         </div>
 
         <div class="space-y-3 text-xs">
-          <div>
-            <label class="block font-semibold text-slate-700 mb-1">Kode Akses Web Saat Ini</label>
-            <div class="flex gap-2">
-              <input type="text" id="cfg_securityCode" placeholder="Contoh: QC2026" class="flex-1 p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold tracking-wider text-slate-800">
-              <button onclick="updateSecurityCodeSetting()" class="py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-bold">Simpan Kode</button>
+          <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="text-slate-600 font-semibold">Otorisasi Perangkat:</span>
+              <span class="font-mono font-bold text-emerald-800">Aktif</span>
             </div>
-            <p class="text-[11px] text-slate-500 mt-1">Jika Anda mengganti kode ini di Google Apps Script / Pengaturan, semua perangkat HP mandor akan langsung terkunci dan wajib memasukkan kode yang baru.</p>
+            <p class="text-[11px] text-slate-500">Kode keamanan dikendalikan terpusat oleh Admin pada Google Apps Script. Mandor di perangkat tidak dapat mengubah kode akses.</p>
           </div>
-          <button onclick="lockCurrentDevice()" class="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold border border-slate-300">
-            <i class="fa-solid fa-lock mr-1 text-slate-600"></i> Kunci Perangkat Ini Sekarang
+          <button onclick="lockCurrentDevice()" class="py-2 px-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-semibold flex items-center space-x-1.5">
+            <i class="fa-solid fa-lock text-slate-600"></i>
+            <span>Kunci / Logout Perangkat Ini</span>
           </button>
         </div>
       </div>
@@ -727,14 +732,14 @@
     let currentEditingId = null;
 
     // ==========================================
-    // 1. SECURITY & ACCESS CONTROL
+    // 1. ADMIN-CONTROLLED SECURITY & ACCESS
     // ==========================================
     function checkSecurityAccess() {
-      const activeCode = (masterData && masterData.securityCode) || appConfig.securityCode || 'QC2026';
-      const storedToken = localStorage.getItem(STORAGE_KEY_AUTH);
+      const activeAdminCode = (masterData && masterData.securityCode) || appConfig.securityCode || 'QC2026';
+      const storedDeviceToken = localStorage.getItem(STORAGE_KEY_AUTH);
 
       const overlay = document.getElementById('lockScreenOverlay');
-      if (storedToken === activeCode) {
+      if (storedDeviceToken && storedDeviceToken === activeAdminCode) {
         overlay.classList.add('hidden');
       } else {
         overlay.classList.remove('hidden');
@@ -745,12 +750,12 @@
 
     function verifySecurityCode() {
       const entered = document.getElementById('auth_code_input').value.trim();
-      const activeCode = (masterData && masterData.securityCode) || appConfig.securityCode || 'QC2026';
+      const activeAdminCode = (masterData && masterData.securityCode) || appConfig.securityCode || 'QC2026';
 
-      if (entered === activeCode) {
+      if (entered === activeAdminCode) {
         localStorage.setItem(STORAGE_KEY_AUTH, entered);
         document.getElementById('lockScreenOverlay').classList.add('hidden');
-        showToast('Akses berhasil dibuka!', 'success');
+        showToast('Akses perangkat berhasil diverifikasi!', 'success');
       } else {
         document.getElementById('auth_error_msg').classList.remove('hidden');
       }
@@ -762,20 +767,6 @@
       showToast('Perangkat berhasil dikunci.', 'info');
     }
 
-    function updateSecurityCodeSetting() {
-      const newCode = document.getElementById('cfg_securityCode').value.trim();
-      if (!newCode) {
-        showToast('Kode keamanan tidak boleh kosong!', 'error');
-        return;
-      }
-      appConfig.securityCode = newCode;
-      if (masterData) masterData.securityCode = newCode;
-      localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(appConfig));
-      localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(masterData));
-      localStorage.setItem(STORAGE_KEY_AUTH, newCode);
-      showToast('Kode keamanan berhasil diubah menjadi: ' + newCode, 'success');
-    }
-
     // ==========================================
     // 2. INITIALIZATION & NETWORK
     // ==========================================
@@ -785,7 +776,6 @@
         try { appConfig = Object.assign(appConfig, JSON.parse(rawConfig)); } catch (e) {}
       }
       document.getElementById('cfg_appsScriptUrl').value = appConfig.appsScriptUrl || '';
-      document.getElementById('cfg_securityCode').value = (masterData && masterData.securityCode) || appConfig.securityCode || 'QC2026';
 
       const rawMaster = localStorage.getItem(STORAGE_KEY_MASTER);
       if (rawMaster) {
@@ -813,9 +803,33 @@
       // Check security access first
       checkSecurityAccess();
 
+      // If online on startup, quietly verify security code with server
+      if (navigator.onLine && appConfig.appsScriptUrl) {
+        checkServerSecurityCodeSilently();
+      }
+
       populateMasterDataUI();
       resetForm();
       renderHistoryList();
+    }
+
+    async function checkServerSecurityCodeSilently() {
+      try {
+        const url = `${appConfig.appsScriptUrl}?action=getMasterData&t=${Date.now()}`;
+        const res = await fetch(url);
+        const json = await res.json();
+        if (json.status === 'success' && json.securityCode) {
+          if (json.securityCode !== appConfig.securityCode) {
+            // Admin changed security code on server!
+            appConfig.securityCode = json.securityCode;
+            if (masterData) masterData.securityCode = json.securityCode;
+            localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(appConfig));
+            localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(masterData));
+            // Trigger lock immediately on device!
+            checkSecurityAccess();
+          }
+        }
+      } catch (e) {}
     }
 
     function updateNetworkStatus() {
@@ -918,7 +932,6 @@
       (masterData.plan || []).forEach(p => {
         const pType = (p.type || '').trim().toLowerCase();
         const pAct = (p.activity || '').trim().toLowerCase();
-        // Check if type matches or if activity is spray-related
         if (allowedSprayTypes.includes(pType) || allowedSprayTypes.some(t => pAct.includes(t) || pType.includes(t))) {
           if (p.paddock && !filteredPaddocks.includes(p.paddock.trim())) {
             filteredPaddocks.push(p.paddock.trim());
@@ -1020,7 +1033,6 @@
       reader.onload = (e) => {
         const img = new Image();
         img.onload = () => {
-          // Compress image client-side to max 1200px and 0.7 JPEG
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
@@ -1041,7 +1053,6 @@
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
 
-          // Get compressed Base64 JPEG
           const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.72);
           const base64Str = compressedDataUrl.split(',')[1];
 
@@ -1550,7 +1561,7 @@
 
       const holdBadge = isHold ? '<span class="badge-hold text-[10px] px-2 py-0.5 rounded font-bold ml-1">HOLD</span>' : '<span class="badge-working text-[10px] px-2 py-0.5 rounded font-bold ml-1">WORKING</span>';
       const timeRange = (rec.startTime || rec.time || '-') + (rec.endTime ? ' s/d ' + rec.endTime : '');
-      const photoBadge = rec.photoBase64 ? '<span class="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded font-bold ml-1"><i class="fa-solid fa-image mr-0.5"></i>Ada Foto</span>' : '';
+      const photoBadge = rec.photoBase64 ? '<span class="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded font-bold ml-1"><i class="fa-solid fa-camera mr-0.5"></i>Ada Foto</span>' : '';
 
       return `
         <div class="p-3 bg-white hover:bg-slate-50 rounded-lg border border-slate-200 transition space-y-2">
@@ -1685,7 +1696,7 @@
       const rec = savedRecords.find(r => r.id === id);
       if (!rec) return;
 
-      showToast('Mengupload data ke Google Spreadsheet...', 'info');
+      showToast('Mengupload data & foto ke Google Spreadsheet...', 'info');
 
       try {
         const payload = {
@@ -1789,11 +1800,12 @@
         if (result.status === 'success' && result.data) {
           masterData = result.data;
           
-          // Check if server security code changed
+          // Check if Admin changed security code on Apps Script
           if (result.securityCode && result.securityCode !== appConfig.securityCode) {
             appConfig.securityCode = result.securityCode;
             masterData.securityCode = result.securityCode;
-            document.getElementById('cfg_securityCode').value = result.securityCode;
+            localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(appConfig));
+            // Trigger lock check immediately!
             checkSecurityAccess();
           }
 
