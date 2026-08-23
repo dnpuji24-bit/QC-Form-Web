@@ -120,7 +120,7 @@
         <i class="fa-solid fa-triangle-exclamation text-amber-600 text-base mt-0.5"></i>
         <div>
           <strong class="font-bold block text-sm">Mode Status HOLD Aktif</strong>
-          <span>Pengisian data dibatasi hanya sampai pilihan Paddock. Kolom luasan (Area) dan parameter teknis aplikasi di-nonaktifkan.</span>
+          <span>Pengisian teknis semprot & bahan dinonaktifkan. Anda dapat mencatat kondisi cuaca, mengambil foto bukti, dan menuliskan alasan HOLD pada kolom <strong>Noted* (Catatan)</strong>.</span>
         </div>
       </div>
 
@@ -203,347 +203,354 @@
           <div class="space-y-3.5">
             <!-- Paddock (Dropdown with Type filter: Insecticide, Herbicide, Fungicide) -->
             <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Paddock (Filter: Insecticide / Herbicide / Fungicide) <span class="text-red-500">*</span></label>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Paddock (Filter: Semprot) <span class="text-red-500">*</span></label>
               <select id="field_paddock" onchange="onPaddockChange()" class="w-full p-2.5 bg-emerald-50/50 border border-emerald-300 rounded-lg text-sm font-semibold text-emerald-950 focus:bg-white">
                 <option value="">-- Pilih Paddock --</option>
               </select>
             </div>
 
-            <!-- Variety (Button Selection filtered by Paddock) -->
-            <div id="section_variety" class="transition-all">
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Variety (Varietas Tebu)</label>
-              <div id="varietyBtnGroup" class="flex flex-wrap gap-2">
-                <span class="text-xs text-slate-400 italic py-1">Pilih Paddock terlebih dahulu</span>
+            <!-- Bagian yang dinonaktifkan saat Hold -->
+            <div id="planDetailsHoldWrapper" class="space-y-3.5 transition-all">
+              <!-- Variety (Button Selection filtered by Paddock) -->
+              <div id="section_variety">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Variety (Varietas Tebu)</label>
+                <div id="varietyBtnGroup" class="flex flex-wrap gap-2">
+                  <span class="text-xs text-slate-400 italic py-1">Pilih Paddock terlebih dahulu</span>
+                </div>
+                <input type="hidden" id="field_variety">
               </div>
-              <input type="hidden" id="field_variety">
-            </div>
 
-            <!-- Area (Ha) (Disabled if status == Hold) -->
-            <div id="section_area">
-              <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                <span>Area Dikerjakan (Ha) <span class="text-red-500">*</span></span>
-                <span id="areaHoldNotice" class="text-[11px] text-red-600 hidden font-normal"><i class="fa-solid fa-ban mr-1"></i>Nonaktif (Status Hold)</span>
-              </label>
-              <input type="number" step="0.01" min="0" id="field_area" oninput="calculateEstimatedUsages()" placeholder="Contoh: 3.50" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-semibold text-slate-900 focus:bg-white">
-            </div>
+              <!-- Area (Ha) (Disabled if status == Hold) -->
+              <div id="section_area">
+                <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Area Dikerjakan (Ha) <span class="text-red-500">*</span></span>
+                  <span id="areaHoldNotice" class="text-[11px] text-red-600 hidden font-normal"><i class="fa-solid fa-ban mr-1"></i>Nonaktif (Status Hold)</span>
+                </label>
+                <input type="number" step="0.01" min="0" id="field_area" oninput="calculateEstimatedUsages()" placeholder="Contoh: 3.50" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-semibold text-slate-900 focus:bg-white">
+              </div>
 
-            <!-- Type (Button selection from Plan) -->
-            <div id="section_type">
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Type Aplikasi</label>
-              <div id="typeBtnGroup" class="flex flex-wrap gap-2"></div>
-              <input type="hidden" id="field_type">
-            </div>
+              <!-- Type (Button selection from Plan) -->
+              <div id="section_type">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Type Aplikasi</label>
+                <div id="typeBtnGroup" class="flex flex-wrap gap-2"></div>
+                <input type="hidden" id="field_type">
+              </div>
 
-            <!-- Activity (Button selection from Plan) -->
-            <div id="section_activity">
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Activity (Aktivitas Kerja) <span class="text-red-500">*</span></label>
-              <div id="activityBtnGroup" class="flex flex-wrap gap-2"></div>
-              <input type="hidden" id="field_activity">
-            </div>
+              <!-- Activity (Button selection from Plan) -->
+              <div id="section_activity">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Activity (Aktivitas Kerja) <span class="text-red-500">*</span></label>
+                <div id="activityBtnGroup" class="flex flex-wrap gap-2"></div>
+                <input type="hidden" id="field_activity">
+              </div>
 
-            <!-- Deskripsi (Button selection from Plan by Paddock & Activity) -->
-            <div id="section_deskripsi">
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Deskripsi Program / Bahan <span class="text-red-500">*</span></label>
-              <div id="deskripsiBtnGroup" class="flex flex-wrap gap-2"></div>
-              <input type="hidden" id="field_deskripsi">
+              <!-- Deskripsi (Button selection from Plan by Paddock & Activity) -->
+              <div id="section_deskripsi">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Deskripsi Program / Bahan <span class="text-red-500">*</span></label>
+                <div id="deskripsiBtnGroup" class="flex flex-wrap gap-2"></div>
+                <input type="hidden" id="field_deskripsi">
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- TECHNICAL DETAILS WRAPPER (Auto hidden/disabled when Hold) -->
-        <div id="technicalDetailsWrapper" class="space-y-4 transition-all">
-
-          <!-- CARD 3: PARAMETER UNIT & PERALATAN -->
-          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
-            <div class="flex items-center space-x-2 text-emerald-800 border-b pb-2 font-bold text-sm">
+        <!-- CARD 3: PARAMETER UNIT & PERALATAN (Bisa Multiple Unit & No. Unit) -->
+        <div id="card_unit_params" class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4 transition-all">
+          <div class="flex items-center justify-between border-b pb-2">
+            <div class="flex items-center space-x-2 text-emerald-800 font-bold text-sm">
               <i class="fa-solid fa-tractor text-emerald-600"></i>
               <span>3. Parameter Unit & Nozzle</span>
             </div>
+            <span class="text-[10px] bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded font-semibold">Bisa Pilih Lebih dari 1 Unit</span>
+          </div>
 
-            <div class="space-y-3.5">
-              <!-- Unit -->
+          <div class="space-y-3.5">
+            <!-- Unit (Multiple Selection Toggle) -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Unit Alat (Bisa pilih 1 atau lebih)</label>
+              <div id="unitBtnGroup" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
+              <input type="hidden" id="field_unit">
+            </div>
+
+            <!-- No. Unit (Multiple Selection Toggle filtered by selected Units) -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">No. Unit (Bisa pilih 1 atau lebih)</label>
+              <div id="noUnitBtnGroup" class="flex flex-wrap gap-2">
+                <span class="text-xs text-slate-400 italic py-1">Pilih Unit terlebih dahulu</span>
+              </div>
+              <input type="hidden" id="field_noUnit">
+            </div>
+
+            <!-- Dropper & Droplet Size -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              <!-- Dropper (Yes/No) -->
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Unit Alat</label>
-                <div id="unitBtnGroup" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
-                <input type="hidden" id="field_unit">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Dropper</label>
+                <div id="dropperBtnGroup" class="grid grid-cols-2 gap-2"></div>
+                <input type="hidden" id="field_dropper">
               </div>
 
-              <!-- No. Unit (Button selection filtered by Unit) -->
+              <!-- Droplet Size (Manual number) -->
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">No. Unit (Sesuai Unit Terpilih)</label>
-                <div id="noUnitBtnGroup" class="flex flex-wrap gap-2">
-                  <span class="text-xs text-slate-400 italic py-1">Pilih Unit terlebih dahulu</span>
-                </div>
-                <input type="hidden" id="field_noUnit">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Droplet Size (µm)</label>
+                <input type="number" step="any" id="field_dropletSize" placeholder="Input angka manual" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white">
               </div>
+            </div>
 
-              <!-- Dropper & Droplet Size -->
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                <!-- Dropper (Yes/No) -->
-                <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Dropper</label>
-                  <div id="dropperBtnGroup" class="grid grid-cols-2 gap-2"></div>
-                  <input type="hidden" id="field_dropper">
-                </div>
+            <!-- Nozzle (Button selection) -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Nozzle</label>
+              <div id="nozzleBtnGroup" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
+              <input type="hidden" id="field_nozzle">
+            </div>
 
-                <!-- Droplet Size (Manual number) -->
-                <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Droplet Size (µm)</label>
-                  <input type="number" step="any" id="field_dropletSize" placeholder="Input angka manual" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white">
-                </div>
-              </div>
-
-              <!-- Nozzle (Button selection) -->
+            <!-- Height, Row Spacing, Speed -->
+            <div class="grid grid-cols-3 gap-2.5">
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Nozzle</label>
-                <div id="nozzleBtnGroup" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
-                <input type="hidden" id="field_nozzle">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Height (m)</label>
+                <input type="number" step="0.01" id="field_height" placeholder="0.00" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-center focus:bg-white">
               </div>
-
-              <!-- Height, Row Spacing, Speed -->
-              <div class="grid grid-cols-3 gap-2.5">
-                <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Height (m)</label>
-                  <input type="number" step="0.01" id="field_height" placeholder="0.00" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-center focus:bg-white">
-                </div>
-                <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Row Spacing (m)</label>
-                  <input type="number" step="0.01" id="field_rowSpacing" placeholder="1.50" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-center focus:bg-white">
-                </div>
-                <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Speed (Km/j)</label>
-                  <input type="number" step="0.1" id="field_speed" placeholder="0.0" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-center focus:bg-white">
-                </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Row Spacing (m)</label>
+                <input type="number" step="0.01" id="field_rowSpacing" placeholder="1.50" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-center focus:bg-white">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Speed (Km/j)</label>
+                <input type="number" step="0.1" id="field_speed" placeholder="0.0" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-center focus:bg-white">
               </div>
             </div>
           </div>
+        </div>
 
-          <!-- CARD 4: DOSIS, ESTIMASI & PENGGUNAAN AKTUAL BAHAN (OTOMATIS DARI SHEET BAHAN) -->
-          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
-            <div class="flex items-center justify-between border-b pb-2">
-              <div class="flex items-center space-x-2 text-emerald-800 font-bold text-sm">
-                <i class="fa-solid fa-flask-vial text-emerald-600"></i>
-                <span>4. Bahan, Dosis & Penggunaan Aktual</span>
-              </div>
-              <span class="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-medium">Auto-Lookup Sheet Bahan</span>
+        <!-- CARD 4: DOSIS, ESTIMASI & PENGGUNAAN AKTUAL BAHAN -->
+        <div id="card_bahan_dosis" class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4 transition-all">
+          <div class="flex items-center justify-between border-b pb-2">
+            <div class="flex items-center space-x-2 text-emerald-800 font-bold text-sm">
+              <i class="fa-solid fa-flask-vial text-emerald-600"></i>
+              <span>4. Bahan, Dosis & Penggunaan Aktual</span>
             </div>
-
-            <!-- Auto-populated Material Matrix -->
-            <div class="overflow-x-auto border border-slate-200 rounded-lg">
-              <table class="w-full text-xs text-left">
-                <thead class="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider border-b">
-                  <tr>
-                    <th class="p-2.5">Bahan / Material</th>
-                    <th class="p-2.5 text-center w-20">Dosis/Ha</th>
-                    <th class="p-2.5 text-center w-24 bg-emerald-50/70 text-emerald-900">Est. Usage</th>
-                    <th class="p-2.5 text-center w-28 bg-amber-50/70 text-amber-900">Actual Usage</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-200 font-medium">
-                  
-                  <!-- Pesticide 1 -->
-                  <tr>
-                    <td class="p-2.5">
-                      <div class="font-bold text-slate-800" id="display_pesticide1">-</div>
-                      <input type="hidden" id="field_pesticide1">
-                      <div class="text-[10px] text-slate-400">Pesticide 1</div>
-                    </td>
-                    <td class="p-2.5 text-center font-semibold text-slate-700">
-                      <span id="display_dosage1">0</span>
-                      <input type="hidden" id="field_dosage1" value="0">
-                    </td>
-                    <td class="p-2.5 text-center font-bold text-emerald-800 bg-emerald-50/40">
-                      <span id="display_estPesticide1">0</span>
-                      <input type="hidden" id="field_estUsagePesticide1" value="0">
-                    </td>
-                    <td class="p-2.5 bg-amber-50/30">
-                      <input type="number" step="0.01" id="field_actUsagePesticide1" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
-                    </td>
-                  </tr>
-
-                  <!-- Pesticide 2 -->
-                  <tr>
-                    <td class="p-2.5">
-                      <div class="font-bold text-slate-800" id="display_pesticide2">-</div>
-                      <input type="hidden" id="field_pesticide2">
-                      <div class="text-[10px] text-slate-400">Pesticide 2</div>
-                    </td>
-                    <td class="p-2.5 text-center font-semibold text-slate-700">
-                      <span id="display_dosage2">0</span>
-                      <input type="hidden" id="field_dosage2" value="0">
-                    </td>
-                    <td class="p-2.5 text-center font-bold text-emerald-800 bg-emerald-50/40">
-                      <span id="display_estPesticide2">0</span>
-                      <input type="hidden" id="field_estUsagePesticide2" value="0">
-                    </td>
-                    <td class="p-2.5 bg-amber-50/30">
-                      <input type="number" step="0.01" id="field_actUsagePesticide2" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
-                    </td>
-                  </tr>
-
-                  <!-- Pesticide 3 -->
-                  <tr>
-                    <td class="p-2.5">
-                      <div class="font-bold text-slate-800" id="display_pesticide3">-</div>
-                      <input type="hidden" id="field_pesticide3">
-                      <div class="text-[10px] text-slate-400">Pesticide 3</div>
-                    </td>
-                    <td class="p-2.5 text-center font-semibold text-slate-700">
-                      <span id="display_dosage3">0</span>
-                      <input type="hidden" id="field_dosage3" value="0">
-                    </td>
-                    <td class="p-2.5 text-center font-bold text-emerald-800 bg-emerald-50/40">
-                      <span id="display_estPesticide3">0</span>
-                      <input type="hidden" id="field_estUsagePesticide3" value="0">
-                    </td>
-                    <td class="p-2.5 bg-amber-50/30">
-                      <input type="number" step="0.01" id="field_actUsagePesticide3" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
-                    </td>
-                  </tr>
-
-                  <!-- Pesticide 4 -->
-                  <tr>
-                    <td class="p-2.5">
-                      <div class="font-bold text-slate-800" id="display_pesticide4">-</div>
-                      <input type="hidden" id="field_pesticide4">
-                      <div class="text-[10px] text-slate-400">Pesticide 4</div>
-                    </td>
-                    <td class="p-2.5 text-center font-semibold text-slate-700">
-                      <span id="display_dosage4">0</span>
-                      <input type="hidden" id="field_dosage4" value="0">
-                    </td>
-                    <td class="p-2.5 text-center font-bold text-emerald-800 bg-emerald-50/40">
-                      <span id="display_estPesticide4">0</span>
-                      <input type="hidden" id="field_estUsagePesticide4" value="0">
-                    </td>
-                    <td class="p-2.5 bg-amber-50/30">
-                      <input type="number" step="0.01" id="field_actUsagePesticide4" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
-                    </td>
-                  </tr>
-
-                  <!-- Adjuvant -->
-                  <tr class="bg-slate-50/60">
-                    <td class="p-2.5">
-                      <div class="font-bold text-slate-800" id="display_adjuvant">-</div>
-                      <input type="hidden" id="field_adjuvant">
-                      <div class="text-[10px] text-slate-400">Adjuvant / Perekat</div>
-                    </td>
-                    <td class="p-2.5 text-center font-semibold text-slate-700">
-                      <span id="display_adjuvantDosage">0</span>
-                      <input type="hidden" id="field_adjuvantDosage" value="0">
-                    </td>
-                    <td class="p-2.5 text-center font-bold text-emerald-800 bg-emerald-50/40">
-                      <span id="display_estAdjuvant">0</span>
-                      <input type="hidden" id="field_estUsageAdjuvant" value="0">
-                    </td>
-                    <td class="p-2.5 bg-amber-50/30">
-                      <input type="number" step="0.01" id="field_actUsageAdjuvant" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <p class="text-[11px] text-slate-500 italic">* Estimated Usage dihitung otomatis dari (Dosis/Ha × Area Ha). Actual Usage diisi sesuai realisasi fisik.</p>
+            <span class="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-medium">Auto-Lookup Sheet Bahan</span>
           </div>
 
-          <!-- CARD 5: AIR, CUACA, FOTO DOKUMENTASI (JPG) & CATATAN -->
-          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
-            <div class="flex items-center space-x-2 text-emerald-800 border-b pb-2 font-bold text-sm">
+          <!-- Auto-populated Material Matrix -->
+          <div class="overflow-x-auto border border-slate-200 rounded-lg">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider border-b">
+                <tr>
+                  <th class="p-2.5">Bahan / Material</th>
+                  <th class="p-2.5 text-center w-20">Dosis/Ha</th>
+                  <th class="p-2.5 text-center w-24 bg-emerald-50/70 text-emerald-900">Est. Usage</th>
+                  <th class="p-2.5 text-center w-28 bg-amber-50/70 text-amber-900">Actual Usage</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200 font-medium">
+                
+                <!-- Pesticide 1 -->
+                <tr>
+                  <td class="p-2.5">
+                    <div class="font-bold text-slate-800" id="display_pesticide1">-</div>
+                    <input type="hidden" id="field_pesticide1">
+                    <div class="text-[10px] text-slate-400">Pesticide 1</div>
+                  </td>
+                  <td class="p-2.5 text-center font-semibold text-slate-700">
+                    <span id="display_dosage1">0</span>
+                    <input type="hidden" id="field_dosage1" value="0">
+                  </td>
+                  <td class="p-2.5 text-center font-bold text-emerald-800 bg-emerald-50/40">
+                    <span id="display_estPesticide1">0</span>
+                    <input type="hidden" id="field_estUsagePesticide1" value="0">
+                  </td>
+                  <td class="p-2.5 bg-amber-50/30">
+                    <input type="number" step="0.01" id="field_actUsagePesticide1" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
+                  </td>
+                </tr>
+
+                <!-- Pesticide 2 -->
+                <tr>
+                  <td class="p-2.5">
+                    <div class="font-bold text-slate-800" id="display_pesticide2">-</div>
+                    <input type="hidden" id="field_pesticide2">
+                    <div class="text-[10px] text-slate-400">Pesticide 2</div>
+                  </td>
+                  <td class="p-2.5 text-center font-semibold text-slate-700">
+                    <span id="display_dosage2">0</span>
+                    <input type="hidden" id="field_dosage2" value="0">
+                  </td>
+                  <td class="p-2.5 text-center font-bold text-emerald-800 bg-emerald-50/40">
+                    <span id="display_estPesticide2">0</span>
+                    <input type="hidden" id="field_estUsagePesticide2" value="0">
+                  </td>
+                  <td class="p-2.5 bg-amber-50/30">
+                    <input type="number" step="0.01" id="field_actUsagePesticide2" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
+                  </td>
+                </tr>
+
+                <!-- Pesticide 3 -->
+                <tr>
+                  <td class="p-2.5">
+                    <div class="font-bold text-slate-800" id="display_pesticide3">-</div>
+                    <input type="hidden" id="field_pesticide3">
+                    <div class="text-[10px] text-slate-400">Pesticide 3</div>
+                  </td>
+                  <td class="p-2.5 text-center font-semibold text-slate-700">
+                    <span id="display_dosage3">0</span>
+                    <input type="hidden" id="field_dosage3" value="0">
+                  </td>
+                  <td class="p-2.5 text-center font-bold text-emerald-800 bg-emerald-50/40">
+                    <span id="display_estPesticide3">0</span>
+                    <input type="hidden" id="field_estUsagePesticide3" value="0">
+                  </td>
+                  <td class="p-2.5 bg-amber-50/30">
+                    <input type="number" step="0.01" id="field_actUsagePesticide3" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
+                  </td>
+                </tr>
+
+                <!-- Pesticide 4 -->
+                <tr>
+                  <td class="p-2.5">
+                    <div class="font-bold text-slate-800" id="display_pesticide4">-</div>
+                    <input type="hidden" id="field_pesticide4">
+                    <div class="text-[10px] text-slate-400">Pesticide 4</div>
+                  </td>
+                  <td class="p-2.5 text-center font-semibold text-slate-700">
+                    <span id="display_dosage4">0</span>
+                    <input type="hidden" id="field_dosage4" value="0">
+                  </td>
+                  <td class="p-2.5 text-center font-bold text-emerald-800 bg-emerald-50/40">
+                    <span id="display_estPesticide4">0</span>
+                    <input type="hidden" id="field_estUsagePesticide4" value="0">
+                  </td>
+                  <td class="p-2.5 bg-amber-50/30">
+                    <input type="number" step="0.01" id="field_actUsagePesticide4" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
+                  </td>
+                </tr>
+
+                <!-- Adjuvant -->
+                <tr class="bg-slate-50/60">
+                  <td class="p-2.5">
+                    <div class="font-bold text-slate-800" id="display_adjuvant">-</div>
+                    <input type="hidden" id="field_adjuvant">
+                    <div class="text-[10px] text-slate-400">Adjuvant / Perekat</div>
+                  </td>
+                  <td class="p-2.5 text-center font-semibold text-slate-700">
+                    <span id="display_adjuvantDosage">0</span>
+                    <input type="hidden" id="field_adjuvantDosage" value="0">
+                  </td>
+                  <td class="p-2.5 text-center font-bold text-emerald-800 bg-emerald-50/40">
+                    <span id="display_estAdjuvant">0</span>
+                    <input type="hidden" id="field_estUsageAdjuvant" value="0">
+                  </td>
+                  <td class="p-2.5 bg-amber-50/30">
+                    <input type="number" step="0.01" id="field_actUsageAdjuvant" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="text-[11px] text-slate-500 italic">* Estimated Usage dihitung otomatis dari (Dosis/Ha × Area Ha). Actual Usage diisi sesuai realisasi fisik.</p>
+        </div>
+
+        <!-- CARD 5: AIR, CUACA, FOTO DOKUMENTASI (JPG) & CATATAN (SELALU AKTIF SAAT HOLD UNTUK ALASAN HOLD) -->
+        <div id="card_cuaca_foto" class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
+          <div class="flex items-center justify-between border-b pb-2">
+            <div class="flex items-center space-x-2 text-emerald-800 font-bold text-sm">
               <i class="fa-solid fa-cloud-sun-rain text-emerald-600"></i>
-              <span>5. Kualitas Air, Cuaca & Dokumentasi Foto</span>
+              <span>5. Kualitas Air, Cuaca, Foto & Alasan Noted*</span>
             </div>
-
-            <div class="space-y-3.5">
-              <!-- Water Rate, Water Quality, Actual Water Usage -->
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Water Rate (L/Ha)</label>
-                  <input type="number" step="any" id="field_waterRate" placeholder="Contoh: 150" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white">
-                </div>
-                <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Water Quality (Kualitas Air)</label>
-                  <select id="field_waterQuality" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white"></select>
-                </div>
-                <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Actual Usage Air (Liter)</label>
-                  <input type="number" step="any" id="field_actualUsage" placeholder="Contoh: 450" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white">
-                </div>
-              </div>
-
-              <!-- Weather Measurements (Wind, Temp, Humidity, Delta T) -->
-              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Wind (Km/j)</label>
-                  <input type="number" step="0.1" id="field_windSpeed" placeholder="0.0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white">
-                </div>
-                <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Temp (°C)</label>
-                  <input type="number" step="0.1" id="field_temperature" placeholder="0.0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white">
-                </div>
-                <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Humidity (%)</label>
-                  <input type="number" step="0.1" id="field_humidity" placeholder="0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white">
-                </div>
-                <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Delta T (°C)</label>
-                  <input type="number" step="0.1" id="field_deltaT" placeholder="0.0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white">
-                </div>
-              </div>
-
-              <!-- Weather Condition (Button Selection) -->
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Weather Condition (Kondisi Cuaca)</label>
-                <div id="weatherBtnGroup" class="grid grid-cols-3 gap-2"></div>
-                <input type="hidden" id="field_weatherCondition">
-              </div>
-
-              <!-- Foto Dokumentasi JPG Upload (Kamera & Galeri) -->
-              <div class="p-3 bg-emerald-50/50 rounded-xl border border-emerald-200 space-y-2.5">
-                <label class="block text-xs font-bold text-emerald-950 flex items-center justify-between">
-                  <span><i class="fa-solid fa-camera mr-1 text-emerald-600"></i>Upload Foto Bukti QC (JPG)</span>
-                  <span id="photoStatusText" class="text-[10px] text-slate-500 font-normal">Opsional (Max 1 Foto)</span>
-                </label>
-
-                <!-- Pilihan Dual Tombol: Kamera & Galeri -->
-                <div class="grid grid-cols-2 gap-2">
-                  <label class="cursor-pointer py-2.5 px-3 bg-white hover:bg-emerald-50 border border-emerald-300 rounded-lg text-xs font-semibold text-emerald-800 text-center flex items-center justify-center space-x-1.5 shadow-sm transition active:scale-95">
-                    <i class="fa-solid fa-camera text-emerald-600"></i>
-                    <span>Buka Kamera</span>
-                    <input type="file" accept="image/*" capture="environment" id="field_photoCamera" onchange="handlePhotoUpload(event)" class="hidden">
-                  </label>
-                  <label class="cursor-pointer py-2.5 px-3 bg-white hover:bg-emerald-50 border border-emerald-300 rounded-lg text-xs font-semibold text-emerald-800 text-center flex items-center justify-center space-x-1.5 shadow-sm transition active:scale-95">
-                    <i class="fa-solid fa-images text-emerald-600"></i>
-                    <span>Pilih dari Galeri</span>
-                    <input type="file" accept="image/*" id="field_photoGallery" onchange="handlePhotoUpload(event)" class="hidden">
-                  </label>
-                </div>
-
-                <!-- Preview Container -->
-                <div id="photoPreviewBox" class="hidden pt-1 flex items-center justify-between bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm">
-                  <div class="flex items-center space-x-3">
-                    <img id="photoPreviewImg" src="" alt="Preview QC" class="w-16 h-16 object-cover rounded-lg border border-slate-300 shadow-sm">
-                    <div class="text-[11px] text-slate-600">
-                      <span class="font-bold text-emerald-800 block">Foto Berhasil Dimuat</span>
-                      <span id="photoSizeLabel" class="text-slate-400">Kompresi otomatis aktif</span>
-                    </div>
-                  </div>
-                  <button type="button" onclick="removeUploadedPhoto()" class="py-2 px-3 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-bold active:scale-95 transition flex items-center space-x-1">
-                    <i class="fa-solid fa-trash-can"></i>
-                    <span>Hapus</span>
-                  </button>
-                </div>
-                <input type="hidden" id="field_photoBase64">
-              </div>
-
-              <!-- Noted* -->
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Noted* (Catatan Khusus Lapangan)</label>
-                <textarea id="field_noted" rows="2" placeholder="Catatan kendala / cuaca / armada (bisa dikosongkan)..." class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:bg-white"></textarea>
-              </div>
-            </div>
+            <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">Tetap Aktif Saat HOLD</span>
           </div>
 
-        </div> <!-- END TECHNICAL DETAILS WRAPPER -->
+          <div class="space-y-3.5">
+            <!-- Water Rate, Water Quality, Actual Water Usage -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Water Rate (L/Ha)</label>
+                <input type="number" step="any" id="field_waterRate" placeholder="Contoh: 150" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Water Quality (Kualitas Air)</label>
+                <select id="field_waterQuality" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white"></select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Actual Usage Air (Liter)</label>
+                <input type="number" step="any" id="field_actualUsage" placeholder="Contoh: 450" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white">
+              </div>
+            </div>
+
+            <!-- Weather Measurements (Wind, Temp, Humidity, Delta T) -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Wind (Km/j)</label>
+                <input type="number" step="0.1" id="field_windSpeed" placeholder="0.0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Temp (°C)</label>
+                <input type="number" step="0.1" id="field_temperature" placeholder="0.0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Humidity (%)</label>
+                <input type="number" step="0.1" id="field_humidity" placeholder="0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Delta T (°C)</label>
+                <input type="number" step="0.1" id="field_deltaT" placeholder="0.0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white">
+              </div>
+            </div>
+
+            <!-- Weather Condition (Button Selection) -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Weather Condition (Kondisi Cuaca)</label>
+              <div id="weatherBtnGroup" class="grid grid-cols-3 gap-2"></div>
+              <input type="hidden" id="field_weatherCondition">
+            </div>
+
+            <!-- Foto Dokumentasi JPG Upload (Kamera & Galeri) -->
+            <div class="p-3 bg-emerald-50/50 rounded-xl border border-emerald-200 space-y-2.5">
+              <label class="block text-xs font-bold text-emerald-950 flex items-center justify-between">
+                <span><i class="fa-solid fa-camera mr-1 text-emerald-600"></i>Upload Foto Bukti QC / Kondisi HOLD (JPG)</span>
+                <span id="photoStatusText" class="text-[10px] text-slate-500 font-normal">Opsional (Max 1 Foto)</span>
+              </label>
+
+              <!-- Dual Tombol: Kamera & Galeri -->
+              <div class="grid grid-cols-2 gap-2">
+                <label class="cursor-pointer py-2.5 px-3 bg-white hover:bg-emerald-50 border border-emerald-300 rounded-lg text-xs font-semibold text-emerald-800 text-center flex items-center justify-center space-x-1.5 shadow-sm transition active:scale-95">
+                  <i class="fa-solid fa-camera text-emerald-600"></i>
+                  <span>Buka Kamera</span>
+                  <input type="file" accept="image/*" capture="environment" id="field_photoCamera" onchange="handlePhotoUpload(event)" class="hidden">
+                </label>
+                <label class="cursor-pointer py-2.5 px-3 bg-white hover:bg-emerald-50 border border-emerald-300 rounded-lg text-xs font-semibold text-emerald-800 text-center flex items-center justify-center space-x-1.5 shadow-sm transition active:scale-95">
+                  <i class="fa-solid fa-images text-emerald-600"></i>
+                  <span>Pilih dari Galeri</span>
+                  <input type="file" accept="image/*" id="field_photoGallery" onchange="handlePhotoUpload(event)" class="hidden">
+                </label>
+              </div>
+
+              <!-- Preview Container -->
+              <div id="photoPreviewBox" class="hidden pt-1 flex items-center justify-between bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm">
+                <div class="flex items-center space-x-3">
+                  <img id="photoPreviewImg" src="" alt="Preview QC" class="w-16 h-16 object-cover rounded-lg border border-slate-300 shadow-sm">
+                  <div class="text-[11px] text-slate-600">
+                    <span class="font-bold text-emerald-800 block">Foto Berhasil Dimuat</span>
+                    <span id="photoSizeLabel" class="text-slate-400">Kompresi otomatis aktif</span>
+                  </div>
+                </div>
+                <button type="button" onclick="removeUploadedPhoto()" class="py-2 px-3 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-bold active:scale-95 transition flex items-center space-x-1">
+                  <i class="fa-solid fa-trash-can"></i>
+                  <span>Hapus</span>
+                </button>
+              </div>
+              <input type="hidden" id="field_photoBase64">
+            </div>
+
+            <!-- Noted* (Catatan Khusus / Alasan HOLD) -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                <span>Noted* (Catatan Khusus / Alasan HOLD)</span>
+                <span class="text-[10px] text-emerald-700 font-normal">Wajib diisi jika status HOLD</span>
+              </label>
+              <textarea id="field_noted" rows="3" placeholder="Tuliskan kendala / alasan HOLD (misal: Hujan deras pkl 10.00 / Traktor TS003 breakdown hidrolik / dll)..." class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:bg-white"></textarea>
+            </div>
+          </div>
+        </div>
 
         <!-- ACTION BUTTONS -->
         <div class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-slate-200 p-3 z-30 shadow-lg">
@@ -604,7 +611,7 @@
     <!-- ==================== TAB 3: PENGATURAN & SINKRONISASI ==================== -->
     <section id="settingsTab" class="tab-content hidden space-y-4">
       
-      <!-- Security Status Card (Admin Controlled - No Local Change) -->
+      <!-- Security Status Card (Admin Controlled) -->
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
         <div class="flex items-center justify-between border-b pb-2">
           <div class="flex items-center space-x-2 text-emerald-800 font-bold text-sm">
@@ -742,6 +749,10 @@
     };
     let currentEditingId = null;
 
+    // Selected multiple units & no units
+    let selectedUnits = [];
+    let selectedNoUnits = [];
+
     // ==========================================
     // 1. ADMIN-CONTROLLED SECURITY & ACCESS
     // ==========================================
@@ -811,10 +822,8 @@
       window.addEventListener('offline', updateNetworkStatus);
       updateNetworkStatus();
 
-      // Check security access first
       checkSecurityAccess();
 
-      // If online on startup, quietly verify security code with server
       if (navigator.onLine && appConfig.appsScriptUrl) {
         checkServerSecurityCodeSilently();
       }
@@ -831,12 +840,10 @@
         const json = await res.json();
         if (json.status === 'success' && json.securityCode) {
           if (json.securityCode !== appConfig.securityCode) {
-            // Admin changed security code on server!
             appConfig.securityCode = json.securityCode;
             if (masterData) masterData.securityCode = json.securityCode;
             localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(appConfig));
             localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(masterData));
-            // Trigger lock immediately on device!
             checkSecurityAccess();
           }
         }
@@ -881,14 +888,14 @@
     }
 
     // ==========================================
-    // 3. MASTER DATA & UI POPULATION (WITH STRICT PADDOCK TYPE FILTER)
+    // 3. MASTER DATA & UI POPULATION
     // ==========================================
     function populateMasterDataUI() {
       if (!masterData) return;
 
-      renderButtonGroup('shiftBtnGroup', masterData.shifts || ['1', '2'], 'field_shift', '1');
+      renderSingleButtonGroup('shiftBtnGroup', masterData.shifts || ['1', '2'], 'field_shift', '1');
 
-      renderButtonGroup('statusBtnGroup', masterData.statuses || ['Working', 'Hold'], 'field_status', 'Working', (val) => {
+      renderSingleButtonGroup('statusBtnGroup', masterData.statuses || ['Working', 'Hold'], 'field_status', 'Working', (val) => {
         onStatusChange(val);
       });
 
@@ -902,7 +909,7 @@
         nameSelect.appendChild(opt);
       });
 
-      // Name of Assistan Dropdown (with Auto-Sanitize for dirty commas)
+      // Name of Assistan Dropdown
       const asstSelect = document.getElementById('field_nameOfAssistan');
       asstSelect.innerHTML = '<option value="">-- Pilih Nama Asisten --</option>';
       
@@ -913,11 +920,8 @@
           let val = item.trim();
           if (val.includes(',')) {
             let parts = val.split(',').map(s => s.trim()).filter(Boolean);
-            if (parts.length > 1 && parts[1]) {
-              val = parts[1];
-            } else if (parts.length > 0) {
-              val = parts[0];
-            }
+            if (parts.length > 1 && parts[1]) val = parts[1];
+            else if (parts.length > 0) val = parts[0];
           }
           if (val && !cleanAssistants.includes(val)) {
             cleanAssistants.push(val);
@@ -957,15 +961,11 @@
         paddockSelect.appendChild(opt);
       });
 
-      const unitNames = Object.keys(masterData.unitMap || {});
-      renderButtonGroup('unitBtnGroup', unitNames, 'field_unit', unitNames[0] || '', (val) => {
-        onUnitChange(val);
-      });
-      onUnitChange(unitNames[0] || '');
+      // Render Multiple Selection Unit Buttons
+      renderMultiUnitButtons();
 
-      renderButtonGroup('dropperBtnGroup', masterData.dropper || ['Yes', 'No'], 'field_dropper', 'Yes');
-
-      renderButtonGroup('nozzleBtnGroup', masterData.nozzles || [], 'field_nozzle', masterData.nozzles?.[0] || '');
+      renderSingleButtonGroup('dropperBtnGroup', masterData.dropper || ['Yes', 'No'], 'field_dropper', 'Yes');
+      renderSingleButtonGroup('nozzleBtnGroup', masterData.nozzles || [], 'field_nozzle', masterData.nozzles?.[0] || '');
 
       const wqSelect = document.getElementById('field_waterQuality');
       wqSelect.innerHTML = '';
@@ -977,10 +977,11 @@
         wqSelect.appendChild(opt);
       });
 
-      renderButtonGroup('weatherBtnGroup', masterData.weatherConditions || ['Sunny', 'Cloudy', 'Rainning'], 'field_weatherCondition', 'Sunny');
+      renderSingleButtonGroup('weatherBtnGroup', masterData.weatherConditions || ['Sunny', 'Cloudy', 'Rainning'], 'field_weatherCondition', 'Sunny');
     }
 
-    function renderButtonGroup(containerId, options, hiddenInputId, defaultValue = '', callback = null) {
+    // Single select button group helper
+    function renderSingleButtonGroup(containerId, options, hiddenInputId, defaultValue = '', callback = null) {
       const container = document.getElementById(containerId);
       if (!container) return;
       container.innerHTML = '';
@@ -1012,18 +1013,114 @@
       });
     }
 
-    function setButtonGroupValue(containerId, hiddenInputId, value) {
+    function setSingleButtonGroupValue(containerId, hiddenInputId, value) {
       const container = document.getElementById(containerId);
       const hiddenInput = document.getElementById(hiddenInputId);
       if (hiddenInput) hiddenInput.value = value;
       if (!container) return;
       Array.from(container.querySelectorAll('.btn-toggle')).forEach(b => {
-        if (b.dataset.val === value) {
-          b.classList.add('active');
-        } else {
-          b.classList.remove('active');
-        }
+        if (b.dataset.val === value) b.classList.add('active');
+        else b.classList.remove('active');
       });
+    }
+
+    // ==========================================
+    // MULTIPLE UNIT & MULTIPLE NO. UNIT SELECTION
+    // ==========================================
+    function renderMultiUnitButtons() {
+      const container = document.getElementById('unitBtnGroup');
+      if (!container || !masterData) return;
+      container.innerHTML = '';
+
+      const allUnits = Object.keys(masterData.unitMap || {});
+      allUnits.forEach(unitName => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn-toggle py-2 px-3 border border-slate-300 rounded-lg text-xs font-semibold bg-slate-50 text-slate-700 hover:bg-slate-100 text-center';
+        btn.textContent = unitName;
+        btn.dataset.val = unitName;
+
+        if (selectedUnits.includes(unitName)) {
+          btn.classList.add('active');
+        }
+
+        btn.onclick = () => {
+          if (selectedUnits.includes(unitName)) {
+            selectedUnits = selectedUnits.filter(u => u !== unitName);
+            btn.classList.remove('active');
+          } else {
+            selectedUnits.push(unitName);
+            btn.classList.add('active');
+          }
+          document.getElementById('field_unit').value = selectedUnits.join(', ');
+          renderMultiNoUnitButtons();
+        };
+
+        container.appendChild(btn);
+      });
+
+      renderMultiNoUnitButtons();
+    }
+
+    function renderMultiNoUnitButtons() {
+      const container = document.getElementById('noUnitBtnGroup');
+      if (!container || !masterData) return;
+      container.innerHTML = '';
+
+      if (selectedUnits.length === 0) {
+        container.innerHTML = '<span class="text-xs text-slate-400 italic py-1">Pilih Unit terlebih dahulu</span>';
+        selectedNoUnits = [];
+        document.getElementById('field_noUnit').value = '';
+        return;
+      }
+
+      // Gather all available No. Units for all selected Units
+      let availableNoUnits = [];
+      selectedUnits.forEach(u => {
+        const list = (masterData.unitMap && masterData.unitMap[u]) || [];
+        list.forEach(nu => {
+          if (!availableNoUnits.includes(nu)) availableNoUnits.push(nu);
+        });
+      });
+
+      // Filter out selectedNoUnits that are no longer in available list
+      selectedNoUnits = selectedNoUnits.filter(nu => availableNoUnits.includes(nu));
+      document.getElementById('field_noUnit').value = selectedNoUnits.join(', ');
+
+      availableNoUnits.forEach(nu => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn-toggle py-2 px-3 border border-slate-300 rounded-lg text-xs font-semibold bg-slate-50 text-slate-700 hover:bg-slate-100 text-center';
+        btn.textContent = nu;
+        btn.dataset.val = nu;
+
+        if (selectedNoUnits.includes(nu)) {
+          btn.classList.add('active');
+        }
+
+        btn.onclick = () => {
+          if (selectedNoUnits.includes(nu)) {
+            selectedNoUnits = selectedNoUnits.filter(x => x !== nu);
+            btn.classList.remove('active');
+          } else {
+            selectedNoUnits.push(nu);
+            btn.classList.add('active');
+          }
+          document.getElementById('field_noUnit').value = selectedNoUnits.join(', ');
+        };
+
+        container.appendChild(btn);
+      });
+    }
+
+    function setMultiUnitValues(unitString, noUnitString) {
+      selectedUnits = unitString ? unitString.split(',').map(s => s.trim()).filter(Boolean) : [];
+      selectedNoUnits = noUnitString ? noUnitString.split(',').map(s => s.trim()).filter(Boolean) : [];
+      
+      document.getElementById('field_unit').value = selectedUnits.join(', ');
+      document.getElementById('field_noUnit').value = selectedNoUnits.join(', ');
+
+      renderMultiUnitButtons();
     }
 
     function setNowTime(elementId) {
@@ -1070,8 +1167,6 @@
           document.getElementById('field_photoBase64').value = base64Str;
           document.getElementById('photoPreviewImg').src = compressedDataUrl;
           document.getElementById('photoPreviewBox').classList.remove('hidden');
-          document.getElementById('btnRemovePhoto').classList.remove('hidden');
-          document.getElementById('photoBtnLabel').textContent = 'Ganti Foto JPG';
           
           const approxKb = Math.round((base64Str.length * 0.75) / 1024);
           document.getElementById('photoSizeLabel').textContent = `Ukuran: ~${approxKb} KB (Terkompres)`;
@@ -1093,44 +1188,54 @@
     }
 
     // ==========================================
-    // 5. DYNAMIC FORM RULES & EVENTS
+    // 5. DYNAMIC FORM RULES & EVENTS (UPDATED HOLD LOGIC)
     // ==========================================
     function onStatusChange(status) {
       const isHold = (status === 'Hold');
       const alertBanner = document.getElementById('holdAlertBanner');
-      const techWrapper = document.getElementById('technicalDetailsWrapper');
+      const planDetails = document.getElementById('planDetailsHoldWrapper');
+      const cardUnit = document.getElementById('card_unit_params');
+      const cardBahan = document.getElementById('card_bahan_dosis');
+      const cardCuaca = document.getElementById('card_cuaca_foto');
       const areaInput = document.getElementById('field_area');
       const areaHoldNotice = document.getElementById('areaHoldNotice');
 
       if (isHold) {
         alertBanner.classList.remove('hidden');
+        
+        // Nonaktifkan detail Plan (Variety, Area, Type, Activity, Deskripsi)
+        planDetails.classList.add('opacity-40', 'pointer-events-none');
         areaInput.disabled = true;
         areaInput.value = '';
-        areaInput.classList.add('bg-slate-200', 'cursor-not-allowed');
         areaHoldNotice.classList.remove('hidden');
-        techWrapper.classList.add('opacity-40', 'pointer-events-none');
+
+        // Nonaktifkan Card 3 (Unit) & Card 4 (Bahan)
+        cardUnit.classList.add('opacity-40', 'pointer-events-none');
+        cardBahan.classList.add('opacity-40', 'pointer-events-none');
+
+        // Card 5 (Cuaca, Kualitas Air, Foto & Noted*) TETAP AKTIF & DIAKSES!
+        cardCuaca.classList.remove('opacity-40', 'pointer-events-none');
       } else {
         alertBanner.classList.add('hidden');
+        
+        planDetails.classList.remove('opacity-40', 'pointer-events-none');
         areaInput.disabled = false;
-        areaInput.classList.remove('bg-slate-200', 'cursor-not-allowed');
         areaHoldNotice.classList.add('hidden');
-        techWrapper.classList.remove('opacity-40', 'pointer-events-none');
+
+        cardUnit.classList.remove('opacity-40', 'pointer-events-none');
+        cardBahan.classList.remove('opacity-40', 'pointer-events-none');
+        cardCuaca.classList.remove('opacity-40', 'pointer-events-none');
       }
       calculateEstimatedUsages();
-    }
-
-    function onUnitChange(selectedUnit) {
-      const noUnits = (masterData && masterData.unitMap && masterData.unitMap[selectedUnit]) || [];
-      renderButtonGroup('noUnitBtnGroup', noUnits, 'field_noUnit', noUnits[0] || '');
     }
 
     function onPaddockChange() {
       const paddock = document.getElementById('field_paddock').value;
       if (!paddock || !masterData) {
-        renderButtonGroup('varietyBtnGroup', [], 'field_variety');
-        renderButtonGroup('typeBtnGroup', [], 'field_type');
-        renderButtonGroup('activityBtnGroup', [], 'field_activity');
-        renderButtonGroup('deskripsiBtnGroup', [], 'field_deskripsi');
+        renderSingleButtonGroup('varietyBtnGroup', [], 'field_variety');
+        renderSingleButtonGroup('typeBtnGroup', [], 'field_type');
+        renderSingleButtonGroup('activityBtnGroup', [], 'field_activity');
+        renderSingleButtonGroup('deskripsiBtnGroup', [], 'field_deskripsi');
         resetBahanOutputs();
         return;
       }
@@ -1141,19 +1246,19 @@
       if (paddockVarieties.length === 0) {
         paddockVarieties = masterData.allVarieties || [];
       }
-      renderButtonGroup('varietyBtnGroup', paddockVarieties, 'field_variety', paddockVarieties[0] || '');
+      renderSingleButtonGroup('varietyBtnGroup', paddockVarieties, 'field_variety', paddockVarieties[0] || '');
 
       let paddockTypes = [...new Set(matchingPlans.map(p => p.type).filter(Boolean))];
       if (paddockTypes.length === 0) {
         paddockTypes = ['Insecticide', 'Herbicide', 'Fungicide'];
       }
-      renderButtonGroup('typeBtnGroup', paddockTypes, 'field_type', paddockTypes[0] || '');
+      renderSingleButtonGroup('typeBtnGroup', paddockTypes, 'field_type', paddockTypes[0] || '');
 
       let paddockActivities = [...new Set(matchingPlans.map(p => p.activity).filter(Boolean))];
       if (paddockActivities.length === 0) {
         paddockActivities = ['Insecticide', 'Knockdown', 'Pre Emergence', 'Post Emergence'];
       }
-      renderButtonGroup('activityBtnGroup', paddockActivities, 'field_activity', paddockActivities[0] || '', (act) => {
+      renderSingleButtonGroup('activityBtnGroup', paddockActivities, 'field_activity', paddockActivities[0] || '', (act) => {
         onActivityChange(paddock, act);
       });
 
@@ -1175,7 +1280,7 @@
         deskripsiList = Object.keys(masterData.bahan || {});
       }
 
-      renderButtonGroup('deskripsiBtnGroup', deskripsiList, 'field_deskripsi', deskripsiList[0] || '', (desk) => {
+      renderSingleButtonGroup('deskripsiBtnGroup', deskripsiList, 'field_deskripsi', deskripsiList[0] || '', (desk) => {
         onDeskripsiChange(desk);
       });
 
@@ -1276,8 +1381,8 @@
       document.getElementById('field_startTime').value = `${hours}:${mins}`;
       document.getElementById('field_endTime').value = '';
 
-      setButtonGroupValue('shiftBtnGroup', 'field_shift', '1');
-      setButtonGroupValue('statusBtnGroup', 'field_status', 'Working');
+      setSingleButtonGroupValue('shiftBtnGroup', 'field_shift', '1');
+      setSingleButtonGroupValue('statusBtnGroup', 'field_status', 'Working');
       onStatusChange('Working');
 
       document.getElementById('field_name').value = '';
@@ -1285,13 +1390,13 @@
       document.getElementById('field_paddock').value = '';
       document.getElementById('field_area').value = '';
 
+      // Default first unit
       const firstUnit = Object.keys(masterData.unitMap || {})[0] || 'Tractor Spray';
-      setButtonGroupValue('unitBtnGroup', 'field_unit', firstUnit);
-      onUnitChange(firstUnit);
+      setMultiUnitValues(firstUnit, '');
 
-      setButtonGroupValue('dropperBtnGroup', 'field_dropper', 'Yes');
+      setSingleButtonGroupValue('dropperBtnGroup', 'field_dropper', 'Yes');
       document.getElementById('field_dropletSize').value = '';
-      setButtonGroupValue('nozzleBtnGroup', 'field_nozzle', masterData.nozzles?.[0] || '');
+      setSingleButtonGroupValue('nozzleBtnGroup', 'field_nozzle', masterData.nozzles?.[0] || '');
       document.getElementById('field_height').value = '';
       document.getElementById('field_rowSpacing').value = '';
       document.getElementById('field_speed').value = '';
@@ -1310,7 +1415,7 @@
       document.getElementById('field_temperature').value = '';
       document.getElementById('field_humidity').value = '';
       document.getElementById('field_deltaT').value = '';
-      setButtonGroupValue('weatherBtnGroup', 'field_weatherCondition', 'Sunny');
+      setSingleButtonGroupValue('weatherBtnGroup', 'field_weatherCondition', 'Sunny');
       document.getElementById('field_noted').value = '';
 
       removeUploadedPhoto();
@@ -1328,7 +1433,7 @@
         uploadedAt: null,
         photoDriveUrl: null,
 
-        // 50 Form QC Fields Sesuai Urutan Kolom Spreadsheet
+        // 50 Form QC Fields
         date: document.getElementById('field_date').value || '',
         startTime: document.getElementById('field_startTime').value || '',
         endTime: document.getElementById('field_endTime').value || '',
@@ -1415,8 +1520,8 @@
       document.getElementById('field_date').value = rec.date || '';
       document.getElementById('field_startTime').value = rec.startTime || rec.time || '';
       document.getElementById('field_endTime').value = rec.endTime || '';
-      setButtonGroupValue('shiftBtnGroup', 'field_shift', rec.shift || '1');
-      setButtonGroupValue('statusBtnGroup', 'field_status', rec.status || 'Working');
+      setSingleButtonGroupValue('shiftBtnGroup', 'field_shift', rec.shift || '1');
+      setSingleButtonGroupValue('statusBtnGroup', 'field_status', rec.status || 'Working');
       onStatusChange(rec.status || 'Working');
 
       document.getElementById('field_name').value = rec.name || '';
@@ -1425,26 +1530,24 @@
       document.getElementById('field_paddock').value = rec.paddock || '';
       onPaddockChange();
 
-      if (rec.variety) setButtonGroupValue('varietyBtnGroup', 'field_variety', rec.variety);
+      if (rec.variety) setSingleButtonGroupValue('varietyBtnGroup', 'field_variety', rec.variety);
       document.getElementById('field_area').value = rec.area || '';
-      if (rec.type) setButtonGroupValue('typeBtnGroup', 'field_type', rec.type);
+      if (rec.type) setSingleButtonGroupValue('typeBtnGroup', 'field_type', rec.type);
       if (rec.activity) {
-        setButtonGroupValue('activityBtnGroup', 'field_activity', rec.activity);
+        setSingleButtonGroupValue('activityBtnGroup', 'field_activity', rec.activity);
         onActivityChange(rec.paddock, rec.activity);
       }
       if (rec.deskripsi) {
-        setButtonGroupValue('deskripsiBtnGroup', 'field_deskripsi', rec.deskripsi);
+        setSingleButtonGroupValue('deskripsiBtnGroup', 'field_deskripsi', rec.deskripsi);
         onDeskripsiChange(rec.deskripsi);
       }
 
-      if (rec.unit) {
-        setButtonGroupValue('unitBtnGroup', 'field_unit', rec.unit);
-        onUnitChange(rec.unit);
-      }
-      if (rec.noUnit) setButtonGroupValue('noUnitBtnGroup', 'field_noUnit', rec.noUnit);
-      if (rec.dropper) setButtonGroupValue('dropperBtnGroup', 'field_dropper', rec.dropper);
+      // Set Multiple Units & Multiple No. Units
+      setMultiUnitValues(rec.unit || '', rec.noUnit || '');
+
+      if (rec.dropper) setSingleButtonGroupValue('dropperBtnGroup', 'field_dropper', rec.dropper);
       document.getElementById('field_dropletSize').value = rec.dropletSize || '';
-      if (rec.nozzle) setButtonGroupValue('nozzleBtnGroup', 'field_nozzle', rec.nozzle);
+      if (rec.nozzle) setSingleButtonGroupValue('nozzleBtnGroup', 'field_nozzle', rec.nozzle);
       document.getElementById('field_height').value = rec.height || '';
       document.getElementById('field_rowSpacing').value = rec.rowSpacing || '';
       document.getElementById('field_speed').value = rec.speed || '';
@@ -1462,7 +1565,7 @@
       document.getElementById('field_temperature').value = rec.temperature || '';
       document.getElementById('field_humidity').value = rec.humidity || '';
       document.getElementById('field_deltaT').value = rec.deltaT || '';
-      if (rec.weatherCondition) setButtonGroupValue('weatherBtnGroup', 'field_weatherCondition', rec.weatherCondition);
+      if (rec.weatherCondition) setSingleButtonGroupValue('weatherBtnGroup', 'field_weatherCondition', rec.weatherCondition);
       document.getElementById('field_noted').value = rec.noted || '';
 
       // Photo
@@ -1470,8 +1573,6 @@
         document.getElementById('field_photoBase64').value = rec.photoBase64;
         document.getElementById('photoPreviewImg').src = 'data:image/jpeg;base64,' + rec.photoBase64;
         document.getElementById('photoPreviewBox').classList.remove('hidden');
-        document.getElementById('btnRemovePhoto').classList.remove('hidden');
-        document.getElementById('photoBtnLabel').textContent = 'Ganti Foto JPG';
       } else {
         removeUploadedPhoto();
       }
@@ -1573,7 +1674,7 @@
 
       const holdBadge = isHold ? '<span class="badge-hold text-[10px] px-2 py-0.5 rounded font-bold ml-1">HOLD</span>' : '<span class="badge-working text-[10px] px-2 py-0.5 rounded font-bold ml-1">WORKING</span>';
       const timeRange = (rec.startTime || rec.time || '-') + (rec.endTime ? ' s/d ' + rec.endTime : '');
-      const photoBadge = rec.photoBase64 ? '<span class="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded font-bold ml-1"><i class="fa-solid fa-camera mr-0.5"></i>Ada Foto</span>' : '';
+      const photoBadge = rec.photoBase64 ? '<span class="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded font-bold ml-1"><i class="fa-solid fa-image mr-0.5"></i>Ada Foto</span>' : '';
 
       return `
         <div class="p-3 bg-white hover:bg-slate-50 rounded-lg border border-slate-200 transition space-y-2">
@@ -1595,7 +1696,7 @@
           <div class="grid grid-cols-2 gap-2 text-[11px] bg-slate-50 p-2 rounded border border-slate-100">
             <div><strong class="text-slate-600">Unit:</strong> ${rec.unit || '-'} (${rec.noUnit || '-'})</div>
             <div><strong class="text-slate-600">Area:</strong> ${rec.area ? rec.area + ' Ha' : (isHold ? 'HOLD (0 Ha)' : '-')}</div>
-            <div class="col-span-2"><strong class="text-slate-600">Deskripsi:</strong> ${rec.deskripsi || '-'}</div>
+            <div class="col-span-2"><strong class="text-slate-600">${isHold ? 'Alasan / Noted:' : 'Deskripsi:'}</strong> ${isHold ? (rec.noted || 'Tidak ada catatan') : (rec.deskripsi || '-')}</div>
           </div>
 
           <div class="flex items-center justify-end space-x-1.5 pt-1 border-t border-slate-100 text-xs">
@@ -1639,13 +1740,13 @@
       const body = document.getElementById('modalBody');
       const title = document.getElementById('modalTitle');
 
-      title.textContent = `Detail Form QC: ${rec.paddock || 'Paddock'} (${rec.date || '-'})`;
+      title.textContent = `Detail Form QC: ${rec.paddock || 'Paddock'} (${rec.date || '-'}) [${rec.status || 'Status'}]`;
 
       const fields = [
         ['Date', rec.date], ['Start Time', rec.startTime || rec.time], ['End Time', rec.endTime],
         ['Shift', rec.shift], ['Status', rec.status],
         ['Name', rec.name], ['Name of Assistan', rec.nameOfAssistan], ['Paddock', rec.paddock],
-        ['Variety', rec.variety], ['Area (Ha)', rec.area], ['Unit', rec.unit], ['No. Unit', rec.noUnit],
+        ['Variety', rec.variety], ['Area (Ha)', rec.area], ['Unit (Alat)', rec.unit], ['No. Unit', rec.noUnit],
         ['Dropper', rec.dropper], ['Droplet Size', rec.dropletSize], ['Nozzle', rec.nozzle],
         ['Height (m)', rec.height], ['Row Spacing (m)', rec.rowSpacing], ['Speed (Km/Jam)', rec.speed],
         ['Type', rec.type], ['Activity', rec.activity], ['Deskripsi', rec.deskripsi],
@@ -1656,7 +1757,7 @@
         ['Adjuvant', rec.adjuvant], ['Adjuvant Dosage', rec.adjuvantDosage], ['Est. Usage Adjuvant', rec.estUsageAdjuvant], ['Act. Usage Adjuvant', rec.actUsageAdjuvant],
         ['Water Rate', rec.waterRate], ['Water Quality', rec.waterQuality], ['Actual Usage (Air)', rec.actualUsage],
         ['Wind Speed', rec.windSpeed], ['Temperature', rec.temperature], ['Humidity', rec.humidity], ['Delta T', rec.deltaT],
-        ['Weather Condition', rec.weatherCondition], ['Noted*', rec.noted],
+        ['Weather Condition', rec.weatherCondition], ['Noted* (Alasan HOLD/Catatan)', rec.noted],
         ['Status Upload', rec.uploadStatus === 'uploaded' ? 'SUDAH DIUPLOAD (' + rec.uploadedAt + ')' : 'BELUM DIUPLOAD (PENDING)']
       ];
 
@@ -1812,12 +1913,10 @@
         if (result.status === 'success' && result.data) {
           masterData = result.data;
           
-          // Check if Admin changed security code on Apps Script
           if (result.securityCode && result.securityCode !== appConfig.securityCode) {
             appConfig.securityCode = result.securityCode;
             masterData.securityCode = result.securityCode;
             localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(appConfig));
-            // Trigger lock check immediately!
             checkSecurityAccess();
           }
 
