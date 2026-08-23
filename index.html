@@ -559,6 +559,11 @@
             <button onclick="saveConfig()" class="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold active:scale-95 transition">
               <i class="fa-solid fa-floppy-disk mr-1"></i> Simpan Pengaturan
             </button>
+            
+            <button onclick="resetMasterDataToDefault()" class="py-2.5 px-4 bg-slate-700 hover:bg-slate-800 text-white rounded-lg font-bold active:scale-95 transition">
+              <i class="fa-solid fa-rotate-left mr-1"></i> Reset Master Data Default
+            </button>
+
             <button onclick="syncMasterData()" class="py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold active:scale-95 transition">
               <i class="fa-solid fa-arrows-rotate mr-1"></i> Sinkronkan Master Data Sekarang
             </button>
@@ -733,7 +738,28 @@
 
       const asstSelect = document.getElementById('field_nameOfAssistan');
       asstSelect.innerHTML = '<option value="">-- Pilih Nama Asisten --</option>';
-      (masterData.assistants || []).forEach(a => {
+      
+      let rawAssistants = masterData.assistants || [];
+      let cleanAssistants = [];
+      rawAssistants.forEach(item => {
+        if (typeof item === 'string') {
+          let val = item.trim();
+          if (val.includes(',')) {
+            let parts = val.split(',').map(s => s.trim()).filter(Boolean);
+            if (parts.length > 1 && parts[1]) {
+              val = parts[1];
+            } else if (parts.length > 0) {
+              val = parts[0];
+            }
+          }
+          if (val && !cleanAssistants.includes(val)) {
+            cleanAssistants.push(val);
+          }
+        }
+      });
+      masterData.assistants = cleanAssistants;
+
+      cleanAssistants.forEach(a => {
         const opt = document.createElement('option');
         opt.value = a;
         opt.textContent = a;
@@ -1518,6 +1544,15 @@
       } finally {
         if (syncIcon) syncIcon.classList.remove('fa-spin');
       }
+    }
+
+    
+    function resetMasterDataToDefault() {
+      if (!confirm('Kembalikan Master Data ke pengaturan awal?')) return;
+      masterData = INITIAL_MASTER_DATA;
+      localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(masterData));
+      populateMasterDataUI();
+      showToast('Master Data berhasil dikembalikan ke data default bersih!', 'success');
     }
 
     function saveConfig() {
