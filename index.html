@@ -101,20 +101,32 @@
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
           <div class="flex items-center space-x-2 text-emerald-800 border-b pb-2 font-bold text-sm">
             <i class="fa-solid fa-clipboard-user text-emerald-600"></i>
-            <span>1. Informasi Umum & Mandor</span>
+            <span>1. Informasi Umum & Waktu Kerja</span>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
             <!-- Date -->
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Date (Tanggal) <span class="text-red-500">*</span></label>
               <input type="date" id="field_date" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-medium text-slate-800 focus:bg-white">
             </div>
 
-            <!-- Time -->
+            <!-- Start Time -->
             <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Time (Waktu) <span class="text-red-500">*</span></label>
-              <input type="time" id="field_time" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-medium text-slate-800 focus:bg-white">
+              <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                <span>Start Time <span class="text-red-500">*</span></span>
+                <button type="button" onclick="setNowTime('field_startTime')" class="text-[10px] text-emerald-700 hover:underline">Set Sekarang</button>
+              </label>
+              <input type="time" id="field_startTime" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-medium text-slate-800 focus:bg-white">
+            </div>
+
+            <!-- End Time -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                <span>End Time</span>
+                <button type="button" onclick="setNowTime('field_endTime')" class="text-[10px] text-emerald-700 hover:underline">Set Sekarang</button>
+              </label>
+              <input type="time" id="field_endTime" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-medium text-slate-800 focus:bg-white">
             </div>
 
             <!-- Shift (Button Group) -->
@@ -140,7 +152,7 @@
             </div>
 
             <!-- Name of Assistan (Dropdown) -->
-            <div>
+            <div class="md:col-span-3">
               <label class="block text-xs font-semibold text-slate-700 mb-1">Name of Assistan <span class="text-red-500">*</span></label>
               <select id="field_nameOfAssistan" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:bg-white">
                 <option value="">-- Pilih Nama Asisten --</option>
@@ -807,6 +819,13 @@
       });
     }
 
+    function setNowTime(elementId) {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      document.getElementById(elementId).value = `${h}:${m}`;
+    }
+
     function onStatusChange(status) {
       const isHold = (status === 'Hold');
       const alertBanner = document.getElementById('holdAlertBanner');
@@ -985,7 +1004,8 @@
 
       const hours = String(now.getHours()).padStart(2, '0');
       const mins = String(now.getMinutes()).padStart(2, '0');
-      document.getElementById('field_time').value = `${hours}:${mins}`;
+      document.getElementById('field_startTime').value = `${hours}:${mins}`;
+      document.getElementById('field_endTime').value = '';
 
       setButtonGroupValue('shiftBtnGroup', 'field_shift', '1');
       setButtonGroupValue('statusBtnGroup', 'field_status', 'Working');
@@ -1033,8 +1053,10 @@
         uploadStatus: 'pending',
         uploadedAt: null,
 
+        // 50 Form QC Fields Sesuai Urutan Kolom Spreadsheet
         date: document.getElementById('field_date').value || '',
-        time: document.getElementById('field_time').value || '',
+        startTime: document.getElementById('field_startTime').value || '',
+        endTime: document.getElementById('field_endTime').value || '',
         shift: document.getElementById('field_shift').value || '',
         status: document.getElementById('field_status').value || 'Working',
         name: document.getElementById('field_name').value || '',
@@ -1113,7 +1135,8 @@
       document.getElementById('submitBtnLabel').textContent = 'Perbarui Data QC';
 
       document.getElementById('field_date').value = rec.date || '';
-      document.getElementById('field_time').value = rec.time || '';
+      document.getElementById('field_startTime').value = rec.startTime || rec.time || '';
+      document.getElementById('field_endTime').value = rec.endTime || '';
       setButtonGroupValue('shiftBtnGroup', 'field_shift', rec.shift || '1');
       setButtonGroupValue('statusBtnGroup', 'field_status', rec.status || 'Working');
       onStatusChange(rec.status || 'Working');
@@ -1261,6 +1284,8 @@
 
       const holdBadge = isHold ? '<span class="badge-hold text-[10px] px-2 py-0.5 rounded font-bold ml-1">HOLD</span>' : '<span class="badge-working text-[10px] px-2 py-0.5 rounded font-bold ml-1">WORKING</span>';
 
+      const timeRange = (rec.startTime || rec.time || '-') + (rec.endTime ? ' s/d ' + rec.endTime : '');
+
       return `
         <div class="p-3 bg-white hover:bg-slate-50 rounded-lg border border-slate-200 transition space-y-2">
           <div class="flex items-start justify-between">
@@ -1270,7 +1295,7 @@
                 ${holdBadge}
               </div>
               <p class="text-[11px] text-slate-500 mt-0.5">
-                <span><i class="fa-solid fa-clock mr-1"></i>${rec.time || '-'} (Shift ${rec.shift || '-'})</span> | 
+                <span><i class="fa-solid fa-clock mr-1"></i>${timeRange} (Shift ${rec.shift || '-'})</span> | 
                 <span><i class="fa-solid fa-user mr-1"></i>${rec.name || 'Mandor -'}</span>
               </p>
             </div>
@@ -1327,7 +1352,8 @@
       title.textContent = `Detail Form QC: ${rec.paddock || 'Paddock'} (${rec.date || '-'})`;
 
       const fields = [
-        ['Date', rec.date], ['Time', rec.time], ['Shift', rec.shift], ['Status', rec.status],
+        ['Date', rec.date], ['Start Time', rec.startTime || rec.time], ['End Time', rec.endTime],
+        ['Shift', rec.shift], ['Status', rec.status],
         ['Name', rec.name], ['Name of Assistan', rec.nameOfAssistan], ['Paddock', rec.paddock],
         ['Variety', rec.variety], ['Area (Ha)', rec.area], ['Unit', rec.unit], ['No. Unit', rec.noUnit],
         ['Dropper', rec.dropper], ['Droplet Size', rec.dropletSize], ['Nozzle', rec.nozzle],
