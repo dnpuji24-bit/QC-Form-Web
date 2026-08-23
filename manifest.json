@@ -1,23 +1,1590 @@
-{
-  "name": "Aplikasi Form QC Kebun",
-  "short_name": "QC Form",
-  "description": "Form Input QC Semprot & Pemupukan Kebun - Offline Ready PWA",
-  "start_url": "./index.html",
-  "display": "standalone",
-  "background_color": "#064e3b",
-  "theme_color": "#059669",
-  "icons": [
-    {
-      "src": "https://cdn-icons-png.flaticon.com/512/606/606673.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "https://cdn-icons-png.flaticon.com/512/606/606673.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Form QC Aplikasi Semprot & Pemupukan</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#059669">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .btn-toggle {
+      transition: all 0.2s ease-in-out;
+      cursor: pointer;
+      user-select: none;
     }
-  ]
-}
+    .btn-toggle.active {
+      background-color: #059669 !important;
+      color: #ffffff !important;
+      border-color: #059669 !important;
+      box-shadow: 0 4px 6px -1px rgba(5, 150, 105, 0.3);
+    }
+    .badge-working { background-color: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+    .badge-hold { background-color: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+    .badge-draft { background-color: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    .badge-uploaded { background-color: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      ring: 2px solid #059669;
+      border-color: #059669;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen pb-20">
+
+  <!-- TOP APP BAR -->
+  <header class="bg-emerald-700 text-white sticky top-0 z-40 shadow-md">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-full bg-emerald-800 flex items-center justify-center border border-emerald-500 shadow-inner">
+          <i class="fa-solid fa-seedling text-emerald-300 text-lg"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold leading-tight">Form QC Aplikasi</h1>
+          <p class="text-xs text-emerald-200">Upkeep & Manuring Operations</p>
+        </div>
+      </div>
+      
+      <!-- Network & Sync Status Indicator -->
+      <div class="flex items-center space-x-2 text-xs">
+        <span id="netStatusBadge" class="px-2.5 py-1 rounded-full bg-emerald-800 border border-emerald-600 flex items-center space-x-1.5">
+          <span id="netStatusDot" class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+          <span id="netStatusText">Online</span>
+        </span>
+        <button onclick="syncMasterData()" title="Sinkronkan Master Data" class="p-2 rounded-lg bg-emerald-800 hover:bg-emerald-900 border border-emerald-600 active:scale-95 transition">
+          <i class="fa-solid fa-arrows-rotate" id="syncIcon"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- SUB NAVIGATION TABS -->
+    <div class="max-w-4xl mx-auto px-4 flex border-t border-emerald-600 text-sm font-medium">
+      <button onclick="switchTab('inputTab')" id="tabBtn-inputTab" class="flex-1 py-2.5 text-center border-b-2 border-white text-white font-semibold flex items-center justify-center space-x-1.5">
+        <i class="fa-solid fa-pen-to-square"></i>
+        <span>Form Input</span>
+      </button>
+      <button onclick="switchTab('historyTab')" id="tabBtn-historyTab" class="flex-1 py-2.5 text-center border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center space-x-1.5">
+        <i class="fa-solid fa-list-check"></i>
+        <span>Data & Upload</span>
+        <span id="pendingBadge" class="hidden ml-1 px-1.5 py-0.5 text-[10px] bg-amber-400 text-slate-900 font-bold rounded-full">0</span>
+      </button>
+      <button onclick="switchTab('settingsTab')" id="tabBtn-settingsTab" class="flex-1 py-2.5 text-center border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center space-x-1.5">
+        <i class="fa-solid fa-gear"></i>
+        <span>Pengaturan</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="max-w-4xl mx-auto px-3 py-4">
+
+    <!-- ==================== TAB 1: FORM INPUT ==================== -->
+    <section id="inputTab" class="tab-content block space-y-4">
+      
+      <!-- Hold Status Notification Banner -->
+      <div id="holdAlertBanner" class="hidden p-3.5 bg-amber-50 border-l-4 border-amber-500 rounded-r-lg text-amber-900 text-xs shadow-sm flex items-start space-x-2.5">
+        <i class="fa-solid fa-triangle-exclamation text-amber-600 text-base mt-0.5"></i>
+        <div>
+          <strong class="font-bold block text-sm">Mode Status HOLD Aktif</strong>
+          <span>Pengisian data dibatasi hanya sampai pilihan Paddock. Kolom luasan (Area) dan parameter teknis aplikasi di-nonaktifkan.</span>
+        </div>
+      </div>
+
+      <form id="qcForm" onsubmit="event.preventDefault(); saveFormData('ready');" class="space-y-4">
+        
+        <!-- CARD 1: INFORMASI UMUM & MANDOR -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
+          <div class="flex items-center space-x-2 text-emerald-800 border-b pb-2 font-bold text-sm">
+            <i class="fa-solid fa-clipboard-user text-emerald-600"></i>
+            <span>1. Informasi Umum & Waktu Kerja</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+            <!-- Date -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Date (Tanggal) <span class="text-red-500">*</span></label>
+              <input type="date" id="field_date" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-medium text-slate-800 focus:bg-white">
+            </div>
+
+            <!-- Start Time -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                <span>Start Time <span class="text-red-500">*</span></span>
+                <button type="button" onclick="setNowTime('field_startTime')" class="text-[10px] text-emerald-700 hover:underline">Set Sekarang</button>
+              </label>
+              <input type="time" id="field_startTime" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-medium text-slate-800 focus:bg-white">
+            </div>
+
+            <!-- End Time -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                <span>End Time</span>
+                <button type="button" onclick="setNowTime('field_endTime')" class="text-[10px] text-emerald-700 hover:underline">Set Sekarang</button>
+              </label>
+              <input type="time" id="field_endTime" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-medium text-slate-800 focus:bg-white">
+            </div>
+
+            <!-- Shift (Button Group) -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Shift <span class="text-red-500">*</span></label>
+              <div id="shiftBtnGroup" class="grid grid-cols-2 gap-2"></div>
+              <input type="hidden" id="field_shift">
+            </div>
+
+            <!-- Status (Button Group: Working / Hold) -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Status <span class="text-red-500">*</span></label>
+              <div id="statusBtnGroup" class="grid grid-cols-2 gap-2"></div>
+              <input type="hidden" id="field_status" value="Working">
+            </div>
+
+            <!-- Name (Dropdown Mandor) -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Name (Mandor) <span class="text-red-500">*</span></label>
+              <select id="field_name" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:bg-white">
+                <option value="">-- Pilih Nama Mandor --</option>
+              </select>
+            </div>
+
+            <!-- Name of Assistan (Dropdown) -->
+            <div class="md:col-span-3">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Name of Assistan <span class="text-red-500">*</span></label>
+              <select id="field_nameOfAssistan" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:bg-white">
+                <option value="">-- Pilih Nama Asisten --</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- CARD 2: RENCANA LOKASI & TARGET KERJA (PLAN) -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
+          <div class="flex items-center justify-between border-b pb-2">
+            <div class="flex items-center space-x-2 text-emerald-800 font-bold text-sm">
+              <i class="fa-solid fa-map-location-dot text-emerald-600"></i>
+              <span>2. Lokasi & Rencana Kerja (Plan)</span>
+            </div>
+            <span class="text-[11px] text-slate-500">Sumber: Sheet Plan</span>
+          </div>
+
+          <div class="space-y-3.5">
+            <!-- Paddock (Dropdown) -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Paddock <span class="text-red-500">*</span></label>
+              <select id="field_paddock" onchange="onPaddockChange()" class="w-full p-2.5 bg-emerald-50/50 border border-emerald-300 rounded-lg text-sm font-semibold text-emerald-950 focus:bg-white">
+                <option value="">-- Pilih Paddock --</option>
+              </select>
+            </div>
+
+            <!-- Variety (Button Selection filtered by Paddock) -->
+            <div id="section_variety" class="transition-all">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Variety (Varietas Tebu)</label>
+              <div id="varietyBtnGroup" class="flex flex-wrap gap-2">
+                <span class="text-xs text-slate-400 italic py-1">Pilih Paddock terlebih dahulu</span>
+              </div>
+              <input type="hidden" id="field_variety">
+            </div>
+
+            <!-- Area (Ha) (Disabled if status == Hold) -->
+            <div id="section_area">
+              <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                <span>Area Dikerjakan (Ha) <span class="text-red-500">*</span></span>
+                <span id="areaHoldNotice" class="text-[11px] text-red-600 hidden font-normal"><i class="fa-solid fa-ban mr-1"></i>Nonaktif (Status Hold)</span>
+              </label>
+              <input type="number" step="0.01" min="0" id="field_area" oninput="calculateEstimatedUsages()" placeholder="Contoh: 3.50" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-semibold text-slate-900 focus:bg-white">
+            </div>
+
+            <!-- Type (Button selection from Plan) -->
+            <div id="section_type">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Type Aplikasi</label>
+              <div id="typeBtnGroup" class="flex flex-wrap gap-2"></div>
+              <input type="hidden" id="field_type">
+            </div>
+
+            <!-- Activity (Button selection from Plan) -->
+            <div id="section_activity">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Activity (Aktivitas Kerja) <span class="text-red-500">*</span></label>
+              <div id="activityBtnGroup" class="flex flex-wrap gap-2"></div>
+              <input type="hidden" id="field_activity">
+            </div>
+
+            <!-- Deskripsi (Button selection from Plan by Paddock & Activity) -->
+            <div id="section_deskripsi">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Deskripsi Program / Bahan <span class="text-red-500">*</span></label>
+              <div id="deskripsiBtnGroup" class="flex flex-wrap gap-2"></div>
+              <input type="hidden" id="field_deskripsi">
+            </div>
+          </div>
+        </div>
+
+        <!-- TECHNICAL DETAILS WRAPPER (Auto hidden/disabled when Hold) -->
+        <div id="technicalDetailsWrapper" class="space-y-4 transition-all">
+
+          <!-- CARD 3: PARAMETER UNIT & PERALATAN -->
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
+            <div class="flex items-center space-x-2 text-emerald-800 border-b pb-2 font-bold text-sm">
+              <i class="fa-solid fa-tractor text-emerald-600"></i>
+              <span>3. Parameter Unit & Nozzle</span>
+            </div>
+
+            <div class="space-y-3.5">
+              <!-- Unit -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Unit Alat</label>
+                <div id="unitBtnGroup" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
+                <input type="hidden" id="field_unit">
+              </div>
+
+              <!-- No. Unit (Button selection filtered by Unit) -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">No. Unit (Sesuai Unit Terpilih)</label>
+                <div id="noUnitBtnGroup" class="flex flex-wrap gap-2">
+                  <span class="text-xs text-slate-400 italic py-1">Pilih Unit terlebih dahulu</span>
+                </div>
+                <input type="hidden" id="field_noUnit">
+              </div>
+
+              <!-- Dropper & Droplet Size -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                <!-- Dropper (Yes/No) -->
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Dropper</label>
+                  <div id="dropperBtnGroup" class="grid grid-cols-2 gap-2"></div>
+                  <input type="hidden" id="field_dropper">
+                </div>
+
+                <!-- Droplet Size (Manual number) -->
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Droplet Size (µm)</label>
+                  <input type="number" step="any" id="field_dropletSize" placeholder="Input angka manual" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white">
+                </div>
+              </div>
+
+              <!-- Nozzle (Button selection) -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Nozzle</label>
+                <div id="nozzleBtnGroup" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
+                <input type="hidden" id="field_nozzle">
+              </div>
+
+              <!-- Height, Row Spacing, Speed -->
+              <div class="grid grid-cols-3 gap-2.5">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Height (m)</label>
+                  <input type="number" step="0.01" id="field_height" placeholder="0.00" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-center focus:bg-white">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Row Spacing (m)</label>
+                  <input type="number" step="0.01" id="field_rowSpacing" placeholder="1.50" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-center focus:bg-white">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Speed (Km/j)</label>
+                  <input type="number" step="0.1" id="field_speed" placeholder="0.0" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-center focus:bg-white">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD 4: DOSIS, ESTIMASI & PENGGUNAAN AKTUAL BAHAN (OTOMATIS DARI SHEET BAHAN) -->
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
+            <div class="flex items-center justify-between border-b pb-2">
+              <div class="flex items-center space-x-2 text-emerald-800 font-bold text-sm">
+                <i class="fa-solid fa-flask-vial text-emerald-600"></i>
+                <span>4. Bahan, Dosis & Penggunaan Aktual</span>
+              </div>
+              <span class="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-medium">Auto-Lookup Sheet Bahan</span>
+            </div>
+
+            <!-- Auto-populated Material Matrix -->
+            <div class="overflow-x-auto border border-slate-200 rounded-lg">
+              <table class="w-full text-xs text-left">
+                <thead class="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider border-b">
+                  <tr>
+                    <th class="p-2.5">Bahan / Material</th>
+                    <th class="p-2.5 text-center w-20">Dosis/Ha</th>
+                    <th class="p-2.5 text-center w-24 bg-emerald-50/70 text-emerald-900">Est. Usage</th>
+                    <th class="p-2.5 text-center w-28 bg-amber-50/70 text-amber-900">Actual Usage</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200 font-medium">
+                  
+                  <!-- Pesticide 1 -->
+                  <tr>
+                    <td class="p-2.5">
+                      <div class="font-bold text-slate-800" id="display_pesticide1">-</div>
+                      <input type="hidden" id="field_pesticide1">
+                      <div class="text-[10px] text-slate-400">Pesticide 1</div>
+                    </td>
+                    <td class="p-2.5 text-center font-semibold text-slate-700">
+                      <span id="display_dosage1">0</span>
+                      <input type="hidden" id="field_dosage1" value="0">
+                    </td>
+                    <td class="p-2.5 text-center font-bold text-emerald-800 bg-emerald-50/40">
+                      <span id="display_estPesticide1">0</span>
+                      <input type="hidden" id="field_estUsagePesticide1" value="0">
+                    </td>
+                    <td class="p-2.5 bg-amber-50/30">
+                      <input type="number" step="0.01" id="field_actUsagePesticide1" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
+                    </td>
+                  </tr>
+
+                  <!-- Pesticide 2 -->
+                  <tr>
+                    <td class="p-2.5">
+                      <div class="font-bold text-slate-800" id="display_pesticide2">-</div>
+                      <input type="hidden" id="field_pesticide2">
+                      <div class="text-[10px] text-slate-400">Pesticide 2</div>
+                    </td>
+                    <td class="p-2.5 text-center font-semibold text-slate-700">
+                      <span id="display_dosage2">0</span>
+                      <input type="hidden" id="field_dosage2" value="0">
+                    </td>
+                    <td class="p-2.5 text-center font-bold text-emerald-800 bg-emerald-50/40">
+                      <span id="display_estPesticide2">0</span>
+                      <input type="hidden" id="field_estUsagePesticide2" value="0">
+                    </td>
+                    <td class="p-2.5 bg-amber-50/30">
+                      <input type="number" step="0.01" id="field_actUsagePesticide2" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
+                    </td>
+                  </tr>
+
+                  <!-- Pesticide 3 -->
+                  <tr>
+                    <td class="p-2.5">
+                      <div class="font-bold text-slate-800" id="display_pesticide3">-</div>
+                      <input type="hidden" id="field_pesticide3">
+                      <div class="text-[10px] text-slate-400">Pesticide 3</div>
+                    </td>
+                    <td class="p-2.5 text-center font-semibold text-slate-700">
+                      <span id="display_dosage3">0</span>
+                      <input type="hidden" id="field_dosage3" value="0">
+                    </td>
+                    <td class="p-2.5 text-center font-bold text-emerald-800 bg-emerald-50/40">
+                      <span id="display_estPesticide3">0</span>
+                      <input type="hidden" id="field_estUsagePesticide3" value="0">
+                    </td>
+                    <td class="p-2.5 bg-amber-50/30">
+                      <input type="number" step="0.01" id="field_actUsagePesticide3" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
+                    </td>
+                  </tr>
+
+                  <!-- Pesticide 4 -->
+                  <tr>
+                    <td class="p-2.5">
+                      <div class="font-bold text-slate-800" id="display_pesticide4">-</div>
+                      <input type="hidden" id="field_pesticide4">
+                      <div class="text-[10px] text-slate-400">Pesticide 4</div>
+                    </td>
+                    <td class="p-2.5 text-center font-semibold text-slate-700">
+                      <span id="display_dosage4">0</span>
+                      <input type="hidden" id="field_dosage4" value="0">
+                    </td>
+                    <td class="p-2.5 text-center font-bold text-emerald-800 bg-emerald-50/40">
+                      <span id="display_estPesticide4">0</span>
+                      <input type="hidden" id="field_estUsagePesticide4" value="0">
+                    </td>
+                    <td class="p-2.5 bg-amber-50/30">
+                      <input type="number" step="0.01" id="field_actUsagePesticide4" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
+                    </td>
+                  </tr>
+
+                  <!-- Adjuvant -->
+                  <tr class="bg-slate-50/60">
+                    <td class="p-2.5">
+                      <div class="font-bold text-slate-800" id="display_adjuvant">-</div>
+                      <input type="hidden" id="field_adjuvant">
+                      <div class="text-[10px] text-slate-400">Adjuvant / Perekat</div>
+                    </td>
+                    <td class="p-2.5 text-center font-semibold text-slate-700">
+                      <span id="display_adjuvantDosage">0</span>
+                      <input type="hidden" id="field_adjuvantDosage" value="0">
+                    </td>
+                    <td class="p-2.5 text-center font-bold text-emerald-800 bg-emerald-50/40">
+                      <span id="display_estAdjuvant">0</span>
+                      <input type="hidden" id="field_estUsageAdjuvant" value="0">
+                    </td>
+                    <td class="p-2.5 bg-amber-50/30">
+                      <input type="number" step="0.01" id="field_actUsageAdjuvant" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="text-[11px] text-slate-500 italic">* Estimated Usage dihitung otomatis dari (Dosis/Ha × Area Ha). Actual Usage diisi sesuai realisasi fisik.</p>
+          </div>
+
+          <!-- CARD 5: AIR, KONDISI CUACA & CATATAN -->
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
+            <div class="flex items-center space-x-2 text-emerald-800 border-b pb-2 font-bold text-sm">
+              <i class="fa-solid fa-cloud-sun-rain text-emerald-600"></i>
+              <span>5. Kualitas Air, Cuaca & Catatan</span>
+            </div>
+
+            <div class="space-y-3.5">
+              <!-- Water Rate, Water Quality, Actual Water Usage -->
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Water Rate (L/Ha)</label>
+                  <input type="number" step="any" id="field_waterRate" placeholder="Contoh: 150" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Water Quality (Kualitas Air)</label>
+                  <select id="field_waterQuality" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white"></select>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Actual Usage Air (Liter)</label>
+                  <input type="number" step="any" id="field_actualUsage" placeholder="Contoh: 450" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white">
+                </div>
+              </div>
+
+              <!-- Weather Measurements (Wind, Temp, Humidity, Delta T) -->
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Wind (Km/j)</label>
+                  <input type="number" step="0.1" id="field_windSpeed" placeholder="0.0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Temp (°C)</label>
+                  <input type="number" step="0.1" id="field_temperature" placeholder="0.0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Humidity (%)</label>
+                  <input type="number" step="0.1" id="field_humidity" placeholder="0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Delta T (°C)</label>
+                  <input type="number" step="0.1" id="field_deltaT" placeholder="0.0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white">
+                </div>
+              </div>
+
+              <!-- Weather Condition (Button Selection) -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Weather Condition (Kondisi Cuaca)</label>
+                <div id="weatherBtnGroup" class="grid grid-cols-3 gap-2"></div>
+                <input type="hidden" id="field_weatherCondition">
+              </div>
+
+              <!-- Noted* -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Noted* (Catatan Khusus Lapangan)</label>
+                <textarea id="field_noted" rows="2" placeholder="Catatan kendala / cuaca / armada (bisa dikosongkan)..." class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:bg-white"></textarea>
+              </div>
+            </div>
+          </div>
+
+        </div> <!-- END TECHNICAL DETAILS WRAPPER -->
+
+        <!-- ACTION BUTTONS -->
+        <div class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-slate-200 p-3 z-30 shadow-lg">
+          <div class="max-w-4xl mx-auto flex items-center gap-2.5">
+            <button type="button" onclick="saveFormData('draft')" class="flex-1 py-3 px-3 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold text-xs sm:text-sm active:scale-95 transition flex items-center justify-center space-x-1.5">
+              <i class="fa-solid fa-floppy-disk"></i>
+              <span>Simpan Draft</span>
+            </button>
+            <button type="submit" class="flex-[2] py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md active:scale-95 transition flex items-center justify-center space-x-2">
+              <i class="fa-solid fa-check-double"></i>
+              <span id="submitBtnLabel">Simpan Data QC</span>
+            </button>
+          </div>
+        </div>
+
+      </form>
+    </section>
+
+
+    <!-- ==================== TAB 2: RIWAYAT & UPLOAD ==================== -->
+    <section id="historyTab" class="tab-content hidden space-y-4">
+      
+      <!-- Summary Dashboard Bar -->
+      <div class="grid grid-cols-3 gap-2.5">
+        <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-sm text-center">
+          <span class="text-[11px] text-slate-500 block font-medium">Total Tersimpan</span>
+          <span class="text-lg font-bold text-slate-800" id="statTotal">0</span>
+        </div>
+        <div class="bg-amber-50 rounded-xl p-3 border border-amber-200 shadow-sm text-center">
+          <span class="text-[11px] text-amber-700 block font-medium">Pending Upload</span>
+          <span class="text-lg font-bold text-amber-800" id="statPending">0</span>
+        </div>
+        <div class="bg-blue-50 rounded-xl p-3 border border-blue-200 shadow-sm text-center">
+          <span class="text-[11px] text-blue-700 block font-medium">Sudah Diupload</span>
+          <span class="text-lg font-bold text-blue-800" id="statUploaded">0</span>
+        </div>
+      </div>
+
+      <!-- Action Bar -->
+      <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center space-x-2">
+          <span class="text-xs font-bold text-slate-700">Filter Tanggal:</span>
+          <input type="date" id="historyFilterDate" onchange="renderHistoryList()" class="p-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg">
+          <button onclick="document.getElementById('historyFilterDate').value=''; renderHistoryList();" class="text-xs text-slate-500 hover:text-slate-700 underline">Semua</button>
+        </div>
+        <button onclick="uploadAllPending()" id="btnUploadAll" class="py-2 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow active:scale-95 transition flex items-center space-x-1.5">
+          <i class="fa-solid fa-cloud-arrow-up"></i>
+          <span>Upload Semua Pending</span>
+        </button>
+      </div>
+
+      <!-- Grouped Records Container -->
+      <div id="historyContainer" class="space-y-4"></div>
+
+    </section>
+
+
+    <!-- ==================== TAB 3: PENGATURAN & SINKRONISASI ==================== -->
+    <section id="settingsTab" class="tab-content hidden space-y-4">
+      
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
+        <div class="flex items-center space-x-2 text-emerald-800 border-b pb-2 font-bold text-sm">
+          <i class="fa-solid fa-plug text-emerald-600"></i>
+          <span>Pengaturan Koneksi Google Sheets</span>
+        </div>
+
+        <div class="space-y-3.5 text-xs">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Google Apps Script Web App URL</label>
+            <input type="url" id="cfg_appsScriptUrl" placeholder="https://script.google.com/macros/s/.../exec" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:bg-white">
+            <p class="text-[11px] text-slate-500 mt-1">URL Web App dari deployment Google Apps Script pada spreadsheet Anda.</p>
+          </div>
+
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Spreadsheet ID (Referensi)</label>
+            <input type="text" id="cfg_spreadsheetId" value="1Yr9wcSl5Q1qLugdoRNAdSpPAHmHad54repNunzX5Ed0" class="w-full p-2.5 bg-slate-100 border border-slate-300 rounded-lg text-xs text-slate-600 font-mono" readonly>
+          </div>
+
+          <div class="pt-2 flex flex-wrap gap-2">
+            <button onclick="saveConfig()" class="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold active:scale-95 transition">
+              <i class="fa-solid fa-floppy-disk mr-1"></i> Simpan Pengaturan
+            </button>
+            <button onclick="syncMasterData()" class="py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold active:scale-95 transition">
+              <i class="fa-solid fa-arrows-rotate mr-1"></i> Sinkronkan Master Data Sekarang
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Backup & Restore Data Card -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
+        <div class="flex items-center space-x-2 text-emerald-800 border-b pb-2 font-bold text-sm">
+          <i class="fa-solid fa-database text-emerald-600"></i>
+          <span>Backup & Ekspor Data Lokal</span>
+        </div>
+
+        <div class="space-y-3 text-xs">
+          <p class="text-slate-600">Seluruh data input mandor tersimpan aman di memori HP (LocalStorage). Anda dapat mengekspor atau mengunduh data dalam bentuk file JSON sebagai backup cadangan di lapangan.</p>
+          
+          <div class="flex flex-wrap gap-2 pt-1">
+            <button onclick="exportDataToJson()" class="py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-semibold flex items-center space-x-1.5">
+              <i class="fa-solid fa-download"></i>
+              <span>Download Backup JSON</span>
+            </button>
+            <button onclick="document.getElementById('importFile').click()" class="py-2 px-3 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg font-semibold flex items-center space-x-1.5">
+              <i class="fa-solid fa-upload"></i>
+              <span>Restore Data JSON</span>
+            </button>
+            <input type="file" id="importFile" onchange="importDataFromJson(event)" accept=".json" class="hidden">
+            <button onclick="clearUploadedData()" class="py-2 px-3 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg font-semibold">
+              <i class="fa-solid fa-trash-can mr-1"></i> Bersihkan Data Terupload
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- RECORD DETAIL MODAL -->
+  <div id="detailModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3">
+    <div class="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+      <div class="p-4 bg-emerald-700 text-white flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <i class="fa-solid fa-file-invoice text-emerald-300"></i>
+          <h3 class="font-bold text-sm" id="modalTitle">Detail Data QC</h3>
+        </div>
+        <button onclick="closeDetailModal()" class="w-8 h-8 rounded-full bg-emerald-800 hover:bg-emerald-900 flex items-center justify-center text-white">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="p-4 overflow-y-auto space-y-3 text-xs" id="modalBody"></div>
+      <div class="p-3 bg-slate-100 border-t flex justify-end space-x-2">
+        <button onclick="closeDetailModal()" class="py-2 px-4 bg-slate-300 hover:bg-slate-400 text-slate-800 rounded-lg font-bold text-xs">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast" class="fixed top-4 right-4 max-w-xs bg-slate-900 text-white text-xs px-4 py-3 rounded-xl shadow-2xl z-50 hidden transform transition-all duration-300 flex items-center space-x-2">
+    <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+    <span id="toastMessage">Pesan notifikasi</span>
+  </div>
+
+  <!-- EMBEDDED MASTER DATA (OFFLINE-FIRST) -->
+  <script>
+    const INITIAL_MASTER_DATA = {"names": ["ALBERTO NGORANUBUN", "BENEDIKTUS WAGIYOP", "GERMANUS KWAMTAHAI", "GUSTINUS LORONG", "JUMRI", "MOHAMAD IRAWAN", "PUJI WASTONI", "BANU MUFARRIDHIN"], "assistants": ["PUJI HARTONO", "JOSUA F. SIMARMATA", "MOH. SABRI", "EFFRATA ALEX F", "MUH. SABILLAH", "EFRI NANDO", "ARSYI P.B AMBARITA", "HEPSON J OMPUSUNGGU", "SUVENI. M SIBORO"], "statuses": ["Working", "Hold"], "shifts": ["1", "2"], "unitMap": {"Tractor Spray": ["TS003G", "TS004G", "TS005G"], "Boom Spray Cropland": ["TR128G"], "Boom Spray Baldan": ["TR069G"], "Drone": ["DJIT50-01", "DJIT50-02", "DJIT50-03", "DJIT50-04", "DJIT50-05", "DJIT50-06", "DJIT100-01"]}, "dropper": ["Yes", "No"], "nozzles": ["TTI60-11025 (Ungu)", "TTI60-11004 (Merah)", "TTI60-11005 (Coklat)", "TTI60-11008 (Putih)"], "waterQualities": ["Clean", "Slighty Muddy", "Bad"], "weatherConditions": ["Sunny", "Cloudy", "Rainning"], "allVarieties": ["GMP4", "GMP5", "GMP6", "Q200", "Q208", "Q232", "Q240", "Q253", "R1", "R2", "R3", "SRA09"], "plan": [{"paddock": "JAGF-1-C-030", "variety": "", "luas_target": "1,17", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-004", "variety": "", "luas_target": "0,24", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-016", "variety": "", "luas_target": "10,00", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-025", "variety": "", "luas_target": "1,93", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-037", "variety": "", "luas_target": "3,77", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-003", "variety": "", "luas_target": "15,86", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}, {"paddock": "JAGF-2-H-035", "variety": "", "luas_target": "55,00", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}, {"paddock": "JAGF-1-D-002", "variety": "", "luas_target": "92,99", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}, {"paddock": "JAGF-2-K-003", "variety": "", "luas_target": "150,00", "activity": "Bassalt Dressing", "type": "", "deskripsi": "Bassalt Dressing D"}, {"paddock": "JAGF-1-D-066", "variety": "", "luas_target": "5,96", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-068", "variety": "", "luas_target": "0,29", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-A-007", "variety": "", "luas_target": "11,24", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-2-H-031", "variety": "", "luas_target": "7,91", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-C-029", "variety": "", "luas_target": "14,64", "activity": "Knockdown", "type": "Herbicide", "deskripsi": "Knockdown (Plant) B"}, {"paddock": "JAGF-1-D-061", "variety": "", "luas_target": "15,80", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-B-014", "variety": "", "luas_target": "17,81", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-C-031", "variety": "", "luas_target": "0,83", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-1-D-021", "variety": "", "luas_target": "2,91", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-022", "variety": "", "luas_target": "2,64", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-024", "variety": "", "luas_target": "8,34", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-026", "variety": "", "luas_target": "7,05", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-027", "variety": "", "luas_target": "1,46", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-028", "variety": "", "luas_target": "0,72", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-029", "variety": "", "luas_target": "4,31", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-030", "variety": "", "luas_target": "2,42", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-033", "variety": "", "luas_target": "3,08", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-034", "variety": "", "luas_target": "2,82", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-2-I-092", "variety": "", "luas_target": "0,43", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence B"}, {"paddock": "JAGF-2-H-026", "variety": "", "luas_target": "7,37", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-2-H-029", "variety": "", "luas_target": "12,40", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-2-I-101", "variety": "", "luas_target": "1,70", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-1-C-029", "variety": "", "luas_target": "14,64", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-2-G-008", "variety": "", "luas_target": "0,64", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence PC"}, {"paddock": "JAGF-2-J-009", "variety": "", "luas_target": "17,65", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence PC"}, {"paddock": "JAGF-1-D-038", "variety": "", "luas_target": "2,20", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide B"}, {"paddock": "JAGF-2-H-023", "variety": "", "luas_target": "6,56", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide E"}, {"paddock": "JAGF-1-D-058", "variety": "", "luas_target": "44,80", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-C-003", "variety": "", "luas_target": "31,85", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide F"}, {"paddock": "JAGF-2-I-130", "variety": "", "luas_target": "15,40", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide F"}, {"paddock": "JAGF-2-G-009", "variety": "", "luas_target": "43,52", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide D"}, {"paddock": "JAGF-2-G-010", "variety": "", "luas_target": "232,30", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}], "bahan": {"Bassalt Dressing B": {"pesticide1": "NPK 15-8-15", "dosage1": 150.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Bassalt Dressing C": {"pesticide1": "NPK 15-10-15", "dosage1": 250.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Bassalt Dressing D": {"pesticide1": "HX-DAP", "dosage1": 250.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Insecticide A": {"pesticide1": "Incipio", "dosage1": 0.2, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Prima Boost", "adjuvant_dosage": 0.05}, "Insecticide B": {"pesticide1": "Prevathon", "dosage1": 1.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.05}, "Insecticide C": {"pesticide1": "Punggawa 50 SC", "dosage1": 1.4, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.05}, "Insecticide D": {"pesticide1": "Confidor 60 ml", "dosage1": 0.8, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.8}, "Insecticide E": {"pesticide1": "Prevathon", "dosage1": 1.5, "pesticide2": "Confidor 60 ml", "dosage2": 0.8, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.2}, "Insecticide F": {"pesticide1": "Punggawa 50 SC", "dosage1": 1.4, "pesticide2": "Confidor 60 ml", "dosage2": 0.8, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.2}, "Knockdown (Plant) A": {"pesticide1": "Rollup 480 SL", "dosage1": 3.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.1}, "Knockdown (Plant) B": {"pesticide1": "Rollup 480 SL", "dosage1": 3.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agridex 715 EC", "adjuvant_dosage": 0.2}, "Post Emergence A": {"pesticide1": "Prima Kuat 276 SL", "dosage1": 1.0, "pesticide2": "Prima Maxin 50 WP", "dosage2": 0.6, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.15}, "Post Emergence B": {"pesticide1": "Omni Care 288 EC", "dosage1": 0.9, "pesticide2": "Prima Jos 865 SL", "dosage2": 0.6, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.2}, "Post Emergence C": {"pesticide1": "Prima Kuat 276 SL", "dosage1": 1.0, "pesticide2": "DKHexaron 60WG", "dosage2": 2.5, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.1}, "Post Emergence D": {"pesticide1": "Garlon 670 EC", "dosage1": 1.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agridex 715 EC", "adjuvant_dosage": 0.25}, "Post Emergence E": {"pesticide1": "Rollup 480 SL", "dosage1": 3.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.5}, "Pre Emergence PC": {"pesticide1": "Prowl 330 EC", "dosage1": 3.0, "pesticide2": "Venator 550SC @1 Ltr", "dosage2": 4.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Pre Emergence PC A": {"pesticide1": "Prowl 330 EC", "dosage1": 3.0, "pesticide2": "Atres", "dosage2": 4.0, "pesticide3": "Omni Care 288 EC", "dosage3": 0.9, "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Pre Emergence RC": {"pesticide1": "Toleran 75 WG", "dosage1": 0.06, "pesticide2": "Prima Kuat 276 SL", "dosage2": 1.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing A": {"pesticide1": "NPK Plus 15-15-15", "dosage1": 700.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing B": {"pesticide1": "NPK 15-10-15", "dosage1": 700.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing C": {"pesticide1": "NPK 15-8-15", "dosage1": 700.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing D": {"pesticide1": "TSP-P205 (Phospate) 46%", "dosage1": 100.0, "pesticide2": "NK 20:30", "dosage2": 600.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing A": {"pesticide1": "NPK Plus 15-15-15", "dosage1": 600.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing B": {"pesticide1": "NPK 15-10-15", "dosage1": 600.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing C": {"pesticide1": "NPK 15-8-15", "dosage1": 600.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing D": {"pesticide1": "TSP-P205 (Phospate) 46%", "dosage1": 100.0, "pesticide2": "NK 20:30", "dosage2": 400.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}}, "formHeaders": ["Date", "Time", "Shift", "Status", "Name", "Name of Assistan", "Paddock", "Variety", "Area (Ha)", "Unit", "No. Unit", "Dropper", "Droplet Size", "Nozzle", "Height (m)", "Row Spacing (m)", "Speed (Km/Jam)", "Type", "Activity", "Deskripsi", "Pesticide 1", "Dosage", "Pesticide 2", "Dosage", "Pesticide 3", "Dosage", "Pesticide 4", "Dosage", "Adjuvant", "Adjuvant Dosage", "Estimated Usage Pesticide 1", "Estimated Usage Pesticide 2", "Estimated Usage Pesticide 3", "Estimated Usage Pesticide 4", "Estimated Usage Adjuvant", "Actual Usage Pesticide 1", "Actual Usage Pesticide 2", "Actual Usage Pesticide 3", "Actual Usage Pesticide 4", "Actual Usage Adjuvant", "Water Rate", "Water Quality", "Actual Usage", "Wind Speed (Km/jam)", "Temperature (\u00b0C)", "Humidity (NRC)", "Delta T (\u00b0C)", "Weather Condition", "Noted\\*"]};
+  </script>
+
+  <!-- MAIN APPLICATION LOGIC -->
+  <script>
+    const STORAGE_KEY_MASTER = 'qc_master_data_v1';
+    const STORAGE_KEY_RECORDS = 'qc_form_records_v1';
+    const STORAGE_KEY_CONFIG = 'qc_form_config_v1';
+
+    let masterData = null;
+    let savedRecords = [];
+    let appConfig = {
+      appsScriptUrl: '',
+      spreadsheetId: '1Yr9wcSl5Q1qLugdoRNAdSpPAHmHad54repNunzX5Ed0'
+    };
+    let currentEditingId = null;
+
+    function initApp() {
+      const rawConfig = localStorage.getItem(STORAGE_KEY_CONFIG);
+      if (rawConfig) {
+        try { appConfig = Object.assign(appConfig, JSON.parse(rawConfig)); } catch (e) {}
+      }
+      document.getElementById('cfg_appsScriptUrl').value = appConfig.appsScriptUrl || '';
+
+      const rawMaster = localStorage.getItem(STORAGE_KEY_MASTER);
+      if (rawMaster) {
+        try { masterData = JSON.parse(rawMaster); } catch (e) { masterData = INITIAL_MASTER_DATA; }
+      } else {
+        masterData = INITIAL_MASTER_DATA;
+        localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(masterData));
+      }
+
+      const rawRecords = localStorage.getItem(STORAGE_KEY_RECORDS);
+      if (rawRecords) {
+        try { savedRecords = JSON.parse(rawRecords); } catch (e) { savedRecords = []; }
+      }
+
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js')
+          .then(() => console.log('[PWA] Service Worker registered'))
+          .catch(err => console.log('[PWA] SW register failed:', err));
+      }
+
+      window.addEventListener('online', updateNetworkStatus);
+      window.addEventListener('offline', updateNetworkStatus);
+      updateNetworkStatus();
+
+      populateMasterDataUI();
+      resetForm();
+      renderHistoryList();
+    }
+
+    function updateNetworkStatus() {
+      const isOnline = navigator.onLine;
+      const dot = document.getElementById('netStatusDot');
+      const text = document.getElementById('netStatusText');
+      const badge = document.getElementById('netStatusBadge');
+
+      if (isOnline) {
+        dot.className = 'w-2 h-2 rounded-full bg-green-400 animate-pulse';
+        text.innerText = 'Online';
+        badge.className = 'px-2.5 py-1 rounded-full bg-emerald-800 border border-emerald-600 flex items-center space-x-1.5';
+      } else {
+        dot.className = 'w-2 h-2 rounded-full bg-amber-400';
+        text.innerText = 'Offline (Cache)';
+        badge.className = 'px-2.5 py-1 rounded-full bg-slate-800 border border-slate-600 flex items-center space-x-1.5 text-amber-200';
+      }
+    }
+
+    function showToast(msg, type = 'success') {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toastMessage');
+      const toastIcon = document.getElementById('toastIcon');
+
+      toastMsg.innerText = msg;
+      if (type === 'success') {
+        toastIcon.className = 'fa-solid fa-circle-check text-emerald-400 text-base';
+      } else if (type === 'error') {
+        toastIcon.className = 'fa-solid fa-triangle-exclamation text-red-400 text-base';
+      } else {
+        toastIcon.className = 'fa-solid fa-circle-info text-blue-400 text-base';
+      }
+
+      toast.classList.remove('hidden');
+      setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 3500);
+    }
+
+    function populateMasterDataUI() {
+      if (!masterData) return;
+
+      renderButtonGroup('shiftBtnGroup', masterData.shifts || ['1', '2'], 'field_shift', '1');
+
+      renderButtonGroup('statusBtnGroup', masterData.statuses || ['Working', 'Hold'], 'field_status', 'Working', (val) => {
+        onStatusChange(val);
+      });
+
+      const nameSelect = document.getElementById('field_name');
+      nameSelect.innerHTML = '<option value="">-- Pilih Nama Mandor --</option>';
+      (masterData.names || []).forEach(n => {
+        const opt = document.createElement('option');
+        opt.value = n;
+        opt.textContent = n;
+        nameSelect.appendChild(opt);
+      });
+
+      const asstSelect = document.getElementById('field_nameOfAssistan');
+      asstSelect.innerHTML = '<option value="">-- Pilih Nama Asisten --</option>';
+      (masterData.assistants || []).forEach(a => {
+        const opt = document.createElement('option');
+        opt.value = a;
+        opt.textContent = a;
+        asstSelect.appendChild(opt);
+      });
+
+      const paddockSelect = document.getElementById('field_paddock');
+      paddockSelect.innerHTML = '<option value="">-- Pilih Paddock --</option>';
+      const uniquePaddocks = [...new Set((masterData.plan || []).map(p => p.paddock).filter(Boolean))].sort();
+      uniquePaddocks.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p;
+        opt.textContent = p;
+        paddockSelect.appendChild(opt);
+      });
+
+      const unitNames = Object.keys(masterData.unitMap || {});
+      renderButtonGroup('unitBtnGroup', unitNames, 'field_unit', unitNames[0] || '', (val) => {
+        onUnitChange(val);
+      });
+      onUnitChange(unitNames[0] || '');
+
+      renderButtonGroup('dropperBtnGroup', masterData.dropper || ['Yes', 'No'], 'field_dropper', 'Yes');
+
+      renderButtonGroup('nozzleBtnGroup', masterData.nozzles || [], 'field_nozzle', masterData.nozzles?.[0] || '');
+
+      const wqSelect = document.getElementById('field_waterQuality');
+      wqSelect.innerHTML = '';
+      (masterData.waterQualities || ['Clean', 'Slighty Muddy', 'Bad']).forEach(wq => {
+        const opt = document.createElement('option');
+        opt.value = wq;
+        opt.textContent = wq;
+        if (wq.toLowerCase() === 'clean') opt.selected = true;
+        wqSelect.appendChild(opt);
+      });
+
+      renderButtonGroup('weatherBtnGroup', masterData.weatherConditions || ['Sunny', 'Cloudy', 'Rainning'], 'field_weatherCondition', 'Sunny');
+    }
+
+    function renderButtonGroup(containerId, options, hiddenInputId, defaultValue = '', callback = null) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      container.innerHTML = '';
+
+      const hiddenInput = document.getElementById(hiddenInputId);
+      if (hiddenInput && defaultValue && !hiddenInput.value) {
+        hiddenInput.value = defaultValue;
+      }
+
+      options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn-toggle py-2 px-3 border border-slate-300 rounded-lg text-xs font-semibold bg-slate-50 text-slate-700 hover:bg-slate-100 text-center';
+        btn.textContent = opt;
+        btn.dataset.val = opt;
+
+        if (hiddenInput && hiddenInput.value === opt) {
+          btn.classList.add('active');
+        }
+
+        btn.onclick = () => {
+          Array.from(container.querySelectorAll('.btn-toggle')).forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          if (hiddenInput) hiddenInput.value = opt;
+          if (callback) callback(opt);
+        };
+
+        container.appendChild(btn);
+      });
+    }
+
+    function setButtonGroupValue(containerId, hiddenInputId, value) {
+      const container = document.getElementById(containerId);
+      const hiddenInput = document.getElementById(hiddenInputId);
+      if (hiddenInput) hiddenInput.value = value;
+      if (!container) return;
+      Array.from(container.querySelectorAll('.btn-toggle')).forEach(b => {
+        if (b.dataset.val === value) {
+          b.classList.add('active');
+        } else {
+          b.classList.remove('active');
+        }
+      });
+    }
+
+    function setNowTime(elementId) {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      document.getElementById(elementId).value = `${h}:${m}`;
+    }
+
+    function onStatusChange(status) {
+      const isHold = (status === 'Hold');
+      const alertBanner = document.getElementById('holdAlertBanner');
+      const techWrapper = document.getElementById('technicalDetailsWrapper');
+      const areaInput = document.getElementById('field_area');
+      const areaHoldNotice = document.getElementById('areaHoldNotice');
+
+      if (isHold) {
+        alertBanner.classList.remove('hidden');
+        areaInput.disabled = true;
+        areaInput.value = '';
+        areaInput.classList.add('bg-slate-200', 'cursor-not-allowed');
+        areaHoldNotice.classList.remove('hidden');
+        techWrapper.classList.add('opacity-40', 'pointer-events-none');
+      } else {
+        alertBanner.classList.add('hidden');
+        areaInput.disabled = false;
+        areaInput.classList.remove('bg-slate-200', 'cursor-not-allowed');
+        areaHoldNotice.classList.add('hidden');
+        techWrapper.classList.remove('opacity-40', 'pointer-events-none');
+      }
+      calculateEstimatedUsages();
+    }
+
+    function onUnitChange(selectedUnit) {
+      const noUnits = (masterData && masterData.unitMap && masterData.unitMap[selectedUnit]) || [];
+      renderButtonGroup('noUnitBtnGroup', noUnits, 'field_noUnit', noUnits[0] || '');
+    }
+
+    function onPaddockChange() {
+      const paddock = document.getElementById('field_paddock').value;
+      if (!paddock || !masterData) {
+        renderButtonGroup('varietyBtnGroup', [], 'field_variety');
+        renderButtonGroup('typeBtnGroup', [], 'field_type');
+        renderButtonGroup('activityBtnGroup', [], 'field_activity');
+        renderButtonGroup('deskripsiBtnGroup', [], 'field_deskripsi');
+        resetBahanOutputs();
+        return;
+      }
+
+      const matchingPlans = (masterData.plan || []).filter(p => p.paddock === paddock);
+      
+      let paddockVarieties = [...new Set(matchingPlans.map(p => p.variety).filter(Boolean))];
+      if (paddockVarieties.length === 0) {
+        paddockVarieties = masterData.allVarieties || [];
+      }
+      renderButtonGroup('varietyBtnGroup', paddockVarieties, 'field_variety', paddockVarieties[0] || '');
+
+      let paddockTypes = [...new Set(matchingPlans.map(p => p.type).filter(Boolean))];
+      if (paddockTypes.length === 0) {
+        paddockTypes = ['Insecticide', 'Herbicide', 'Fungicide'];
+      }
+      renderButtonGroup('typeBtnGroup', paddockTypes, 'field_type', paddockTypes[0] || '');
+
+      let paddockActivities = [...new Set(matchingPlans.map(p => p.activity).filter(Boolean))];
+      if (paddockActivities.length === 0) {
+        paddockActivities = ['Insecticide', 'Knockdown', 'Pre Emergence', 'Post Emergence', 'Single Dressing', 'Top Dressing', 'Bassalt Dressing'];
+      }
+      renderButtonGroup('activityBtnGroup', paddockActivities, 'field_activity', paddockActivities[0] || '', (act) => {
+        onActivityChange(paddock, act);
+      });
+
+      onActivityChange(paddock, paddockActivities[0] || '');
+    }
+
+    function onActivityChange(paddock, activity) {
+      if (!masterData) return;
+      const matchingPlans = (masterData.plan || []).filter(p => p.paddock === paddock && p.activity === activity);
+      let deskripsiList = [...new Set(matchingPlans.map(p => p.deskripsi).filter(Boolean))];
+      
+      if (deskripsiList.length === 0) {
+        deskripsiList = Object.keys(masterData.bahan || {}).filter(d => {
+          if (!activity) return true;
+          return d.toLowerCase().includes(activity.toLowerCase().split(' ')[0]);
+        });
+      }
+      if (deskripsiList.length === 0) {
+        deskripsiList = Object.keys(masterData.bahan || {});
+      }
+
+      renderButtonGroup('deskripsiBtnGroup', deskripsiList, 'field_deskripsi', deskripsiList[0] || '', (desk) => {
+        onDeskripsiChange(desk);
+      });
+
+      if (deskripsiList[0]) {
+        onDeskripsiChange(deskripsiList[0]);
+      } else {
+        resetBahanOutputs();
+      }
+    }
+
+    function onDeskripsiChange(deskripsi) {
+      if (!masterData || !masterData.bahan) return;
+      const bData = masterData.bahan[deskripsi];
+      if (!bData) {
+        resetBahanOutputs();
+        return;
+      }
+
+      document.getElementById('field_pesticide1').value = bData.pesticide1 || '';
+      document.getElementById('display_pesticide1').textContent = bData.pesticide1 || '-';
+      document.getElementById('field_dosage1').value = bData.dosage1 || 0;
+      document.getElementById('display_dosage1').textContent = bData.dosage1 ? formatNumber(bData.dosage1) : '0';
+
+      document.getElementById('field_pesticide2').value = bData.pesticide2 || '';
+      document.getElementById('display_pesticide2').textContent = bData.pesticide2 || '-';
+      document.getElementById('field_dosage2').value = bData.dosage2 || 0;
+      document.getElementById('display_dosage2').textContent = bData.dosage2 ? formatNumber(bData.dosage2) : '0';
+
+      document.getElementById('field_pesticide3').value = bData.pesticide3 || '';
+      document.getElementById('display_pesticide3').textContent = bData.pesticide3 || '-';
+      document.getElementById('field_dosage3').value = bData.dosage3 || 0;
+      document.getElementById('display_dosage3').textContent = bData.dosage3 ? formatNumber(bData.dosage3) : '0';
+
+      document.getElementById('field_pesticide4').value = bData.pesticide4 || '';
+      document.getElementById('display_pesticide4').textContent = bData.pesticide4 || '-';
+      document.getElementById('field_dosage4').value = bData.dosage4 || 0;
+      document.getElementById('display_dosage4').textContent = bData.dosage4 ? formatNumber(bData.dosage4) : '0';
+
+      document.getElementById('field_adjuvant').value = bData.adjuvant || '';
+      document.getElementById('display_adjuvant').textContent = bData.adjuvant || '-';
+      document.getElementById('field_adjuvantDosage').value = bData.adjuvant_dosage || 0;
+      document.getElementById('display_adjuvantDosage').textContent = bData.adjuvant_dosage ? formatNumber(bData.adjuvant_dosage) : '0';
+
+      calculateEstimatedUsages();
+    }
+
+    function resetBahanOutputs() {
+      ['1', '2', '3', '4'].forEach(num => {
+        document.getElementById('field_pesticide' + num).value = '';
+        document.getElementById('display_pesticide' + num).textContent = '-';
+        document.getElementById('field_dosage' + num).value = 0;
+        document.getElementById('display_dosage' + num).textContent = '0';
+        document.getElementById('field_estUsagePesticide' + num).value = 0;
+        document.getElementById('display_estPesticide' + num).textContent = '0';
+      });
+      document.getElementById('field_adjuvant').value = '';
+      document.getElementById('display_adjuvant').textContent = '-';
+      document.getElementById('field_adjuvantDosage').value = 0;
+      document.getElementById('display_adjuvantDosage').textContent = '0';
+      document.getElementById('field_estUsageAdjuvant').value = 0;
+      document.getElementById('display_estAdjuvant').textContent = '0';
+    }
+
+    function calculateEstimatedUsages() {
+      const isHold = (document.getElementById('field_status').value === 'Hold');
+      const area = isHold ? 0 : parseFloat(document.getElementById('field_area').value) || 0;
+
+      ['1', '2', '3', '4'].forEach(num => {
+        const dosage = parseFloat(document.getElementById('field_dosage' + num).value) || 0;
+        const est = area * dosage;
+        document.getElementById('field_estUsagePesticide' + num).value = est > 0 ? est.toFixed(2) : 0;
+        document.getElementById('display_estPesticide' + num).textContent = est > 0 ? formatNumber(est.toFixed(2)) : '0';
+      });
+
+      const adjDosage = parseFloat(document.getElementById('field_adjuvantDosage').value) || 0;
+      const estAdj = area * adjDosage;
+      document.getElementById('field_estUsageAdjuvant').value = estAdj > 0 ? estAdj.toFixed(2) : 0;
+      document.getElementById('display_estAdjuvant').textContent = estAdj > 0 ? formatNumber(estAdj.toFixed(2)) : '0';
+    }
+
+    function formatNumber(val) {
+      if (!val) return '0';
+      return parseFloat(val).toLocaleString('id-ID', { maximumFractionDigits: 2 });
+    }
+
+    function resetForm() {
+      currentEditingId = null;
+      document.getElementById('submitBtnLabel').textContent = 'Simpan Data QC';
+
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      document.getElementById('field_date').value = `${year}-${month}-${day}`;
+
+      const hours = String(now.getHours()).padStart(2, '0');
+      const mins = String(now.getMinutes()).padStart(2, '0');
+      document.getElementById('field_startTime').value = `${hours}:${mins}`;
+      document.getElementById('field_endTime').value = '';
+
+      setButtonGroupValue('shiftBtnGroup', 'field_shift', '1');
+      setButtonGroupValue('statusBtnGroup', 'field_status', 'Working');
+      onStatusChange('Working');
+
+      document.getElementById('field_name').value = '';
+      document.getElementById('field_nameOfAssistan').value = '';
+      document.getElementById('field_paddock').value = '';
+      document.getElementById('field_area').value = '';
+
+      const firstUnit = Object.keys(masterData.unitMap || {})[0] || 'Tractor Spray';
+      setButtonGroupValue('unitBtnGroup', 'field_unit', firstUnit);
+      onUnitChange(firstUnit);
+
+      setButtonGroupValue('dropperBtnGroup', 'field_dropper', 'Yes');
+      document.getElementById('field_dropletSize').value = '';
+      setButtonGroupValue('nozzleBtnGroup', 'field_nozzle', masterData.nozzles?.[0] || '');
+      document.getElementById('field_height').value = '';
+      document.getElementById('field_rowSpacing').value = '';
+      document.getElementById('field_speed').value = '';
+
+      resetBahanOutputs();
+      document.getElementById('field_actUsagePesticide1').value = '';
+      document.getElementById('field_actUsagePesticide2').value = '';
+      document.getElementById('field_actUsagePesticide3').value = '';
+      document.getElementById('field_actUsagePesticide4').value = '';
+      document.getElementById('field_actUsageAdjuvant').value = '';
+
+      document.getElementById('field_waterRate').value = '';
+      document.getElementById('field_waterQuality').value = 'Clean';
+      document.getElementById('field_actualUsage').value = '';
+      document.getElementById('field_windSpeed').value = '';
+      document.getElementById('field_temperature').value = '';
+      document.getElementById('field_humidity').value = '';
+      document.getElementById('field_deltaT').value = '';
+      setButtonGroupValue('weatherBtnGroup', 'field_weatherCondition', 'Sunny');
+      document.getElementById('field_noted').value = '';
+    }
+
+    function saveFormData(saveType = 'ready') {
+      const record = {
+        id: currentEditingId || 'qc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        createdAt: new Date().toISOString(),
+        saveType: saveType,
+        uploadStatus: 'pending',
+        uploadedAt: null,
+
+        // 50 Form QC Fields Sesuai Urutan Kolom Spreadsheet
+        date: document.getElementById('field_date').value || '',
+        startTime: document.getElementById('field_startTime').value || '',
+        endTime: document.getElementById('field_endTime').value || '',
+        shift: document.getElementById('field_shift').value || '',
+        status: document.getElementById('field_status').value || 'Working',
+        name: document.getElementById('field_name').value || '',
+        nameOfAssistan: document.getElementById('field_nameOfAssistan').value || '',
+        paddock: document.getElementById('field_paddock').value || '',
+        variety: document.getElementById('field_variety').value || '',
+        area: document.getElementById('field_area').value || '',
+        unit: document.getElementById('field_unit').value || '',
+        noUnit: document.getElementById('field_noUnit').value || '',
+        dropper: document.getElementById('field_dropper').value || '',
+        dropletSize: document.getElementById('field_dropletSize').value || '',
+        nozzle: document.getElementById('field_nozzle').value || '',
+        height: document.getElementById('field_height').value || '',
+        rowSpacing: document.getElementById('field_rowSpacing').value || '',
+        speed: document.getElementById('field_speed').value || '',
+        type: document.getElementById('field_type').value || '',
+        activity: document.getElementById('field_activity').value || '',
+        deskripsi: document.getElementById('field_deskripsi').value || '',
+        pesticide1: document.getElementById('field_pesticide1').value || '',
+        dosage1: document.getElementById('field_dosage1').value || '',
+        pesticide2: document.getElementById('field_pesticide2').value || '',
+        dosage2: document.getElementById('field_dosage2').value || '',
+        pesticide3: document.getElementById('field_pesticide3').value || '',
+        dosage3: document.getElementById('field_dosage3').value || '',
+        pesticide4: document.getElementById('field_pesticide4').value || '',
+        dosage4: document.getElementById('field_dosage4').value || '',
+        adjuvant: document.getElementById('field_adjuvant').value || '',
+        adjuvantDosage: document.getElementById('field_adjuvantDosage').value || '',
+        estUsagePesticide1: document.getElementById('field_estUsagePesticide1').value || '',
+        estUsagePesticide2: document.getElementById('field_estUsagePesticide2').value || '',
+        estUsagePesticide3: document.getElementById('field_estUsagePesticide3').value || '',
+        estUsagePesticide4: document.getElementById('field_estUsagePesticide4').value || '',
+        estUsageAdjuvant: document.getElementById('field_estUsageAdjuvant').value || '',
+        actUsagePesticide1: document.getElementById('field_actUsagePesticide1').value || '',
+        actUsagePesticide2: document.getElementById('field_actUsagePesticide2').value || '',
+        actUsagePesticide3: document.getElementById('field_actUsagePesticide3').value || '',
+        actUsagePesticide4: document.getElementById('field_actUsagePesticide4').value || '',
+        actUsageAdjuvant: document.getElementById('field_actUsageAdjuvant').value || '',
+        waterRate: document.getElementById('field_waterRate').value || '',
+        waterQuality: document.getElementById('field_waterQuality').value || 'Clean',
+        actualUsage: document.getElementById('field_actualUsage').value || '',
+        windSpeed: document.getElementById('field_windSpeed').value || '',
+        temperature: document.getElementById('field_temperature').value || '',
+        humidity: document.getElementById('field_humidity').value || '',
+        deltaT: document.getElementById('field_deltaT').value || '',
+        weatherCondition: document.getElementById('field_weatherCondition').value || '',
+        noted: document.getElementById('field_noted').value || ''
+      };
+
+      const existingIdx = savedRecords.findIndex(r => r.id === record.id);
+      if (existingIdx !== -1) {
+        record.uploadStatus = 'pending';
+        savedRecords[existingIdx] = record;
+        showToast('Perubahan data berhasil diperbarui!', 'success');
+      } else {
+        savedRecords.unshift(record);
+        if (saveType === 'draft') {
+          showToast('Draft berhasil disimpan (Bisa dilanjutkan nanti)', 'info');
+        } else {
+          showToast('Data QC berhasil disimpan secara lokal!', 'success');
+        }
+      }
+
+      localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(savedRecords));
+      
+      resetForm();
+      renderHistoryList();
+      switchTab('historyTab');
+    }
+
+    function editRecord(id) {
+      const rec = savedRecords.find(r => r.id === id);
+      if (!rec) return;
+
+      currentEditingId = rec.id;
+      document.getElementById('submitBtnLabel').textContent = 'Perbarui Data QC';
+
+      document.getElementById('field_date').value = rec.date || '';
+      document.getElementById('field_startTime').value = rec.startTime || rec.time || '';
+      document.getElementById('field_endTime').value = rec.endTime || '';
+      setButtonGroupValue('shiftBtnGroup', 'field_shift', rec.shift || '1');
+      setButtonGroupValue('statusBtnGroup', 'field_status', rec.status || 'Working');
+      onStatusChange(rec.status || 'Working');
+
+      document.getElementById('field_name').value = rec.name || '';
+      document.getElementById('field_nameOfAssistan').value = rec.nameOfAssistan || '';
+
+      document.getElementById('field_paddock').value = rec.paddock || '';
+      onPaddockChange();
+
+      if (rec.variety) setButtonGroupValue('varietyBtnGroup', 'field_variety', rec.variety);
+      document.getElementById('field_area').value = rec.area || '';
+      if (rec.type) setButtonGroupValue('typeBtnGroup', 'field_type', rec.type);
+      if (rec.activity) {
+        setButtonGroupValue('activityBtnGroup', 'field_activity', rec.activity);
+        onActivityChange(rec.paddock, rec.activity);
+      }
+      if (rec.deskripsi) {
+        setButtonGroupValue('deskripsiBtnGroup', 'field_deskripsi', rec.deskripsi);
+        onDeskripsiChange(rec.deskripsi);
+      }
+
+      if (rec.unit) {
+        setButtonGroupValue('unitBtnGroup', 'field_unit', rec.unit);
+        onUnitChange(rec.unit);
+      }
+      if (rec.noUnit) setButtonGroupValue('noUnitBtnGroup', 'field_noUnit', rec.noUnit);
+      if (rec.dropper) setButtonGroupValue('dropperBtnGroup', 'field_dropper', rec.dropper);
+      document.getElementById('field_dropletSize').value = rec.dropletSize || '';
+      if (rec.nozzle) setButtonGroupValue('nozzleBtnGroup', 'field_nozzle', rec.nozzle);
+      document.getElementById('field_height').value = rec.height || '';
+      document.getElementById('field_rowSpacing').value = rec.rowSpacing || '';
+      document.getElementById('field_speed').value = rec.speed || '';
+
+      document.getElementById('field_actUsagePesticide1').value = rec.actUsagePesticide1 || '';
+      document.getElementById('field_actUsagePesticide2').value = rec.actUsagePesticide2 || '';
+      document.getElementById('field_actUsagePesticide3').value = rec.actUsagePesticide3 || '';
+      document.getElementById('field_actUsagePesticide4').value = rec.actUsagePesticide4 || '';
+      document.getElementById('field_actUsageAdjuvant').value = rec.actUsageAdjuvant || '';
+
+      document.getElementById('field_waterRate').value = rec.waterRate || '';
+      document.getElementById('field_waterQuality').value = rec.waterQuality || 'Clean';
+      document.getElementById('field_actualUsage').value = rec.actualUsage || '';
+      document.getElementById('field_windSpeed').value = rec.windSpeed || '';
+      document.getElementById('field_temperature').value = rec.temperature || '';
+      document.getElementById('field_humidity').value = rec.humidity || '';
+      document.getElementById('field_deltaT').value = rec.deltaT || '';
+      if (rec.weatherCondition) setButtonGroupValue('weatherBtnGroup', 'field_weatherCondition', rec.weatherCondition);
+      document.getElementById('field_noted').value = rec.noted || '';
+
+      calculateEstimatedUsages();
+      switchTab('inputTab');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function deleteRecord(id) {
+      if (!confirm('Apakah Anda yakin ingin menghapus data ini?')) return;
+      savedRecords = savedRecords.filter(r => r.id !== id);
+      localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(savedRecords));
+      renderHistoryList();
+      showToast('Data berhasil dihapus', 'info');
+    }
+
+    function renderHistoryList() {
+      const container = document.getElementById('historyContainer');
+      const filterDate = document.getElementById('historyFilterDate').value;
+      const pendingBadge = document.getElementById('pendingBadge');
+
+      const totalCount = savedRecords.length;
+      const pendingCount = savedRecords.filter(r => r.uploadStatus !== 'uploaded').length;
+      const uploadedCount = savedRecords.filter(r => r.uploadStatus === 'uploaded').length;
+
+      document.getElementById('statTotal').innerText = totalCount;
+      document.getElementById('statPending').innerText = pendingCount;
+      document.getElementById('statUploaded').innerText = uploadedCount;
+
+      if (pendingCount > 0) {
+        pendingBadge.innerText = pendingCount;
+        pendingBadge.classList.remove('hidden');
+      } else {
+        pendingBadge.classList.add('hidden');
+      }
+
+      let recordsToShow = savedRecords;
+      if (filterDate) {
+        recordsToShow = savedRecords.filter(r => r.date === filterDate);
+      }
+
+      if (recordsToShow.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white rounded-xl p-8 text-center text-slate-400 border border-slate-200 space-y-2">
+            <i class="fa-solid fa-folder-open text-4xl text-slate-300"></i>
+            <p class="text-xs font-semibold">Belum ada data input QC tersimpan.</p>
+            <p class="text-[11px] text-slate-400">Data yang diinput pada form akan otomatis tersimpan di sini dan dapat diupload saat ada sinyal.</p>
+          </div>
+        `;
+        return;
+      }
+
+      const grouped = {};
+      recordsToShow.forEach(r => {
+        const d = r.date || 'Tanpa Tanggal';
+        if (!grouped[d]) grouped[d] = [];
+        grouped[d].push(r);
+      });
+
+      const sortedDates = Object.keys(grouped).sort().reverse();
+
+      container.innerHTML = '';
+      sortedDates.forEach(dateKey => {
+        const list = grouped[dateKey];
+        const dateSection = document.createElement('div');
+        dateSection.className = 'bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden';
+
+        dateSection.innerHTML = `
+          <div class="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <i class="fa-regular fa-calendar-days text-emerald-700 text-sm"></i>
+              <span class="font-bold text-xs text-slate-800">${formatDateDisplay(dateKey)}</span>
+              <span class="text-[11px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-semibold">${list.length} Data</span>
+            </div>
+          </div>
+          <div class="divide-y divide-slate-100 p-2 space-y-2">
+            ${list.map(rec => renderRecordCard(rec)).join('')}
+          </div>
+        `;
+
+        container.appendChild(dateSection);
+      });
+    }
+
+    function renderRecordCard(rec) {
+      const isHold = (rec.status === 'Hold');
+      const isUploaded = (rec.uploadStatus === 'uploaded');
+      const isDraft = (rec.saveType === 'draft');
+
+      let statusBadge = '';
+      if (isUploaded) {
+        statusBadge = '<span class="badge-uploaded text-[10px] px-2 py-0.5 rounded-full font-bold"><i class="fa-solid fa-cloud-check mr-1"></i>Terupload</span>';
+      } else if (isDraft) {
+        statusBadge = '<span class="badge-draft text-[10px] px-2 py-0.5 rounded-full font-bold"><i class="fa-solid fa-clock-rotate-left mr-1"></i>Draft</span>';
+      } else {
+        statusBadge = '<span class="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] px-2 py-0.5 rounded-full font-bold"><i class="fa-solid fa-hourglass-half mr-1"></i>Siap Upload</span>';
+      }
+
+      const holdBadge = isHold ? '<span class="badge-hold text-[10px] px-2 py-0.5 rounded font-bold ml-1">HOLD</span>' : '<span class="badge-working text-[10px] px-2 py-0.5 rounded font-bold ml-1">WORKING</span>';
+
+      const timeRange = (rec.startTime || rec.time || '-') + (rec.endTime ? ' s/d ' + rec.endTime : '');
+
+      return `
+        <div class="p-3 bg-white hover:bg-slate-50 rounded-lg border border-slate-200 transition space-y-2">
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="flex items-center space-x-1">
+                <span class="font-bold text-sm text-emerald-950">${rec.paddock || 'Paddock Tidak Diisi'}</span>
+                ${holdBadge}
+              </div>
+              <p class="text-[11px] text-slate-500 mt-0.5">
+                <span><i class="fa-solid fa-clock mr-1"></i>${timeRange} (Shift ${rec.shift || '-'})</span> | 
+                <span><i class="fa-solid fa-user mr-1"></i>${rec.name || 'Mandor -'}</span>
+              </p>
+            </div>
+            <div>${statusBadge}</div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 text-[11px] bg-slate-50 p-2 rounded border border-slate-100">
+            <div><strong class="text-slate-600">Unit:</strong> ${rec.unit || '-'} (${rec.noUnit || '-'})</div>
+            <div><strong class="text-slate-600">Area:</strong> ${rec.area ? rec.area + ' Ha' : (isHold ? 'HOLD (0 Ha)' : '-')}</div>
+            <div class="col-span-2"><strong class="text-slate-600">Deskripsi:</strong> ${rec.deskripsi || '-'}</div>
+          </div>
+
+          <div class="flex items-center justify-end space-x-1.5 pt-1 border-t border-slate-100 text-xs">
+            <button onclick="showRecordDetail('${rec.id}')" class="p-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium" title="Lihat Seluruh Kolom">
+              <i class="fa-solid fa-eye"></i> Detail
+            </button>
+            <button onclick="editRecord('${rec.id}')" class="p-1.5 px-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded font-medium" title="Edit">
+              <i class="fa-solid fa-pen"></i> Edit
+            </button>
+            <button onclick="deleteRecord('${rec.id}')" class="p-1.5 px-2.5 bg-red-50 hover:bg-red-100 text-red-700 rounded font-medium" title="Hapus">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+            ${!isUploaded ? `
+              <button onclick="uploadSingleRecord('${rec.id}')" class="p-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold active:scale-95 shadow-sm transition" title="Upload ke Spreadsheet">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Upload
+              </button>
+            ` : `
+              <button onclick="uploadSingleRecord('${rec.id}')" class="p-1.5 px-2.5 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded font-medium text-[11px]" title="Upload Ulang">
+                <i class="fa-solid fa-arrow-rotate-right"></i> Re-Upload
+              </button>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
+    function formatDateDisplay(dStr) {
+      if (!dStr || dStr === 'Tanpa Tanggal') return dStr;
+      const parts = dStr.split('-');
+      if (parts.length === 3) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      }
+      return dStr;
+    }
+
+    function showRecordDetail(id) {
+      const rec = savedRecords.find(r => r.id === id);
+      if (!rec) return;
+
+      const modal = document.getElementById('detailModal');
+      const body = document.getElementById('modalBody');
+      const title = document.getElementById('modalTitle');
+
+      title.textContent = `Detail Form QC: ${rec.paddock || 'Paddock'} (${rec.date || '-'})`;
+
+      const fields = [
+        ['Date', rec.date], ['Start Time', rec.startTime || rec.time], ['End Time', rec.endTime],
+        ['Shift', rec.shift], ['Status', rec.status],
+        ['Name', rec.name], ['Name of Assistan', rec.nameOfAssistan], ['Paddock', rec.paddock],
+        ['Variety', rec.variety], ['Area (Ha)', rec.area], ['Unit', rec.unit], ['No. Unit', rec.noUnit],
+        ['Dropper', rec.dropper], ['Droplet Size', rec.dropletSize], ['Nozzle', rec.nozzle],
+        ['Height (m)', rec.height], ['Row Spacing (m)', rec.rowSpacing], ['Speed (Km/Jam)', rec.speed],
+        ['Type', rec.type], ['Activity', rec.activity], ['Deskripsi', rec.deskripsi],
+        ['Pesticide 1', rec.pesticide1], ['Dosage 1', rec.dosage1], ['Est. Usage 1', rec.estUsagePesticide1], ['Act. Usage 1', rec.actUsagePesticide1],
+        ['Pesticide 2', rec.pesticide2], ['Dosage 2', rec.dosage2], ['Est. Usage 2', rec.estUsagePesticide2], ['Act. Usage 2', rec.actUsagePesticide2],
+        ['Pesticide 3', rec.pesticide3], ['Dosage 3', rec.dosage3], ['Est. Usage 3', rec.estUsagePesticide3], ['Act. Usage 3', rec.actUsagePesticide3],
+        ['Pesticide 4', rec.pesticide4], ['Dosage 4', rec.dosage4], ['Est. Usage 4', rec.estUsagePesticide4], ['Act. Usage 4', rec.actUsagePesticide4],
+        ['Adjuvant', rec.adjuvant], ['Adjuvant Dosage', rec.adjuvantDosage], ['Est. Usage Adjuvant', rec.estUsageAdjuvant], ['Act. Usage Adjuvant', rec.actUsageAdjuvant],
+        ['Water Rate', rec.waterRate], ['Water Quality', rec.waterQuality], ['Actual Usage (Air)', rec.actualUsage],
+        ['Wind Speed', rec.windSpeed], ['Temperature', rec.temperature], ['Humidity', rec.humidity], ['Delta T', rec.deltaT],
+        ['Weather Condition', rec.weatherCondition], ['Noted*', rec.noted],
+        ['Status Upload', rec.uploadStatus === 'uploaded' ? 'SUDAH DIUPLOAD (' + rec.uploadedAt + ')' : 'BELUM DIUPLOAD (PENDING)']
+      ];
+
+      body.innerHTML = `
+        <div class="grid grid-cols-2 gap-2">
+          ${fields.map(([k, v]) => `
+            <div class="p-2 bg-slate-50 rounded border border-slate-100">
+              <span class="text-[10px] text-slate-500 block uppercase font-bold">${k}</span>
+              <span class="font-semibold text-slate-800">${v !== undefined && v !== '' ? v : '-'}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeDetailModal() {
+      document.getElementById('detailModal').classList.add('hidden');
+    }
+
+    async function uploadSingleRecord(id) {
+      if (!navigator.onLine) {
+        showToast('HP sedang Offline. Cari area dengan sinyal untuk upload.', 'error');
+        return;
+      }
+
+      if (!appConfig.appsScriptUrl) {
+        showToast('URL Google Apps Script belum diisi pada tab Pengaturan!', 'error');
+        switchTab('settingsTab');
+        return;
+      }
+
+      const rec = savedRecords.find(r => r.id === id);
+      if (!rec) return;
+
+      showToast('Mengupload data ke Google Spreadsheet...', 'info');
+
+      try {
+        const payload = {
+          action: 'saveFormQC',
+          data: [rec]
+        };
+
+        const response = await fetch(appConfig.appsScriptUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+        if (result.status === 'success') {
+          rec.uploadStatus = 'uploaded';
+          rec.uploadedAt = new Date().toLocaleString('id-ID');
+          localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(savedRecords));
+          renderHistoryList();
+          showToast('Data berhasil diupload ke Form QC!', 'success');
+        } else {
+          showToast('Gagal upload: ' + (result.message || 'Error server'), 'error');
+        }
+      } catch (err) {
+        console.error(err);
+        showToast('Koneksi gagal atau URL Apps Script salah.', 'error');
+      }
+    }
+
+    async function uploadAllPending() {
+      if (!navigator.onLine) {
+        showToast('HP sedang Offline. Hubungkan ke internet untuk upload massal.', 'error');
+        return;
+      }
+
+      if (!appConfig.appsScriptUrl) {
+        showToast('URL Google Apps Script belum diisi pada tab Pengaturan!', 'error');
+        switchTab('settingsTab');
+        return;
+      }
+
+      const pendingRecords = savedRecords.filter(r => r.uploadStatus !== 'uploaded');
+      if (pendingRecords.length === 0) {
+        showToast('Tidak ada data pending yang perlu diupload.', 'info');
+        return;
+      }
+
+      showToast(`Mengupload ${pendingRecords.length} data ke Spreadsheet...`, 'info');
+
+      try {
+        const payload = {
+          action: 'saveFormQC',
+          data: pendingRecords
+        };
+
+        const response = await fetch(appConfig.appsScriptUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+        if (result.status === 'success') {
+          const nowStr = new Date().toLocaleString('id-ID');
+          pendingRecords.forEach(r => {
+            r.uploadStatus = 'uploaded';
+            r.uploadedAt = nowStr;
+          });
+          localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(savedRecords));
+          renderHistoryList();
+          showToast(`Berhasil mengupload ${pendingRecords.length} data ke Form QC!`, 'success');
+        } else {
+          showToast('Gagal upload: ' + (result.message || 'Error server'), 'error');
+        }
+      } catch (err) {
+        console.error(err);
+        showToast('Koneksi gagal saat upload massal.', 'error');
+      }
+    }
+
+    async function syncMasterData() {
+      if (!navigator.onLine) {
+        showToast('HP sedang offline. Menggunakan cache master data yang ada.', 'info');
+        return;
+      }
+
+      if (!appConfig.appsScriptUrl) {
+        showToast('URL Apps Script belum diisi. Menggunakan data default.', 'info');
+        return;
+      }
+
+      const syncIcon = document.getElementById('syncIcon');
+      if (syncIcon) syncIcon.classList.add('fa-spin');
+      showToast('Memperbarui Master Data dari Google Spreadsheet...', 'info');
+
+      try {
+        const url = `${appConfig.appsScriptUrl}?action=getMasterData&t=${Date.now()}`;
+        const response = await fetch(url);
+        const result = await response.json();
+
+        if (result.status === 'success' && result.data) {
+          masterData = result.data;
+          localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(masterData));
+          populateMasterDataUI();
+          showToast('Master Data (Plan, Data, Bahan) berhasil diperbarui!', 'success');
+        } else {
+          showToast('Gagal sinkron data: ' + (result.message || 'Format tidak valid'), 'error');
+        }
+      } catch (err) {
+        console.error(err);
+        showToast('Gagal terhubung ke Google Apps Script.', 'error');
+      } finally {
+        if (syncIcon) syncIcon.classList.remove('fa-spin');
+      }
+    }
+
+    function saveConfig() {
+      const url = document.getElementById('cfg_appsScriptUrl').value.trim();
+      appConfig.appsScriptUrl = url;
+      localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(appConfig));
+      showToast('Pengaturan berhasil disimpan!', 'success');
+    }
+
+    function exportDataToJson() {
+      const dataStr = JSON.stringify(savedRecords, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `backup_qc_form_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Backup JSON berhasil diunduh!', 'success');
+    }
+
+    function importDataFromJson(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (Array.isArray(imported)) {
+            savedRecords = imported;
+            localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(savedRecords));
+            renderHistoryList();
+            showToast(`Berhasil me-restore ${imported.length} data QC!`, 'success');
+          } else {
+            showToast('Format file JSON tidak sesuai.', 'error');
+          }
+        } catch (err) {
+          showToast('Gagal membaca file JSON.', 'error');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function clearUploadedData() {
+      if (!confirm('Hapus hanya data yang sudah terupload ke Spreadsheet?')) return;
+      savedRecords = savedRecords.filter(r => r.uploadStatus !== 'uploaded');
+      localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(savedRecords));
+      renderHistoryList();
+      showToast('Data terupload berhasil dibersihkan dari memori HP.', 'info');
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
+      document.getElementById(tabId).classList.remove('hidden');
+
+      ['inputTab', 'historyTab', 'settingsTab'].forEach(t => {
+        const btn = document.getElementById('tabBtn-' + t);
+        if (t === tabId) {
+          btn.className = 'flex-1 py-2.5 text-center border-b-2 border-white text-white font-semibold flex items-center justify-center space-x-1.5';
+        } else {
+          btn.className = 'flex-1 py-2.5 text-center border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center space-x-1.5';
+        }
+      });
+    }
+
+    window.addEventListener('DOMContentLoaded', initApp);
+  </script>
+</body>
+</html>
