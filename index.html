@@ -35,7 +35,34 @@
     }
   </style>
 </head>
-<body class="bg-slate-100 text-slate-800 font-sans min-h-screen pb-20">
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen pb-24">
+
+  <!-- ==================== SECURITY LOCK SCREEN OVERLAY ==================== -->
+  <div id="lockScreenOverlay" class="fixed inset-0 bg-slate-900/95 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl text-center space-y-5 border border-slate-100">
+      <div class="w-16 h-16 mx-auto bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 shadow-inner">
+        <i class="fa-solid fa-shield-halved text-2xl"></i>
+      </div>
+      <div>
+        <h2 class="text-lg font-bold text-slate-900">Akses Terkunci</h2>
+        <p class="text-xs text-slate-500 mt-1">Masukkan Kode Keamanan untuk membuka aplikasi Form QC di perangkat ini.</p>
+      </div>
+
+      <div class="space-y-3 text-left">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Kode Akses Keamanan</label>
+          <input type="password" id="auth_code_input" placeholder="Masukkan Kode PIN / Sandi" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-center text-sm font-bold tracking-widest text-slate-800 focus:bg-white">
+        </div>
+        <p id="auth_error_msg" class="text-[11px] text-red-600 font-semibold hidden text-center"><i class="fa-solid fa-circle-exclamation mr-1"></i>Kode keamanan salah!</p>
+      </div>
+
+      <button type="button" onclick="verifySecurityCode()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm shadow-md active:scale-95 transition flex items-center justify-center space-x-2">
+        <i class="fa-solid fa-lock-open"></i>
+        <span>Buka Akses Aplikasi</span>
+      </button>
+      <p class="text-[10px] text-slate-400">Setelah kode benar, perangkat ini akan otomatis terbuka terus menerus.</p>
+    </div>
+  </div>
 
   <!-- TOP APP BAR -->
   <header class="bg-emerald-700 text-white sticky top-0 z-40 shadow-md">
@@ -97,7 +124,7 @@
 
       <form id="qcForm" onsubmit="event.preventDefault(); saveFormData('ready');" class="space-y-4">
         
-        <!-- CARD 1: INFORMASI UMUM & MANDOR -->
+        <!-- CARD 1: INFORMASI UMUM & WAKTU KERJA -->
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
           <div class="flex items-center space-x-2 text-emerald-800 border-b pb-2 font-bold text-sm">
             <i class="fa-solid fa-clipboard-user text-emerald-600"></i>
@@ -168,13 +195,13 @@
               <i class="fa-solid fa-map-location-dot text-emerald-600"></i>
               <span>2. Lokasi & Rencana Kerja (Plan)</span>
             </div>
-            <span class="text-[11px] text-slate-500">Sumber: Sheet Plan</span>
+            <span class="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-medium">Khusus Semprot: Insecticide / Herbicide / Fungicide</span>
           </div>
 
           <div class="space-y-3.5">
-            <!-- Paddock (Dropdown) -->
+            <!-- Paddock (Dropdown with Type filter: Insecticide, Herbicide, Fungicide) -->
             <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Paddock <span class="text-red-500">*</span></label>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Paddock (Filter: Insecticide / Herbicide / Fungicide) <span class="text-red-500">*</span></label>
               <select id="field_paddock" onchange="onPaddockChange()" class="w-full p-2.5 bg-emerald-50/50 border border-emerald-300 rounded-lg text-sm font-semibold text-emerald-950 focus:bg-white">
                 <option value="">-- Pilih Paddock --</option>
               </select>
@@ -417,11 +444,11 @@
             <p class="text-[11px] text-slate-500 italic">* Estimated Usage dihitung otomatis dari (Dosis/Ha × Area Ha). Actual Usage diisi sesuai realisasi fisik.</p>
           </div>
 
-          <!-- CARD 5: AIR, KONDISI CUACA & CATATAN -->
+          <!-- CARD 5: AIR, CUACA, FOTO DOKUMENTASI (JPG) & CATATAN -->
           <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
             <div class="flex items-center space-x-2 text-emerald-800 border-b pb-2 font-bold text-sm">
               <i class="fa-solid fa-cloud-sun-rain text-emerald-600"></i>
-              <span>5. Kualitas Air, Cuaca & Catatan</span>
+              <span>5. Kualitas Air, Cuaca & Dokumentasi Foto</span>
             </div>
 
             <div class="space-y-3.5">
@@ -466,6 +493,33 @@
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Weather Condition (Kondisi Cuaca)</label>
                 <div id="weatherBtnGroup" class="grid grid-cols-3 gap-2"></div>
                 <input type="hidden" id="field_weatherCondition">
+              </div>
+
+              <!-- Foto Dokumentasi JPG Upload -->
+              <div class="p-3 bg-emerald-50/50 rounded-xl border border-emerald-200 space-y-2">
+                <label class="block text-xs font-bold text-emerald-950 flex items-center justify-between">
+                  <span><i class="fa-solid fa-camera mr-1 text-emerald-600"></i>Upload Foto Bukti QC (JPG)</span>
+                  <span id="photoStatusText" class="text-[10px] text-slate-500 font-normal">Opsional (Max 1 Foto)</span>
+                </label>
+                <div class="flex items-center gap-3">
+                  <label class="flex-1 cursor-pointer py-2.5 px-3 bg-white hover:bg-emerald-50 border border-emerald-300 rounded-lg text-xs font-semibold text-emerald-800 text-center flex items-center justify-center space-x-1.5 shadow-sm transition">
+                    <i class="fa-solid fa-image"></i>
+                    <span id="photoBtnLabel">Ambil Foto / Pilih JPG</span>
+                    <input type="file" accept="image/jpeg,image/png,image/jpg" capture="environment" id="field_photoFile" onchange="handlePhotoUpload(event)" class="hidden">
+                  </label>
+                  <button type="button" id="btnRemovePhoto" onclick="removeUploadedPhoto()" class="hidden py-2.5 px-3 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-bold">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                </div>
+                <!-- Preview Container -->
+                <div id="photoPreviewBox" class="hidden pt-1 flex items-center space-x-3">
+                  <img id="photoPreviewImg" src="" alt="Preview QC" class="w-20 h-20 object-cover rounded-lg border border-slate-300 shadow-sm">
+                  <div class="text-[11px] text-slate-600">
+                    <span class="font-bold text-emerald-800 block">Foto Siap Disimpan</span>
+                    <span id="photoSizeLabel" class="text-slate-400">Kompresi otomatis aktif</span>
+                  </div>
+                </div>
+                <input type="hidden" id="field_photoBase64">
               </div>
 
               <!-- Noted* -->
@@ -537,6 +591,32 @@
     <!-- ==================== TAB 3: PENGATURAN & SINKRONISASI ==================== -->
     <section id="settingsTab" class="tab-content hidden space-y-4">
       
+      <!-- Security Passcode Card -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
+        <div class="flex items-center justify-between border-b pb-2">
+          <div class="flex items-center space-x-2 text-emerald-800 font-bold text-sm">
+            <i class="fa-solid fa-shield-halved text-emerald-600"></i>
+            <span>Kode Keamanan Akses Perangkat</span>
+          </div>
+          <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">Status: Terbuka</span>
+        </div>
+
+        <div class="space-y-3 text-xs">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Kode Akses Web Saat Ini</label>
+            <div class="flex gap-2">
+              <input type="text" id="cfg_securityCode" placeholder="Contoh: QC2026" class="flex-1 p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold tracking-wider text-slate-800">
+              <button onclick="updateSecurityCodeSetting()" class="py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-bold">Simpan Kode</button>
+            </div>
+            <p class="text-[11px] text-slate-500 mt-1">Jika Anda mengganti kode ini di Google Apps Script / Pengaturan, semua perangkat HP mandor akan langsung terkunci dan wajib memasukkan kode yang baru.</p>
+          </div>
+          <button onclick="lockCurrentDevice()" class="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold border border-slate-300">
+            <i class="fa-solid fa-lock mr-1 text-slate-600"></i> Kunci Perangkat Ini Sekarang
+          </button>
+        </div>
+      </div>
+
+      <!-- Google Sheets Connection Settings -->
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
         <div class="flex items-center space-x-2 text-emerald-800 border-b pb-2 font-bold text-sm">
           <i class="fa-solid fa-plug text-emerald-600"></i>
@@ -559,11 +639,9 @@
             <button onclick="saveConfig()" class="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold active:scale-95 transition">
               <i class="fa-solid fa-floppy-disk mr-1"></i> Simpan Pengaturan
             </button>
-            
             <button onclick="resetMasterDataToDefault()" class="py-2.5 px-4 bg-slate-700 hover:bg-slate-800 text-white rounded-lg font-bold active:scale-95 transition">
               <i class="fa-solid fa-rotate-left mr-1"></i> Reset Master Data Default
             </button>
-
             <button onclick="syncMasterData()" class="py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold active:scale-95 transition">
               <i class="fa-solid fa-arrows-rotate mr-1"></i> Sinkronkan Master Data Sekarang
             </button>
@@ -629,7 +707,7 @@
 
   <!-- EMBEDDED MASTER DATA (OFFLINE-FIRST) -->
   <script>
-    const INITIAL_MASTER_DATA = {"names": ["ALBERTO NGORANUBUN", "BENEDIKTUS WAGIYOP", "GERMANUS KWAMTAHAI", "GUSTINUS LORONG", "JUMRI", "MOHAMAD IRAWAN", "PUJI WASTONI", "BANU MUFARRIDHIN"], "assistants": ["PUJI HARTONO", "JOSUA F. SIMARMATA", "MOH. SABRI", "EFFRATA ALEX F", "MUH. SABILLAH", "EFRI NANDO", "ARSYI P.B AMBARITA", "HEPSON J OMPUSUNGGU", "SUVENI. M SIBORO"], "statuses": ["Working", "Hold"], "shifts": ["1", "2"], "unitMap": {"Tractor Spray": ["TS003G", "TS004G", "TS005G"], "Boom Spray Cropland": ["TR128G"], "Boom Spray Baldan": ["TR069G"], "Drone": ["DJIT50-01", "DJIT50-02", "DJIT50-03", "DJIT50-04", "DJIT50-05", "DJIT50-06", "DJIT100-01"]}, "dropper": ["Yes", "No"], "nozzles": ["TTI60-11025 (Ungu)", "TTI60-11004 (Merah)", "TTI60-11005 (Coklat)", "TTI60-11008 (Putih)"], "waterQualities": ["Clean", "Slighty Muddy", "Bad"], "weatherConditions": ["Sunny", "Cloudy", "Rainning"], "allVarieties": ["GMP4", "GMP5", "GMP6", "Q200", "Q208", "Q232", "Q240", "Q253", "R1", "R2", "R3", "SRA09"], "plan": [{"paddock": "JAGF-1-C-030", "variety": "", "luas_target": "1,17", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-004", "variety": "", "luas_target": "0,24", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-016", "variety": "", "luas_target": "10,00", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-025", "variety": "", "luas_target": "1,93", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-037", "variety": "", "luas_target": "3,77", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-003", "variety": "", "luas_target": "15,86", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}, {"paddock": "JAGF-2-H-035", "variety": "", "luas_target": "55,00", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}, {"paddock": "JAGF-1-D-002", "variety": "", "luas_target": "92,99", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}, {"paddock": "JAGF-2-K-003", "variety": "", "luas_target": "150,00", "activity": "Bassalt Dressing", "type": "", "deskripsi": "Bassalt Dressing D"}, {"paddock": "JAGF-1-D-066", "variety": "", "luas_target": "5,96", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-068", "variety": "", "luas_target": "0,29", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-A-007", "variety": "", "luas_target": "11,24", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-2-H-031", "variety": "", "luas_target": "7,91", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-C-029", "variety": "", "luas_target": "14,64", "activity": "Knockdown", "type": "Herbicide", "deskripsi": "Knockdown (Plant) B"}, {"paddock": "JAGF-1-D-061", "variety": "", "luas_target": "15,80", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-B-014", "variety": "", "luas_target": "17,81", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-C-031", "variety": "", "luas_target": "0,83", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-1-D-021", "variety": "", "luas_target": "2,91", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-022", "variety": "", "luas_target": "2,64", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-024", "variety": "", "luas_target": "8,34", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-026", "variety": "", "luas_target": "7,05", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-027", "variety": "", "luas_target": "1,46", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-028", "variety": "", "luas_target": "0,72", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-029", "variety": "", "luas_target": "4,31", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-030", "variety": "", "luas_target": "2,42", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-033", "variety": "", "luas_target": "3,08", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-034", "variety": "", "luas_target": "2,82", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-2-I-092", "variety": "", "luas_target": "0,43", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence B"}, {"paddock": "JAGF-2-H-026", "variety": "", "luas_target": "7,37", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-2-H-029", "variety": "", "luas_target": "12,40", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-2-I-101", "variety": "", "luas_target": "1,70", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-1-C-029", "variety": "", "luas_target": "14,64", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-2-G-008", "variety": "", "luas_target": "0,64", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence PC"}, {"paddock": "JAGF-2-J-009", "variety": "", "luas_target": "17,65", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence PC"}, {"paddock": "JAGF-1-D-038", "variety": "", "luas_target": "2,20", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide B"}, {"paddock": "JAGF-2-H-023", "variety": "", "luas_target": "6,56", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide E"}, {"paddock": "JAGF-1-D-058", "variety": "", "luas_target": "44,80", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-C-003", "variety": "", "luas_target": "31,85", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide F"}, {"paddock": "JAGF-2-I-130", "variety": "", "luas_target": "15,40", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide F"}, {"paddock": "JAGF-2-G-009", "variety": "", "luas_target": "43,52", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide D"}, {"paddock": "JAGF-2-G-010", "variety": "", "luas_target": "232,30", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}], "bahan": {"Bassalt Dressing B": {"pesticide1": "NPK 15-8-15", "dosage1": 150.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Bassalt Dressing C": {"pesticide1": "NPK 15-10-15", "dosage1": 250.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Bassalt Dressing D": {"pesticide1": "HX-DAP", "dosage1": 250.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Insecticide A": {"pesticide1": "Incipio", "dosage1": 0.2, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Prima Boost", "adjuvant_dosage": 0.05}, "Insecticide B": {"pesticide1": "Prevathon", "dosage1": 1.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.05}, "Insecticide C": {"pesticide1": "Punggawa 50 SC", "dosage1": 1.4, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.05}, "Insecticide D": {"pesticide1": "Confidor 60 ml", "dosage1": 0.8, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.8}, "Insecticide E": {"pesticide1": "Prevathon", "dosage1": 1.5, "pesticide2": "Confidor 60 ml", "dosage2": 0.8, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.2}, "Insecticide F": {"pesticide1": "Punggawa 50 SC", "dosage1": 1.4, "pesticide2": "Confidor 60 ml", "dosage2": 0.8, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.2}, "Knockdown (Plant) A": {"pesticide1": "Rollup 480 SL", "dosage1": 3.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.1}, "Knockdown (Plant) B": {"pesticide1": "Rollup 480 SL", "dosage1": 3.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agridex 715 EC", "adjuvant_dosage": 0.2}, "Post Emergence A": {"pesticide1": "Prima Kuat 276 SL", "dosage1": 1.0, "pesticide2": "Prima Maxin 50 WP", "dosage2": 0.6, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.15}, "Post Emergence B": {"pesticide1": "Omni Care 288 EC", "dosage1": 0.9, "pesticide2": "Prima Jos 865 SL", "dosage2": 0.6, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.2}, "Post Emergence C": {"pesticide1": "Prima Kuat 276 SL", "dosage1": 1.0, "pesticide2": "DKHexaron 60WG", "dosage2": 2.5, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.1}, "Post Emergence D": {"pesticide1": "Garlon 670 EC", "dosage1": 1.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agridex 715 EC", "adjuvant_dosage": 0.25}, "Post Emergence E": {"pesticide1": "Rollup 480 SL", "dosage1": 3.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.5}, "Pre Emergence PC": {"pesticide1": "Prowl 330 EC", "dosage1": 3.0, "pesticide2": "Venator 550SC @1 Ltr", "dosage2": 4.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Pre Emergence PC A": {"pesticide1": "Prowl 330 EC", "dosage1": 3.0, "pesticide2": "Atres", "dosage2": 4.0, "pesticide3": "Omni Care 288 EC", "dosage3": 0.9, "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Pre Emergence RC": {"pesticide1": "Toleran 75 WG", "dosage1": 0.06, "pesticide2": "Prima Kuat 276 SL", "dosage2": 1.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing A": {"pesticide1": "NPK Plus 15-15-15", "dosage1": 700.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing B": {"pesticide1": "NPK 15-10-15", "dosage1": 700.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing C": {"pesticide1": "NPK 15-8-15", "dosage1": 700.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing D": {"pesticide1": "TSP-P205 (Phospate) 46%", "dosage1": 100.0, "pesticide2": "NK 20:30", "dosage2": 600.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing A": {"pesticide1": "NPK Plus 15-15-15", "dosage1": 600.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing B": {"pesticide1": "NPK 15-10-15", "dosage1": 600.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing C": {"pesticide1": "NPK 15-8-15", "dosage1": 600.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing D": {"pesticide1": "TSP-P205 (Phospate) 46%", "dosage1": 100.0, "pesticide2": "NK 20:30", "dosage2": 400.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}}, "formHeaders": ["Date", "Time", "Shift", "Status", "Name", "Name of Assistan", "Paddock", "Variety", "Area (Ha)", "Unit", "No. Unit", "Dropper", "Droplet Size", "Nozzle", "Height (m)", "Row Spacing (m)", "Speed (Km/Jam)", "Type", "Activity", "Deskripsi", "Pesticide 1", "Dosage", "Pesticide 2", "Dosage", "Pesticide 3", "Dosage", "Pesticide 4", "Dosage", "Adjuvant", "Adjuvant Dosage", "Estimated Usage Pesticide 1", "Estimated Usage Pesticide 2", "Estimated Usage Pesticide 3", "Estimated Usage Pesticide 4", "Estimated Usage Adjuvant", "Actual Usage Pesticide 1", "Actual Usage Pesticide 2", "Actual Usage Pesticide 3", "Actual Usage Pesticide 4", "Actual Usage Adjuvant", "Water Rate", "Water Quality", "Actual Usage", "Wind Speed (Km/jam)", "Temperature (\u00b0C)", "Humidity (NRC)", "Delta T (\u00b0C)", "Weather Condition", "Noted\\*"]};
+    const INITIAL_MASTER_DATA = {"names": ["ALBERTO NGORANUBUN", "BENEDIKTUS WAGIYOP", "GERMANUS KWAMTAHAI", "GUSTINUS LORONG", "JUMRI", "MOHAMAD IRAWAN", "PUJI WASTONI", "BANU MUFARRIDHIN"], "assistants": ["PUJI HARTONO", "JOSUA F. SIMARMATA", "MOH. SABRI", "EFFRATA ALEX F", "MUH. SABILLAH", "EFRI NANDO", "ARSYI P.B AMBARITA", "HEPSON J OMPUSUNGGU", "SUVENI. M SIBORO"], "statuses": ["Working", "Hold"], "shifts": ["1", "2"], "unitMap": {"Tractor Spray": ["TS003G", "TS004G", "TS005G"], "Boom Spray Cropland": ["TR128G"], "Boom Spray Baldan": ["TR069G"], "Drone": ["DJIT50-01", "DJIT50-02", "DJIT50-03", "DJIT50-04", "DJIT50-05", "DJIT50-06", "DJIT100-01"]}, "dropper": ["Yes", "No"], "nozzles": ["TTI60-11025 (Ungu)", "TTI60-11004 (Merah)", "TTI60-11005 (Coklat)", "TTI60-11008 (Putih)"], "waterQualities": ["Clean", "Slighty Muddy", "Bad"], "weatherConditions": ["Sunny", "Cloudy", "Rainning"], "allVarieties": ["GMP4", "GMP5", "GMP6", "Q200", "Q208", "Q232", "Q240", "Q253", "R1", "R2", "R3", "SRA09"], "plan": [{"paddock": "JAGF-1-C-030", "variety": "", "luas_target": "1,17", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-004", "variety": "", "luas_target": "0,24", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-016", "variety": "", "luas_target": "10,00", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-025", "variety": "", "luas_target": "1,93", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-037", "variety": "", "luas_target": "3,77", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-003", "variety": "", "luas_target": "15,86", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}, {"paddock": "JAGF-2-H-035", "variety": "", "luas_target": "55,00", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}, {"paddock": "JAGF-1-D-002", "variety": "", "luas_target": "92,99", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}, {"paddock": "JAGF-2-K-003", "variety": "", "luas_target": "150,00", "activity": "Bassalt Dressing", "type": "", "deskripsi": "Bassalt Dressing D"}, {"paddock": "JAGF-1-D-066", "variety": "", "luas_target": "5,96", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-068", "variety": "", "luas_target": "0,29", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-A-007", "variety": "", "luas_target": "11,24", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-2-H-031", "variety": "", "luas_target": "7,91", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-C-029", "variety": "", "luas_target": "14,64", "activity": "Knockdown", "type": "Herbicide", "deskripsi": "Knockdown (Plant) B"}, {"paddock": "JAGF-1-D-061", "variety": "", "luas_target": "15,80", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-B-014", "variety": "", "luas_target": "17,81", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-C-031", "variety": "", "luas_target": "0,83", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-1-D-021", "variety": "", "luas_target": "2,91", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-022", "variety": "", "luas_target": "2,64", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-024", "variety": "", "luas_target": "8,34", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-026", "variety": "", "luas_target": "7,05", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-027", "variety": "", "luas_target": "1,46", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-028", "variety": "", "luas_target": "0,72", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-029", "variety": "", "luas_target": "4,31", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-030", "variety": "", "luas_target": "2,42", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-033", "variety": "", "luas_target": "3,08", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-034", "variety": "", "luas_target": "2,82", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-2-I-092", "variety": "", "luas_target": "0,43", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence B"}, {"paddock": "JAGF-2-H-026", "variety": "", "luas_target": "7,37", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-2-H-029", "variety": "", "luas_target": "12,40", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-2-I-101", "variety": "", "luas_target": "1,70", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-1-C-029", "variety": "", "luas_target": "14,64", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-2-G-008", "variety": "", "luas_target": "0,64", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence PC"}, {"paddock": "JAGF-2-J-009", "variety": "", "luas_target": "17,65", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence PC"}, {"paddock": "JAGF-1-D-038", "variety": "", "luas_target": "2,20", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide B"}, {"paddock": "JAGF-2-H-023", "variety": "", "luas_target": "6,56", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide E"}, {"paddock": "JAGF-1-D-058", "variety": "", "luas_target": "44,80", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-C-003", "variety": "", "luas_target": "31,85", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide F"}, {"paddock": "JAGF-2-I-130", "variety": "", "luas_target": "15,40", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide F"}, {"paddock": "JAGF-2-G-009", "variety": "", "luas_target": "43,52", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide D"}, {"paddock": "JAGF-2-G-010", "variety": "", "luas_target": "232,30", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}], "bahan": {"Bassalt Dressing B": {"pesticide1": "NPK 15-8-15", "dosage1": 150.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Bassalt Dressing C": {"pesticide1": "NPK 15-10-15", "dosage1": 250.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Bassalt Dressing D": {"pesticide1": "HX-DAP", "dosage1": 250.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Insecticide A": {"pesticide1": "Incipio", "dosage1": 0.2, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Prima Boost", "adjuvant_dosage": 0.05}, "Insecticide B": {"pesticide1": "Prevathon", "dosage1": 1.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.05}, "Insecticide C": {"pesticide1": "Punggawa 50 SC", "dosage1": 1.4, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.05}, "Insecticide D": {"pesticide1": "Confidor 60 ml", "dosage1": 0.8, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.8}, "Insecticide E": {"pesticide1": "Prevathon", "dosage1": 1.5, "pesticide2": "Confidor 60 ml", "dosage2": 0.8, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.2}, "Insecticide F": {"pesticide1": "Punggawa 50 SC", "dosage1": 1.4, "pesticide2": "Confidor 60 ml", "dosage2": 0.8, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.2}, "Knockdown (Plant) A": {"pesticide1": "Rollup 480 SL", "dosage1": 3.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.1}, "Knockdown (Plant) B": {"pesticide1": "Rollup 480 SL", "dosage1": 3.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agridex 715 EC", "adjuvant_dosage": 0.2}, "Post Emergence A": {"pesticide1": "Prima Kuat 276 SL", "dosage1": 1.0, "pesticide2": "Prima Maxin 50 WP", "dosage2": 0.6, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.15}, "Post Emergence B": {"pesticide1": "Omni Care 288 EC", "dosage1": 0.9, "pesticide2": "Prima Jos 865 SL", "dosage2": 0.6, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.2}, "Post Emergence C": {"pesticide1": "Prima Kuat 276 SL", "dosage1": 1.0, "pesticide2": "DKHexaron 60WG", "dosage2": 2.5, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.1}, "Post Emergence D": {"pesticide1": "Garlon 670 EC", "dosage1": 1.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agridex 715 EC", "adjuvant_dosage": 0.25}, "Post Emergence E": {"pesticide1": "Rollup 480 SL", "dosage1": 3.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.5}, "Pre Emergence PC": {"pesticide1": "Prowl 330 EC", "dosage1": 3.0, "pesticide2": "Venator 550SC @1 Ltr", "dosage2": 4.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Pre Emergence PC A": {"pesticide1": "Prowl 330 EC", "dosage1": 3.0, "pesticide2": "Atres", "dosage2": 4.0, "pesticide3": "Omni Care 288 EC", "dosage3": 0.9, "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Pre Emergence RC": {"pesticide1": "Toleran 75 WG", "dosage1": 0.06, "pesticide2": "Prima Kuat 276 SL", "dosage2": 1.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing A": {"pesticide1": "NPK Plus 15-15-15", "dosage1": 700.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing B": {"pesticide1": "NPK 15-10-15", "dosage1": 700.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing C": {"pesticide1": "NPK 15-8-15", "dosage1": 700.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing D": {"pesticide1": "TSP-P205 (Phospate) 46%", "dosage1": 100.0, "pesticide2": "NK 20:30", "dosage2": 600.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing A": {"pesticide1": "NPK Plus 15-15-15", "dosage1": 600.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing B": {"pesticide1": "NPK 15-10-15", "dosage1": 600.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing C": {"pesticide1": "NPK 15-8-15", "dosage1": 600.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing D": {"pesticide1": "TSP-P205 (Phospate) 46%", "dosage1": 100.0, "pesticide2": "NK 20:30", "dosage2": 400.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}}, "formHeaders": ["Date", "Time", "Shift", "Status", "Name", "Name of Assistan", "Paddock", "Variety", "Area (Ha)", "Unit", "No. Unit", "Dropper", "Droplet Size", "Nozzle", "Height (m)", "Row Spacing (m)", "Speed (Km/Jam)", "Type", "Activity", "Deskripsi", "Pesticide 1", "Dosage", "Pesticide 2", "Dosage", "Pesticide 3", "Dosage", "Pesticide 4", "Dosage", "Adjuvant", "Adjuvant Dosage", "Estimated Usage Pesticide 1", "Estimated Usage Pesticide 2", "Estimated Usage Pesticide 3", "Estimated Usage Pesticide 4", "Estimated Usage Adjuvant", "Actual Usage Pesticide 1", "Actual Usage Pesticide 2", "Actual Usage Pesticide 3", "Actual Usage Pesticide 4", "Actual Usage Adjuvant", "Water Rate", "Water Quality", "Actual Usage", "Wind Speed (Km/jam)", "Temperature (\u00b0C)", "Humidity (NRC)", "Delta T (\u00b0C)", "Weather Condition", "Noted\\*"], "securityCode": "QC2026"};
   </script>
 
   <!-- MAIN APPLICATION LOGIC -->
@@ -637,21 +715,77 @@
     const STORAGE_KEY_MASTER = 'qc_master_data_v1';
     const STORAGE_KEY_RECORDS = 'qc_form_records_v1';
     const STORAGE_KEY_CONFIG = 'qc_form_config_v1';
+    const STORAGE_KEY_AUTH = 'qc_device_auth_token_v1';
 
     let masterData = null;
     let savedRecords = [];
     let appConfig = {
       appsScriptUrl: '',
-      spreadsheetId: '1Yr9wcSl5Q1qLugdoRNAdSpPAHmHad54repNunzX5Ed0'
+      spreadsheetId: '1Yr9wcSl5Q1qLugdoRNAdSpPAHmHad54repNunzX5Ed0',
+      securityCode: 'QC2026'
     };
     let currentEditingId = null;
 
+    // ==========================================
+    // 1. SECURITY & ACCESS CONTROL
+    // ==========================================
+    function checkSecurityAccess() {
+      const activeCode = (masterData && masterData.securityCode) || appConfig.securityCode || 'QC2026';
+      const storedToken = localStorage.getItem(STORAGE_KEY_AUTH);
+
+      const overlay = document.getElementById('lockScreenOverlay');
+      if (storedToken === activeCode) {
+        overlay.classList.add('hidden');
+      } else {
+        overlay.classList.remove('hidden');
+        document.getElementById('auth_code_input').value = '';
+        document.getElementById('auth_error_msg').classList.add('hidden');
+      }
+    }
+
+    function verifySecurityCode() {
+      const entered = document.getElementById('auth_code_input').value.trim();
+      const activeCode = (masterData && masterData.securityCode) || appConfig.securityCode || 'QC2026';
+
+      if (entered === activeCode) {
+        localStorage.setItem(STORAGE_KEY_AUTH, entered);
+        document.getElementById('lockScreenOverlay').classList.add('hidden');
+        showToast('Akses berhasil dibuka!', 'success');
+      } else {
+        document.getElementById('auth_error_msg').classList.remove('hidden');
+      }
+    }
+
+    function lockCurrentDevice() {
+      localStorage.removeItem(STORAGE_KEY_AUTH);
+      checkSecurityAccess();
+      showToast('Perangkat berhasil dikunci.', 'info');
+    }
+
+    function updateSecurityCodeSetting() {
+      const newCode = document.getElementById('cfg_securityCode').value.trim();
+      if (!newCode) {
+        showToast('Kode keamanan tidak boleh kosong!', 'error');
+        return;
+      }
+      appConfig.securityCode = newCode;
+      if (masterData) masterData.securityCode = newCode;
+      localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(appConfig));
+      localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(masterData));
+      localStorage.setItem(STORAGE_KEY_AUTH, newCode);
+      showToast('Kode keamanan berhasil diubah menjadi: ' + newCode, 'success');
+    }
+
+    // ==========================================
+    // 2. INITIALIZATION & NETWORK
+    // ==========================================
     function initApp() {
       const rawConfig = localStorage.getItem(STORAGE_KEY_CONFIG);
       if (rawConfig) {
         try { appConfig = Object.assign(appConfig, JSON.parse(rawConfig)); } catch (e) {}
       }
       document.getElementById('cfg_appsScriptUrl').value = appConfig.appsScriptUrl || '';
+      document.getElementById('cfg_securityCode').value = (masterData && masterData.securityCode) || appConfig.securityCode || 'QC2026';
 
       const rawMaster = localStorage.getItem(STORAGE_KEY_MASTER);
       if (rawMaster) {
@@ -675,6 +809,9 @@
       window.addEventListener('online', updateNetworkStatus);
       window.addEventListener('offline', updateNetworkStatus);
       updateNetworkStatus();
+
+      // Check security access first
+      checkSecurityAccess();
 
       populateMasterDataUI();
       resetForm();
@@ -718,6 +855,9 @@
       }, 3500);
     }
 
+    // ==========================================
+    // 3. MASTER DATA & UI POPULATION (WITH STRICT PADDOCK TYPE FILTER)
+    // ==========================================
     function populateMasterDataUI() {
       if (!masterData) return;
 
@@ -727,6 +867,7 @@
         onStatusChange(val);
       });
 
+      // Name (Mandor) Dropdown
       const nameSelect = document.getElementById('field_name');
       nameSelect.innerHTML = '<option value="">-- Pilih Nama Mandor --</option>';
       (masterData.names || []).forEach(n => {
@@ -736,6 +877,7 @@
         nameSelect.appendChild(opt);
       });
 
+      // Name of Assistan Dropdown (with Auto-Sanitize for dirty commas)
       const asstSelect = document.getElementById('field_nameOfAssistan');
       asstSelect.innerHTML = '<option value="">-- Pilih Nama Asisten --</option>';
       
@@ -766,10 +908,25 @@
         asstSelect.appendChild(opt);
       });
 
+      // Paddock Dropdown (Strictly filtered where Type is Insecticide, Herbicide, or Fungicide)
       const paddockSelect = document.getElementById('field_paddock');
       paddockSelect.innerHTML = '<option value="">-- Pilih Paddock --</option>';
-      const uniquePaddocks = [...new Set((masterData.plan || []).map(p => p.paddock).filter(Boolean))].sort();
-      uniquePaddocks.forEach(p => {
+      
+      const allowedSprayTypes = ['insecticide', 'herbicide', 'fungicide'];
+      const filteredPaddocks = [];
+
+      (masterData.plan || []).forEach(p => {
+        const pType = (p.type || '').trim().toLowerCase();
+        const pAct = (p.activity || '').trim().toLowerCase();
+        // Check if type matches or if activity is spray-related
+        if (allowedSprayTypes.includes(pType) || allowedSprayTypes.some(t => pAct.includes(t) || pType.includes(t))) {
+          if (p.paddock && !filteredPaddocks.includes(p.paddock.trim())) {
+            filteredPaddocks.push(p.paddock.trim());
+          }
+        }
+      });
+
+      filteredPaddocks.sort().forEach(p => {
         const opt = document.createElement('option');
         opt.value = p;
         opt.textContent = p;
@@ -852,6 +1009,69 @@
       document.getElementById(elementId).value = `${h}:${m}`;
     }
 
+    // ==========================================
+    // 4. PHOTO COMPRESSION & UPLOAD (JPG)
+    // ==========================================
+    function handlePhotoUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          // Compress image client-side to max 1200px and 0.7 JPEG
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const maxDim = 1200;
+
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Get compressed Base64 JPEG
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.72);
+          const base64Str = compressedDataUrl.split(',')[1];
+
+          document.getElementById('field_photoBase64').value = base64Str;
+          document.getElementById('photoPreviewImg').src = compressedDataUrl;
+          document.getElementById('photoPreviewBox').classList.remove('hidden');
+          document.getElementById('btnRemovePhoto').classList.remove('hidden');
+          document.getElementById('photoBtnLabel').textContent = 'Ganti Foto JPG';
+          
+          const approxKb = Math.round((base64Str.length * 0.75) / 1024);
+          document.getElementById('photoSizeLabel').textContent = `Ukuran: ~${approxKb} KB (Terkompres)`;
+          showToast('Foto berhasil dimuat & dikompres!', 'success');
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function removeUploadedPhoto() {
+      document.getElementById('field_photoBase64').value = '';
+      document.getElementById('field_photoFile').value = '';
+      document.getElementById('photoPreviewImg').src = '';
+      document.getElementById('photoPreviewBox').classList.add('hidden');
+      document.getElementById('btnRemovePhoto').classList.add('hidden');
+      document.getElementById('photoBtnLabel').textContent = 'Ambil Foto / Pilih JPG';
+    }
+
+    // ==========================================
+    // 5. DYNAMIC FORM RULES & EVENTS
+    // ==========================================
     function onStatusChange(status) {
       const isHold = (status === 'Hold');
       const alertBanner = document.getElementById('holdAlertBanner');
@@ -908,7 +1128,7 @@
 
       let paddockActivities = [...new Set(matchingPlans.map(p => p.activity).filter(Boolean))];
       if (paddockActivities.length === 0) {
-        paddockActivities = ['Insecticide', 'Knockdown', 'Pre Emergence', 'Post Emergence', 'Single Dressing', 'Top Dressing', 'Bassalt Dressing'];
+        paddockActivities = ['Insecticide', 'Knockdown', 'Pre Emergence', 'Post Emergence'];
       }
       renderButtonGroup('activityBtnGroup', paddockActivities, 'field_activity', paddockActivities[0] || '', (act) => {
         onActivityChange(paddock, act);
@@ -1069,8 +1289,13 @@
       document.getElementById('field_deltaT').value = '';
       setButtonGroupValue('weatherBtnGroup', 'field_weatherCondition', 'Sunny');
       document.getElementById('field_noted').value = '';
+
+      removeUploadedPhoto();
     }
 
+    // ==========================================
+    // 6. SAVING & EDITING RECORDS
+    // ==========================================
     function saveFormData(saveType = 'ready') {
       const record = {
         id: currentEditingId || 'qc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
@@ -1078,6 +1303,7 @@
         saveType: saveType,
         uploadStatus: 'pending',
         uploadedAt: null,
+        photoDriveUrl: null,
 
         // 50 Form QC Fields Sesuai Urutan Kolom Spreadsheet
         date: document.getElementById('field_date').value || '',
@@ -1129,7 +1355,10 @@
         humidity: document.getElementById('field_humidity').value || '',
         deltaT: document.getElementById('field_deltaT').value || '',
         weatherCondition: document.getElementById('field_weatherCondition').value || '',
-        noted: document.getElementById('field_noted').value || ''
+        noted: document.getElementById('field_noted').value || '',
+
+        // Photo Base64 payload
+        photoBase64: document.getElementById('field_photoBase64').value || ''
       };
 
       const existingIdx = savedRecords.findIndex(r => r.id === record.id);
@@ -1212,6 +1441,17 @@
       document.getElementById('field_deltaT').value = rec.deltaT || '';
       if (rec.weatherCondition) setButtonGroupValue('weatherBtnGroup', 'field_weatherCondition', rec.weatherCondition);
       document.getElementById('field_noted').value = rec.noted || '';
+
+      // Photo
+      if (rec.photoBase64) {
+        document.getElementById('field_photoBase64').value = rec.photoBase64;
+        document.getElementById('photoPreviewImg').src = 'data:image/jpeg;base64,' + rec.photoBase64;
+        document.getElementById('photoPreviewBox').classList.remove('hidden');
+        document.getElementById('btnRemovePhoto').classList.remove('hidden');
+        document.getElementById('photoBtnLabel').textContent = 'Ganti Foto JPG';
+      } else {
+        removeUploadedPhoto();
+      }
 
       calculateEstimatedUsages();
       switchTab('inputTab');
@@ -1309,8 +1549,8 @@
       }
 
       const holdBadge = isHold ? '<span class="badge-hold text-[10px] px-2 py-0.5 rounded font-bold ml-1">HOLD</span>' : '<span class="badge-working text-[10px] px-2 py-0.5 rounded font-bold ml-1">WORKING</span>';
-
       const timeRange = (rec.startTime || rec.time || '-') + (rec.endTime ? ' s/d ' + rec.endTime : '');
+      const photoBadge = rec.photoBase64 ? '<span class="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded font-bold ml-1"><i class="fa-solid fa-image mr-0.5"></i>Ada Foto</span>' : '';
 
       return `
         <div class="p-3 bg-white hover:bg-slate-50 rounded-lg border border-slate-200 transition space-y-2">
@@ -1319,6 +1559,7 @@
               <div class="flex items-center space-x-1">
                 <span class="font-bold text-sm text-emerald-950">${rec.paddock || 'Paddock Tidak Diisi'}</span>
                 ${holdBadge}
+                ${photoBadge}
               </div>
               <p class="text-[11px] text-slate-500 mt-0.5">
                 <span><i class="fa-solid fa-clock mr-1"></i>${timeRange} (Shift ${rec.shift || '-'})</span> | 
@@ -1396,6 +1637,17 @@
         ['Status Upload', rec.uploadStatus === 'uploaded' ? 'SUDAH DIUPLOAD (' + rec.uploadedAt + ')' : 'BELUM DIUPLOAD (PENDING)']
       ];
 
+      let photoHtml = '';
+      if (rec.photoBase64) {
+        photoHtml = `
+          <div class="col-span-2 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+            <span class="text-[10px] text-emerald-900 block uppercase font-bold mb-2"><i class="fa-solid fa-camera mr-1"></i>Foto Bukti QC</span>
+            <img src="data:image/jpeg;base64,${rec.photoBase64}" alt="Foto Bukti QC" class="w-full max-h-60 object-contain rounded-lg border border-slate-300">
+            ${rec.photoDriveUrl ? `<a href="${rec.photoDriveUrl}" target="_blank" class="text-xs text-blue-600 underline font-semibold mt-1 block">Buka di Google Drive</a>` : ''}
+          </div>
+        `;
+      }
+
       body.innerHTML = `
         <div class="grid grid-cols-2 gap-2">
           ${fields.map(([k, v]) => `
@@ -1404,6 +1656,7 @@
               <span class="font-semibold text-slate-800">${v !== undefined && v !== '' ? v : '-'}</span>
             </div>
           `).join('')}
+          ${photoHtml}
         </div>
       `;
 
@@ -1414,6 +1667,9 @@
       document.getElementById('detailModal').classList.add('hidden');
     }
 
+    // ==========================================
+    // 7. UPLOAD TO GOOGLE SPREADSHEET
+    // ==========================================
     async function uploadSingleRecord(id) {
       if (!navigator.onLine) {
         showToast('HP sedang Offline. Cari area dengan sinyal untuk upload.', 'error');
@@ -1449,7 +1705,7 @@
           rec.uploadedAt = new Date().toLocaleString('id-ID');
           localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(savedRecords));
           renderHistoryList();
-          showToast('Data berhasil diupload ke Form QC!', 'success');
+          showToast('Data & Foto berhasil diupload ke Form QC!', 'success');
         } else {
           showToast('Gagal upload: ' + (result.message || 'Error server'), 'error');
         }
@@ -1532,9 +1788,18 @@
 
         if (result.status === 'success' && result.data) {
           masterData = result.data;
+          
+          // Check if server security code changed
+          if (result.securityCode && result.securityCode !== appConfig.securityCode) {
+            appConfig.securityCode = result.securityCode;
+            masterData.securityCode = result.securityCode;
+            document.getElementById('cfg_securityCode').value = result.securityCode;
+            checkSecurityAccess();
+          }
+
           localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(masterData));
           populateMasterDataUI();
-          showToast('Master Data (Plan, Data, Bahan) berhasil diperbarui!', 'success');
+          showToast('Master Data berhasil diperbarui!', 'success');
         } else {
           showToast('Gagal sinkron data: ' + (result.message || 'Format tidak valid'), 'error');
         }
@@ -1546,7 +1811,6 @@
       }
     }
 
-    
     function resetMasterDataToDefault() {
       if (!confirm('Kembalikan Master Data ke pengaturan awal?')) return;
       masterData = INITIAL_MASTER_DATA;
