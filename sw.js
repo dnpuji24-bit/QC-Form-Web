@@ -1,16 +1,17 @@
-const CACHE_NAME = 'qc-form-cache-v1';
+const CACHE_NAME = 'qc-form-cache-v2';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './master_data.json'
+  './master_data.json',
+  './logo.png'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Service Worker] Caching app shell & assets');
-      return cache.addAll(ASSETS).catch(err => console.log('Cache addAll error (ignored for external):', err));
+      console.log('[Service Worker] Caching app shell, logo & assets');
+      return cache.addAll(ASSETS).catch(err => console.log('Cache add error (optional assets):', err));
     }).then(() => self.skipWaiting())
   );
 });
@@ -31,7 +32,6 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Navigation & static assets: Network first, fallback to Cache
   if (event.request.method === 'GET') {
     event.respondWith(
       fetch(event.request)
@@ -46,9 +46,7 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(() => {
           return caches.match(event.request).then((cachedResponse) => {
-            if (cachedResponse) {
-              return cachedResponse;
-            }
+            if (cachedResponse) return cachedResponse;
             if (event.request.mode === 'navigate') {
               return caches.match('./index.html');
             }
