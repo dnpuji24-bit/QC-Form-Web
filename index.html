@@ -119,8 +119,8 @@
       <div id="holdAlertBanner" class="hidden p-3.5 bg-amber-50 border-l-4 border-amber-500 rounded-r-lg text-amber-900 text-xs shadow-sm flex items-start space-x-2.5">
         <i class="fa-solid fa-triangle-exclamation text-amber-600 text-base mt-0.5"></i>
         <div>
-          <strong class="font-bold block text-sm">Mode Status HOLD Aktif</strong>
-          <span>Pengisian teknis semprot & bahan dinonaktifkan. Anda dapat mencatat kondisi cuaca, mengambil foto bukti, dan menuliskan alasan HOLD pada kolom <strong>Noted* (Catatan)</strong>.</span>
+          <strong class="font-bold block text-sm">Mode Status HOLD Total Aktif</strong>
+          <span>Seluruh kegiatan dibatalkan/ditunda. Anda dapat mencatat kondisi cuaca, foto bukti, dan menuliskan alasan HOLD pada Bagian 5 di bawah.</span>
         </div>
       </div>
 
@@ -143,36 +143,36 @@
             <!-- Start Time -->
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                <span>Start Time <span class="text-red-500">*</span></span>
+                <span>Start Time (Mulai Kerja) <span class="text-red-500">*</span></span>
                 <button type="button" onclick="setNowTime('field_startTime')" class="text-[10px] text-emerald-700 hover:underline">Set Sekarang</button>
               </label>
-              <input type="time" id="field_startTime" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-medium text-slate-800 focus:bg-white">
+              <input type="time" id="field_startTime" onchange="calculateTimeEfficiency()" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-medium text-slate-800 focus:bg-white">
             </div>
 
             <!-- End Time -->
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                <span>End Time</span>
+                <span>End Time (Selesai Kerja)</span>
                 <button type="button" onclick="setNowTime('field_endTime')" class="text-[10px] text-emerald-700 hover:underline">Set Sekarang</button>
               </label>
-              <input type="time" id="field_endTime" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-medium text-slate-800 focus:bg-white">
+              <input type="time" id="field_endTime" onchange="calculateTimeEfficiency()" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-medium text-slate-800 focus:bg-white">
             </div>
 
-            <!-- Shift (Button Group) -->
+            <!-- Shift -->
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Shift <span class="text-red-500">*</span></label>
               <div id="shiftBtnGroup" class="grid grid-cols-2 gap-2"></div>
               <input type="hidden" id="field_shift">
             </div>
 
-            <!-- Status (Button Group: Working / Hold) -->
+            <!-- Status -->
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Status <span class="text-red-500">*</span></label>
               <div id="statusBtnGroup" class="grid grid-cols-2 gap-2"></div>
               <input type="hidden" id="field_status" value="Working">
             </div>
 
-            <!-- Name (Dropdown Mandor) -->
+            <!-- Name (Mandor) -->
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Name (Mandor) <span class="text-red-500">*</span></label>
               <select id="field_name" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:bg-white">
@@ -180,7 +180,7 @@
               </select>
             </div>
 
-            <!-- Name of Assistan (Dropdown) -->
+            <!-- Name of Assistan -->
             <div class="md:col-span-3">
               <label class="block text-xs font-semibold text-slate-700 mb-1">Name of Assistan <span class="text-red-500">*</span></label>
               <select id="field_nameOfAssistan" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:bg-white">
@@ -188,6 +188,43 @@
               </select>
             </div>
           </div>
+
+          <!-- FITUR JEDA / HOLD MULTIPLE DENGAN PARAMETER CUACA & FOTO KHUSUS -->
+          <div id="holdIntervalSection" class="p-3.5 bg-amber-50/70 border border-amber-200 rounded-xl space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-pause text-amber-700 text-sm"></i>
+                <div>
+                  <span class="text-xs font-bold text-amber-950 block">Pencatatan Jeda / HOLD Lapangan (Multiple)</span>
+                  <span class="text-[10px] text-amber-800">Setiap penambahan jeda otomatis menyediakan kolom cuaca & foto pemicu HOLD</span>
+                </div>
+              </div>
+              <button type="button" onclick="addHoldInterval()" class="py-2 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shadow-sm active:scale-95 transition flex items-center space-x-1.5">
+                <i class="fa-solid fa-plus"></i>
+                <span>+ Tambah Kejadian HOLD</span>
+              </button>
+            </div>
+
+            <!-- List Dynamic HOLD Events -->
+            <div id="holdIntervalList" class="space-y-3"></div>
+
+            <!-- Live Calculation Summary Banner -->
+            <div id="timeSummaryBanner" class="p-3 bg-white border border-amber-200 rounded-xl text-xs flex flex-wrap items-center justify-between gap-2 shadow-xs">
+              <div>
+                <span class="text-slate-500 block text-[10px] font-semibold">TOTAL RENTANG WAKTU:</span>
+                <span id="labelGrossTime" class="font-bold text-slate-800 text-sm">0 Jam</span>
+              </div>
+              <div>
+                <span class="text-amber-700 block text-[10px] font-semibold">TOTAL WAKTU JEDA (HOLD):</span>
+                <span id="labelTotalHoldTime" class="font-bold text-amber-800 text-sm">0 Menit (0x)</span>
+              </div>
+              <div class="bg-emerald-50 px-3.5 py-1.5 rounded-lg border border-emerald-300 shadow-xs">
+                <span class="text-emerald-800 block text-[10px] font-bold uppercase">WAKTU EFEKTIF SEMPROT MURNI:</span>
+                <span id="labelNetWorkTime" class="font-extrabold text-emerald-950 text-base">0 Jam</span>
+              </div>
+            </div>
+          </div>
+
         </div>
 
         <!-- CARD 2: RENCANA LOKASI & TARGET KERJA (PLAN) -->
@@ -201,7 +238,7 @@
           </div>
 
           <div class="space-y-3.5">
-            <!-- Paddock (Dropdown with Type filter: Insecticide, Herbicide, Fungicide) -->
+            <!-- Paddock Dropdown -->
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Paddock (Filter: Semprot) <span class="text-red-500">*</span></label>
               <select id="field_paddock" onchange="onPaddockChange()" class="w-full p-2.5 bg-emerald-50/50 border border-emerald-300 rounded-lg text-sm font-semibold text-emerald-950 focus:bg-white">
@@ -209,9 +246,9 @@
               </select>
             </div>
 
-            <!-- Bagian yang dinonaktifkan saat Hold -->
+            <!-- Bagian yang dinonaktifkan saat Hold Total -->
             <div id="planDetailsHoldWrapper" class="space-y-3.5 transition-all">
-              <!-- Variety (Button Selection filtered by Paddock) -->
+              <!-- Variety -->
               <div id="section_variety">
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Variety (Varietas Tebu)</label>
                 <div id="varietyBtnGroup" class="flex flex-wrap gap-2">
@@ -220,7 +257,7 @@
                 <input type="hidden" id="field_variety">
               </div>
 
-              <!-- Area (Ha) (Disabled if status == Hold) -->
+              <!-- Area (Ha) -->
               <div id="section_area">
                 <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
                   <span>Area Dikerjakan (Ha) <span class="text-red-500">*</span></span>
@@ -229,21 +266,21 @@
                 <input type="number" step="0.01" min="0" id="field_area" oninput="calculateEstimatedUsages()" placeholder="Contoh: 3.50" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-semibold text-slate-900 focus:bg-white">
               </div>
 
-              <!-- Type (Button selection from Plan) -->
+              <!-- Type -->
               <div id="section_type">
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Type Aplikasi</label>
                 <div id="typeBtnGroup" class="flex flex-wrap gap-2"></div>
                 <input type="hidden" id="field_type">
               </div>
 
-              <!-- Activity (Button selection from Plan) -->
+              <!-- Activity -->
               <div id="section_activity">
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Activity (Aktivitas Kerja) <span class="text-red-500">*</span></label>
                 <div id="activityBtnGroup" class="flex flex-wrap gap-2"></div>
                 <input type="hidden" id="field_activity">
               </div>
 
-              <!-- Deskripsi (Button selection from Plan by Paddock & Activity) -->
+              <!-- Deskripsi -->
               <div id="section_deskripsi">
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Deskripsi Program / Bahan <span class="text-red-500">*</span></label>
                 <div id="deskripsiBtnGroup" class="flex flex-wrap gap-2"></div>
@@ -253,7 +290,7 @@
           </div>
         </div>
 
-        <!-- CARD 3: PARAMETER UNIT & PERALATAN (Bisa Multiple Unit & No. Unit) -->
+        <!-- CARD 3: PARAMETER UNIT & PERALATAN (Multiple Selection) -->
         <div id="card_unit_params" class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4 transition-all">
           <div class="flex items-center justify-between border-b pb-2">
             <div class="flex items-center space-x-2 text-emerald-800 font-bold text-sm">
@@ -264,14 +301,14 @@
           </div>
 
           <div class="space-y-3.5">
-            <!-- Unit (Multiple Selection Toggle) -->
+            <!-- Unit -->
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Unit Alat (Bisa pilih 1 atau lebih)</label>
               <div id="unitBtnGroup" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
               <input type="hidden" id="field_unit">
             </div>
 
-            <!-- No. Unit (Multiple Selection Toggle filtered by selected Units) -->
+            <!-- No. Unit -->
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">No. Unit (Bisa pilih 1 atau lebih)</label>
               <div id="noUnitBtnGroup" class="flex flex-wrap gap-2">
@@ -282,21 +319,21 @@
 
             <!-- Dropper & Droplet Size -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-              <!-- Dropper (Yes/No) -->
+              <!-- Dropper -->
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Dropper</label>
                 <div id="dropperBtnGroup" class="grid grid-cols-2 gap-2"></div>
                 <input type="hidden" id="field_dropper">
               </div>
 
-              <!-- Droplet Size (Manual number) -->
+              <!-- Droplet Size -->
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Droplet Size (µm)</label>
                 <input type="number" step="any" id="field_dropletSize" placeholder="Input angka manual" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white">
               </div>
             </div>
 
-            <!-- Nozzle (Button selection) -->
+            <!-- Nozzle -->
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Nozzle</label>
               <div id="nozzleBtnGroup" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
@@ -455,71 +492,70 @@
               </tbody>
             </table>
           </div>
-          <p class="text-[11px] text-slate-500 italic">* Estimated Usage dihitung otomatis dari (Dosis/Ha × Area Ha). Actual Usage diisi sesuai realisasi fisik.</p>
+          <p class="text-[11px] text-slate-500 italic">* Estimated Usage dihitung otomatis dari (Dosis/Ha × Area Ha) dan (Dosis mL/L × Total Air L) untuk Adjuvant.</p>
         </div>
 
-        <!-- CARD 5: AIR, CUACA, FOTO DOKUMENTASI (JPG) & CATATAN (SELALU AKTIF SAAT HOLD UNTUK ALASAN HOLD) -->
+        <!-- CARD 5: KUALITAS AIR, CUACA KERJA UTAMA, FOTO DOKUMENTASI & CATATAN NOTED* -->
         <div id="card_cuaca_foto" class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
           <div class="flex items-center justify-between border-b pb-2">
             <div class="flex items-center space-x-2 text-emerald-800 font-bold text-sm">
               <i class="fa-solid fa-cloud-sun-rain text-emerald-600"></i>
-              <span>5. Kualitas Air, Cuaca, Foto & Alasan Noted*</span>
+              <span>5. Kualitas Air, Cuaca Kerja, Foto Utama & Catatan Noted*</span>
             </div>
-            <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">Tetap Aktif Saat HOLD</span>
+            <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">Wajib Diisi (Kecuali Kualitas Air)</span>
           </div>
 
           <div class="space-y-3.5">
             <!-- Water Rate, Water Quality, Actual Water Usage -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Water Rate (L/Ha)</label>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Water Rate (L/Ha) <span class="text-red-500">*</span></label>
                 <input type="number" step="any" id="field_waterRate" oninput="calculateEstimatedUsages()" placeholder="Contoh: 150" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white">
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Water Quality (Kualitas Air)</label>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Water Quality (Opsional)</label>
                 <select id="field_waterQuality" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white"></select>
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Actual Usage Air (Liter)</label>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Actual Usage Air (Liter) <span class="text-red-500">*</span></label>
                 <input type="number" step="any" id="field_actualUsage" placeholder="Contoh: 450" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white">
               </div>
             </div>
 
-            <!-- Weather Measurements (Wind, Temp, Humidity, Delta T) -->
+            <!-- Weather Measurements Saat Kerja -->
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Wind (Km/j)</label>
-                <input type="number" step="0.1" id="field_windSpeed" placeholder="0.0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Wind (Km/j) <span class="text-red-500">*</span></label>
+                <input type="number" step="0.1" id="field_windSpeed" placeholder="0.0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white font-semibold">
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Temp (°C)</label>
-                <input type="number" step="0.1" id="field_temperature" placeholder="0.0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Temp (°C) <span class="text-red-500">*</span></label>
+                <input type="number" step="0.1" id="field_temperature" placeholder="0.0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white font-semibold">
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Humidity (%)</label>
-                <input type="number" step="0.1" id="field_humidity" placeholder="0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Humidity (%) <span class="text-red-500">*</span></label>
+                <input type="number" step="0.1" id="field_humidity" placeholder="0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white font-semibold">
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Delta T (°C)</label>
-                <input type="number" step="0.1" id="field_deltaT" placeholder="0.0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Delta T (°C) <span class="text-red-500">*</span></label>
+                <input type="number" step="0.1" id="field_deltaT" placeholder="0.0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white font-semibold">
               </div>
             </div>
 
-            <!-- Weather Condition (Button Selection) -->
+            <!-- Weather Condition -->
             <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Weather Condition (Kondisi Cuaca)</label>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Weather Condition (Kondisi Cuaca) <span class="text-red-500">*</span></label>
               <div id="weatherBtnGroup" class="grid grid-cols-3 gap-2"></div>
               <input type="hidden" id="field_weatherCondition">
             </div>
 
-            <!-- Foto Dokumentasi JPG Upload (Kamera & Galeri) -->
+            <!-- Foto Dokumentasi Utama (Dual Button: Kamera & Galeri) -->
             <div class="p-3 bg-emerald-50/50 rounded-xl border border-emerald-200 space-y-2.5">
               <label class="block text-xs font-bold text-emerald-950 flex items-center justify-between">
-                <span><i class="fa-solid fa-camera mr-1 text-emerald-600"></i>Upload Foto Bukti QC / Kondisi HOLD (JPG)</span>
-                <span id="photoStatusText" class="text-[10px] text-slate-500 font-normal">Opsional (Max 1 Foto)</span>
+                <span><i class="fa-solid fa-camera mr-1 text-emerald-600"></i>Upload Foto Utama Bukti QC (JPG)</span>
+                <span id="photoStatusText" class="text-[10px] text-slate-500 font-normal">Opsional</span>
               </label>
 
-              <!-- Dual Tombol: Kamera & Galeri -->
               <div class="grid grid-cols-2 gap-2">
                 <label class="cursor-pointer py-2.5 px-3 bg-white hover:bg-emerald-50 border border-emerald-300 rounded-lg text-xs font-semibold text-emerald-800 text-center flex items-center justify-center space-x-1.5 shadow-sm transition active:scale-95">
                   <i class="fa-solid fa-camera text-emerald-600"></i>
@@ -550,13 +586,13 @@
               <input type="hidden" id="field_photoBase64">
             </div>
 
-            <!-- Noted* (Catatan Khusus / Alasan HOLD) -->
+            <!-- Noted* -->
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                <span>Noted* (Catatan Khusus / Alasan HOLD)</span>
-                <span class="text-[10px] text-emerald-700 font-normal">Wajib diisi jika status HOLD</span>
+                <span>Noted* (Catatan Khusus Tambahan)</span>
+                <span class="text-[10px] text-slate-400 font-normal">Bisa dikosongkan</span>
               </label>
-              <textarea id="field_noted" rows="3" placeholder="Tuliskan kendala / alasan HOLD (misal: Hujan deras pkl 10.00 / Traktor TS003 breakdown hidrolik / dll)..." class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:bg-white"></textarea>
+              <textarea id="field_noted" rows="2" placeholder="Catatan khusus tambahan (rincian jeda HOLD akan otomatis dirangkum ke sini saat disimpan)..." class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:bg-white"></textarea>
             </div>
           </div>
         </div>
@@ -582,7 +618,6 @@
     <!-- ==================== TAB 2: RIWAYAT & UPLOAD ==================== -->
     <section id="historyTab" class="tab-content hidden space-y-4">
       
-      <!-- Summary Dashboard Bar -->
       <div class="grid grid-cols-3 gap-2.5">
         <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-sm text-center">
           <span class="text-[11px] text-slate-500 block font-medium">Total Tersimpan</span>
@@ -598,7 +633,6 @@
         </div>
       </div>
 
-      <!-- Action Bar -->
       <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center space-x-2">
           <span class="text-xs font-bold text-slate-700">Filter Tanggal:</span>
@@ -611,7 +645,6 @@
         </button>
       </div>
 
-      <!-- Grouped Records Container -->
       <div id="historyContainer" class="space-y-4"></div>
 
     </section>
@@ -620,7 +653,6 @@
     <!-- ==================== TAB 3: PENGATURAN & SINKRONISASI ==================== -->
     <section id="settingsTab" class="tab-content hidden space-y-4">
       
-      <!-- Security Status Card (Admin Controlled) -->
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
         <div class="flex items-center justify-between border-b pb-2">
           <div class="flex items-center space-x-2 text-emerald-800 font-bold text-sm">
@@ -648,7 +680,6 @@
         </div>
       </div>
 
-      <!-- Google Sheets Connection Settings -->
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
         <div class="flex items-center space-x-2 text-emerald-800 border-b pb-2 font-bold text-sm">
           <i class="fa-solid fa-plug text-emerald-600"></i>
@@ -681,7 +712,6 @@
         </div>
       </div>
 
-      <!-- Backup & Restore Data Card -->
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
         <div class="flex items-center space-x-2 text-emerald-800 border-b pb-2 font-bold text-sm">
           <i class="fa-solid fa-database text-emerald-600"></i>
@@ -758,9 +788,9 @@
     };
     let currentEditingId = null;
 
-    // Selected multiple units & no units
     let selectedUnits = [];
     let selectedNoUnits = [];
+    let holdIntervals = []; // List of { id, start, end, reason, windSpeed, temp, humidity, deltaT, weather, note, photoBase64 }
 
     // ==========================================
     // 1. ADMIN-CONTROLLED SECURITY & ACCESS
@@ -946,7 +976,7 @@
         asstSelect.appendChild(opt);
       });
 
-      // Paddock Dropdown (Strictly filtered where Type is Insecticide, Herbicide, or Fungicide)
+      // Paddock Dropdown (Filter Semprot)
       const paddockSelect = document.getElementById('field_paddock');
       paddockSelect.innerHTML = '<option value="">-- Pilih Paddock --</option>';
       
@@ -970,7 +1000,6 @@
         paddockSelect.appendChild(opt);
       });
 
-      // Render Multiple Selection Unit Buttons
       renderMultiUnitButtons();
 
       renderSingleButtonGroup('dropperBtnGroup', masterData.dropper || ['Yes', 'No'], 'field_dropper', 'Yes');
@@ -989,7 +1018,6 @@
       renderSingleButtonGroup('weatherBtnGroup', masterData.weatherConditions || ['Sunny', 'Cloudy', 'Rainning'], 'field_weatherCondition', 'Sunny');
     }
 
-    // Single select button group helper
     function renderSingleButtonGroup(containerId, options, hiddenInputId, defaultValue = '', callback = null) {
       const container = document.getElementById(containerId);
       if (!container) return;
@@ -1033,9 +1061,7 @@
       });
     }
 
-    // ==========================================
-    // MULTIPLE UNIT & MULTIPLE NO. UNIT SELECTION
-    // ==========================================
+    // Multiple Unit & Multiple No. Unit Selection
     function renderMultiUnitButtons() {
       const container = document.getElementById('unitBtnGroup');
       if (!container || !masterData) return;
@@ -1083,7 +1109,6 @@
         return;
       }
 
-      // Gather all available No. Units for all selected Units
       let availableNoUnits = [];
       selectedUnits.forEach(u => {
         const list = (masterData.unitMap && masterData.unitMap[u]) || [];
@@ -1092,7 +1117,6 @@
         });
       });
 
-      // Filter out selectedNoUnits that are no longer in available list
       selectedNoUnits = selectedNoUnits.filter(nu => availableNoUnits.includes(nu));
       document.getElementById('field_noUnit').value = selectedNoUnits.join(', ');
 
@@ -1137,10 +1161,247 @@
       const h = String(now.getHours()).padStart(2, '0');
       const m = String(now.getMinutes()).padStart(2, '0');
       document.getElementById(elementId).value = `${h}:${m}`;
+      calculateTimeEfficiency();
     }
 
     // ==========================================
-    // 4. PHOTO COMPRESSION & UPLOAD (JPG)
+    // 4. MULTI-INTERVAL HOLD LOGGING (WITH PER-HOLD WEATHER & PHOTO)
+    // ==========================================
+    function addHoldInterval(startVal = '', endVal = '', reasonVal = 'Angin Kencang') {
+      const id = 'hold_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+      
+      if (!startVal) {
+        const now = new Date();
+        startVal = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      }
+
+      holdIntervals.push({
+        id: id,
+        start: startVal,
+        end: endVal,
+        reason: reasonVal,
+        windSpeed: '',
+        temperature: '',
+        humidity: '',
+        deltaT: '',
+        weather: 'Sunny',
+        note: '',
+        photoBase64: ''
+      });
+
+      renderHoldIntervalList();
+      calculateTimeEfficiency();
+    }
+
+    function removeHoldInterval(id) {
+      holdIntervals = holdIntervals.filter(h => h.id !== id);
+      renderHoldIntervalList();
+      calculateTimeEfficiency();
+    }
+
+    function updateHoldInterval(id, field, value) {
+      const item = holdIntervals.find(h => h.id === id);
+      if (item) {
+        item[field] = value;
+        calculateTimeEfficiency();
+      }
+    }
+
+    function handleHoldPhotoUpload(event, holdId) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const maxDim = 1000;
+
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.70);
+          const base64Str = compressedDataUrl.split(',')[1];
+
+          updateHoldInterval(holdId, 'photoBase64', base64Str);
+          renderHoldIntervalList();
+          showToast('Foto bukti HOLD berhasil dimuat!', 'success');
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function renderHoldIntervalList() {
+      const container = document.getElementById('holdIntervalList');
+      if (!container) return;
+
+      if (holdIntervals.length === 0) {
+        container.innerHTML = '<p class="text-[11px] text-amber-800/70 italic py-1">Tidak ada jeda HOLD tercatat (Kegiatan berjalan terus tanpa henti).</p>';
+        return;
+      }
+
+      container.innerHTML = '';
+      holdIntervals.forEach((item, index) => {
+        const div = document.createElement('div');
+        div.className = 'p-3 bg-white rounded-xl border border-amber-300 shadow-sm space-y-2.5 text-xs';
+        
+        div.innerHTML = `
+          <!-- Header Jeda -->
+          <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
+            <div class="flex items-center space-x-1.5 font-bold text-amber-950">
+              <span class="w-5 h-5 bg-amber-500 text-white rounded-full flex items-center justify-center text-[10px] font-extrabold">${index + 1}</span>
+              <span>Kejadian HOLD / Jeda ${index + 1}</span>
+            </div>
+            <button type="button" onclick="removeHoldInterval('${item.id}')" class="text-red-600 hover:text-red-800 font-semibold text-[11px] flex items-center space-x-1 p-1 hover:bg-red-50 rounded">
+              <i class="fa-solid fa-trash-can"></i>
+              <span>Hapus</span>
+            </button>
+          </div>
+
+          <!-- Waktu & Alasan Utama -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-600 mb-0.5">Jam Mulai HOLD:</label>
+              <input type="time" value="${item.start || ''}" onchange="updateHoldInterval('${item.id}', 'start', this.value)" class="w-full p-1.5 bg-slate-50 border border-slate-300 rounded font-semibold text-xs">
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-600 mb-0.5">Jam Selesai HOLD:</label>
+              <input type="time" value="${item.end || ''}" onchange="updateHoldInterval('${item.id}', 'end', this.value)" class="w-full p-1.5 bg-slate-50 border border-slate-300 rounded font-semibold text-xs">
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-600 mb-0.5">Alasan Utama HOLD:</label>
+              <select onchange="updateHoldInterval('${item.id}', 'reason', this.value)" class="w-full p-1.5 bg-slate-50 border border-slate-300 rounded font-semibold text-xs">
+                <option value="Angin Kencang" ${item.reason === 'Angin Kencang' ? 'selected' : ''}>Angin Kencang (>10 km/j)</option>
+                <option value="Gerimis / Hujan" ${item.reason === 'Gerimis / Hujan' ? 'selected' : ''}>Gerimis / Hujan</option>
+                <option value="Suhu Terlalu Panas" ${item.reason === 'Suhu Terlalu Panas' ? 'selected' : ''}>Suhu Terlalu Panas (>32°C)</option>
+                <option value="Delta T di Luar Batas" ${item.reason === 'Delta T di Luar Batas' ? 'selected' : ''}>Delta T di Luar Batas</option>
+                <option value="Alat / Traktor Breakdown" ${item.reason === 'Alat / Traktor Breakdown' ? 'selected' : ''}>Alat / Traktor Breakdown</option>
+                <option value="Isi Ulang Air & Bahan" ${item.reason === 'Isi Ulang Air & Bahan' ? 'selected' : ''}>Isi Ulang Air & Bahan</option>
+                <option value="Istirahat / Sholat" ${item.reason === 'Istirahat / Sholat' ? 'selected' : ''}>Istirahat / Sholat</option>
+                <option value="Lainnya" ${item.reason === 'Lainnya' ? 'selected' : ''}>Lainnya</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Parameter Cuaca Pengukuran Saat HOLD -->
+          <div class="p-2 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
+            <span class="text-[10px] font-bold text-emerald-900 block uppercase"><i class="fa-solid fa-gauge mr-1 text-emerald-700"></i>Pengukuran Cuaca Saat HOLD Ini Terjadi:</span>
+            <div class="grid grid-cols-4 gap-1.5">
+              <div>
+                <span class="text-[9px] text-slate-500 block text-center">Wind (Km/j)</span>
+                <input type="number" step="0.1" value="${item.windSpeed || ''}" onchange="updateHoldInterval('${item.id}', 'windSpeed', this.value)" placeholder="0.0" class="w-full p-1 bg-white border border-slate-300 rounded text-center text-xs font-semibold">
+              </div>
+              <div>
+                <span class="text-[9px] text-slate-500 block text-center">Temp (°C)</span>
+                <input type="number" step="0.1" value="${item.temperature || ''}" onchange="updateHoldInterval('${item.id}', 'temperature', this.value)" placeholder="0.0" class="w-full p-1 bg-white border border-slate-300 rounded text-center text-xs font-semibold">
+              </div>
+              <div>
+                <span class="text-[9px] text-slate-500 block text-center">Hum (%)</span>
+                <input type="number" step="0.1" value="${item.humidity || ''}" onchange="updateHoldInterval('${item.id}', 'humidity', this.value)" placeholder="0" class="w-full p-1 bg-white border border-slate-300 rounded text-center text-xs font-semibold">
+              </div>
+              <div>
+                <span class="text-[9px] text-slate-500 block text-center">Delta T</span>
+                <input type="number" step="0.1" value="${item.deltaT || ''}" onchange="updateHoldInterval('${item.id}', 'deltaT', this.value)" placeholder="0.0" class="w-full p-1 bg-white border border-slate-300 rounded text-center text-xs font-semibold">
+              </div>
+            </div>
+
+            <!-- Kondisi Cuaca & Catatan Singkat per Jeda -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              <div>
+                <span class="text-[9px] text-slate-500 block">Kondisi Cuaca Saat Jeda:</span>
+                <select onchange="updateHoldInterval('${item.id}', 'weather', this.value)" class="w-full p-1 bg-white border border-slate-300 rounded text-xs font-medium">
+                  <option value="Sunny" ${item.weather === 'Sunny' ? 'selected' : ''}>Sunny (Cerah)</option>
+                  <option value="Cloudy" ${item.weather === 'Cloudy' ? 'selected' : ''}>Cloudy (Berawan)</option>
+                  <option value="Rainning" ${item.weather === 'Rainning' ? 'selected' : ''}>Rainning (Hujan/Gerimis)</option>
+                </select>
+              </div>
+              <div>
+                <span class="text-[9px] text-slate-500 block">Catatan Tambahan Jeda Ini:</span>
+                <input type="text" value="${item.note || ''}" onchange="updateHoldInterval('${item.id}', 'note', this.value)" placeholder="Keterangan singkat..." class="w-full p-1 bg-white border border-slate-300 rounded text-xs">
+              </div>
+            </div>
+
+            <!-- Upload Foto Khusus Kejadian HOLD Ini -->
+            <div class="pt-1 flex items-center gap-2">
+              <label class="cursor-pointer py-1 px-2.5 bg-white hover:bg-emerald-50 border border-emerald-300 rounded text-[11px] font-semibold text-emerald-800 flex items-center space-x-1 shadow-2xs">
+                <i class="fa-solid fa-camera text-emerald-600"></i>
+                <span>${item.photoBase64 ? 'Ganti Foto Bukti HOLD' : '+ Foto Bukti HOLD (Opsional)'}</span>
+                <input type="file" accept="image/*" onchange="handleHoldPhotoUpload(event, '${item.id}')" class="hidden">
+              </label>
+              ${item.photoBase64 ? `
+                <div class="flex items-center space-x-1.5">
+                  <img src="data:image/jpeg;base64,${item.photoBase64}" alt="Foto Bukti HOLD" class="w-7 h-7 object-cover rounded border border-slate-300 shadow-2xs">
+                  <button type="button" onclick="updateHoldInterval('${item.id}', 'photoBase64', ''); renderHoldIntervalList();" class="text-[10px] text-red-600 hover:underline">Hapus Foto</button>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `;
+
+        container.appendChild(div);
+      });
+    }
+
+    function parseTimeToMinutes(tStr) {
+      if (!tStr || !tStr.includes(':')) return 0;
+      const parts = tStr.split(':');
+      return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+    }
+
+    function formatMinutesToText(totalMins) {
+      if (totalMins <= 0) return '0 Mnt';
+      const h = Math.floor(totalMins / 60);
+      const m = totalMins % 60;
+      if (h > 0 && m > 0) return `${h} Jam ${m} Mnt`;
+      if (h > 0) return `${h} Jam`;
+      return `${m} Mnt`;
+    }
+
+    function calculateTimeEfficiency() {
+      const startTime = document.getElementById('field_startTime').value;
+      const endTime = document.getElementById('field_endTime').value;
+
+      let grossMins = 0;
+      if (startTime && endTime) {
+        const s = parseTimeToMinutes(startTime);
+        const e = parseTimeToMinutes(endTime);
+        grossMins = Math.max(0, e - s);
+      }
+
+      let totalHoldMins = 0;
+      holdIntervals.forEach(h => {
+        if (h.start && h.end) {
+          const s = parseTimeToMinutes(h.start);
+          const e = parseTimeToMinutes(h.end);
+          totalHoldMins += Math.max(0, e - s);
+        }
+      });
+
+      const netMins = Math.max(0, grossMins - totalHoldMins);
+
+      document.getElementById('labelGrossTime').textContent = formatMinutesToText(grossMins);
+      document.getElementById('labelTotalHoldTime').textContent = `${formatMinutesToText(totalHoldMins)} (${holdIntervals.length}x)`;
+      document.getElementById('labelNetWorkTime').textContent = formatMinutesToText(netMins);
+    }
+
+    // ==========================================
+    // 5. PHOTO COMPRESSION & UPLOAD UTAMA (JPG)
     // ==========================================
     function handlePhotoUpload(event) {
       const file = event.target.files[0];
@@ -1179,7 +1440,7 @@
           
           const approxKb = Math.round((base64Str.length * 0.75) / 1024);
           document.getElementById('photoSizeLabel').textContent = `Ukuran: ~${approxKb} KB (Terkompres)`;
-          showToast('Foto berhasil dimuat & dikompres!', 'success');
+          showToast('Foto utama berhasil dimuat & dikompres!', 'success');
         };
         img.src = e.target.result;
       };
@@ -1197,7 +1458,7 @@
     }
 
     // ==========================================
-    // 5. DYNAMIC FORM RULES & EVENTS (UPDATED HOLD LOGIC)
+    // 6. DYNAMIC FORM RULES & EVENTS
     // ==========================================
     function onStatusChange(status) {
       const isHold = (status === 'Hold');
@@ -1211,22 +1472,18 @@
 
       if (isHold) {
         alertBanner.classList.remove('hidden');
-        
-        // Nonaktifkan detail Plan (Variety, Area, Type, Activity, Deskripsi)
         planDetails.classList.add('opacity-40', 'pointer-events-none');
         areaInput.disabled = true;
         areaInput.value = '';
         areaHoldNotice.classList.remove('hidden');
 
-        // Nonaktifkan Card 3 (Unit) & Card 4 (Bahan)
         cardUnit.classList.add('opacity-40', 'pointer-events-none');
         cardBahan.classList.add('opacity-40', 'pointer-events-none');
 
-        // Card 5 (Cuaca, Kualitas Air, Foto & Noted*) TETAP AKTIF & DIAKSES!
+        // Card 5 TETAP AKTIF PENUH UNTUK MENCATAT ALASAN HOLD & FOTO
         cardCuaca.classList.remove('opacity-40', 'pointer-events-none');
       } else {
         alertBanner.classList.add('hidden');
-        
         planDetails.classList.remove('opacity-40', 'pointer-events-none');
         areaInput.disabled = false;
         areaHoldNotice.classList.add('hidden');
@@ -1337,6 +1594,15 @@
       calculateEstimatedUsages();
     }
 
+    function promptEditAdjuvantName() {
+      const current = document.getElementById('field_adjuvant').value || 'Agristick 400SL';
+      const newName = prompt('Ubah Nama Adjuvant / Perekat:', current);
+      if (newName !== null && newName.trim() !== '') {
+        document.getElementById('field_adjuvant').value = newName.trim();
+        document.getElementById('display_adjuvant').textContent = newName.trim();
+      }
+    }
+
     function resetBahanOutputs() {
       ['1', '2', '3', '4'].forEach(num => {
         document.getElementById('field_pesticide' + num).value = '';
@@ -1358,7 +1624,6 @@
       const area = isHold ? 0 : parseFloat(document.getElementById('field_area').value) || 0;
       const waterRate = parseFloat(document.getElementById('field_waterRate').value) || 0;
 
-      // Pesticide 1..4 (Dosis L/Ha atau Kg/Ha * Area Ha)
       ['1', '2', '3', '4'].forEach(num => {
         const dosage = parseFloat(document.getElementById('field_dosage' + num).value) || 0;
         const est = area * dosage;
@@ -1366,30 +1631,17 @@
         document.getElementById('display_estPesticide' + num).textContent = est > 0 ? formatNumber(est.toFixed(2)) : '0';
       });
 
-      // Adjuvant (Dosis mL Adjuvant per Liter Air)
-      // Rumus: Total Air = (Water Rate L/Ha * Luas Ha)
-      // Estimasi Adjuvant (Liter) = (Dosis mL/L * Total Air L) / 1000
       const adjDosageML = parseFloat(document.getElementById('field_adjuvantDosage').value) || 0;
       let estAdjLiter = 0;
       
       if (adjDosageML > 0 && area > 0 && waterRate > 0) {
         estAdjLiter = (adjDosageML * waterRate * area) / 1000.0;
       } else if (adjDosageML > 0 && area > 0) {
-        // Jika water rate belum diisi, estimasi standar 150 L/Ha atau proporsional
         estAdjLiter = (adjDosageML * 150 * area) / 1000.0;
       }
 
       document.getElementById('field_estUsageAdjuvant').value = estAdjLiter > 0 ? estAdjLiter.toFixed(2) : 0;
       document.getElementById('display_estAdjuvant').textContent = estAdjLiter > 0 ? formatNumber(estAdjLiter.toFixed(2)) + ' L' : '0 L';
-    }
-
-    function promptEditAdjuvantName() {
-      const current = document.getElementById('field_adjuvant').value || 'Agristick 400SL';
-      const newName = prompt('Ubah Nama Adjuvant / Perekat:', current);
-      if (newName !== null && newName.trim() !== '') {
-        document.getElementById('field_adjuvant').value = newName.trim();
-        document.getElementById('display_adjuvant').textContent = newName.trim();
-      }
     }
 
     function formatNumber(val) {
@@ -1412,6 +1664,11 @@
       document.getElementById('field_startTime').value = `${hours}:${mins}`;
       document.getElementById('field_endTime').value = '';
 
+      // Reset Hold intervals
+      holdIntervals = [];
+      renderHoldIntervalList();
+      calculateTimeEfficiency();
+
       setSingleButtonGroupValue('shiftBtnGroup', 'field_shift', '1');
       setSingleButtonGroupValue('statusBtnGroup', 'field_status', 'Working');
       onStatusChange('Working');
@@ -1421,7 +1678,6 @@
       document.getElementById('field_paddock').value = '';
       document.getElementById('field_area').value = '';
 
-      // Default first unit
       const firstUnit = Object.keys(masterData.unitMap || {})[0] || 'Tractor Spray';
       setMultiUnitValues(firstUnit, '');
 
@@ -1453,9 +1709,48 @@
     }
 
     // ==========================================
-    // 6. SAVING & EDITING RECORDS
+    // 7. SAVING & EDITING RECORDS
     // ==========================================
     function saveFormData(saveType = 'ready') {
+      const rawUserNote = document.getElementById('field_noted').value.trim();
+      let compiledNoted = rawUserNote;
+
+      const startTime = document.getElementById('field_startTime').value;
+      const endTime = document.getElementById('field_endTime').value;
+      let grossMins = 0;
+      if (startTime && endTime) {
+        grossMins = Math.max(0, parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime));
+      }
+
+      let totalHoldMins = 0;
+      let holdDetails = [];
+      holdIntervals.forEach((h, idx) => {
+        if (h.start && h.end) {
+          const s = parseTimeToMinutes(h.start);
+          const e = parseTimeToMinutes(h.end);
+          const dur = Math.max(0, e - s);
+          totalHoldMins += dur;
+          
+          let wDetails = [];
+          if (h.windSpeed) wDetails.push(`Angin: ${h.windSpeed} km/j`);
+          if (h.temperature) wDetails.push(`Suhu: ${h.temperature}°C`);
+          if (h.humidity) wDetails.push(`Hum: ${h.humidity}%`);
+          if (h.deltaT) wDetails.push(`Delta T: ${h.deltaT}°C`);
+          if (h.weather) wDetails.push(`Cuaca: ${h.weather}`);
+          if (h.note) wDetails.push(`Ket: ${h.note}`);
+
+          const wStr = wDetails.length > 0 ? ` (${wDetails.join(', ')})` : '';
+          holdDetails.push(`(${idx+1}) ${h.start}-${h.end} [${dur}m]: ${h.reason}${wStr}`);
+        }
+      });
+
+      const netWorkMins = Math.max(0, grossMins - totalHoldMins);
+
+      if (holdIntervals.length > 0) {
+        const holdHeader = `[JEDA/HOLD: ${holdIntervals.length}x (${formatMinutesToText(totalHoldMins)}) | Efektif: ${formatMinutesToText(netWorkMins)}] ` + holdDetails.join('; ');
+        compiledNoted = rawUserNote ? `${holdHeader} | Catatan: ${rawUserNote}` : holdHeader;
+      }
+
       const record = {
         id: currentEditingId || 'qc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
         createdAt: new Date().toISOString(),
@@ -1514,9 +1809,16 @@
         humidity: document.getElementById('field_humidity').value || '',
         deltaT: document.getElementById('field_deltaT').value || '',
         weatherCondition: document.getElementById('field_weatherCondition').value || '',
-        noted: document.getElementById('field_noted').value || '',
+        noted: compiledNoted,
+        userRawNote: rawUserNote,
 
-        // Photo Base64 payload
+        // Structured Hold intervals array with individual weather & photos
+        holdIntervals: JSON.parse(JSON.stringify(holdIntervals)),
+        grossMinutes: grossMins,
+        totalHoldMinutes: totalHoldMins,
+        netWorkMinutes: netWorkMins,
+
+        // Main Photo Base64
         photoBase64: document.getElementById('field_photoBase64').value || ''
       };
 
@@ -1551,6 +1853,11 @@
       document.getElementById('field_date').value = rec.date || '';
       document.getElementById('field_startTime').value = rec.startTime || rec.time || '';
       document.getElementById('field_endTime').value = rec.endTime || '';
+
+      holdIntervals = Array.isArray(rec.holdIntervals) ? JSON.parse(JSON.stringify(rec.holdIntervals)) : [];
+      renderHoldIntervalList();
+      calculateTimeEfficiency();
+
       setSingleButtonGroupValue('shiftBtnGroup', 'field_shift', rec.shift || '1');
       setSingleButtonGroupValue('statusBtnGroup', 'field_status', rec.status || 'Working');
       onStatusChange(rec.status || 'Working');
@@ -1573,7 +1880,6 @@
         onDeskripsiChange(rec.deskripsi);
       }
 
-      // Set Multiple Units & Multiple No. Units
       setMultiUnitValues(rec.unit || '', rec.noUnit || '');
 
       if (rec.dropper) setSingleButtonGroupValue('dropperBtnGroup', 'field_dropper', rec.dropper);
@@ -1588,6 +1894,7 @@
       document.getElementById('field_actUsagePesticide3').value = rec.actUsagePesticide3 || '';
       document.getElementById('field_actUsagePesticide4').value = rec.actUsagePesticide4 || '';
       document.getElementById('field_actUsageAdjuvant').value = rec.actUsageAdjuvant || '';
+
       if (rec.adjuvant) {
         document.getElementById('field_adjuvant').value = rec.adjuvant;
         document.getElementById('display_adjuvant').textContent = rec.adjuvant;
@@ -1604,9 +1911,9 @@
       document.getElementById('field_humidity').value = rec.humidity || '';
       document.getElementById('field_deltaT').value = rec.deltaT || '';
       if (rec.weatherCondition) setSingleButtonGroupValue('weatherBtnGroup', 'field_weatherCondition', rec.weatherCondition);
-      document.getElementById('field_noted').value = rec.noted || '';
+      
+      document.getElementById('field_noted').value = rec.userRawNote !== undefined ? rec.userRawNote : (rec.noted || '');
 
-      // Photo
       if (rec.photoBase64) {
         document.getElementById('field_photoBase64').value = rec.photoBase64;
         document.getElementById('photoPreviewImg').src = 'data:image/jpeg;base64,' + rec.photoBase64;
@@ -1710,17 +2017,21 @@
         statusBadge = '<span class="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] px-2 py-0.5 rounded-full font-bold"><i class="fa-solid fa-hourglass-half mr-1"></i>Siap Upload</span>';
       }
 
-      const holdBadge = isHold ? '<span class="badge-hold text-[10px] px-2 py-0.5 rounded font-bold ml-1">HOLD</span>' : '<span class="badge-working text-[10px] px-2 py-0.5 rounded font-bold ml-1">WORKING</span>';
+      const holdBadge = isHold ? '<span class="badge-hold text-[10px] px-2 py-0.5 rounded font-bold ml-1">HOLD TOTAL</span>' : '<span class="badge-working text-[10px] px-2 py-0.5 rounded font-bold ml-1">WORKING</span>';
       const timeRange = (rec.startTime || rec.time || '-') + (rec.endTime ? ' s/d ' + rec.endTime : '');
-      const photoBadge = rec.photoBase64 ? '<span class="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded font-bold ml-1"><i class="fa-solid fa-image mr-0.5"></i>Ada Foto</span>' : '';
+      const photoBadge = rec.photoBase64 ? '<span class="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded font-bold ml-1"><i class="fa-solid fa-image mr-0.5"></i>Foto</span>' : '';
+      
+      const holdCount = (rec.holdIntervals && rec.holdIntervals.length > 0) ? rec.holdIntervals.length : 0;
+      const holdTimingBadge = holdCount > 0 ? `<span class="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded ml-1"><i class="fa-solid fa-pause mr-0.5"></i>Jeda: ${holdCount}x (${formatMinutesToText(rec.totalHoldMinutes || 0)})</span>` : '';
 
       return `
         <div class="p-3 bg-white hover:bg-slate-50 rounded-lg border border-slate-200 transition space-y-2">
           <div class="flex items-start justify-between">
             <div>
-              <div class="flex items-center space-x-1">
+              <div class="flex items-center space-x-1 flex-wrap gap-y-1">
                 <span class="font-bold text-sm text-emerald-950">${rec.paddock || 'Paddock Tidak Diisi'}</span>
                 ${holdBadge}
+                ${holdTimingBadge}
                 ${photoBadge}
               </div>
               <p class="text-[11px] text-slate-500 mt-0.5">
@@ -1734,7 +2045,10 @@
           <div class="grid grid-cols-2 gap-2 text-[11px] bg-slate-50 p-2 rounded border border-slate-100">
             <div><strong class="text-slate-600">Unit:</strong> ${rec.unit || '-'} (${rec.noUnit || '-'})</div>
             <div><strong class="text-slate-600">Area:</strong> ${rec.area ? rec.area + ' Ha' : (isHold ? 'HOLD (0 Ha)' : '-')}</div>
-            <div class="col-span-2"><strong class="text-slate-600">${isHold ? 'Alasan / Noted:' : 'Deskripsi:'}</strong> ${isHold ? (rec.noted || 'Tidak ada catatan') : (rec.deskripsi || '-')}</div>
+            <div class="col-span-2">
+              <strong class="text-slate-600">Waktu Efektif:</strong> <span class="font-bold text-emerald-800">${formatMinutesToText(rec.netWorkMinutes || rec.grossMinutes || 0)}</span> | 
+              <strong class="text-slate-600">Deskripsi:</strong> ${rec.deskripsi || '-'}
+            </div>
           </div>
 
           <div class="flex items-center justify-end space-x-1.5 pt-1 border-t border-slate-100 text-xs">
@@ -1783,6 +2097,8 @@
       const fields = [
         ['Date', rec.date], ['Start Time', rec.startTime || rec.time], ['End Time', rec.endTime],
         ['Shift', rec.shift], ['Status', rec.status],
+        ['Waktu Efektif Kerja', formatMinutesToText(rec.netWorkMinutes || rec.grossMinutes || 0)],
+        ['Total Jeda (HOLD)', formatMinutesToText(rec.totalHoldMinutes || 0) + ' (' + ((rec.holdIntervals && rec.holdIntervals.length) || 0) + 'x jeda)'],
         ['Name', rec.name], ['Name of Assistan', rec.nameOfAssistan], ['Paddock', rec.paddock],
         ['Variety', rec.variety], ['Area (Ha)', rec.area], ['Unit (Alat)', rec.unit], ['No. Unit', rec.noUnit],
         ['Dropper', rec.dropper], ['Droplet Size', rec.dropletSize], ['Nozzle', rec.nozzle],
@@ -1792,18 +2108,43 @@
         ['Pesticide 2', rec.pesticide2], ['Dosage 2', rec.dosage2], ['Est. Usage 2', rec.estUsagePesticide2], ['Act. Usage 2', rec.actUsagePesticide2],
         ['Pesticide 3', rec.pesticide3], ['Dosage 3', rec.dosage3], ['Est. Usage 3', rec.estUsagePesticide3], ['Act. Usage 3', rec.actUsagePesticide3],
         ['Pesticide 4', rec.pesticide4], ['Dosage 4', rec.dosage4], ['Est. Usage 4', rec.estUsagePesticide4], ['Act. Usage 4', rec.actUsagePesticide4],
-        ['Adjuvant', rec.adjuvant], ['Adjuvant Dosage', rec.adjuvantDosage], ['Est. Usage Adjuvant', rec.estUsageAdjuvant], ['Act. Usage Adjuvant', rec.actUsageAdjuvant],
-        ['Water Rate', rec.waterRate], ['Water Quality', rec.waterQuality], ['Actual Usage (Air)', rec.actualUsage],
-        ['Wind Speed', rec.windSpeed], ['Temperature', rec.temperature], ['Humidity', rec.humidity], ['Delta T', rec.deltaT],
-        ['Weather Condition', rec.weatherCondition], ['Noted* (Alasan HOLD/Catatan)', rec.noted],
+        ['Adjuvant', rec.adjuvant], ['Adjuvant Dosage (mL/L)', rec.adjuvantDosage], ['Est. Usage Adjuvant (L)', rec.estUsageAdjuvant], ['Act. Usage Adjuvant (L)', rec.actUsageAdjuvant],
+        ['Water Rate (L/Ha)', rec.waterRate], ['Water Quality', rec.waterQuality], ['Actual Usage Air (L)', rec.actualUsage],
+        ['Wind Speed (Kerja)', rec.windSpeed], ['Temp (Kerja)', rec.temperature], ['Humidity (Kerja)', rec.humidity], ['Delta T (Kerja)', rec.deltaT],
+        ['Weather (Kerja)', rec.weatherCondition], ['Noted* Rangkuman Lengkap', rec.noted],
         ['Status Upload', rec.uploadStatus === 'uploaded' ? 'SUDAH DIUPLOAD (' + rec.uploadedAt + ')' : 'BELUM DIUPLOAD (PENDING)']
       ];
+
+      // Rincian Kejadian HOLD
+      let holdSectionHtml = '';
+      if (rec.holdIntervals && rec.holdIntervals.length > 0) {
+        holdSectionHtml = `
+          <div class="col-span-2 p-3 bg-amber-50 rounded-xl border border-amber-200 space-y-2">
+            <span class="text-[10px] text-amber-950 font-bold uppercase block"><i class="fa-solid fa-pause mr-1 text-amber-700"></i>Rincian Pengukuran Setiap Jeda (HOLD):</span>
+            <div class="space-y-1.5">
+              ${rec.holdIntervals.map((h, i) => `
+                <div class="p-2 bg-white rounded border border-amber-200 text-[11px] space-y-1">
+                  <div class="font-bold text-amber-900 flex justify-between">
+                    <span>${i+1}. Jam ${h.start || '-'} s/d ${h.end || '-'}: ${h.reason}</span>
+                  </div>
+                  <div class="text-[10px] text-slate-600 grid grid-cols-2 gap-x-2">
+                    <span>Wind: ${h.windSpeed || '-'} km/j | Temp: ${h.temperature || '-'}°C</span>
+                    <span>Hum: ${h.humidity || '-'}% | Delta T: ${h.deltaT || '-'}°C</span>
+                    <span class="col-span-2">Cuaca: ${h.weather || '-'} ${h.note ? '| Ket: ' + h.note : ''}</span>
+                  </div>
+                  ${h.photoBase64 ? `<img src="data:image/jpeg;base64,${h.photoBase64}" class="w-20 h-20 object-cover rounded border mt-1">` : ''}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
 
       let photoHtml = '';
       if (rec.photoBase64) {
         photoHtml = `
           <div class="col-span-2 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
-            <span class="text-[10px] text-emerald-900 block uppercase font-bold mb-2"><i class="fa-solid fa-camera mr-1"></i>Foto Bukti QC</span>
+            <span class="text-[10px] text-emerald-900 block uppercase font-bold mb-2"><i class="fa-solid fa-camera mr-1"></i>Foto Utama Bukti QC</span>
             <img src="data:image/jpeg;base64,${rec.photoBase64}" alt="Foto Bukti QC" class="w-full max-h-60 object-contain rounded-lg border border-slate-300">
             ${rec.photoDriveUrl ? `<a href="${rec.photoDriveUrl}" target="_blank" class="text-xs text-blue-600 underline font-semibold mt-1 block">Buka di Google Drive</a>` : ''}
           </div>
@@ -1818,6 +2159,7 @@
               <span class="font-semibold text-slate-800">${v !== undefined && v !== '' ? v : '-'}</span>
             </div>
           `).join('')}
+          ${holdSectionHtml}
           ${photoHtml}
         </div>
       `;
@@ -1830,7 +2172,7 @@
     }
 
     // ==========================================
-    // 7. UPLOAD TO GOOGLE SPREADSHEET
+    // 8. UPLOAD TO GOOGLE SPREADSHEET
     // ==========================================
     async function uploadSingleRecord(id) {
       if (!navigator.onLine) {
