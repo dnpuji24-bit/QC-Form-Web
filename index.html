@@ -114,25 +114,22 @@
 
     <!-- ==================== TAB 1: FORM INPUT ==================== -->
     <section id="inputTab" class="tab-content block space-y-4">
-      
-      <!-- Hold Status Notification Banner -->
-      <div id="holdAlertBanner" class="hidden p-3.5 bg-amber-50 border-l-4 border-amber-500 rounded-r-lg text-amber-900 text-xs shadow-sm flex items-start space-x-2.5">
-        <i class="fa-solid fa-triangle-exclamation text-amber-600 text-base mt-0.5"></i>
-        <div>
-          <strong class="font-bold block text-sm">Mode Status HOLD Total Aktif</strong>
-          <span>Seluruh kegiatan dibatalkan/ditunda. Anda dapat mencatat kondisi cuaca, foto bukti, dan menuliskan alasan HOLD pada Bagian 5 di bawah.</span>
-        </div>
-      </div>
 
       <form id="qcForm" onsubmit="event.preventDefault(); saveFormData('ready');" class="space-y-4">
         
-        <!-- CARD 1: INFORMASI UMUM & WAKTU KERJA -->
+        <!-- CARD 1: INFORMASI UMUM & WAKTU KERJA (RAMPING & RAPI 3x3) -->
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
-          <div class="flex items-center space-x-2 text-emerald-800 border-b pb-2 font-bold text-sm">
-            <i class="fa-solid fa-clipboard-user text-emerald-600"></i>
-            <span>1. Informasi Umum & Waktu Kerja</span>
+          <div class="flex items-center justify-between border-b pb-2">
+            <div class="flex items-center space-x-2 text-emerald-800 font-bold text-sm">
+              <i class="fa-solid fa-clipboard-user text-emerald-600"></i>
+              <span>1. Informasi Umum & Waktu Kerja</span>
+            </div>
+            <span class="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded font-bold uppercase"><i class="fa-solid fa-bolt mr-1"></i>Working Form</span>
           </div>
 
+          <input type="hidden" id="field_status" value="Working">
+
+          <!-- Grid Baris 1 & 2: Simetris 3 Kolom -->
           <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
             <!-- Date -->
             <div>
@@ -158,21 +155,14 @@
               <input type="time" id="field_endTime" onchange="calculateTimeEfficiency()" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-medium text-slate-800 focus:bg-white">
             </div>
 
-            <!-- Shift -->
+            <!-- Shift (Button Group 1 & 2) -->
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Shift <span class="text-red-500">*</span></label>
               <div id="shiftBtnGroup" class="grid grid-cols-2 gap-2"></div>
               <input type="hidden" id="field_shift">
             </div>
 
-            <!-- Status -->
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Status <span class="text-red-500">*</span></label>
-              <div id="statusBtnGroup" class="grid grid-cols-2 gap-2"></div>
-              <input type="hidden" id="field_status" value="Working">
-            </div>
-
-            <!-- Name (Mandor) -->
+            <!-- Name (Mandor) Dropdown -->
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Name (Mandor) <span class="text-red-500">*</span></label>
               <select id="field_name" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:bg-white">
@@ -180,8 +170,8 @@
               </select>
             </div>
 
-            <!-- Name of Assistan -->
-            <div class="md:col-span-3">
+            <!-- Name of Assistan Dropdown -->
+            <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Name of Assistan <span class="text-red-500">*</span></label>
               <select id="field_nameOfAssistan" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:bg-white">
                 <option value="">-- Pilih Nama Asisten --</option>
@@ -196,7 +186,7 @@
                 <i class="fa-solid fa-pause text-amber-700 text-sm"></i>
                 <div>
                   <span class="text-xs font-bold text-amber-950 block">Pencatatan Jeda / HOLD Lapangan (Multiple)</span>
-                  <span class="text-[10px] text-amber-800">Setiap penambahan jeda otomatis menyediakan kolom cuaca & foto pemicu HOLD</span>
+                  <span class="text-[10px] text-amber-800">Setiap penambahan jeda otomatis diupload menjadi baris HOLD tersendiri di Spreadsheet</span>
                 </div>
               </div>
               <button type="button" onclick="addHoldInterval()" class="py-2 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shadow-sm active:scale-95 transition flex items-center space-x-1.5">
@@ -246,46 +236,42 @@
               </select>
             </div>
 
-            <!-- Bagian yang dinonaktifkan saat Hold Total -->
-            <div id="planDetailsHoldWrapper" class="space-y-3.5 transition-all">
-              <!-- Variety -->
-              <div id="section_variety">
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Variety (Varietas Tebu)</label>
-                <div id="varietyBtnGroup" class="flex flex-wrap gap-2">
-                  <span class="text-xs text-slate-400 italic py-1">Pilih Paddock terlebih dahulu</span>
-                </div>
-                <input type="hidden" id="field_variety">
+            <!-- Variety -->
+            <div id="section_variety">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Variety (Varietas Tebu)</label>
+              <div id="varietyBtnGroup" class="flex flex-wrap gap-2">
+                <span class="text-xs text-slate-400 italic py-1">Pilih Paddock terlebih dahulu</span>
               </div>
+              <input type="hidden" id="field_variety">
+            </div>
 
-              <!-- Area (Ha) -->
-              <div id="section_area">
-                <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                  <span>Area Dikerjakan (Ha) <span class="text-red-500">*</span></span>
-                  <span id="areaHoldNotice" class="text-[11px] text-red-600 hidden font-normal"><i class="fa-solid fa-ban mr-1"></i>Nonaktif (Status Hold)</span>
-                </label>
-                <input type="number" step="0.01" min="0" id="field_area" oninput="calculateEstimatedUsages()" placeholder="Contoh: 3.50" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-semibold text-slate-900 focus:bg-white">
-              </div>
+            <!-- Area (Ha) -->
+            <div id="section_area">
+              <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                <span>Area Dikerjakan (Ha) <span class="text-red-500">*</span></span>
+              </label>
+              <input type="number" step="0.01" min="0" id="field_area" oninput="calculateEstimatedUsages()" placeholder="Contoh: 3.50" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-semibold text-slate-900 focus:bg-white">
+            </div>
 
-              <!-- Type -->
-              <div id="section_type">
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Type Aplikasi</label>
-                <div id="typeBtnGroup" class="flex flex-wrap gap-2"></div>
-                <input type="hidden" id="field_type">
-              </div>
+            <!-- Type -->
+            <div id="section_type">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Type Aplikasi</label>
+              <div id="typeBtnGroup" class="flex flex-wrap gap-2"></div>
+              <input type="hidden" id="field_type">
+            </div>
 
-              <!-- Activity -->
-              <div id="section_activity">
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Activity (Aktivitas Kerja) <span class="text-red-500">*</span></label>
-                <div id="activityBtnGroup" class="flex flex-wrap gap-2"></div>
-                <input type="hidden" id="field_activity">
-              </div>
+            <!-- Activity -->
+            <div id="section_activity">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Activity (Aktivitas Kerja) <span class="text-red-500">*</span></label>
+              <div id="activityBtnGroup" class="flex flex-wrap gap-2"></div>
+              <input type="hidden" id="field_activity">
+            </div>
 
-              <!-- Deskripsi -->
-              <div id="section_deskripsi">
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Deskripsi Program / Bahan <span class="text-red-500">*</span></label>
-                <div id="deskripsiBtnGroup" class="flex flex-wrap gap-2"></div>
-                <input type="hidden" id="field_deskripsi">
-              </div>
+            <!-- Deskripsi -->
+            <div id="section_deskripsi">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Deskripsi Program / Bahan <span class="text-red-500">*</span></label>
+              <div id="deskripsiBtnGroup" class="flex flex-wrap gap-2"></div>
+              <input type="hidden" id="field_deskripsi">
             </div>
           </div>
         </div>
@@ -790,7 +776,7 @@
 
     let selectedUnits = [];
     let selectedNoUnits = [];
-    let holdIntervals = []; // List of { id, start, end, reason, windSpeed, temp, humidity, deltaT, weather, note, photoBase64 }
+    let holdIntervals = [];
 
     // ==========================================
     // 1. ADMIN-CONTROLLED SECURITY & ACCESS
@@ -934,10 +920,6 @@
 
       renderSingleButtonGroup('shiftBtnGroup', masterData.shifts || ['1', '2'], 'field_shift', '1');
 
-      renderSingleButtonGroup('statusBtnGroup', masterData.statuses || ['Working', 'Hold'], 'field_status', 'Working', (val) => {
-        onStatusChange(val);
-      });
-
       // Name (Mandor) Dropdown
       const nameSelect = document.getElementById('field_name');
       nameSelect.innerHTML = '<option value="">-- Pilih Nama Mandor --</option>';
@@ -1061,7 +1043,6 @@
       });
     }
 
-    // Multiple Unit & Multiple No. Unit Selection
     function renderMultiUnitButtons() {
       const container = document.getElementById('unitBtnGroup');
       if (!container || !masterData) return;
@@ -1165,7 +1146,7 @@
     }
 
     // ==========================================
-    // 4. MULTI-INTERVAL HOLD LOGGING (WITH PER-HOLD WEATHER & PHOTO)
+    // 4. MULTI-INTERVAL HOLD LOGGING
     // ==========================================
     function addHoldInterval(startVal = '', endVal = '', reasonVal = 'Angin Kencang') {
       const id = 'hold_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
@@ -1460,41 +1441,6 @@
     // ==========================================
     // 6. DYNAMIC FORM RULES & EVENTS
     // ==========================================
-    function onStatusChange(status) {
-      const isHold = (status === 'Hold');
-      const alertBanner = document.getElementById('holdAlertBanner');
-      const planDetails = document.getElementById('planDetailsHoldWrapper');
-      const cardUnit = document.getElementById('card_unit_params');
-      const cardBahan = document.getElementById('card_bahan_dosis');
-      const cardCuaca = document.getElementById('card_cuaca_foto');
-      const areaInput = document.getElementById('field_area');
-      const areaHoldNotice = document.getElementById('areaHoldNotice');
-
-      if (isHold) {
-        alertBanner.classList.remove('hidden');
-        planDetails.classList.add('opacity-40', 'pointer-events-none');
-        areaInput.disabled = true;
-        areaInput.value = '';
-        areaHoldNotice.classList.remove('hidden');
-
-        cardUnit.classList.add('opacity-40', 'pointer-events-none');
-        cardBahan.classList.add('opacity-40', 'pointer-events-none');
-
-        // Card 5 TETAP AKTIF PENUH UNTUK MENCATAT ALASAN HOLD & FOTO
-        cardCuaca.classList.remove('opacity-40', 'pointer-events-none');
-      } else {
-        alertBanner.classList.add('hidden');
-        planDetails.classList.remove('opacity-40', 'pointer-events-none');
-        areaInput.disabled = false;
-        areaHoldNotice.classList.add('hidden');
-
-        cardUnit.classList.remove('opacity-40', 'pointer-events-none');
-        cardBahan.classList.remove('opacity-40', 'pointer-events-none');
-        cardCuaca.classList.remove('opacity-40', 'pointer-events-none');
-      }
-      calculateEstimatedUsages();
-    }
-
     function onPaddockChange() {
       const paddock = document.getElementById('field_paddock').value;
       if (!paddock || !masterData) {
@@ -1620,8 +1566,7 @@
     }
 
     function calculateEstimatedUsages() {
-      const isHold = (document.getElementById('field_status').value === 'Hold');
-      const area = isHold ? 0 : parseFloat(document.getElementById('field_area').value) || 0;
+      const area = parseFloat(document.getElementById('field_area').value) || 0;
       const waterRate = parseFloat(document.getElementById('field_waterRate').value) || 0;
 
       ['1', '2', '3', '4'].forEach(num => {
@@ -1664,14 +1609,12 @@
       document.getElementById('field_startTime').value = `${hours}:${mins}`;
       document.getElementById('field_endTime').value = '';
 
-      // Reset Hold intervals
       holdIntervals = [];
       renderHoldIntervalList();
       calculateTimeEfficiency();
 
       setSingleButtonGroupValue('shiftBtnGroup', 'field_shift', '1');
-      setSingleButtonGroupValue('statusBtnGroup', 'field_status', 'Working');
-      onStatusChange('Working');
+      document.getElementById('field_status').value = 'Working';
 
       document.getElementById('field_name').value = '';
       document.getElementById('field_nameOfAssistan').value = '';
@@ -1764,7 +1707,7 @@
         startTime: document.getElementById('field_startTime').value || '',
         endTime: document.getElementById('field_endTime').value || '',
         shift: document.getElementById('field_shift').value || '',
-        status: document.getElementById('field_status').value || 'Working',
+        status: 'Working',
         name: document.getElementById('field_name').value || '',
         nameOfAssistan: document.getElementById('field_nameOfAssistan').value || '',
         paddock: document.getElementById('field_paddock').value || '',
@@ -1859,8 +1802,7 @@
       calculateTimeEfficiency();
 
       setSingleButtonGroupValue('shiftBtnGroup', 'field_shift', rec.shift || '1');
-      setSingleButtonGroupValue('statusBtnGroup', 'field_status', rec.status || 'Working');
-      onStatusChange(rec.status || 'Working');
+      document.getElementById('field_status').value = 'Working';
 
       document.getElementById('field_name').value = rec.name || '';
       document.getElementById('field_nameOfAssistan').value = rec.nameOfAssistan || '';
@@ -2004,7 +1946,6 @@
     }
 
     function renderRecordCard(rec) {
-      const isHold = (rec.status === 'Hold');
       const isUploaded = (rec.uploadStatus === 'uploaded');
       const isDraft = (rec.saveType === 'draft');
 
@@ -2017,7 +1958,6 @@
         statusBadge = '<span class="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] px-2 py-0.5 rounded-full font-bold"><i class="fa-solid fa-hourglass-half mr-1"></i>Siap Upload</span>';
       }
 
-      const holdBadge = isHold ? '<span class="badge-hold text-[10px] px-2 py-0.5 rounded font-bold ml-1">HOLD TOTAL</span>' : '<span class="badge-working text-[10px] px-2 py-0.5 rounded font-bold ml-1">WORKING</span>';
       const timeRange = (rec.startTime || rec.time || '-') + (rec.endTime ? ' s/d ' + rec.endTime : '');
       const photoBadge = rec.photoBase64 ? '<span class="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded font-bold ml-1"><i class="fa-solid fa-image mr-0.5"></i>Foto</span>' : '';
       
@@ -2030,7 +1970,7 @@
             <div>
               <div class="flex items-center space-x-1 flex-wrap gap-y-1">
                 <span class="font-bold text-sm text-emerald-950">${rec.paddock || 'Paddock Tidak Diisi'}</span>
-                ${holdBadge}
+                <span class="badge-working text-[10px] px-2 py-0.5 rounded font-bold ml-1">WORKING</span>
                 ${holdTimingBadge}
                 ${photoBadge}
               </div>
@@ -2044,7 +1984,7 @@
 
           <div class="grid grid-cols-2 gap-2 text-[11px] bg-slate-50 p-2 rounded border border-slate-100">
             <div><strong class="text-slate-600">Unit:</strong> ${rec.unit || '-'} (${rec.noUnit || '-'})</div>
-            <div><strong class="text-slate-600">Area:</strong> ${rec.area ? rec.area + ' Ha' : (isHold ? 'HOLD (0 Ha)' : '-')}</div>
+            <div><strong class="text-slate-600">Area:</strong> ${rec.area ? rec.area + ' Ha' : '-'}</div>
             <div class="col-span-2">
               <strong class="text-slate-600">Waktu Efektif:</strong> <span class="font-bold text-emerald-800">${formatMinutesToText(rec.netWorkMinutes || rec.grossMinutes || 0)}</span> | 
               <strong class="text-slate-600">Deskripsi:</strong> ${rec.deskripsi || '-'}
@@ -2092,11 +2032,11 @@
       const body = document.getElementById('modalBody');
       const title = document.getElementById('modalTitle');
 
-      title.textContent = `Detail Form QC: ${rec.paddock || 'Paddock'} (${rec.date || '-'}) [${rec.status || 'Status'}]`;
+      title.textContent = `Detail Form QC: ${rec.paddock || 'Paddock'} (${rec.date || '-'}) [WORKING]`;
 
       const fields = [
         ['Date', rec.date], ['Start Time', rec.startTime || rec.time], ['End Time', rec.endTime],
-        ['Shift', rec.shift], ['Status', rec.status],
+        ['Shift', rec.shift], ['Status', 'Working'],
         ['Waktu Efektif Kerja', formatMinutesToText(rec.netWorkMinutes || rec.grossMinutes || 0)],
         ['Total Jeda (HOLD)', formatMinutesToText(rec.totalHoldMinutes || 0) + ' (' + ((rec.holdIntervals && rec.holdIntervals.length) || 0) + 'x jeda)'],
         ['Name', rec.name], ['Name of Assistan', rec.nameOfAssistan], ['Paddock', rec.paddock],
@@ -2111,7 +2051,7 @@
         ['Adjuvant', rec.adjuvant], ['Adjuvant Dosage (mL/L)', rec.adjuvantDosage], ['Est. Usage Adjuvant (L)', rec.estUsageAdjuvant], ['Act. Usage Adjuvant (L)', rec.actUsageAdjuvant],
         ['Water Rate (L/Ha)', rec.waterRate], ['Water Quality', rec.waterQuality], ['Actual Usage Air (L)', rec.actualUsage],
         ['Wind Speed (Kerja)', rec.windSpeed], ['Temp (Kerja)', rec.temperature], ['Humidity (Kerja)', rec.humidity], ['Delta T (Kerja)', rec.deltaT],
-        ['Weather (Kerja)', rec.weatherCondition], ['Noted* Rangkuman Lengkap', rec.noted],
+        ['Weather (Kerja)', rec.weatherCondition], ['Noted* (Catatan Lengkap)', rec.noted],
         ['Status Upload', rec.uploadStatus === 'uploaded' ? 'SUDAH DIUPLOAD (' + rec.uploadedAt + ')' : 'BELUM DIUPLOAD (PENDING)']
       ];
 
@@ -2120,7 +2060,7 @@
       if (rec.holdIntervals && rec.holdIntervals.length > 0) {
         holdSectionHtml = `
           <div class="col-span-2 p-3 bg-amber-50 rounded-xl border border-amber-200 space-y-2">
-            <span class="text-[10px] text-amber-950 font-bold uppercase block"><i class="fa-solid fa-pause mr-1 text-amber-700"></i>Rincian Pengukuran Setiap Jeda (HOLD):</span>
+            <span class="text-[10px] text-amber-950 font-bold uppercase block"><i class="fa-solid fa-pause mr-1 text-amber-700"></i>Rincian Kejadian Jeda (HOLD Terpisah):</span>
             <div class="space-y-1.5">
               ${rec.holdIntervals.map((h, i) => `
                 <div class="p-2 bg-white rounded border border-amber-200 text-[11px] space-y-1">
