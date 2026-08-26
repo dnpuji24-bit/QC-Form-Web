@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Form QC Aplikasi Semprot </title>
+  <title>Form QC Aplikasi Semprot & Pemupukan</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" href="logo.png">
   <link rel="apple-touch-icon" href="logo.png">
@@ -92,17 +92,21 @@
     </div>
 
     <!-- SUB NAVIGATION TABS -->
-    <div class="max-w-4xl mx-auto px-4 flex border-t border-emerald-600 text-sm font-medium">
-      <button onclick="switchTab('inputTab')" id="tabBtn-inputTab" class="flex-1 py-2.5 text-center border-b-2 border-white text-white font-semibold flex items-center justify-center space-x-1.5">
+    <div class="max-w-4xl mx-auto px-2 flex border-t border-emerald-600 text-xs sm:text-sm font-medium">
+      <button onclick="switchTab('inputTab')" id="tabBtn-inputTab" class="flex-1 py-2.5 text-center border-b-2 border-white text-white font-semibold flex items-center justify-center space-x-1">
         <i class="fa-solid fa-pen-to-square"></i>
         <span>Form Input</span>
       </button>
-      <button onclick="switchTab('historyTab')" id="tabBtn-historyTab" class="flex-1 py-2.5 text-center border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center space-x-1.5">
+      <button onclick="switchTab('calcTab')" id="tabBtn-calcTab" class="flex-1 py-2.5 text-center border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center space-x-1">
+        <i class="fa-solid fa-calculator"></i>
+        <span>Kalkulator</span>
+      </button>
+      <button onclick="switchTab('historyTab')" id="tabBtn-historyTab" class="flex-1 py-2.5 text-center border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center space-x-1">
         <i class="fa-solid fa-list-check"></i>
         <span>Data & Upload</span>
-        <span id="pendingBadge" class="hidden ml-1 px-1.5 py-0.5 text-[10px] bg-amber-400 text-slate-900 font-bold rounded-full">0</span>
+        <span id="pendingBadge" class="hidden ml-1 px-1.5 py-0.2 text-[9px] bg-amber-400 text-slate-900 font-bold rounded-full">0</span>
       </button>
-      <button onclick="switchTab('settingsTab')" id="tabBtn-settingsTab" class="flex-1 py-2.5 text-center border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center space-x-1.5">
+      <button onclick="switchTab('settingsTab')" id="tabBtn-settingsTab" class="flex-1 py-2.5 text-center border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center space-x-1">
         <i class="fa-solid fa-gear"></i>
         <span>Pengaturan</span>
       </button>
@@ -250,7 +254,7 @@
               <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
                 <span>Area Dikerjakan (Ha) <span class="text-red-500">*</span></span>
               </label>
-              <input type="number" step="0.01" min="0" id="field_area" oninput="calculateEstimatedUsages()" placeholder="Contoh: 3.50" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-semibold text-slate-900 focus:bg-white">
+              <input type="text" inputmode="decimal" id="field_area" oninput="calculateEstimatedUsages()" placeholder="Contoh: 3.50" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-semibold text-slate-900 focus:bg-white">
             </div>
 
             <!-- Type -->
@@ -315,7 +319,7 @@
               <!-- Droplet Size -->
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Droplet Size (µm)</label>
-                <input type="number" step="any" id="field_dropletSize" placeholder="Input angka manual" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white">
+                <input type="text" inputmode="decimal" id="field_dropletSize" placeholder="Input angka manual" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white">
               </div>
             </div>
 
@@ -330,15 +334,15 @@
             <div class="grid grid-cols-3 gap-2.5">
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Height (m)</label>
-                <input type="number" step="0.01" id="field_height" placeholder="0.00" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-center focus:bg-white">
+                <input type="text" inputmode="decimal" id="field_height" placeholder="0.00" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-center focus:bg-white">
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Row Spacing (m)</label>
-                <input type="number" step="0.01" id="field_rowSpacing" placeholder="1.50" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-center focus:bg-white">
+                <input type="text" inputmode="decimal" id="field_rowSpacing" placeholder="1.50" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-center focus:bg-white">
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Speed (Km/j)</label>
-                <input type="number" step="0.1" id="field_speed" placeholder="0.0" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-center focus:bg-white">
+                <input type="text" inputmode="decimal" id="field_speed" placeholder="0.0" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-center focus:bg-white">
               </div>
             </div>
           </div>
@@ -351,7 +355,12 @@
               <i class="fa-solid fa-flask-vial text-emerald-600"></i>
               <span>4. Bahan, Dosis & Penggunaan Aktual</span>
             </div>
-            <span class="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-medium">Auto-Lookup Sheet Bahan</span>
+            <div class="flex items-center space-x-1.5">
+              <button type="button" onclick="openCalculatorWithCurrentFormData()" class="py-1 px-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold shadow-xs flex items-center space-x-1">
+                <i class="fa-solid fa-calculator"></i>
+                <span>Hitung Chemical</span>
+              </button>
+            </div>
           </div>
 
           <!-- Auto-populated Material Matrix -->
@@ -383,7 +392,7 @@
                     <input type="hidden" id="field_estUsagePesticide1" value="0">
                   </td>
                   <td class="p-2.5 bg-amber-50/30">
-                    <input type="number" step="0.01" id="field_actUsagePesticide1" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
+                    <input type="text" inputmode="decimal" id="field_actUsagePesticide1" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
                   </td>
                 </tr>
 
@@ -403,7 +412,7 @@
                     <input type="hidden" id="field_estUsagePesticide2" value="0">
                   </td>
                   <td class="p-2.5 bg-amber-50/30">
-                    <input type="number" step="0.01" id="field_actUsagePesticide2" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
+                    <input type="text" inputmode="decimal" id="field_actUsagePesticide2" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
                   </td>
                 </tr>
 
@@ -423,7 +432,7 @@
                     <input type="hidden" id="field_estUsagePesticide3" value="0">
                   </td>
                   <td class="p-2.5 bg-amber-50/30">
-                    <input type="number" step="0.01" id="field_actUsagePesticide3" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
+                    <input type="text" inputmode="decimal" id="field_actUsagePesticide3" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
                   </td>
                 </tr>
 
@@ -443,7 +452,7 @@
                     <input type="hidden" id="field_estUsagePesticide4" value="0">
                   </td>
                   <td class="p-2.5 bg-amber-50/30">
-                    <input type="number" step="0.01" id="field_actUsagePesticide4" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
+                    <input type="text" inputmode="decimal" id="field_actUsagePesticide4" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
                   </td>
                 </tr>
 
@@ -459,7 +468,7 @@
                   </td>
                   <td class="p-2">
                     <div class="space-y-0.5">
-                      <input type="number" step="0.01" id="field_adjuvantDosage" oninput="calculateEstimatedUsages()" placeholder="2" value="2" class="w-full p-1 bg-white border border-emerald-300 rounded text-center text-xs font-bold text-emerald-950 focus:ring-1 focus:ring-emerald-500">
+                      <input type="text" inputmode="decimal" id="field_adjuvantDosage" oninput="calculateEstimatedUsages()" placeholder="2" value="2" class="w-full p-1 bg-white border border-emerald-300 rounded text-center text-xs font-bold text-emerald-950 focus:ring-1 focus:ring-emerald-500">
                       <div class="text-[9px] text-emerald-700 text-center font-bold">mL / L air</div>
                     </div>
                   </td>
@@ -470,7 +479,7 @@
                   </td>
                   <td class="p-2.5 bg-amber-50/30">
                     <div class="space-y-0.5">
-                      <input type="number" step="0.01" id="field_actUsageAdjuvant" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
+                      <input type="text" inputmode="decimal" id="field_actUsageAdjuvant" placeholder="0.00" class="w-full p-1.5 bg-white border border-amber-300 rounded text-center text-xs font-semibold focus:ring-1 focus:ring-amber-500">
                       <div class="text-[9px] text-amber-800 text-center font-bold">Liter</div>
                     </div>
                   </td>
@@ -488,7 +497,7 @@
               <i class="fa-solid fa-cloud-sun-rain text-emerald-600"></i>
               <span>5. Kualitas Air, Cuaca Kerja, Foto Utama & Catatan Noted*</span>
             </div>
-            <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">Wajib Diisi (Cek Kualitas Air)</span>
+            <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">Wajib Diisi (Kecuali Kualitas Air)</span>
           </div>
 
           <div class="space-y-3.5">
@@ -496,7 +505,7 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Water Rate (L/Ha) <span class="text-red-500">*</span></label>
-                <input type="number" step="any" id="field_waterRate" oninput="calculateEstimatedUsages()" placeholder="Contoh: 150" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white">
+                <input type="text" inputmode="decimal" id="field_waterRate" oninput="calculateEstimatedUsages()" placeholder="Contoh: 150" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white">
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Water Quality (Opsional)</label>
@@ -504,7 +513,7 @@
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Actual Usage Air (Liter) <span class="text-red-500">*</span></label>
-                <input type="number" step="any" id="field_actualUsage" placeholder="Contoh: 450" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white">
+                <input type="text" inputmode="decimal" id="field_actualUsage" placeholder="Contoh: 450" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white">
               </div>
             </div>
 
@@ -512,19 +521,19 @@
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Wind (Km/j) <span class="text-red-500">*</span></label>
-                <input type="number" step="0.1" id="field_windSpeed" placeholder="0.0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white font-semibold">
+                <input type="text" inputmode="decimal" id="field_windSpeed" placeholder="0.0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white font-semibold">
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Temp (°C) <span class="text-red-500">*</span></label>
-                <input type="number" step="0.1" id="field_temperature" placeholder="0.0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white font-semibold">
+                <input type="text" inputmode="decimal" id="field_temperature" placeholder="0.0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white font-semibold">
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Humidity (%) <span class="text-red-500">*</span></label>
-                <input type="number" step="0.1" id="field_humidity" placeholder="0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white font-semibold">
+                <input type="text" inputmode="decimal" id="field_humidity" placeholder="0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white font-semibold">
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Delta T (°C) <span class="text-red-500">*</span></label>
-                <input type="number" step="0.1" id="field_deltaT" placeholder="0.0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white font-semibold">
+                <input type="text" inputmode="decimal" id="field_deltaT" placeholder="0.0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:bg-white font-semibold">
               </div>
             </div>
 
@@ -601,7 +610,249 @@
     </section>
 
 
-    <!-- ==================== TAB 2: RIWAYAT & UPLOAD ==================== -->
+    <!-- ==================== TAB 2: KALKULATOR AGRONOMI & CHEMICAL ==================== -->
+    <section id="calcTab" class="tab-content hidden space-y-4">
+      
+      <!-- Top Calculator Sync & Presets Header -->
+      <div class="bg-gradient-to-r from-emerald-800 to-teal-900 text-white rounded-2xl p-4 shadow-md space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-2.5">
+            <div class="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-amber-300 text-lg border border-white/20">
+              <i class="fa-solid fa-calculator"></i>
+            </div>
+            <div>
+              <h2 class="text-sm font-bold leading-tight">Kalkulator Agronomi & Pencampuran Semprot</h2>
+              <p class="text-[11px] text-emerald-200">Panduan hitung dosis, kebutuhan air, dan takaran tangki untuk Mandor</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-2 pt-1">
+          <button type="button" onclick="syncDataFromFormToCalc()" class="py-1.5 px-3 bg-amber-400 hover:bg-amber-300 text-slate-900 rounded-lg text-xs font-bold shadow-sm active:scale-95 transition flex items-center space-x-1.5">
+            <i class="fa-solid fa-file-import"></i>
+            <span>Ambil Data dari Form Input Aktif</span>
+          </button>
+          <button type="button" onclick="resetCalculatorInputs()" class="py-1.5 px-3 bg-white/20 hover:bg-white/30 text-white rounded-lg text-xs font-semibold active:scale-95 transition flex items-center space-x-1">
+            <i class="fa-solid fa-rotate-left"></i>
+            <span>Reset Input Bebas</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Module Selection Buttons (6 Calculation Modes) -->
+      <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-sm space-y-2">
+        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center space-x-1">
+          <i class="fa-solid fa-list-ol text-emerald-600"></i>
+          <span>Pilih Apa yang Ingin Dihitung:</span>
+        </label>
+        
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs font-bold">
+          <button type="button" onclick="setCalcMode('mode_total_chem')" id="btnMode_total_chem" class="btn-calc-mode p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-700 text-left space-y-1 active">
+            <div class="text-emerald-700 text-sm"><i class="fa-solid fa-flask"></i></div>
+            <div class="leading-snug">1. Total Bahan per Luas (Ha)</div>
+          </button>
+
+          <button type="button" onclick="setCalcMode('mode_total_water')" id="btnMode_total_water" class="btn-calc-mode p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-700 text-left space-y-1">
+            <div class="text-blue-600 text-sm"><i class="fa-solid fa-droplet"></i></div>
+            <div class="leading-snug">2. Total Kebutuhan Air (L)</div>
+          </button>
+
+          <button type="button" onclick="setCalcMode('mode_tank_mix')" id="btnMode_tank_mix" class="btn-calc-mode p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-700 text-left space-y-1">
+            <div class="text-amber-600 text-sm"><i class="fa-solid fa-vial-circle-check"></i></div>
+            <div class="leading-snug">3. Takaran Bahan per Tangki</div>
+          </button>
+
+          <button type="button" onclick="setCalcMode('mode_adjuvant')" id="btnMode_adjuvant" class="btn-calc-mode p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-700 text-left space-y-1">
+            <div class="text-teal-600 text-sm"><i class="fa-solid fa-spray-can"></i></div>
+            <div class="leading-snug">4. Dosis Adjuvant (mL/L air)</div>
+          </button>
+
+          <button type="button" onclick="setCalcMode('mode_tank_coverage')" id="btnMode_tank_coverage" class="btn-calc-mode p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-700 text-left space-y-1">
+            <div class="text-purple-600 text-sm"><i class="fa-solid fa-chart-pie"></i></div>
+            <div class="leading-snug">5. Luas Selesai per 1 Tangki</div>
+          </button>
+
+          <button type="button" onclick="setCalcMode('mode_flow_rate')" id="btnMode_flow_rate" class="btn-calc-mode p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-700 text-left space-y-1">
+            <div class="text-red-600 text-sm"><i class="fa-solid fa-gauge-high"></i></div>
+            <div class="leading-snug">6. Kalibrasi Nozzle (L/menit)</div>
+          </button>
+        </div>
+      </div>
+
+      <!-- DYNAMIC INPUT CARD ACCORDING TO SELECTED MODE -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
+        
+        <div class="flex items-center justify-between border-b pb-2">
+          <div class="flex items-center space-x-2 text-emerald-800 font-bold text-sm">
+            <i class="fa-solid fa-sliders text-emerald-600"></i>
+            <span id="calcInputTitle">Parameter Input Perhitungan</span>
+          </div>
+          <span id="calcActiveBadge" class="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded">Mode 1 Aktif</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5" id="calcInputGrid">
+          
+          <!-- Input 1: Dosis Bahan -->
+          <div id="wrapper_calc_dosage">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Dosis Bahan per Hektar</label>
+            <div class="flex rounded-lg shadow-2xs">
+              <input type="text" inputmode="decimal" id="calc_dosage" oninput="runCalculations()" placeholder="Contoh: 1,5" value="1.5" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-l-lg text-sm font-bold focus:bg-white text-slate-900">
+              <select id="calc_dosage_unit" onchange="runCalculations()" class="bg-slate-200 border border-l-0 border-slate-300 rounded-r-lg text-xs font-bold px-2 text-slate-800">
+                <option value="L/Ha">L / Ha</option>
+                <option value="mL/Ha">mL / Ha</option>
+                <option value="Kg/Ha">Kg / Ha</option>
+                <option value="Gram/Ha">Gram / Ha</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Input 2: Luas Lahan (Ha) -->
+          <div id="wrapper_calc_area">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Luas Lahan / Paddock (Ha)</label>
+            <div class="relative">
+              <input type="text" inputmode="decimal" id="calc_area" oninput="runCalculations()" placeholder="Contoh: 7,47" value="5" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-bold focus:bg-white text-slate-900 pr-10">
+              <span class="absolute right-3 top-2.5 text-xs font-bold text-slate-500">Ha</span>
+            </div>
+          </div>
+
+          <!-- Input 3: Water Rate (L/Ha) -->
+          <div id="wrapper_calc_waterRate">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Water Rate (L / Ha)</label>
+            <div class="relative">
+              <input type="text" inputmode="decimal" id="calc_waterRate" oninput="runCalculations()" placeholder="Contoh: 400" value="400" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-bold focus:bg-white text-slate-900 pr-12">
+              <span class="absolute right-3 top-2.5 text-xs font-bold text-slate-500">L/Ha</span>
+            </div>
+          </div>
+
+          <!-- Input 4: Kapasitas Tangki / Volume Air (L) -->
+          <div id="wrapper_calc_tankVol" class="md:col-span-2 space-y-1.5">
+            <label class="block text-xs font-semibold text-slate-700">Kapasitas Tangki / Volume Air yang Tersedia (Liter)</label>
+            <div class="relative">
+              <input type="text" inputmode="decimal" id="calc_tankVol" oninput="runCalculations()" placeholder="Contoh: 2500" value="2500" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-bold focus:bg-white text-slate-900 pr-12">
+              <span class="absolute right-3 top-2.5 text-xs font-bold text-slate-500">Liter</span>
+            </div>
+            <!-- Preset Buttons (6 Armada Operasional) -->
+            <div class="flex flex-wrap gap-1.5 text-[10px]">
+              <span class="text-slate-500 font-semibold py-0.5">Preset Tangki:</span>
+              <button type="button" onclick="setTankPreset(15)" class="px-2 py-0.5 bg-slate-100 hover:bg-emerald-50 hover:border-emerald-300 border rounded-md font-semibold text-slate-700">15L (Knapsack)</button>
+              <button type="button" onclick="setTankPreset(40)" class="px-2 py-0.5 bg-slate-100 hover:bg-emerald-50 hover:border-emerald-300 border rounded-md font-semibold text-slate-700">40L (Drone T50)</button>
+              <button type="button" onclick="setTankPreset(100)" class="px-2 py-0.5 bg-slate-100 hover:bg-emerald-50 hover:border-emerald-300 border rounded-md font-semibold text-slate-700">100L (Drone T100)</button>
+              <button type="button" onclick="setTankPreset(1000)" class="px-2 py-0.5 bg-slate-100 hover:bg-emerald-50 hover:border-emerald-300 border rounded-md font-semibold text-slate-700">1000L (Boom Spray)</button>
+              <button type="button" onclick="setTankPreset(1200)" class="px-2 py-0.5 bg-slate-100 hover:bg-emerald-50 hover:border-emerald-300 border rounded-md font-semibold text-slate-700">1200L (Batching Truck)</button>
+              <button type="button" onclick="setTankPreset(2500)" class="px-2 py-0.5 bg-slate-100 hover:bg-emerald-50 hover:border-emerald-300 border rounded-md font-semibold text-slate-700">2500L (Traktor Spray)</button>
+            </div>
+          </div>
+
+          <!-- Input 5: Dosis Adjuvant (mL/L air) -->
+          <div id="wrapper_calc_adjDosage">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Dosis Adjuvant (mL per Liter Air)</label>
+            <div class="relative">
+              <input type="text" inputmode="decimal" id="calc_adjDosage" oninput="runCalculations()" placeholder="Contoh: 2" value="2" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-bold focus:bg-white text-emerald-950 pr-14">
+              <span class="absolute right-3 top-2.5 text-xs font-bold text-emerald-800">mL / L</span>
+            </div>
+          </div>
+
+          <!-- Input 6: Lebar Semprot / Swath (m) & Kecepatan (Km/j) [Khusus Kalibrasi] -->
+          <div id="wrapper_calc_swath" class="hidden">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Lebar Kerja / Swath (m)</label>
+            <input type="text" inputmode="decimal" id="calc_swath" oninput="runCalculations()" placeholder="Contoh: 12" value="12" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-bold focus:bg-white">
+          </div>
+
+          <div id="wrapper_calc_speed" class="hidden">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Kecepatan Unit (Km/Jam)</label>
+            <input type="text" inputmode="decimal" id="calc_speed" oninput="runCalculations()" placeholder="Contoh: 7" value="7" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-bold focus:bg-white">
+          </div>
+
+          <div id="wrapper_calc_nozzleCount" class="hidden">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Jumlah Nozzle (Ujung Nozel)</label>
+            <input type="text" inputmode="decimal" id="calc_nozzleCount" oninput="runCalculations()" placeholder="Contoh: 24" value="24" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-bold focus:bg-white">
+          </div>
+
+        </div>
+      </div>
+
+      <!-- CALCULATION RESULT CARD & EDUCATIONAL FORMULA BOX -->
+      <div class="bg-white rounded-xl shadow-sm border border-emerald-300 p-4 space-y-4">
+        
+        <div class="flex items-center justify-between border-b border-emerald-100 pb-2">
+          <div class="flex items-center space-x-2 text-emerald-900 font-bold text-sm">
+            <i class="fa-solid fa-square-root-variable text-emerald-600"></i>
+            <span>Hasil Perhitungan & Cara Menghitung</span>
+          </div>
+          <button type="button" onclick="copyResultToClipboard()" class="text-xs text-emerald-700 hover:text-emerald-900 font-semibold flex items-center space-x-1">
+            <i class="fa-regular fa-copy"></i>
+            <span>Salin Hasil</span>
+          </button>
+        </div>
+
+        <!-- Primary Highlighted Result -->
+        <div class="p-4 bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+          <div>
+            <span id="resHeadlineLabel" class="text-xs text-emerald-800 font-bold uppercase tracking-wider block">Kebutuhan Total Bahan:</span>
+            <div id="resPrimaryValue" class="text-2xl sm:text-3xl font-extrabold text-emerald-950 mt-0.5">7,50 Liter</div>
+            <span id="resSecondaryValue" class="text-xs text-emerald-700 font-semibold block mt-0.5">= 7.500 mL (Untuk luas 5,00 Ha)</span>
+          </div>
+          <div class="text-right">
+            <span class="text-[10px] text-slate-500 block">Status Perhitungan</span>
+            <span class="px-2.5 py-1 bg-emerald-600 text-white rounded-full text-xs font-bold shadow-xs">Selesai Dihitung</span>
+          </div>
+        </div>
+
+        <!-- BATCH RECIPE SUMMARY (IF DESKRIPSI WAS LOADED FROM FORM) -->
+        <div id="calcBatchRecipeContainer" class="hidden space-y-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-800 flex items-center space-x-1">
+              <i class="fa-solid fa-layer-group text-emerald-600"></i>
+              <span id="batchRecipeTitle">Tabel Kebutuhan Resep Program Aktif</span>
+            </span>
+            <span class="text-[10px] text-slate-500">Otomatis Terisi dari Deskripsi</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-emerald-800 text-white font-bold">
+                <tr>
+                  <th class="p-2">Nama Bahan</th>
+                  <th class="p-2 text-center">Dosis/Ha</th>
+                  <th class="p-2 text-center">Total Kebutuhan (Luas)</th>
+                  <th class="p-2 text-center bg-amber-500 text-slate-900">Takaran per Tangki (<span id="thTankVol">2500L</span>)</th>
+                </tr>
+              </thead>
+              <tbody id="batchRecipeTbody" class="divide-y divide-slate-200 font-semibold text-slate-800"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- STEP-BY-STEP FORMULA BOX FOR MANDOR -->
+        <div class="p-3.5 bg-amber-50/80 rounded-xl border border-amber-200 space-y-2 text-xs">
+          <div class="flex items-center space-x-1.5 font-bold text-amber-950">
+            <i class="fa-solid fa-book-open-reader text-amber-700"></i>
+            <span>Rumus & Penjelasan Langkah Hitung (Untuk Pembelajaran Mandor):</span>
+          </div>
+          
+          <div class="p-2.5 bg-white rounded-lg border border-amber-200 font-mono text-[11px] text-amber-950 font-bold leading-relaxed" id="resFormulaCode">
+            Rumus: Total Bahan = Dosis/Ha × Luas Lahan (Ha)
+          </div>
+
+          <div class="text-[11px] text-slate-700 leading-relaxed space-y-1" id="resStepExplanation">
+            <p>1. <strong>Dosis Bahan:</strong> 1,50 L/Ha</p>
+            <p>2. <strong>Luas Lahan yang Disemprot:</strong> 5,00 Ha</p>
+            <p>3. <strong>Perhitungan:</strong> 1,50 × 5,00 = <strong>7,50 Liter</strong> (atau 7.500 mL).</p>
+          </div>
+        </div>
+
+        <!-- Action Button: Apply to Input Form -->
+        <div class="flex justify-end pt-1">
+          <button type="button" onclick="applyCalculatedResultToInputForm()" class="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-md active:scale-95 transition flex items-center space-x-1.5">
+            <i class="fa-solid fa-arrow-right-to-bracket"></i>
+            <span>Terapkan Hasil ke Form Input Utama</span>
+          </button>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ==================== TAB 3: RIWAYAT & UPLOAD ==================== -->
     <section id="historyTab" class="tab-content hidden space-y-4">
       
       <div class="grid grid-cols-3 gap-2.5">
@@ -1286,19 +1537,19 @@
             <div class="grid grid-cols-4 gap-1.5">
               <div>
                 <span class="text-[9px] text-slate-500 block text-center">Wind (Km/j)</span>
-                <input type="number" step="0.1" value="${item.windSpeed || ''}" onchange="updateHoldInterval('${item.id}', 'windSpeed', this.value)" placeholder="0.0" class="w-full p-1 bg-white border border-slate-300 rounded text-center text-xs font-semibold">
+                <input type="text" inputmode="decimal" value="${item.windSpeed || ''}" onchange="updateHoldInterval('${item.id}', 'windSpeed', this.value)" placeholder="0.0" class="w-full p-1 bg-white border border-slate-300 rounded text-center text-xs font-semibold">
               </div>
               <div>
                 <span class="text-[9px] text-slate-500 block text-center">Temp (°C)</span>
-                <input type="number" step="0.1" value="${item.temperature || ''}" onchange="updateHoldInterval('${item.id}', 'temperature', this.value)" placeholder="0.0" class="w-full p-1 bg-white border border-slate-300 rounded text-center text-xs font-semibold">
+                <input type="text" inputmode="decimal" value="${item.temperature || ''}" onchange="updateHoldInterval('${item.id}', 'temperature', this.value)" placeholder="0.0" class="w-full p-1 bg-white border border-slate-300 rounded text-center text-xs font-semibold">
               </div>
               <div>
                 <span class="text-[9px] text-slate-500 block text-center">Hum (%)</span>
-                <input type="number" step="0.1" value="${item.humidity || ''}" onchange="updateHoldInterval('${item.id}', 'humidity', this.value)" placeholder="0" class="w-full p-1 bg-white border border-slate-300 rounded text-center text-xs font-semibold">
+                <input type="text" inputmode="decimal" value="${item.humidity || ''}" onchange="updateHoldInterval('${item.id}', 'humidity', this.value)" placeholder="0" class="w-full p-1 bg-white border border-slate-300 rounded text-center text-xs font-semibold">
               </div>
               <div>
                 <span class="text-[9px] text-slate-500 block text-center">Delta T</span>
-                <input type="number" step="0.1" value="${item.deltaT || ''}" onchange="updateHoldInterval('${item.id}', 'deltaT', this.value)" placeholder="0.0" class="w-full p-1 bg-white border border-slate-300 rounded text-center text-xs font-semibold">
+                <input type="text" inputmode="decimal" value="${item.deltaT || ''}" onchange="updateHoldInterval('${item.id}', 'deltaT', this.value)" placeholder="0.0" class="w-full p-1 bg-white border border-slate-300 rounded text-center text-xs font-semibold">
               </div>
             </div>
 
@@ -1565,18 +1816,25 @@
       document.getElementById('display_estAdjuvant').textContent = '0 L';
     }
 
+    function parseNumInput(val) {
+      if (val === null || val === undefined || val === '') return 0;
+      const s = String(val).trim().replace(',', '.');
+      const n = parseFloat(s);
+      return (isNaN(n) || !isFinite(n)) ? 0 : n;
+    }
+
     function calculateEstimatedUsages() {
-      const area = parseFloat(document.getElementById('field_area').value) || 0;
-      const waterRate = parseFloat(document.getElementById('field_waterRate').value) || 0;
+      const area = parseNumInput(document.getElementById('field_area').value);
+      const waterRate = parseNumInput(document.getElementById('field_waterRate').value);
 
       ['1', '2', '3', '4'].forEach(num => {
-        const dosage = parseFloat(document.getElementById('field_dosage' + num).value) || 0;
+        const dosage = parseNumInput(document.getElementById('field_dosage' + num).value);
         const est = area * dosage;
         document.getElementById('field_estUsagePesticide' + num).value = est > 0 ? est.toFixed(2) : 0;
         document.getElementById('display_estPesticide' + num).textContent = est > 0 ? formatNumber(est.toFixed(2)) : '0';
       });
 
-      const adjDosageML = parseFloat(document.getElementById('field_adjuvantDosage').value) || 0;
+      const adjDosageML = parseNumInput(document.getElementById('field_adjuvantDosage').value);
       let estAdjLiter = 0;
       
       if (adjDosageML > 0 && area > 0 && waterRate > 0) {
@@ -1654,6 +1912,380 @@
     // ==========================================
     // 7. SAVING & EDITING RECORDS
     // ==========================================
+
+    // Current Calculation State
+    let currentCalcMode = 'mode_total_chem';
+    let loadedBatchChemicals = [];
+
+    function setCalcMode(mode) {
+      currentCalcMode = mode;
+      
+      document.querySelectorAll('.btn-calc-mode').forEach(b => b.classList.remove('active'));
+      const activeBtn = document.getElementById('btnMode_' + mode.replace('mode_', ''));
+      if (activeBtn) activeBtn.classList.add('active');
+
+      const badge = document.getElementById('calcActiveBadge');
+      const wDosage = document.getElementById('wrapper_calc_dosage');
+      const wArea = document.getElementById('wrapper_calc_area');
+      const wWaterRate = document.getElementById('wrapper_calc_waterRate');
+      const wTankVol = document.getElementById('wrapper_calc_tankVol');
+      const wAdj = document.getElementById('wrapper_calc_adjDosage');
+      const wSwath = document.getElementById('wrapper_calc_swath');
+      const wSpeed = document.getElementById('wrapper_calc_speed');
+      const wNozzle = document.getElementById('wrapper_calc_nozzleCount');
+
+      wDosage.classList.remove('hidden');
+      wArea.classList.remove('hidden');
+      wWaterRate.classList.remove('hidden');
+      wTankVol.classList.remove('hidden');
+      wAdj.classList.add('hidden');
+      wSwath.classList.add('hidden');
+      wSpeed.classList.add('hidden');
+      wNozzle.classList.add('hidden');
+
+      if (mode === 'mode_total_chem') {
+        badge.textContent = 'Mode 1: Total Bahan (Luasan)';
+        wWaterRate.classList.add('hidden');
+        wTankVol.classList.add('hidden');
+      } else if (mode === 'mode_total_water') {
+        badge.textContent = 'Mode 2: Total Kebutuhan Air & Tangki';
+        wDosage.classList.add('hidden');
+      } else if (mode === 'mode_tank_mix') {
+        badge.textContent = 'Mode 3: Takaran Bahan per Tangki Air';
+        wArea.classList.add('hidden');
+      } else if (mode === 'mode_adjuvant') {
+        badge.textContent = 'Mode 4: Takaran Adjuvant / Perekat';
+        wDosage.classList.add('hidden');
+        wAdj.classList.remove('hidden');
+      } else if (mode === 'mode_tank_coverage') {
+        badge.textContent = 'Mode 5: Luas Selesai per 1 Tangki';
+        wDosage.classList.add('hidden');
+        wArea.classList.add('hidden');
+      } else if (mode === 'mode_flow_rate') {
+        badge.textContent = 'Mode 6: Kalibrasi Nozzle & Flow Rate';
+        wDosage.classList.add('hidden');
+        wArea.classList.add('hidden');
+        wTankVol.classList.add('hidden');
+        wSwath.classList.remove('hidden');
+        wSpeed.classList.remove('hidden');
+        wNozzle.classList.remove('hidden');
+      }
+
+      runCalculations();
+    }
+
+    function setTankPreset(val) {
+      document.getElementById('calc_tankVol').value = val;
+      runCalculations();
+    }
+
+    function syncDataFromFormToCalc() {
+      const area = document.getElementById('field_area').value;
+      const wr = document.getElementById('field_waterRate').value;
+      const desk = document.getElementById('field_deskripsi').value;
+      const adjDosage = document.getElementById('field_adjuvantDosage').value;
+
+      if (area) document.getElementById('calc_area').value = area;
+      if (wr) document.getElementById('calc_waterRate').value = wr;
+      if (adjDosage) document.getElementById('calc_adjDosage').value = adjDosage;
+
+      loadedBatchChemicals = [];
+      const batchContainer = document.getElementById('calcBatchRecipeContainer');
+      const batchTbody = document.getElementById('batchRecipeTbody');
+
+      if (desk && masterData && masterData.bahan && masterData.bahan[desk]) {
+        const b = masterData.bahan[desk];
+        document.getElementById('batchRecipeTitle').textContent = `Tabel Resep Lengkap Program: ${desk}`;
+        
+        ['1', '2', '3', '4'].forEach(n => {
+          const mat = b['pesticide' + n];
+          const dos = parseNumInput(b['dosage' + n]);
+          if (mat && dos > 0) {
+            loadedBatchChemicals.push({ name: mat, dosage: dos, unit: 'L/Ha', role: 'Pesticide ' + n });
+          }
+        });
+
+        const adjMat = b.adjuvant || 'Agristick 400SL';
+        const adjDos = parseNumInput(adjDosage || b.adjuvant_dosage || 2);
+        if (adjMat && adjDos > 0) {
+          loadedBatchChemicals.push({ name: adjMat + ' (Adjuvant)', dosage: adjDos, unit: 'mL/L air', role: 'Adjuvant' });
+        }
+
+        if (loadedBatchChemicals.length > 0) {
+          document.getElementById('calc_dosage').value = loadedBatchChemicals[0].dosage;
+          document.getElementById('calc_dosage_unit').value = loadedBatchChemicals[0].unit;
+        }
+
+        showToast(`Berhasil menyinkronkan data resep (${desk}) dari Form Input!`, 'success');
+      } else {
+        const d1 = document.getElementById('field_dosage1').value;
+        if (d1 && parseNumInput(d1) > 0) {
+          document.getElementById('calc_dosage').value = d1;
+          document.getElementById('calc_dosage_unit').value = 'L/Ha';
+        }
+        showToast('Data Luasan & Water Rate berhasil dimuat ke Kalkulator!', 'info');
+      }
+
+      runCalculations();
+    }
+
+    function resetCalculatorInputs() {
+      document.getElementById('calc_dosage').value = '1.5';
+      document.getElementById('calc_dosage_unit').value = 'L/Ha';
+      document.getElementById('calc_area').value = '5';
+      document.getElementById('calc_waterRate').value = '400';
+      document.getElementById('calc_tankVol').value = '2500';
+      document.getElementById('calc_adjDosage').value = '2';
+      document.getElementById('calc_swath').value = '12';
+      document.getElementById('calc_speed').value = '7';
+      document.getElementById('calc_nozzleCount').value = '24';
+      loadedBatchChemicals = [];
+      document.getElementById('calcBatchRecipeContainer').classList.add('hidden');
+      runCalculations();
+      showToast('Kalkulator di-reset ke nilai default bebas.', 'info');
+    }
+
+    function openCalculatorWithCurrentFormData() {
+      syncDataFromFormToCalc();
+      switchTab('calcTab');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function runCalculations() {
+      const dosage = parseNumInput(document.getElementById('calc_dosage').value);
+      const dosageUnit = document.getElementById('calc_dosage_unit').value;
+      const area = parseNumInput(document.getElementById('calc_area').value);
+      const waterRate = parseNumInput(document.getElementById('calc_waterRate').value);
+      const tankVol = parseNumInput(document.getElementById('calc_tankVol').value);
+      const adjDosage = parseNumInput(document.getElementById('calc_adjDosage').value);
+      const swath = parseNumInput(document.getElementById('calc_swath').value);
+      const speed = parseNumInput(document.getElementById('calc_speed').value);
+      const nozzleCount = parseNumInput(document.getElementById('calc_nozzleCount').value) || 1;
+
+      const headline = document.getElementById('resHeadlineLabel');
+      const primary = document.getElementById('resPrimaryValue');
+      const secondary = document.getElementById('resSecondaryValue');
+      const formulaCode = document.getElementById('resFormulaCode');
+      const stepExplanation = document.getElementById('resStepExplanation');
+
+      renderBatchRecipeTable(area, waterRate, tankVol);
+
+      if (currentCalcMode === 'mode_total_chem') {
+        headline.textContent = 'Kebutuhan Total Bahan (Pesticide):';
+        let totalVal = dosage * area;
+        
+        if (dosageUnit === 'L/Ha') {
+          primary.textContent = `${formatNumber(totalVal)} Liter`;
+          secondary.textContent = `= ${formatNumber(totalVal * 1000)} mL (Untuk luas ${formatNumber(area)} Ha)`;
+        } else if (dosageUnit === 'mL/Ha') {
+          primary.textContent = `${formatNumber(totalVal)} mL`;
+          secondary.textContent = `= ${formatNumber(totalVal / 1000)} Liter (Untuk luas ${formatNumber(area)} Ha)`;
+        } else if (dosageUnit === 'Kg/Ha') {
+          primary.textContent = `${formatNumber(totalVal)} Kg`;
+          secondary.textContent = `= ${formatNumber(totalVal * 1000)} Gram (Untuk luas ${formatNumber(area)} Ha)`;
+        } else if (dosageUnit === 'Gram/Ha') {
+          primary.textContent = `${formatNumber(totalVal)} Gram`;
+          secondary.textContent = `= ${formatNumber(totalVal / 1000)} Kg (Untuk luas ${formatNumber(area)} Ha)`;
+        }
+
+        formulaCode.innerHTML = `Rumus: Total Bahan = Dosis (${dosageUnit}) × Luas Lahan (Ha)`;
+        stepExplanation.innerHTML = `
+          <p>1. <strong>Dosis Bahan yang Ditetapkan:</strong> ${formatNumber(dosage)} ${dosageUnit}</p>
+          <p>2. <strong>Luas Lahan yang Disemprot:</strong> ${formatNumber(area)} Ha</p>
+          <p>3. <strong>Perhitungan:</strong> ${formatNumber(dosage)} × ${formatNumber(area)} = <span class="font-bold text-emerald-900">${primary.textContent}</span></p>
+          <p class="text-slate-500 italic mt-1">*Mandor harus menyiapkan total bahan sebesar ${primary.textContent} untuk menyelesaikan petak seluas ${formatNumber(area)} Ha ini.</p>
+        `;
+
+      } else if (currentCalcMode === 'mode_total_water') {
+        headline.textContent = 'Total Kebutuhan Air & Jumlah Pengisian Tangki:';
+        const totalWater = waterRate * area;
+        const totalTanks = tankVol > 0 ? (totalWater / tankVol) : 0;
+        const fullTanks = Math.floor(totalTanks);
+        const sisaAir = totalWater - (fullTanks * tankVol);
+
+        primary.textContent = `${formatNumber(totalWater)} Liter Air`;
+        secondary.textContent = tankVol > 0 ? `= ${totalTanks.toFixed(1)} Tangki (Kapasitas @${formatNumber(tankVol)} L)` : `Untuk luas ${formatNumber(area)} Ha`;
+
+        formulaCode.innerHTML = `Rumus 1: Total Air (L) = Water Rate (L/Ha) × Luas (Ha)<br>Rumus 2: Jumlah Tangki = Total Air (L) ÷ Kapasitas Tangki (L)`;
+        stepExplanation.innerHTML = `
+          <p>1. <strong>Water Rate Aplikasi:</strong> ${formatNumber(waterRate)} L/Ha | <strong>Luas Lahan:</strong> ${formatNumber(area)} Ha</p>
+          <p>2. <strong>Total Kebutuhan Air Bersih:</strong> ${formatNumber(waterRate)} × ${formatNumber(area)} = <strong class="text-emerald-900">${formatNumber(totalWater)} Liter</strong></p>
+          <p>3. <strong>Kapasitas Tangki Alat:</strong> ${formatNumber(tankVol)} Liter per tangki</p>
+          <p>4. <strong>Rincian Pengisian:</strong> Memerlukan <strong class="text-amber-900">${fullTanks} tangki penuh</strong> ${sisaAir > 0 ? `+ 1 tangki sisa sebanyak <strong>${formatNumber(sisaAir)} Liter</strong>` : ''} (Total = ${totalTanks.toFixed(2)} tangki).</p>
+        `;
+
+      } else if (currentCalcMode === 'mode_tank_mix') {
+        headline.textContent = `Takaran Bahan yang Dituang per 1 Tangki (${formatNumber(tankVol)} L):`;
+        
+        let chemPerTank = 0;
+        if (waterRate > 0) {
+          chemPerTank = (dosage / waterRate) * tankVol;
+        }
+
+        let concPerLiter = waterRate > 0 ? (dosage / waterRate) : 0;
+
+        if (dosageUnit === 'L/Ha') {
+          primary.textContent = `${formatNumber(chemPerTank)} Liter (${formatNumber(chemPerTank * 1000)} mL)`;
+          secondary.textContent = `Konsentrasi: ${(concPerLiter * 1000).toFixed(2)} mL per 1 Liter Air`;
+        } else if (dosageUnit === 'mL/Ha') {
+          primary.textContent = `${formatNumber(chemPerTank)} mL (${(chemPerTank / 1000).toFixed(3)} L)`;
+          secondary.textContent = `Konsentrasi: ${concPerLiter.toFixed(2)} mL per 1 Liter Air`;
+        } else if (dosageUnit === 'Kg/Ha') {
+          primary.textContent = `${formatNumber(chemPerTank)} Kg (${formatNumber(chemPerTank * 1000)} Gram)`;
+          secondary.textContent = `Konsentrasi: ${(concPerLiter * 1000).toFixed(2)} Gram per 1 Liter Air`;
+        } else if (dosageUnit === 'Gram/Ha') {
+          primary.textContent = `${formatNumber(chemPerTank)} Gram (${(chemPerTank / 1000).toFixed(3)} Kg)`;
+          secondary.textContent = `Konsentrasi: ${concPerLiter.toFixed(2)} Gram per 1 Liter Air`;
+        }
+
+        formulaCode.innerHTML = `Rumus: Bahan per Tangki = (Dosis/Ha ÷ Water Rate L/Ha) × Volume Tangki (L)`;
+        stepExplanation.innerHTML = `
+          <p>1. <strong>Dosis Bahan:</strong> ${formatNumber(dosage)} ${dosageUnit} | <strong>Water Rate:</strong> ${formatNumber(waterRate)} L/Ha</p>
+          <p>2. <strong>Konsentrasi Bahan per 1 Liter Air:</strong> ${formatNumber(dosage)} ÷ ${formatNumber(waterRate)} = <strong>${concPerLiter.toFixed(4)} ${dosageUnit.split('/')[0]}/Liter air</strong></p>
+          <p>3. <strong>Takaran untuk Tangki ${formatNumber(tankVol)} Liter:</strong> (${formatNumber(dosage)} ÷ ${formatNumber(waterRate)}) × ${formatNumber(tankVol)} = <strong class="text-emerald-950 text-sm">${primary.textContent}</strong></p>
+          <p class="text-slate-500 italic mt-1">*Mandor menuangkan ${primary.textContent} bahan ke dalam tangki air setiap kali melakukan pengisian penuh (${formatNumber(tankVol)} L).</p>
+        `;
+
+      } else if (currentCalcMode === 'mode_adjuvant') {
+        headline.textContent = 'Kebutuhan Adjuvant (Total & per Tangki):';
+        const totalWater = waterRate * area;
+        const totalAdjL = (adjDosage * totalWater) / 1000.0;
+        const adjPerTankML = adjDosage * tankVol;
+
+        primary.textContent = `${formatNumber(totalAdjL)} Liter Total`;
+        secondary.textContent = `Takaran per Tangki (${formatNumber(tankVol)} L Air) = ${formatNumber(adjPerTankML)} mL (${(adjPerTankML/1000).toFixed(2)} L)`;
+
+        formulaCode.innerHTML = `Rumus 1: Total Adjuvant (L) = (Dosis mL/L × Total Air L) ÷ 1.000<br>Rumus 2: Adjuvant per Tangki (mL) = Dosis (mL/L) × Kapasitas Tangki (L)`;
+        stepExplanation.innerHTML = `
+          <p>1. <strong>Dosis Adjuvant:</strong> ${formatNumber(adjDosage)} mL per 1 Liter air</p>
+          <p>2. <strong>Total Air yang Dibutuhkan:</strong> ${formatNumber(waterRate)} L/Ha × ${formatNumber(area)} Ha = ${formatNumber(totalWater)} Liter</p>
+          <p>3. <strong>Total Adjuvant Seluruh Lahan:</strong> (${formatNumber(adjDosage)} × ${formatNumber(totalWater)}) ÷ 1.000 = <strong class="text-emerald-900">${formatNumber(totalAdjL)} Liter</strong></p>
+          <p>4. <strong>Takaran Tiap Isi 1 Tangki (${formatNumber(tankVol)} L):</strong> ${formatNumber(adjDosage)} × ${formatNumber(tankVol)} = <strong class="text-amber-900">${formatNumber(adjPerTankML)} mL</strong> (${(adjPerTankML/1000).toFixed(2)} L).</p>
+        `;
+
+      } else if (currentCalcMode === 'mode_tank_coverage') {
+        headline.textContent = 'Luasan Lahan yang Mampu Disemprot per 1 Tangki:';
+        const covHa = waterRate > 0 ? (tankVol / waterRate) : 0;
+        const covM2 = covHa * 10000;
+
+        primary.textContent = `${covHa.toFixed(2)} Hektar`;
+        secondary.textContent = `= ${formatNumber(covM2)} m² (Dengan tangki ${formatNumber(tankVol)} L & Water Rate ${formatNumber(waterRate)} L/Ha)`;
+
+        formulaCode.innerHTML = `Rumus: Luas Selesai (Ha) = Kapasitas Tangki (L) ÷ Water Rate (L/Ha)`;
+        stepExplanation.innerHTML = `
+          <p>1. <strong>Kapasitas Tangki Air:</strong> ${formatNumber(tankVol)} Liter</p>
+          <p>2. <strong>Water Rate Semprot:</strong> ${formatNumber(waterRate)} Liter per Hektar</p>
+          <p>3. <strong>Kemampuan Selesai per 1 Tangki:</strong> ${formatNumber(tankVol)} ÷ ${formatNumber(waterRate)} = <strong class="text-emerald-900 text-sm">${covHa.toFixed(2)} Ha</strong></p>
+          <p class="text-slate-500 italic mt-1">*Artinya, 1 tangki penuh ${formatNumber(tankVol)} L akan habis tepat saat menyemprot area seluas ${covHa.toFixed(2)} Ha.</p>
+        `;
+
+      } else if (currentCalcMode === 'mode_flow_rate') {
+        headline.textContent = 'Kalibrasi Flow Rate Semprot (L/menit):';
+        const totalFlowRateLPM = (waterRate * swath * speed) / 600.0;
+        const flowRatePerNozzleLPM = nozzleCount > 0 ? (totalFlowRateLPM / nozzleCount) : 0;
+        const flowRatePerNozzleML = flowRatePerNozzleLPM * 1000;
+
+        primary.textContent = `${totalFlowRateLPM.toFixed(2)} L / menit`;
+        secondary.textContent = `Flow Rate per Nozzle (${nozzleCount} Nozel) = ${flowRatePerNozzleLPM.toFixed(3)} L/mnt (${flowRatePerNozzleML.toFixed(0)} mL/menit)`;
+
+        formulaCode.innerHTML = `Rumus Kalibrasi: Flow Rate Total (L/mnt) = (Water Rate L/Ha × Lebar Swath m × Kecepatan Km/j) ÷ 600<br>Flow per Nozzle = Flow Total ÷ Jumlah Nozzle`;
+        stepExplanation.innerHTML = `
+          <p>1. <strong>Water Rate:</strong> ${formatNumber(waterRate)} L/Ha | <strong>Lebar Semprot (Swath):</strong> ${formatNumber(swath)} m | <strong>Kecepatan:</strong> ${formatNumber(speed)} km/j</p>
+          <p>2. <strong>Total Output Pompa yang Harus Keluar:</strong> (${formatNumber(waterRate)} × ${formatNumber(swath)} × ${formatNumber(speed)}) ÷ 600 = <strong class="text-emerald-900">${totalFlowRateLPM.toFixed(2)} L/menit</strong></p>
+          <p>3. <strong>Target Debit per 1 Ujung Nozzle:</strong> ${totalFlowRateLPM.toFixed(2)} ÷ ${nozzleCount} = <strong class="text-amber-900">${flowRatePerNozzleLPM.toFixed(3)} L/menit (${flowRatePerNozzleML.toFixed(0)} mL/menit)</strong></p>
+          <p class="text-slate-500 italic mt-1">*Mandor dapat menampung air dari 1 nozzle selama 1 menit dalam gelas ukur untuk memastikan hasilnya mendekati ${flowRatePerNozzleML.toFixed(0)} mL.</p>
+        `;
+      }
+    }
+
+    function renderBatchRecipeTable(area, waterRate, tankVol) {
+      const container = document.getElementById('calcBatchRecipeContainer');
+      const tbody = document.getElementById('batchRecipeTbody');
+      const thTank = document.getElementById('thTankVol');
+      
+      if (thTank) thTank.textContent = `${formatNumber(tankVol)}L`;
+
+      if (!loadedBatchChemicals || loadedBatchChemicals.length === 0) {
+        container.classList.add('hidden');
+        return;
+      }
+
+      container.classList.remove('hidden');
+      tbody.innerHTML = '';
+
+      loadedBatchChemicals.forEach((item, idx) => {
+        let totalNeedStr = '';
+        let tankMixStr = '';
+
+        if (item.unit === 'mL/L air') {
+          const totalWater = waterRate * area;
+          const totalAdjL = (item.dosage * totalWater) / 1000.0;
+          const adjPerTankML = item.dosage * tankVol;
+          totalNeedStr = `${formatNumber(totalAdjL)} L`;
+          tankMixStr = `${formatNumber(adjPerTankML)} mL`;
+        } else {
+          const totalMat = item.dosage * area;
+          let perTank = waterRate > 0 ? (item.dosage / waterRate) * tankVol : 0;
+          
+          if (item.unit === 'L/Ha') {
+            totalNeedStr = `${formatNumber(totalMat)} L`;
+            tankMixStr = `${formatNumber(perTank)} L (${formatNumber(perTank * 1000)} mL)`;
+          } else if (item.unit === 'mL/Ha') {
+            totalNeedStr = `${formatNumber(totalMat)} mL`;
+            tankMixStr = `${formatNumber(perTank)} mL`;
+          } else if (item.unit === 'Kg/Ha') {
+            totalNeedStr = `${formatNumber(totalMat)} Kg`;
+            tankMixStr = `${formatNumber(perTank)} Kg (${formatNumber(perTank * 1000)} g)`;
+          } else {
+            totalNeedStr = `${formatNumber(totalMat)} g`;
+            tankMixStr = `${formatNumber(perTank)} Gram`;
+          }
+        }
+
+        const tr = document.createElement('tr');
+        tr.className = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+        tr.innerHTML = `
+          <td class="p-2">
+            <span class="font-bold text-slate-800 block">${item.name}</span>
+            <span class="text-[10px] text-slate-400 font-normal">${item.role}</span>
+          </td>
+          <td class="p-2 text-center text-slate-700">${formatNumber(item.dosage)} ${item.unit}</td>
+          <td class="p-2 text-center font-bold text-emerald-800">${totalNeedStr}</td>
+          <td class="p-2 text-center font-extrabold text-amber-900 bg-amber-50/50">${tankMixStr}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function copyResultToClipboard() {
+      const headline = document.getElementById('resHeadlineLabel').textContent;
+      const primary = document.getElementById('resPrimaryValue').textContent;
+      const secondary = document.getElementById('resSecondaryValue').textContent;
+      const text = `${headline} ${primary} | ${secondary}`;
+      
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('Hasil perhitungan disalin ke clipboard!', 'success');
+      }).catch(() => {
+        showToast('Gagal menyalin text', 'error');
+      });
+    }
+
+    function applyCalculatedResultToInputForm() {
+      const area = document.getElementById('calc_area').value;
+      const wr = document.getElementById('calc_waterRate').value;
+      
+      if (area) {
+        document.getElementById('field_area').value = area;
+      }
+      if (wr) {
+        document.getElementById('field_waterRate').value = wr;
+      }
+
+      calculateEstimatedUsages();
+      switchTab('inputTab');
+      showToast('Nilai Luas & Water Rate berhasil diterapkan ke Form Input!', 'success');
+    }
+
     function saveFormData(saveType = 'ready') {
       const rawUserNote = document.getElementById('field_noted').value.trim();
       let compiledNoted = rawUserNote;
@@ -2316,12 +2948,14 @@
       document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
       document.getElementById(tabId).classList.remove('hidden');
 
-      ['inputTab', 'historyTab', 'settingsTab'].forEach(t => {
+      ['inputTab', 'calcTab', 'historyTab', 'settingsTab'].forEach(t => {
         const btn = document.getElementById('tabBtn-' + t);
-        if (t === tabId) {
-          btn.className = 'flex-1 py-2.5 text-center border-b-2 border-white text-white font-semibold flex items-center justify-center space-x-1.5';
-        } else {
-          btn.className = 'flex-1 py-2.5 text-center border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center space-x-1.5';
+        if (btn) {
+          if (t === tabId) {
+            btn.className = 'flex-1 py-2.5 text-center border-b-2 border-white text-white font-semibold flex items-center justify-center space-x-1';
+          } else {
+            btn.className = 'flex-1 py-2.5 text-center border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center space-x-1';
+          }
         }
       });
     }
