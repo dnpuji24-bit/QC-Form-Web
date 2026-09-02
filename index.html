@@ -35,6 +35,35 @@
       ring: 2px solid #059669;
       border-color: #059669;
     }
+  
+    /* PRINT STYLING UNTUK LAPORAN HARIAN A4 */
+    @media print {
+      body * {
+        visibility: hidden !important;
+      }
+      #printableReportWrapper, #printableReportWrapper * {
+        visibility: visible !important;
+      }
+      #printableReportWrapper {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        color: #0f172a !important;
+        z-index: 99999 !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+      @page {
+        size: A4 portrait;
+        margin: 10mm;
+      }
+    }
+
   </style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans min-h-screen pb-24">
@@ -992,9 +1021,64 @@
         </button>
       </div>
       <div class="p-4 overflow-y-auto space-y-3 text-xs" id="modalBody"></div>
-      <div class="p-3 bg-slate-100 border-t flex justify-end space-x-2">
-        <button onclick="closeDetailModal()" class="py-2 px-4 bg-slate-300 hover:bg-slate-400 text-slate-800 rounded-lg font-bold text-xs">Tutup</button>
+      <div class="p-3 bg-slate-100 border-t flex justify-between items-center space-x-2">
+        <button onclick="openReportModal(currentDetailRecordId)" class="py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-bold text-xs flex items-center space-x-1.5 shadow-sm transition">
+          <i class="fa-solid fa-file-pdf"></i>
+          <span>Buka Laporan Harian (PDF / JPG)</span>
+        </button>
+        <button onclick="closeDetailModal()" class="py-2 px-4 bg-slate-300 hover:bg-slate-400 text-slate-800 rounded-lg font-bold text-xs transition">Tutup</button>
       </div>
+    </div>
+  </div>
+
+  
+  <!-- LAPORAN HARIAN QC MODAL (PDF / JPG EXPORT) -->
+  <div id="reportModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-4xl w-full max-h-[96vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200 my-auto">
+      
+      <!-- Top Action Bar (Fixed) -->
+      <div class="p-3 sm:p-4 bg-emerald-800 text-white flex flex-wrap items-center justify-between gap-2 border-b border-emerald-900 no-print">
+        <div class="flex items-center space-x-2">
+          <div class="w-8 h-8 rounded-lg bg-emerald-700 flex items-center justify-center text-emerald-200">
+            <i class="fa-solid fa-file-pdf text-lg"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-sm sm:text-base leading-tight" id="reportModalTitle">Laporan Kegiatan Harian QC</h3>
+            <p class="text-[11px] text-emerald-200">Siap dicetak ke PDF atau diunduh sebagai Gambar (JPG)</p>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-2">
+          <button onclick="printCurrentReport()" class="py-2 px-3 bg-white text-emerald-900 hover:bg-emerald-50 rounded-lg font-bold text-xs shadow flex items-center space-x-1.5 active:scale-95 transition" title="Cetak atau Simpan sebagai PDF">
+            <i class="fa-solid fa-print text-emerald-700"></i>
+            <span>Cetak / Simpan PDF</span>
+          </button>
+          <button onclick="downloadCurrentReportJPG()" class="py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs shadow flex items-center space-x-1.5 active:scale-95 transition" title="Download Gambar Laporan JPG">
+            <i class="fa-solid fa-image text-emerald-200"></i>
+            <span>Download JPG</span>
+          </button>
+          <button onclick="closeReportModal()" class="w-8 h-8 rounded-full bg-emerald-900/80 hover:bg-emerald-900 flex items-center justify-center text-white transition" title="Tutup">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Printable Document Wrapper (Scrollable Preview) -->
+      <div class="p-3 sm:p-6 overflow-y-auto bg-slate-100 flex justify-center" id="reportScrollArea">
+        
+        <div id="printableReportWrapper" class="w-full max-w-[780px] bg-white text-slate-900 p-6 sm:p-8 rounded-xl shadow-md border border-slate-300 font-sans text-xs">
+          <!-- Isi Laporan Dinamis disuntikkan via JS -->
+          <div id="printableReportContent"></div>
+        </div>
+
+      </div>
+
+      <!-- Footer Bar -->
+      <div class="p-3 bg-slate-100 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 no-print">
+        <span class="italic"><i class="fa-solid fa-circle-info mr-1 text-emerald-600"></i>Tips: Pilih "Save as PDF" pada menu printer HP Anda untuk menyimpan file PDF.</span>
+        <button onclick="closeReportModal()" class="py-1.5 px-4 bg-slate-300 hover:bg-slate-400 text-slate-800 rounded-lg font-bold transition">Tutup</button>
+      </div>
+
     </div>
   </div>
 
@@ -2624,7 +2708,11 @@
           </div>
 
           <div class="flex items-center justify-end space-x-1.5 pt-1 border-t border-slate-100 text-xs">
-            <button onclick="showRecordDetail('${rec.id}')" class="p-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium" title="Lihat Seluruh Kolom">
+            <button onclick="openReportModal('${rec.id}')" class="p-1.5 px-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded font-bold text-xs flex items-center space-x-1 transition active:scale-95" title="Laporan Kegiatan Harian (PDF / JPG)">
+              <i class="fa-solid fa-file-pdf text-emerald-600"></i>
+              <span>Laporan</span>
+            </button>
+            <button onclick="showRecordDetail('${rec.id}')" class="p-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium" title="Lihat Seluruh Kolom">
               <i class="fa-solid fa-eye"></i> Detail
             </button>
             <button onclick="editRecord('${rec.id}')" class="p-1.5 px-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded font-medium" title="Edit">
@@ -2656,7 +2744,705 @@
       return dStr;
     }
 
+    let currentDetailRecordId = null;
+    let currentReportRecordId = null;
+
+    
+    // =========================================================
+    // FITUR LAPORAN HARIAN KEGIATAN QC (PDF & JPG EXPORT)
+    // =========================================================
+    
+    function openReportModal(id) {
+      currentReportRecordId = id;
+      const rec = savedRecords.find(r => r.id === id);
+      if (!rec) {
+        showToast('Data laporan tidak ditemukan!', 'error');
+        return;
+      }
+
+      const modal = document.getElementById('reportModal');
+      const title = document.getElementById('reportModalTitle');
+      const container = document.getElementById('printableReportContent');
+
+      title.textContent = `Laporan QC: ${rec.paddock || 'Paddock'} (${formatDateDisplay(rec.date) || '-'})`;
+
+      container.innerHTML = generateReportHTML(rec);
+      modal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeReportModal() {
+      const modal = document.getElementById('reportModal');
+      modal.classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    function printCurrentReport() {
+      if (!currentReportRecordId) return;
+      window.print();
+    }
+
+    function generateReportHTML(rec) {
+      const grossText = formatMinutesToText(rec.grossMinutes || 0);
+      const holdText = formatMinutesToText(rec.totalHoldMinutes || 0);
+      const netText = formatMinutesToText(rec.netWorkMinutes || rec.grossMinutes || 0);
+      const holdCount = (rec.holdIntervals && rec.holdIntervals.length) || 0;
+
+      // Table bahan
+      const materials = [
+        { no: 1, type: 'Pesticide 1', name: rec.pesticide1, dose: rec.dosage1, est: rec.estUsagePesticide1, act: rec.actUsagePesticide1, unit: 'L / Kg' },
+        { no: 2, type: 'Pesticide 2', name: rec.pesticide2, dose: rec.dosage2, est: rec.estUsagePesticide2, act: rec.actUsagePesticide2, unit: 'L / Kg' },
+        { no: 3, type: 'Pesticide 3', name: rec.pesticide3, dose: rec.dosage3, est: rec.estUsagePesticide3, act: rec.actUsagePesticide3, unit: 'L / Kg' },
+        { no: 4, type: 'Pesticide 4', name: rec.pesticide4, dose: rec.dosage4, est: rec.estUsagePesticide4, act: rec.actUsagePesticide4, unit: 'L / Kg' },
+        { no: 5, type: 'Adjuvant', name: rec.adjuvant || 'Agristick 400SL', dose: rec.adjuvantDosage ? rec.adjuvantDosage + ' mL/L' : '2 mL/L', est: rec.estUsageAdjuvant, act: rec.actUsageAdjuvant, unit: 'Liter' }
+      ].filter(m => m.name || (m.type === 'Adjuvant' && (m.est || m.act)));
+
+      // HOLD Table
+      let holdTableHtml = '';
+      if (rec.holdIntervals && rec.holdIntervals.length > 0) {
+        holdTableHtml = `
+          <div class="mt-3 p-3 bg-amber-50/70 border border-amber-200 rounded-lg">
+            <div class="font-bold text-amber-900 text-[11px] uppercase mb-1.5 flex items-center">
+              <i class="fa-solid fa-pause-circle mr-1.5 text-amber-600"></i> Rincian Kejadian Jeda Lapangan (HOLD Stoppages):
+            </div>
+            <table class="w-full text-left border-collapse text-[10px]">
+              <thead>
+                <tr class="border-b border-amber-200 text-amber-900 font-bold bg-amber-100/50">
+                  <th class="py-1 px-1.5 w-6">No</th>
+                  <th class="py-1 px-1.5">Jam Mulai - Selesai</th>
+                  <th class="py-1 px-1.5">Alasan Kendala</th>
+                  <th class="py-1 px-1.5">Parameter Cuaca Saat Jeda</th>
+                  <th class="py-1 px-1.5">Catatan</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-amber-200/60">
+                ${rec.holdIntervals.map((h, idx) => `
+                  <tr>
+                    <td class="py-1 px-1.5 font-bold text-amber-800">${idx + 1}</td>
+                    <td class="py-1 px-1.5 font-semibold text-slate-800">${h.start || '-'} s/d ${h.end || '-'}</td>
+                    <td class="py-1 px-1.5 font-bold text-amber-900">${h.reason || '-'}</td>
+                    <td class="py-1 px-1.5 text-slate-600">
+                      Angin: ${h.windSpeed || '-'} km/j | Suhu: ${h.temperature || '-'}°C | Hum: ${h.humidity || '-'}% | Delta T: ${h.deltaT || '-'}°C
+                    </td>
+                    <td class="py-1 px-1.5 italic text-slate-500">${h.note || '-'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      // Photos HTML
+      let photoSectionHtml = '';
+      if (rec.photoBase64) {
+        photoSectionHtml = `
+          <div class="mt-4 pt-3 border-t border-slate-200">
+            <div class="font-bold text-slate-800 text-[11px] uppercase mb-2 flex items-center">
+              <i class="fa-solid fa-camera mr-1.5 text-emerald-700"></i> Dokumentasi Foto Hasil Aplikasi QC di Petak:
+            </div>
+            <div class="flex flex-col sm:flex-row items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <img src="data:image/jpeg;base64,${rec.photoBase64}" alt="Foto Bukti QC" class="max-h-56 max-w-full rounded shadow-sm border border-slate-300 object-contain">
+              <div class="text-[11px] text-slate-600 space-y-1">
+                <p><strong>Lokasi Petak:</strong> ${rec.paddock || '-'}</p>
+                <p><strong>Varietas:</strong> ${rec.variety || '-'}</p>
+                <p><strong>Tanggal & Waktu:</strong> ${formatDateDisplay(rec.date)} (${rec.startTime || '-'} - ${rec.endTime || '-'})</p>
+                <p><strong>Mandor:</strong> ${rec.name || '-'}</p>
+                ${rec.photoDriveUrl ? `<p class="pt-1"><a href="${rec.photoDriveUrl}" target="_blank" class="text-blue-600 underline font-semibold">Tersimpan di Google Drive</a></p>` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <!-- KOP LAPORAN RESMI -->
+        <div class="border-b-2 border-emerald-800 pb-3 mb-4">
+          <div class="flex justify-between items-start">
+            <div class="flex items-center space-x-3">
+              <div class="w-12 h-12 rounded-xl bg-emerald-800 text-white font-extrabold flex flex-col items-center justify-center shadow-md">
+                <span class="text-base tracking-tighter leading-none">UM</span>
+                <span class="text-[7px] tracking-widest text-emerald-200 font-normal">QC</span>
+              </div>
+              <div>
+                <h1 class="text-sm sm:text-base font-extrabold text-emerald-950 uppercase tracking-wide">PT. GLOBAL PAPUA ABADI</h1>
+                <p class="text-[11px] font-bold text-slate-700 uppercase tracking-tight">Departemen Upkeep & Manuring — Divisi Agronomi</p>
+                <p class="text-[9px] text-slate-500">Merauke, Papua Selatan | Sistem Manajemen Aplikasi QC Semprot & Pupuk</p>
+              </div>
+            </div>
+            <div class="text-right text-[10px] space-y-0.5">
+              <span class="inline-block px-2 py-0.5 bg-emerald-100 text-emerald-800 font-extrabold rounded border border-emerald-300 uppercase">
+                ${rec.uploadStatus === 'uploaded' ? 'DOKUMEN TERVERIFIKASI' : 'DRAFT LAPORAN HARIAN'}
+              </span>
+              <p class="text-slate-500 font-mono text-[9px] mt-1">ID: ${rec.id || '-'}</p>
+              <p class="text-slate-600 font-semibold">Dicetak: ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+            </div>
+          </div>
+
+          <div class="mt-3 pt-2 border-t border-slate-200 text-center">
+            <h2 class="text-sm sm:text-base font-black text-slate-900 tracking-wide uppercase">LAPORAN KEGIATAN HARIAN APLIKASI QC</h2>
+            <p class="text-[10px] text-slate-600 font-medium italic">Standard Operating Procedure (SOP) Pengendalian Hama, Gulma & Nutrisi Tanaman Tebu</p>
+          </div>
+        </div>
+
+        <!-- 1. INFORMASI PELAKSANA & LOKASI -->
+        <div class="mb-3">
+          <div class="bg-emerald-800 text-white font-bold text-[10px] px-2.5 py-1 rounded-t flex justify-between">
+            <span>I. INFORMASI PELAKSANA, LOKASI & TARGET KERJA</span>
+            <span>STATUS: WORKING</span>
+          </div>
+          <div class="border border-t-0 border-slate-300 p-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] bg-slate-50/50">
+            <div>
+              <span class="text-slate-500 text-[10px] block">Tanggal Pekerjaan:</span>
+              <span class="font-bold text-slate-800">${formatDateDisplay(rec.date) || '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Shift Kerja:</span>
+              <span class="font-bold text-slate-800">Shift ${rec.shift || '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Mandor Lapangan:</span>
+              <span class="font-bold text-slate-800">${rec.name || '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Asisten Lapangan:</span>
+              <span class="font-bold text-slate-800">${rec.nameOfAssistan || '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Nomor Paddock (Petak):</span>
+              <span class="font-extrabold text-emerald-800 text-xs">${rec.paddock || '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Varietas Tebu:</span>
+              <span class="font-bold text-slate-800">${rec.variety || '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Luasan Selesai (Ha):</span>
+              <span class="font-black text-slate-900 text-xs">${rec.area ? rec.area + ' Ha' : '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Program Kerja:</span>
+              <span class="font-bold text-slate-800">${rec.type || '-'} (${rec.activity || '-'})</span>
+            </div>
+            <div class="col-span-2 sm:col-span-4 bg-white p-1.5 rounded border border-slate-200">
+              <span class="text-slate-500 text-[10px] block">Deskripsi Resep Rekomendasi:</span>
+              <span class="font-extrabold text-emerald-900">${rec.deskripsi || '-'}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. JAM OPERASIONAL & EFISIENSI KERJA -->
+        <div class="mb-3">
+          <div class="bg-emerald-800 text-white font-bold text-[10px] px-2.5 py-1 rounded-t flex justify-between">
+            <span>II. JAM OPERASIONAL & WAKTU EFEKTIF SEMPROT</span>
+            <span>${grossText} Total Jam Lapangan</span>
+          </div>
+          <div class="border border-t-0 border-slate-300 p-2.5 bg-slate-50/50">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+              <div>
+                <span class="text-slate-500 text-[10px] block">Jam Mulai Kerja:</span>
+                <span class="font-bold text-slate-800">${rec.startTime || rec.time || '-'}</span>
+              </div>
+              <div>
+                <span class="text-slate-500 text-[10px] block">Jam Selesai Kerja:</span>
+                <span class="font-bold text-slate-800">${rec.endTime || '-'}</span>
+              </div>
+              <div>
+                <span class="text-slate-500 text-[10px] block">Total Waktu Jeda (HOLD):</span>
+                <span class="font-bold text-amber-800">${holdText} (${holdCount}x Jeda)</span>
+              </div>
+              <div>
+                <span class="text-slate-500 text-[10px] block">Waktu Efektif Semprot Murni:</span>
+                <span class="font-black text-emerald-800 text-xs">${netText}</span>
+              </div>
+            </div>
+            ${holdTableHtml}
+          </div>
+        </div>
+
+        <!-- 3. SPESIFIKASI ARMADA & KALIBRASI NOZZLE -->
+        <div class="mb-3">
+          <div class="bg-emerald-800 text-white font-bold text-[10px] px-2.5 py-1 rounded-t">
+            <span>III. ARMADA, PERALATAN & PENGATURAN SPRAYER</span>
+          </div>
+          <div class="border border-t-0 border-slate-300 p-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] bg-slate-50/50">
+            <div>
+              <span class="text-slate-500 text-[10px] block">Unit Alat:</span>
+              <span class="font-bold text-slate-800">${rec.unit || '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Nomor Unit (Armada):</span>
+              <span class="font-bold text-slate-800">${rec.noUnit || '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Tipe Nozzle:</span>
+              <span class="font-bold text-slate-800">${rec.nozzle || '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Dropper Terpasang:</span>
+              <span class="font-bold text-slate-800">${rec.dropper || '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Droplet Size:</span>
+              <span class="font-bold text-slate-800">${rec.dropletSize ? rec.dropletSize + ' µm' : '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Tinggi Boom (m):</span>
+              <span class="font-bold text-slate-800">${rec.height ? rec.height + ' m' : '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Jarak Baris (Row Spacing):</span>
+              <span class="font-bold text-slate-800">${rec.rowSpacing ? rec.rowSpacing + ' m' : '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Kecepatan Traktor:</span>
+              <span class="font-bold text-slate-800">${rec.speed ? rec.speed + ' Km/jam' : '-'}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. RENCANA & REALISASI PENGGUNAAN BAHAN KIMIA -->
+        <div class="mb-3">
+          <div class="bg-emerald-800 text-white font-bold text-[10px] px-2.5 py-1 rounded-t flex justify-between">
+            <span>IV. REKAPITULASI PENGGUNAAN BAHAN KIMIA (CHEMICAL DOSING)</span>
+            <span>Luas: ${rec.area || '0'} Ha</span>
+          </div>
+          <div class="border border-t-0 border-slate-300 overflow-x-auto">
+            <table class="w-full text-left border-collapse text-[11px]">
+              <thead>
+                <tr class="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
+                  <th class="py-1.5 px-2 text-center w-8">No</th>
+                  <th class="py-1.5 px-2">Kategori Bahan</th>
+                  <th class="py-1.5 px-2">Nama Bahan Kimia</th>
+                  <th class="py-1.5 px-2 text-center">Dosis Rekomendasi</th>
+                  <th class="py-1.5 px-2 text-right">Estimasi Kebutuhan</th>
+                  <th class="py-1.5 px-2 text-right">Pemakaian Aktual</th>
+                  <th class="py-1.5 px-2 text-center">Satuan</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200">
+                ${materials.map((m, idx) => `
+                  <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}">
+                    <td class="py-1.5 px-2 text-center font-semibold text-slate-600">${idx + 1}</td>
+                    <td class="py-1.5 px-2 font-bold text-slate-700">${m.type}</td>
+                    <td class="py-1.5 px-2 font-extrabold text-slate-900">${m.name || '-'}</td>
+                    <td class="py-1.5 px-2 text-center font-mono font-semibold">${m.dose || '-'}</td>
+                    <td class="py-1.5 px-2 text-right font-mono font-bold text-slate-700">${m.est !== undefined && m.est !== '' ? m.est : '-'}</td>
+                    <td class="py-1.5 px-2 text-right font-mono font-black text-emerald-800">${m.act !== undefined && m.act !== '' ? m.act : '-'}</td>
+                    <td class="py-1.5 px-2 text-center text-slate-500">${m.unit}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 5. CARRIER AIR & PARAMETER CUACA -->
+        <div class="mb-3">
+          <div class="bg-emerald-800 text-white font-bold text-[10px] px-2.5 py-1 rounded-t flex justify-between">
+            <span>V. KUALITAS AIR CARRIER & PENGUKURAN IKLIM MIKRO (KESTREL)</span>
+            <span>Kualitas: ${rec.waterQuality || 'Clean'}</span>
+          </div>
+          <div class="border border-t-0 border-slate-300 p-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] bg-slate-50/50">
+            <div>
+              <span class="text-slate-500 text-[10px] block">Water Rate (L/Ha):</span>
+              <span class="font-extrabold text-slate-900">${rec.waterRate ? rec.waterRate + ' L/Ha' : '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Kualitas Air Bersih:</span>
+              <span class="font-bold text-slate-800">${rec.waterQuality || 'Clean'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Total Pemakaian Air Aktual:</span>
+              <span class="font-black text-emerald-800">${rec.actualUsage ? rec.actualUsage + ' Liter' : '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Kondisi Cuaca Umum:</span>
+              <span class="font-bold text-slate-800">${rec.weatherCondition || 'Sunny'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Kecepatan Angin:</span>
+              <span class="font-bold text-slate-800">${rec.windSpeed ? rec.windSpeed + ' Km/jam' : '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Suhu Udara (°C):</span>
+              <span class="font-bold text-slate-800">${rec.temperature ? rec.temperature + ' °C' : '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Kelembaban Relatif (RH):</span>
+              <span class="font-bold text-slate-800">${rec.humidity ? rec.humidity + ' %' : '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Delta T (°C):</span>
+              <span class="font-bold text-slate-800">${rec.deltaT ? rec.deltaT + ' °C' : '-'}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. FOTO DOKUMENTASI -->
+        ${photoSectionHtml}
+
+        <!-- 7. CATATAN & LEMBAR PENGESAHAN -->
+        <div class="mt-4 pt-3 border-t border-slate-300">
+          <div class="mb-3 p-2.5 bg-slate-50 border border-slate-200 rounded">
+            <span class="text-slate-500 text-[10px] font-bold block uppercase mb-1">Catatan Khusus Mandor / Keterangan Lapangan:</span>
+            <p class="text-slate-800 text-[11px] leading-relaxed italic">${rec.noted || 'Tidak ada catatan tambahan khusus.'}</p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-6 pt-4 text-center text-[11px]">
+            <div class="border-t border-slate-400 pt-2">
+              <p class="text-slate-500 text-[10px]">Disiapkan & Dilaporkan Oleh,</p>
+              <p class="font-extrabold text-slate-900 text-xs mt-8 uppercase underline">${rec.name || 'MANDOR LAPANGAN'}</p>
+              <p class="text-[10px] text-slate-600">Mandor Upkeep & Manuring</p>
+            </div>
+            <div class="border-t border-slate-400 pt-2">
+              <p class="text-slate-500 text-[10px]">Diperiksa & Diverifikasi Oleh,</p>
+              <p class="font-extrabold text-slate-900 text-xs mt-8 uppercase underline">${rec.nameOfAssistan || 'ASISTEN LAPANGAN'}</p>
+              <p class="text-[10px] text-slate-600">Asisten Upkeep & Manuring</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // =========================================================
+    // NATIVE CANVAS RENDERING UNTUK DOWNLOAD GAMBAR JPG
+    // =========================================================
+    function downloadCurrentReportJPG() {
+      if (!currentReportRecordId) return;
+      const rec = savedRecords.find(r => r.id === currentReportRecordId);
+      if (!rec) return;
+
+      showToast('Sedang membuat file gambar JPG...', 'info');
+
+      // Create high-res offscreen canvas (1200px width for crystal-clear text)
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const W = 1200;
+      
+      // Calculate dynamic height
+      const hasPhoto = Boolean(rec.photoBase64);
+      const holdCount = (rec.holdIntervals && rec.holdIntervals.length) || 0;
+      let H = 1600;
+      if (hasPhoto) H += 420;
+      if (holdCount > 0) H += (holdCount * 45) + 60;
+
+      canvas.width = W;
+      canvas.height = H;
+
+      // Background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, W, H);
+
+      let y = 40;
+
+      // Header Banner Box
+      ctx.fillStyle = '#065f46'; // emerald-800
+      ctx.fillRect(40, y, W - 80, 100);
+
+      // Logo UM Badge
+      ctx.fillStyle = '#047857'; // emerald-700
+      ctx.beginPath();
+      ctx.roundRect(60, y + 15, 70, 70, 12);
+      ctx.fill();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 32px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('UM', 95, y + 55);
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillStyle = '#a7f3d0';
+      ctx.fillText('QC FORM', 95, y + 72);
+
+      // Company text
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 24px sans-serif';
+      ctx.fillText('PT. GLOBAL PAPUA ABADI', 150, y + 42);
+      ctx.font = '16px sans-serif';
+      ctx.fillStyle = '#d1fae5';
+      ctx.fillText('DEPARTEMEN UPKEEP & MANURING — DIVISI AGRONOMI', 150, y + 68);
+      ctx.font = '13px sans-serif';
+      ctx.fillStyle = '#6ee7b7';
+      ctx.fillText('Laporan Harian Kontrol Kualitas Aplikasi Semprot & Pemupukan', 150, y + 88);
+
+      // Right header badge
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillText(`ID: ${rec.id || '-'}`, W - 60, y + 42);
+      ctx.font = '13px sans-serif';
+      ctx.fillStyle = '#a7f3d0';
+      ctx.fillText(`Shift ${rec.shift || '-'} | ${formatDateDisplay(rec.date)}`, W - 60, y + 68);
+
+      y += 130;
+
+      // Document Title
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 26px sans-serif';
+      ctx.fillText('LAPORAN HARIAN KEGIATAN APLIKASI QC', W / 2, y);
+      y += 25;
+      ctx.font = 'italic 14px sans-serif';
+      ctx.fillStyle = '#475569';
+      ctx.fillText('Standard Operating Procedure (SOP) Pengendalian Gulma, Hama & Nutrisi Tebu', W / 2, y);
+      y += 35;
+
+      // Helper function to draw a section box
+      function drawSectionHeader(title, rightNote) {
+        ctx.fillStyle = '#065f46';
+        ctx.fillRect(40, y, W - 80, 32);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 15px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(title, 55, y + 22);
+        if (rightNote) {
+          ctx.textAlign = 'right';
+          ctx.font = 'bold 13px sans-serif';
+          ctx.fillStyle = '#a7f3d0';
+          ctx.fillText(rightNote, W - 55, y + 22);
+        }
+        y += 32;
+      }
+
+      function drawKeyValueGrid(items, rowHeight = 48) {
+        const boxH = Math.ceil(items.length / 4) * rowHeight;
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(40, y, W - 80, boxH);
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(40, y, W - 80, boxH);
+
+        const colW = (W - 80) / 4;
+        items.forEach((it, idx) => {
+          const col = idx % 4;
+          const row = Math.floor(idx / 4);
+          const cx = 40 + (col * colW) + 15;
+          const cy = y + (row * rowHeight) + 18;
+
+          ctx.textAlign = 'left';
+          ctx.fillStyle = '#64748b';
+          ctx.font = '11px sans-serif';
+          ctx.fillText(it.label.toUpperCase(), cx, cy);
+
+          ctx.fillStyle = '#0f172a';
+          ctx.font = it.bold ? 'bold 14px sans-serif' : '13px sans-serif';
+          ctx.fillText(it.val || '-', cx, cy + 18);
+        });
+
+        y += boxH + 20;
+      }
+
+      // Section 1: Lokasi & Pelaksana
+      drawSectionHeader('I. INFORMASI PELAKSANA, LOKASI & TARGET KERJA', 'STATUS: WORKING');
+      drawKeyValueGrid([
+        { label: 'Tanggal', val: formatDateDisplay(rec.date), bold: true },
+        { label: 'Shift Kerja', val: 'Shift ' + (rec.shift || '-') },
+        { label: 'Mandor Lapangan', val: rec.name || '-', bold: true },
+        { label: 'Asisten Lapangan', val: rec.nameOfAssistan || '-' },
+        { label: 'Paddock (Petak)', val: rec.paddock || '-', bold: true },
+        { label: 'Varietas Tebu', val: rec.variety || '-' },
+        { label: 'Luasan Selesai', val: rec.area ? rec.area + ' Ha' : '-', bold: true },
+        { label: 'Program / Type', val: (rec.type || '-') + ' (' + (rec.activity || '-') + ')' },
+        { label: 'Deskripsi Resep', val: rec.deskripsi || '-', bold: true }
+      ]);
+
+      // Section 2: Waktu
+      drawSectionHeader('II. JAM OPERASIONAL & WAKTU EFEKTIF SEMPROT', formatMinutesToText(rec.grossMinutes || 0) + ' Gross');
+      drawKeyValueGrid([
+        { label: 'Jam Mulai', val: rec.startTime || rec.time || '-' },
+        { label: 'Jam Selesai', val: rec.endTime || '-' },
+        { label: 'Total Jeda (HOLD)', val: formatMinutesToText(rec.totalHoldMinutes || 0) + ' (' + holdCount + 'x)' },
+        { label: 'Waktu Efektif Semprot', val: formatMinutesToText(rec.netWorkMinutes || rec.grossMinutes || 0), bold: true }
+      ]);
+
+      // Section 3: Armada
+      drawSectionHeader('III. ARMADA, PERALATAN & PENGATURAN SPRAYER');
+      drawKeyValueGrid([
+        { label: 'Unit Alat', val: rec.unit || '-' },
+        { label: 'No. Unit', val: rec.noUnit || '-', bold: true },
+        { label: 'Tipe Nozzle', val: rec.nozzle || '-' },
+        { label: 'Dropper', val: rec.dropper || '-' },
+        { label: 'Droplet Size', val: rec.dropletSize ? rec.dropletSize + ' µm' : '-' },
+        { label: 'Tinggi Boom', val: rec.height ? rec.height + ' m' : '-' },
+        { label: 'Jarak Baris', val: rec.rowSpacing ? rec.rowSpacing + ' m' : '-' },
+        { label: 'Kecepatan', val: rec.speed ? rec.speed + ' Km/j' : '-' }
+      ]);
+
+      // Section 4: Tabel Bahan
+      drawSectionHeader('IV. REKAPITULASI PENGGUNAAN BAHAN KIMIA (CHEMICAL RECEPT)', 'Luas: ' + (rec.area || '0') + ' Ha');
+      
+      const matCols = [
+        { label: 'NO', w: 50, align: 'center' },
+        { label: 'KATEGORI', w: 180, align: 'left' },
+        { label: 'NAMA BAHAN KIMIA', w: 320, align: 'left' },
+        { label: 'DOSIS', w: 160, align: 'center' },
+        { label: 'ESTIMASI KEBUTUHAN', w: 200, align: 'right' },
+        { label: 'PEMAKAIAN AKTUAL', w: 210, align: 'right' }
+      ];
+
+      // Header row
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillRect(40, y, W - 80, 30);
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.strokeRect(40, y, W - 80, 30);
+      ctx.fillStyle = '#1e293b';
+      ctx.font = 'bold 12px sans-serif';
+
+      let hx = 40;
+      matCols.forEach(c => {
+        ctx.textAlign = c.align;
+        const tx = c.align === 'center' ? hx + c.w / 2 : c.align === 'right' ? hx + c.w - 15 : hx + 15;
+        ctx.fillText(c.label, tx, y + 20);
+        hx += c.w;
+      });
+      y += 30;
+
+      const materials = [
+        { no: 1, type: 'Pesticide 1', name: rec.pesticide1, dose: rec.dosage1, est: rec.estUsagePesticide1, act: rec.actUsagePesticide1 },
+        { no: 2, type: 'Pesticide 2', name: rec.pesticide2, dose: rec.dosage2, est: rec.estUsagePesticide2, act: rec.actUsagePesticide2 },
+        { no: 3, type: 'Pesticide 3', name: rec.pesticide3, dose: rec.dosage3, est: rec.estUsagePesticide3, act: rec.actUsagePesticide3 },
+        { no: 4, type: 'Pesticide 4', name: rec.pesticide4, dose: rec.dosage4, est: rec.estUsagePesticide4, act: rec.actUsagePesticide4 },
+        { no: 5, type: 'Adjuvant', name: rec.adjuvant || 'Agristick 400SL', dose: (rec.adjuvantDosage || '2') + ' mL/L', est: rec.estUsageAdjuvant, act: rec.actUsageAdjuvant }
+      ].filter(m => m.name || (m.type === 'Adjuvant' && (m.est || m.act)));
+
+      materials.forEach((m, idx) => {
+        ctx.fillStyle = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+        ctx.fillRect(40, y, W - 80, 28);
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.strokeRect(40, y, W - 80, 28);
+
+        ctx.fillStyle = '#0f172a';
+        ctx.font = '12px sans-serif';
+
+        let rx = 40;
+        ctx.textAlign = 'center'; ctx.fillText(String(idx + 1), rx + 25, y + 19); rx += matCols[0].w;
+        ctx.textAlign = 'left'; ctx.fillText(m.type, rx + 15, y + 19); rx += matCols[1].w;
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText(m.name || '-', rx + 15, y + 19); rx += matCols[2].w;
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center'; ctx.fillText(m.dose ? String(m.dose) : '-', rx + matCols[3].w / 2, y + 19); rx += matCols[3].w;
+        ctx.textAlign = 'right'; ctx.fillText(m.est ? String(m.est) : '-', rx + matCols[4].w - 15, y + 19); rx += matCols[4].w;
+        ctx.font = 'bold 13px sans-serif';
+        ctx.fillStyle = '#065f46';
+        ctx.textAlign = 'right'; ctx.fillText(m.act ? String(m.act) : '-', rx + matCols[5].w - 15, y + 19);
+
+        y += 28;
+      });
+      y += 20;
+
+      // Section 5: Cuaca
+      drawSectionHeader('V. KUALITAS AIR CARRIER & PENGUKURAN IKLIM MIKRO (KESTREL)', 'Kualitas: ' + (rec.waterQuality || 'Clean'));
+      drawKeyValueGrid([
+        { label: 'Water Rate', val: rec.waterRate ? rec.waterRate + ' L/Ha' : '-', bold: true },
+        { label: 'Kualitas Air', val: rec.waterQuality || 'Clean' },
+        { label: 'Pemakaian Air Aktual', val: rec.actualUsage ? rec.actualUsage + ' Liter' : '-', bold: true },
+        { label: 'Kondisi Cuaca', val: rec.weatherCondition || 'Sunny' },
+        { label: 'Kecepatan Angin', val: rec.windSpeed ? rec.windSpeed + ' Km/jam' : '-' },
+        { label: 'Suhu Udara', val: rec.temperature ? rec.temperature + ' °C' : '-' },
+        { label: 'Kelembaban (RH)', val: rec.humidity ? rec.humidity + ' %' : '-' },
+        { label: 'Delta T', val: rec.deltaT ? rec.deltaT + ' °C' : '-' }
+      ]);
+
+      // Complete drawing with or without photo
+      function finalizeDrawingAndDownload() {
+        // Catatan box
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(40, y, W - 80, 50);
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.strokeRect(40, y, W - 80, 50);
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#64748b';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.fillText('CATATAN LAPANGAN MANDOR:', 55, y + 20);
+        ctx.font = 'italic 12px sans-serif';
+        ctx.fillStyle = '#1e293b';
+        ctx.fillText(rec.noted || 'Tidak ada catatan tambahan khusus.', 55, y + 38);
+        y += 75;
+
+        // Signatures
+        const signW = (W - 80) / 2;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#64748b';
+        ctx.font = '12px sans-serif';
+        ctx.fillText('Disiapkan & Dilaporkan Oleh,', 40 + signW / 2, y);
+        ctx.fillText('Diperiksa & Diverifikasi Oleh,', 40 + signW + signW / 2, y);
+
+        y += 60;
+        ctx.strokeStyle = '#94a3b8';
+        ctx.beginPath();
+        ctx.moveTo(80, y);
+        ctx.lineTo(80 + signW - 80, y);
+        ctx.moveTo(40 + signW + 40, y);
+        ctx.lineTo(W - 80, y);
+        ctx.stroke();
+
+        y += 18;
+        ctx.font = 'bold 14px sans-serif';
+        ctx.fillStyle = '#0f172a';
+        ctx.fillText((rec.name || 'MANDOR LAPANGAN').toUpperCase(), 40 + signW / 2, y);
+        ctx.fillText((rec.nameOfAssistan || 'ASISTEN LAPANGAN').toUpperCase(), 40 + signW + signW / 2, y);
+
+        y += 16;
+        ctx.font = '11px sans-serif';
+        ctx.fillStyle = '#64748b';
+        ctx.fillText('Mandor Upkeep & Manuring', 40 + signW / 2, y);
+        ctx.fillText('Asisten Upkeep & Manuring', 40 + signW + signW / 2, y);
+
+        // Trigger download
+        canvas.toBlob(blob => {
+          if (!blob) {
+            showToast('Gagal membuat gambar laporan', 'error');
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          const cleanDate = (rec.date || 'Date').replace(/[^a-zA-Z0-9_-]/g, '_');
+          const cleanPaddock = (rec.paddock || 'Paddock').replace(/[^a-zA-Z0-9_-]/g, '_');
+          link.download = `Laporan_QC_${cleanPaddock}_${cleanDate}.jpg`;
+          link.href = url;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          showToast('Gambar Laporan QC berhasil diunduh!', 'success');
+        }, 'image/jpeg', 0.95);
+      }
+
+      if (hasPhoto) {
+        drawSectionHeader('VI. DOKUMENTASI FOTO HASIL APLIKASI QC DI PETAK');
+        const img = new Image();
+        img.onload = function() {
+          const maxImgW = W - 120;
+          const maxImgH = 320;
+          let iw = img.width;
+          let ih = img.height;
+          const ratio = Math.min(maxImgW / iw, maxImgH / ih);
+          iw = iw * ratio;
+          ih = ih * ratio;
+
+          ctx.fillStyle = '#f8fafc';
+          ctx.fillRect(40, y, W - 80, ih + 30);
+          ctx.strokeStyle = '#cbd5e1';
+          ctx.strokeRect(40, y, W - 80, ih + 30);
+
+          const ix = 40 + (W - 80 - iw) / 2;
+          ctx.drawImage(img, ix, y + 15, iw, ih);
+          y += ih + 50;
+          finalizeDrawingAndDownload();
+        };
+        img.onerror = function() {
+          y += 20;
+          finalizeDrawingAndDownload();
+        };
+        img.src = 'data:image/jpeg;base64,' + rec.photoBase64;
+      } else {
+        finalizeDrawingAndDownload();
+      }
+    }
+
     function showRecordDetail(id) {
+      currentDetailRecordId = id;
       const rec = savedRecords.find(r => r.id === id);
       if (!rec) return;
 
