@@ -715,34 +715,26 @@
               </div>
             </div>
 
-            <!-- Grid 2 Kolom Pelaksana -->
+            <!-- Grid 2 Kolom Pelaksana (Dropdown Langsung dari Sheet Data Kolom A & B) -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
-              <!-- Name (Mandor - Kolom A) -->
+              <!-- Name (Mandor - Sheet Data Kolom A) -->
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">
-                  Nama Mandor (Name) <span class="text-red-500">*</span>
+                  Nama Mandor (Name - Kolom A) <span class="text-red-500">*</span>
                 </label>
-                <div class="relative">
-                  <input type="text" id="fert_nameSearch" placeholder="Ketik nama mandor..." oninput="filterDropdown('fert_nameSearch', 'fert_nameSelect')" class="w-full text-xs p-2 pr-7 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none">
-                  <i class="fa-solid fa-magnifying-glass absolute right-2.5 top-2.5 text-slate-400 text-xs"></i>
-                </div>
-                <select id="fert_nameSelect" size="3" onchange="selectFromSearch('fert_nameSearch', 'fert_nameSelect', 'fert_name')" class="w-full text-xs p-1 mt-1 rounded-lg border border-slate-200 hidden bg-white shadow-lg z-10 max-h-32">
+                <select id="fert_name" required class="w-full text-xs p-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none bg-white font-bold text-slate-800">
+                  <option value="">-- Pilih Mandor (Kolom A) --</option>
                 </select>
-                <input type="hidden" id="fert_name" required>
               </div>
 
-              <!-- Name of Assistan (Kolom B) -->
+              <!-- Name of Assistan (Sheet Data Kolom B) -->
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">
-                  Nama Asisten (Name of Assistan) <span class="text-red-500">*</span>
+                  Nama Asisten (Name of Assistan - Kolom B) <span class="text-red-500">*</span>
                 </label>
-                <div class="relative">
-                  <input type="text" id="fert_assistanSearch" placeholder="Ketik nama asisten..." oninput="filterDropdown('fert_assistanSearch', 'fert_assistanSelect')" class="w-full text-xs p-2 pr-7 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none">
-                  <i class="fa-solid fa-magnifying-glass absolute right-2.5 top-2.5 text-slate-400 text-xs"></i>
-                </div>
-                <select id="fert_assistanSelect" size="3" onchange="selectFromSearch('fert_assistanSearch', 'fert_assistanSelect', 'fert_assistan')" class="w-full text-xs p-1 mt-1 rounded-lg border border-slate-200 hidden bg-white shadow-lg z-10 max-h-32">
+                <select id="fert_assistan" required class="w-full text-xs p-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none bg-white font-bold text-slate-800">
+                  <option value="">-- Pilih Asisten (Kolom B) --</option>
                 </select>
-                <input type="hidden" id="fert_assistan" required>
               </div>
             </div>
 
@@ -894,73 +886,38 @@
 
           </div>
 
-          <!-- CARD 4: REALISASI PEMUPUKAN & PERHITUNGAN DOSIS AKTUAL -->
+          <!-- CARD 4: REALISASI PEMUPUKAN & PERHITUNGAN DOSIS AKTUAL (MULTIPLE PENGISIAN) -->
           <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
-            <div class="flex items-center justify-between border-b pb-2">
-              <h2 class="font-bold text-slate-800 text-sm flex items-center space-x-2">
-                <span class="w-5 h-5 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center text-xs">4</span>
-                <span>Realisasi Pemupukan & Kalkulasi Dosis Aktual</span>
-              </h2>
-              <span class="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-bold border border-emerald-200">Auto Calculate</span>
+            <div class="flex items-center justify-between border-b pb-2 flex-wrap gap-2">
+              <div class="flex items-center space-x-2">
+                <span class="w-5 h-5 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center text-xs font-bold">4</span>
+                <h2 class="font-bold text-slate-800 text-sm">Realisasi Pemupukan & Kalkulasi Dosis Aktual</h2>
+              </div>
+              <button type="button" onclick="addFertilizerPengisianRow()" class="py-1.5 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shadow-sm flex items-center space-x-1.5 active:scale-95 transition">
+                <i class="fa-solid fa-plus-circle"></i>
+                <span>+ Tambah Pengisian Pupuk</span>
+              </button>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <!-- Pengisian Ke- -->
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">
-                  Pengisian Ke- <span class="text-red-500">*</span>
-                </label>
-                <input type="text" inputmode="numeric" id="fert_pengisianKe" placeholder="1, 2, 3..." class="w-full text-xs p-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none font-bold text-slate-800">
-              </div>
-
-              <!-- Jumlah -->
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">
-                  Jumlah Pupuk (Jumlah) <span class="text-red-500">*</span>
-                </label>
-                <div class="relative">
-                  <input type="text" inputmode="decimal" id="fert_jumlah" oninput="calculateFertilizerDosisAktual()" placeholder="misal: 250" class="w-full text-xs p-2 pr-12 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none font-bold text-slate-800">
-                  <span class="absolute right-3 top-2 text-[11px] text-slate-400 font-bold">kg</span>
-                </div>
-              </div>
-
-              <!-- Hasil Kerja -->
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">
-                  Hasil Kerja (Luasan Selesai) <span class="text-red-500">*</span>
-                </label>
-                <div class="relative">
-                  <input type="text" inputmode="decimal" id="fert_hasilKerja" oninput="calculateFertilizerDosisAktual()" placeholder="misal: 1.0" class="w-full text-xs p-2 pr-12 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none font-bold text-slate-800">
-                  <span class="absolute right-3 top-2 text-[11px] text-slate-400 font-bold">Ha</span>
-                </div>
-              </div>
+            <!-- KONTENER MULTIPLE PENGISIAN PUPUK -->
+            <div id="fert_pengisian_container" class="space-y-3">
+              <!-- Baris-baris pengisian akan dirender oleh JavaScript -->
             </div>
 
-            <!-- Banner Hasil Kalkulasi Dosis Aktual -->
-            <div class="p-3 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-300 rounded-xl flex items-center justify-between shadow-sm">
+            <!-- BANNER RINGKASAN AKUMULASI DOSIS AKTUAL -->
+            <div class="p-3 bg-gradient-to-r from-amber-50 via-teal-50 to-emerald-50 border border-amber-300 rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-sm">
               <div class="space-y-0.5">
-                <span class="text-[10px] text-emerald-800 uppercase font-black tracking-wider block">Kalkulasi Otomatis Dosis Aktual:</span>
-                <p class="text-xs text-slate-600">Rumus: <code>Jumlah (kg) ÷ Hasil Kerja (Ha)</code></p>
+                <span class="text-[10px] text-amber-900 uppercase font-black tracking-wider block">Ringkasan Total Realisasi Pemupukan:</span>
+                <p class="text-xs text-slate-700">
+                  Total Pupuk: <strong id="fert_totalJumlahDisplay" class="text-amber-900">0 kg</strong> | 
+                  Total Luas: <strong id="fert_totalHasilKerjaDisplay" class="text-emerald-900">0 Ha</strong>
+                </p>
               </div>
               <div class="text-right">
-                <span id="fert_dosisAktualDisplay" class="text-xl sm:text-2xl font-black text-emerald-800 font-mono">0</span>
-                <span class="text-xs font-bold text-emerald-700 ml-1">kg/Ha</span>
-                <input type="hidden" id="fert_dosisAktual" value="0">
+                <span class="text-[10px] text-slate-500 uppercase font-bold block">Rata-Rata Dosis Aktual:</span>
+                <span id="fert_avgDosisAktualDisplay" class="text-xl sm:text-2xl font-black text-amber-900 font-mono">0</span>
+                <span class="text-xs font-bold text-amber-800 ml-1">kg/Ha</span>
               </div>
-            </div>
-
-            <!-- Pemerataan Pupuk (Input Manual) -->
-            <div class="pt-2 border-t border-slate-100">
-              <label class="block text-xs font-semibold text-slate-700 mb-1">
-                Pemerataan Pupuk di Lapangan <span class="text-red-500">*</span>
-              </label>
-              <div class="flex flex-wrap gap-2 mb-2" id="fert_pemerataanQuickButtons">
-                <button type="button" onclick="setFertPemerataan('Merata')" class="py-1 px-3 rounded-full text-xs font-semibold border border-slate-300 hover:bg-slate-100 text-slate-700">Merata</button>
-                <button type="button" onclick="setFertPemerataan('Cukup Merata')" class="py-1 px-3 rounded-full text-xs font-semibold border border-slate-300 hover:bg-slate-100 text-slate-700">Cukup Merata</button>
-                <button type="button" onclick="setFertPemerataan('Kurang Merata')" class="py-1 px-3 rounded-full text-xs font-semibold border border-slate-300 hover:bg-slate-100 text-slate-700">Kurang Merata</button>
-                <button type="button" onclick="setFertPemerataan('Tidak Merata')" class="py-1 px-3 rounded-full text-xs font-semibold border border-slate-300 hover:bg-slate-100 text-slate-700">Tidak Merata</button>
-              </div>
-              <input type="text" id="fert_pemerataan" placeholder="Ketik keterangan pemerataan pupuk..." class="w-full text-xs p-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none text-slate-800">
             </div>
 
           </div>
@@ -3254,6 +3211,9 @@
         if (!document.getElementById('fert_date').value) {
           document.getElementById('fert_date').value = getTodayDate();
         }
+        if (fertilizerPengisianList.length === 0) {
+          addFertilizerPengisianRow({ pengisianKe: 1, jumlah: '', hasilKerja: '', dosisAktual: 0, pemerataanPupuk: '' });
+        }
       }
     }
 
@@ -3271,15 +3231,21 @@
       });
       onFertilizerStatusChange(curStatus);
 
-      // 3. Name (Kolom A)
-      const nameSelect = document.getElementById('fert_nameSelect');
-      nameSelect.innerHTML = '<option value="">-- Pilih Mandor --</option>' + 
-        (masterData.names || []).map(n => `<option value="${n}">${n}</option>`).join('');
+      // 3. Name (Sheet Data Kolom A)
+      const nameSelect = document.getElementById('fert_name');
+      if (nameSelect) {
+        const curName = nameSelect.value;
+        nameSelect.innerHTML = '<option value="">-- Pilih Mandor (Kolom A) --</option>' + 
+          (masterData.names || []).map(n => `<option value="${n}" ${n === curName ? 'selected' : ''}>${n}</option>`).join('');
+      }
 
-      // 4. Name of Assistan (Kolom B)
-      const asstSelect = document.getElementById('fert_assistanSelect');
-      asstSelect.innerHTML = '<option value="">-- Pilih Asisten --</option>' + 
-        (masterData.assistants || []).map(a => `<option value="${a}">${a}</option>`).join('');
+      // 4. Name of Assistan (Sheet Data Kolom B)
+      const asstSelect = document.getElementById('fert_assistan');
+      if (asstSelect) {
+        const curAsst = asstSelect.value;
+        asstSelect.innerHTML = '<option value="">-- Pilih Asisten (Kolom B) --</option>' + 
+          (masterData.assistants || []).map(a => `<option value="${a}" ${a === curAsst ? 'selected' : ''}>${a}</option>`).join('');
+      }
 
       // 5. Paddock (Sheet Plan Kolom F)
       const paddockSelect = document.getElementById('fert_paddockSelect');
@@ -3553,25 +3519,161 @@
       document.getElementById('fert_pemerataan').value = val;
     }
 
-    function calculateFertilizerDosisAktual() {
-      const jRaw = document.getElementById('fert_jumlah').value || '';
-      const hRaw = document.getElementById('fert_hasilKerja').value || '';
+    
+    // =========================================================================
+    // MULTIPLE PENGISIAN PUPUK & KALKULASI DOSIS AKTUAL (CARD 4)
+    // =========================================================================
+    let fertilizerPengisianList = [
+      { pengisianKe: 1, jumlah: '', hasilKerja: '', dosisAktual: 0, pemerataanPupuk: '' }
+    ];
 
-      const jumlah = parseFloat(jRaw.replace(',', '.'));
-      const hasilKerja = parseFloat(hRaw.replace(',', '.'));
+    function addFertilizerPengisianRow(data = null) {
+      const nextNum = fertilizerPengisianList.length + 1;
+      const newEntry = data || {
+        pengisianKe: nextNum,
+        jumlah: '',
+        hasilKerja: '',
+        dosisAktual: 0,
+        pemerataanPupuk: ''
+      };
+      fertilizerPengisianList.push(newEntry);
+      renderFertilizerPengisianRows();
+      calculateFertilizerTotals();
+    }
 
-      const display = document.getElementById('fert_dosisAktualDisplay');
-      const hidden = document.getElementById('fert_dosisAktual');
-
-      if (!isNaN(jumlah) && !isNaN(hasilKerja) && hasilKerja > 0) {
-        const res = Math.round((jumlah / hasilKerja) * 100) / 100;
-        const resFormatted = String(res).replace('.', ',');
-        display.textContent = resFormatted;
-        hidden.value = res;
-      } else {
-        display.textContent = '0';
-        hidden.value = '0';
+    function removeFertilizerPengisianRow(idx) {
+      if (fertilizerPengisianList.length <= 1) {
+        showToast('Minimal harus ada 1 pengisian pupuk!', 'warning');
+        return;
       }
+      fertilizerPengisianList.splice(idx, 1);
+      // Re-number pengisian ke-
+      fertilizerPengisianList.forEach((p, i) => {
+        p.pengisianKe = i + 1;
+      });
+      renderFertilizerPengisianRows();
+      calculateFertilizerTotals();
+    }
+
+    function renderFertilizerPengisianRows() {
+      const container = document.getElementById('fert_pengisian_container');
+      if (!container) return;
+      container.innerHTML = '';
+
+      fertilizerPengisianList.forEach((item, idx) => {
+        const rowCard = document.createElement('div');
+        rowCard.className = 'p-3 bg-slate-50 hover:bg-amber-50/40 rounded-xl border border-slate-200 transition space-y-2';
+
+        // Header per baris pengisian
+        const headerRow = document.createElement('div');
+        headerRow.className = 'flex items-center justify-between border-b border-slate-200 pb-1.5';
+        headerRow.innerHTML = `
+          <div class="flex items-center space-x-2">
+            <span class="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px] font-bold">${idx + 1}</span>
+            <span class="text-xs font-bold text-amber-950">Pengisian Pupuk Ke-${item.pengisianKe || (idx + 1)}</span>
+          </div>
+          ${fertilizerPengisianList.length > 1 ? `
+            <button type="button" onclick="removeFertilizerPengisianRow(${idx})" class="text-red-600 hover:text-red-800 text-xs font-bold flex items-center space-x-1 p-1 hover:bg-red-50 rounded">
+              <i class="fa-solid fa-trash-can"></i>
+              <span>Hapus</span>
+            </button>
+          ` : ''}
+        `;
+        rowCard.appendChild(headerRow);
+
+        // Form grid
+        const formGrid = document.createElement('div');
+        formGrid.className = 'grid grid-cols-1 sm:grid-cols-4 gap-2.5 pt-1 text-xs';
+        formGrid.innerHTML = `
+          <!-- Pengisian Ke- -->
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Pengisian Ke-</label>
+            <input type="text" inputmode="numeric" value="${item.pengisianKe || (idx + 1)}" oninput="onFertilizerRowChange(${idx}, 'pengisianKe', this.value)" class="w-full text-xs p-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none font-bold text-slate-800 bg-white">
+          </div>
+
+          <!-- Jumlah Pupuk (kg) -->
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Jumlah Pupuk (kg) <span class="text-red-500">*</span></label>
+            <div class="relative">
+              <input type="text" inputmode="decimal" value="${item.jumlah || ''}" placeholder="misal: 250" oninput="onFertilizerRowChange(${idx}, 'jumlah', this.value)" class="w-full text-xs p-2 pr-10 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none font-bold text-slate-800 bg-white">
+              <span class="absolute right-2.5 top-2 text-[10px] text-slate-400 font-bold">kg</span>
+            </div>
+          </div>
+
+          <!-- Hasil Kerja (Ha) -->
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Hasil Kerja (Ha) <span class="text-red-500">*</span></label>
+            <div class="relative">
+              <input type="text" inputmode="decimal" value="${item.hasilKerja || ''}" placeholder="misal: 1.0" oninput="onFertilizerRowChange(${idx}, 'hasilKerja', this.value)" class="w-full text-xs p-2 pr-10 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none font-bold text-slate-800 bg-white">
+              <span class="absolute right-2.5 top-2 text-[10px] text-slate-400 font-bold">Ha</span>
+            </div>
+          </div>
+
+          <!-- Pemerataan Pupuk (Input Angka Manual) -->
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Pemerataan Pupuk (Angka) <span class="text-red-500">*</span></label>
+            <input type="text" inputmode="decimal" value="${item.pemerataanPupuk || ''}" placeholder="misal: 95 / skor angka" oninput="onFertilizerRowChange(${idx}, 'pemerataanPupuk', this.value)" class="w-full text-xs p-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none font-bold text-slate-800 bg-white">
+          </div>
+
+          <!-- Live Kalkulasi Dosis Aktual Baris Ini -->
+          <div class="col-span-1 sm:col-span-4 p-2 bg-emerald-50/80 border border-emerald-200 rounded-lg flex items-center justify-between">
+            <span class="text-[11px] font-semibold text-emerald-900">
+              <i class="fa-solid fa-calculator mr-1 text-emerald-600"></i> Dosis Aktual Pengisian Ke-${item.pengisianKe || (idx + 1)}:
+            </span>
+            <span class="font-mono font-black text-xs text-emerald-800" id="fert_row_dosis_${idx}">
+              ${String(item.dosisAktual || 0).replace('.', ',')} kg/Ha
+            </span>
+          </div>
+        `;
+        rowCard.appendChild(formGrid);
+        container.appendChild(rowCard);
+      });
+    }
+
+    function onFertilizerRowChange(idx, field, val) {
+      if (!fertilizerPengisianList[idx]) return;
+      fertilizerPengisianList[idx][field] = val;
+
+      if (field === 'jumlah' || field === 'hasilKerja') {
+        const jVal = parseFloat(String(fertilizerPengisianList[idx].jumlah || '').replace(',', '.'));
+        const hVal = parseFloat(String(fertilizerPengisianList[idx].hasilKerja || '').replace(',', '.'));
+        if (!isNaN(jVal) && !isNaN(hVal) && hVal > 0) {
+          const res = Math.round((jVal / hVal) * 100) / 100;
+          fertilizerPengisianList[idx].dosisAktual = res;
+          const displayEl = document.getElementById(`fert_row_dosis_${idx}`);
+          if (displayEl) displayEl.textContent = `${String(res).replace('.', ',')} kg/Ha`;
+        } else {
+          fertilizerPengisianList[idx].dosisAktual = 0;
+          const displayEl = document.getElementById(`fert_row_dosis_${idx}`);
+          if (displayEl) displayEl.textContent = '0 kg/Ha';
+        }
+        calculateFertilizerTotals();
+      }
+    }
+
+    function calculateFertilizerTotals() {
+      let totalJ = 0;
+      let totalH = 0;
+
+      fertilizerPengisianList.forEach(p => {
+        const j = parseFloat(String(p.jumlah || '').replace(',', '.'));
+        const h = parseFloat(String(p.hasilKerja || '').replace(',', '.'));
+        if (!isNaN(j)) totalJ += j;
+        if (!isNaN(h)) totalH += h;
+      });
+
+      totalJ = Math.round(totalJ * 100) / 100;
+      totalH = Math.round(totalH * 100) / 100;
+
+      const avgDosis = totalH > 0 ? Math.round((totalJ / totalH) * 100) / 100 : 0;
+
+      const totJEl = document.getElementById('fert_totalJumlahDisplay');
+      const totHEl = document.getElementById('fert_totalHasilKerjaDisplay');
+      const avgEl = document.getElementById('fert_avgDosisAktualDisplay');
+
+      if (totJEl) totJEl.textContent = `${String(totalJ).replace('.', ',')} kg`;
+      if (totHEl) totHEl.textContent = `${String(totalH).replace('.', ',')} Ha`;
+      if (avgEl) avgEl.textContent = String(avgDosis).replace('.', ',');
     }
 
     function handleFertilizerPhoto(input) {
@@ -3624,7 +3726,11 @@
       document.getElementById('fert_date').value = getTodayDate();
       document.getElementById('fert_submitBtnLabel').textContent = 'Simpan Data QC Fertilizer';
       removeFertilizerPhoto();
-      calculateFertilizerDosisAktual();
+      fertilizerPengisianList = [
+        { pengisianKe: 1, jumlah: '', hasilKerja: '', dosisAktual: 0, pemerataanPupuk: '' }
+      ];
+      renderFertilizerPengisianRows();
+      calculateFertilizerTotals();
       populateFertilizerMasterDataUI();
     }
 
@@ -3642,12 +3748,26 @@
       const jenisPupuk = document.getElementById('fert_material').value;
       const dosis = document.getElementById('fert_dosis').value;
       const statusHose = document.getElementById('fert_statusHose').value;
-      const pengisianKe = document.getElementById('fert_pengisianKe').value;
-      const jumlah = document.getElementById('fert_jumlah').value;
-      const hasilKerja = document.getElementById('fert_hasilKerja').value;
-      const dosisAktual = document.getElementById('fert_dosisAktual').value;
-      const pemerataanPupuk = document.getElementById('fert_pemerataan').value;
       const catatan = document.getElementById('fert_catatan').value;
+
+      // Hitung total dari pengisianList
+      let totalJ = 0;
+      let totalH = 0;
+      fertilizerPengisianList.forEach(p => {
+        const j = parseFloat(String(p.jumlah || '').replace(',', '.'));
+        const h = parseFloat(String(p.hasilKerja || '').replace(',', '.'));
+        if (!isNaN(j)) totalJ += j;
+        if (!isNaN(h)) totalH += h;
+      });
+      totalJ = Math.round(totalJ * 100) / 100;
+      totalH = Math.round(totalH * 100) / 100;
+      const avgDosis = totalH > 0 ? Math.round((totalJ / totalH) * 100) / 100 : 0;
+
+      const pengisianKe = fertilizerPengisianList.map(p => p.pengisianKe).join(', ');
+      const jumlah = totalJ;
+      const hasilKerja = totalH;
+      const dosisAktual = avgDosis;
+      const pemerataanPupuk = fertilizerPengisianList.map(p => p.pemerataanPupuk).filter(Boolean).join(', ');
 
       const startTime = document.getElementById('fert_startTime').value;
       const endTime = document.getElementById('fert_endTime').value;
@@ -3707,6 +3827,7 @@
         hasilKerja: hasilKerja,
         dosisAktual: dosisAktual,
         pemerataanPupuk: pemerataanPupuk,
+        pengisianList: JSON.parse(JSON.stringify(fertilizerPengisianList)),
         catatan: catatan,
         noted: catatan,
         photoBase64: fertPhotoBase64,
@@ -3766,12 +3887,21 @@
       document.getElementById('fert_dosis').value = rec.dosis || '';
 
       document.getElementById('fert_statusHose').value = rec.statusHose || 'Pasang';
-      document.getElementById('fert_pengisianKe').value = rec.pengisianKe || '';
-      document.getElementById('fert_jumlah').value = rec.jumlah || '';
-      document.getElementById('fert_hasilKerja').value = rec.hasilKerja || '';
-      calculateFertilizerDosisAktual();
-
-      document.getElementById('fert_pemerataan').value = rec.pemerataanPupuk || '';
+      if (rec.pengisianList && Array.isArray(rec.pengisianList) && rec.pengisianList.length > 0) {
+        fertilizerPengisianList = JSON.parse(JSON.stringify(rec.pengisianList));
+      } else {
+        fertilizerPengisianList = [
+          {
+            pengisianKe: rec.pengisianKe || 1,
+            jumlah: rec.jumlah || '',
+            hasilKerja: rec.hasilKerja || '',
+            dosisAktual: rec.dosisAktual || 0,
+            pemerataanPupuk: rec.pemerataanPupuk || ''
+          }
+        ];
+      }
+      renderFertilizerPengisianRows();
+      calculateFertilizerTotals();
       document.getElementById('fert_catatan').value = rec.catatan || rec.noted || '';
 
       if (rec.photoBase64) {
@@ -4275,32 +4405,43 @@
           </div>
         </div>
 
-        <!-- 4. REKAPITULASI PEMUPUKAN & DOSIS AKTUAL -->
+        <!-- 4. REKAPITULASI PEMUPUKAN & DOSIS AKTUAL (MULTIPLE PENGISIAN) -->
         <div class="mb-3">
           <div class="bg-amber-700 text-white font-bold text-[10px] px-2.5 py-1 rounded-t flex justify-between">
             <span>III. REALISASI PENGISIAN & VERIFIKASI DOSIS AKTUAL</span>
-            <span>Pengisian Ke-${rec.pengisianKe || '-'}</span>
+            <span>${((rec.pengisianList && rec.pengisianList.length) || 1)}x Pengisian</span>
           </div>
           <div class="border border-t-0 border-slate-300 overflow-x-auto">
             <table class="w-full text-left border-collapse text-[11px]">
               <thead>
                 <tr class="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
-                  <th class="py-2 px-2.5">Jenis Pupuk (Material)</th>
-                  <th class="py-2 px-2 text-center">Dosis Rekomendasi</th>
-                  <th class="py-2 px-2 text-right">Jumlah Diisi</th>
-                  <th class="py-2 px-2 text-right">Hasil Kerja Selesai</th>
-                  <th class="py-2 px-2.5 text-right font-black text-amber-900">Dosis Aktual Lapangan</th>
+                  <th class="py-2 px-2 text-center w-12">No / Isi</th>
+                  <th class="py-2 px-2.5">Jenis Pupuk</th>
+                  <th class="py-2 px-2 text-center">Dosis Rek.</th>
+                  <th class="py-2 px-2 text-right">Jumlah Pupuk</th>
+                  <th class="py-2 px-2 text-right">Hasil Kerja</th>
+                  <th class="py-2 px-2.5 text-right font-black text-amber-900">Dosis Aktual</th>
                   <th class="py-2 px-2 text-center">Pemerataan</th>
                 </tr>
               </thead>
-              <tbody>
-                <tr class="bg-white">
-                  <td class="py-2 px-2.5 font-black text-slate-900">${rec.jenisPupuk || rec.material || '-'}</td>
-                  <td class="py-2 px-2 text-center font-mono">${rec.dosis ? rec.dosis + ' kg/Ha' : '-'}</td>
-                  <td class="py-2 px-2 text-right font-mono font-bold text-slate-700">${rec.jumlah ? rec.jumlah + ' kg' : '-'}</td>
-                  <td class="py-2 px-2 text-right font-mono font-bold text-slate-700">${rec.hasilKerja ? rec.hasilKerja + ' Ha' : '-'}</td>
-                  <td class="py-2 px-2.5 text-right font-mono font-black text-amber-900 text-xs">${rec.dosisAktual ? rec.dosisAktual + ' kg/Ha' : '-'}</td>
-                  <td class="py-2 px-2 text-center font-semibold text-slate-700">${rec.pemerataanPupuk || '-'}</td>
+              <tbody class="divide-y divide-slate-200">
+                ${((rec.pengisianList && rec.pengisianList.length > 0) ? rec.pengisianList : [{ pengisianKe: rec.pengisianKe || 1, jumlah: rec.jumlah, hasilKerja: rec.hasilKerja, dosisAktual: rec.dosisAktual, pemerataanPupuk: rec.pemerataanPupuk }]).map((p, pIdx) => `
+                  <tr class="${pIdx % 2 === 0 ? 'bg-white' : 'bg-amber-50/20'}">
+                    <td class="py-2 px-2 text-center font-bold text-amber-900">Ke-${p.pengisianKe || (pIdx + 1)}</td>
+                    <td class="py-2 px-2.5 font-extrabold text-slate-900">${rec.jenisPupuk || rec.material || '-'}</td>
+                    <td class="py-2 px-2 text-center font-mono">${rec.dosis ? rec.dosis + ' kg/Ha' : '-'}</td>
+                    <td class="py-2 px-2 text-right font-mono font-bold text-slate-700">${p.jumlah ? p.jumlah + ' kg' : '-'}</td>
+                    <td class="py-2 px-2 text-right font-mono font-bold text-slate-700">${p.hasilKerja ? p.hasilKerja + ' Ha' : '-'}</td>
+                    <td class="py-2 px-2.5 text-right font-mono font-black text-amber-900 text-xs">${p.dosisAktual ? p.dosisAktual + ' kg/Ha' : '-'}</td>
+                    <td class="py-2 px-2 text-center font-semibold text-slate-700">${p.pemerataanPupuk || '-'}</td>
+                  </tr>
+                `).join('')}
+                <tr class="bg-amber-100/60 font-black text-slate-900 border-t-2 border-amber-300">
+                  <td colspan="3" class="py-2 px-2.5 text-right uppercase text-[10px] text-amber-950">Total Realisasi / Rata-Rata:</td>
+                  <td class="py-2 px-2 text-right font-mono text-amber-950">${rec.jumlah ? rec.jumlah + ' kg' : '-'}</td>
+                  <td class="py-2 px-2 text-right font-mono text-emerald-950">${rec.hasilKerja ? rec.hasilKerja + ' Ha' : '-'}</td>
+                  <td class="py-2 px-2.5 text-right font-mono text-amber-950 text-xs">${rec.dosisAktual ? rec.dosisAktual + ' kg/Ha' : '-'}</td>
+                  <td class="py-2 px-2 text-center text-[10px] text-slate-600">-</td>
                 </tr>
               </tbody>
             </table>
