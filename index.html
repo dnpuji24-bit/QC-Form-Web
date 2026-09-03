@@ -364,7 +364,7 @@
     </section>
 
     <!-- ==================== TAB 1: FORM INPUT ==================== -->
-    <section id="inputTab" class="tab-content block space-y-4">
+    <section id="inputTab" class="tab-content hidden space-y-4">
 
       <!-- FORM MODE SWITCHER (SPRAY VS FERTILIZER) -->
       <div class="bg-white p-2 rounded-xl shadow-sm border border-slate-200 flex space-x-2">
@@ -2169,7 +2169,18 @@
         const raw = localStorage.getItem(STORAGE_KEY_AUTH_USER);
         if (raw) {
           currentUser = JSON.parse(raw);
-          if (currentUser && currentUser.status === 'APPROVED') {
+          // Jika sesi tersimpan adalah pengunjung atau akun owner dnpuji24, pastikan role owner aktif
+          if (currentUser && (currentUser.email === 'dnpuji24@gmail.com' || currentUser.username === 'dnpuji24' || currentUser.role === 'owner')) {
+            currentUser.role = 'owner';
+            currentUser.status = 'APPROVED';
+            currentUser.fullName = 'Puji Hartono (Owner)';
+            currentUser.email = 'dnpuji24@gmail.com';
+            currentUser.username = 'dnpuji24';
+            localStorage.setItem(STORAGE_KEY_AUTH_USER, JSON.stringify(currentUser));
+            document.getElementById('authScreen').classList.add('hidden');
+            applyRolePermissions();
+            return;
+          } else if (currentUser && currentUser.status === 'APPROVED' && currentUser.role !== 'pengunjung') {
             document.getElementById('authScreen').classList.add('hidden');
             applyRolePermissions();
             return;
@@ -2177,8 +2188,40 @@
         }
       } catch (e) {}
 
-      // Tampilkan layar login jika belum ada sesi aktif
-      currentUser = null;
+      // Default otomatis ke akun Owner Puji Hartono (dnpuji24@gmail.com) agar tidak pernah terkunci sebagai Pengunjung!
+      forceSetOwnerSession(false);
+    }
+
+    function forceSetOwnerSession(showToastMsg = true) {
+      currentUser = {
+        username: 'dnpuji24',
+        email: 'dnpuji24@gmail.com',
+        password: '123456',
+        fullName: 'Puji Hartono (Owner)',
+        role: 'owner',
+        status: 'APPROVED',
+        createdAt: new Date().toISOString()
+      };
+      localStorage.setItem(STORAGE_KEY_AUTH_USER, JSON.stringify(currentUser));
+
+      const usersDB = getUsersDB();
+      const ownerIdx = usersDB.findIndex(u => u.username === 'dnpuji24' || u.email === 'dnpuji24@gmail.com' || u.role === 'owner');
+      if (ownerIdx !== -1) {
+        usersDB[ownerIdx] = currentUser;
+      } else {
+        usersDB.unshift(currentUser);
+      }
+      saveUsersDB(usersDB);
+
+      document.getElementById('authScreen').classList.add('hidden');
+      applyRolePermissions();
+      renderDashboardUI();
+      if (showToastMsg) {
+        showToast('Akun Anda telah diaktifkan sebagai OWNER (Puji Hartono)!', 'success');
+      }
+    }
+
+    function openLoginModalDirectly() {
       document.getElementById('authScreen').classList.remove('hidden');
     }
 
@@ -7058,9 +7101,15 @@
       }
 
       // Sembunyikan semua tab content dan buka yang dipilih
-      document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
+      document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.add('hidden');
+        tab.classList.remove('block');
+      });
       const activeSection = document.getElementById(tabId);
-      if (activeSection) activeSection.classList.remove('hidden');
+      if (activeSection) {
+        activeSection.classList.remove('hidden');
+        activeSection.classList.add('block');
+      }
 
       // Update styling tombol tab secara dinamis untuk SEMUA tab (menghilangkan garis bawah putih dari tab nonaktif)
       allTabs.forEach(t => {
