@@ -148,6 +148,20 @@
     <!-- ==================== TAB 1: FORM INPUT ==================== -->
     <section id="inputTab" class="tab-content block space-y-4">
 
+      <!-- FORM MODE SWITCHER (SPRAY VS FERTILIZER) -->
+      <div class="bg-white p-2 rounded-xl shadow-sm border border-slate-200 flex space-x-2">
+        <button type="button" onclick="switchFormType('spray')" id="btnFormTypeSpray" class="flex-1 py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition shadow-sm bg-emerald-700 text-white">
+          <i class="fa-solid fa-spray-can"></i>
+          <span>QC Spraying (Semprot)</span>
+        </button>
+        <button type="button" onclick="switchFormType('fertilizer')" id="btnFormTypeFertilizer" class="flex-1 py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition bg-slate-100 text-slate-700 hover:bg-slate-200">
+          <i class="fa-solid fa-seedling text-amber-600"></i>
+          <span>QC Fertilizer (Pemupukan)</span>
+        </button>
+      </div>
+
+      <!-- CONTAINER 1: FORM QC SPRAYING -->
+      <div id="containerFormSpray" class="block space-y-4">
       <form id="qcForm" onsubmit="event.preventDefault(); saveFormData('ready');" class="space-y-4">
         
         <!-- CARD 1: INFORMASI UMUM & WAKTU KERJA (RAMPING & RAPI 3x3) -->
@@ -636,6 +650,395 @@
         </div>
 
       </form>
+      </div>
+      <!-- END CONTAINER FORM SPRAY -->
+
+      <!-- CONTAINER 2: FORM QC FERTILIZER -->
+      <div id="containerFormFertilizer" class="hidden space-y-4">
+        
+        <form id="fertilizerForm" onsubmit="event.preventDefault(); saveFertilizerFormData('ready');" class="space-y-4">
+          
+          <!-- BANNER HEADER FERTILIZER -->
+          <div class="p-3 bg-gradient-to-r from-amber-600 to-amber-700 rounded-xl text-white shadow-sm flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <div class="w-8 h-8 rounded-lg bg-amber-800 flex items-center justify-center text-amber-200">
+                <i class="fa-solid fa-seedling text-lg"></i>
+              </div>
+              <div>
+                <h3 class="font-bold text-sm leading-tight">Formulir QC Aplikasi Pemupukan (Fertilizer)</h3>
+                <p class="text-[11px] text-amber-100">Pencatatan realisasi pemupukan, status hose, dosis aktual & dokumentasi</p>
+              </div>
+            </div>
+            <span class="text-[10px] bg-amber-800/80 px-2 py-0.5 rounded font-bold uppercase tracking-wider">Sheet Form QC Fertilizer</span>
+          </div>
+
+          <!-- CARD 1: INFORMASI WAKTU & PELAKSANA -->
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
+            <div class="flex items-center justify-between border-b pb-2">
+              <h2 class="font-bold text-slate-800 text-sm flex items-center space-x-2">
+                <span class="w-5 h-5 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center text-xs">1</span>
+                <span>Informasi Waktu, Shift & Pelaksana</span>
+              </h2>
+              <span class="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-medium border border-amber-200">Data Mandor & Asisten</span>
+            </div>
+
+            <!-- Grid 3 Kolom Simetris -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <!-- Tanggal -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">
+                  Tanggal <span class="text-red-500">*</span>
+                </label>
+                <input type="date" id="fert_date" required class="w-full text-xs p-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none">
+              </div>
+
+              <!-- Shift (Kolom D) -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">
+                  Shift <span class="text-red-500">*</span>
+                </label>
+                <div class="grid grid-cols-2 gap-1.5" id="fert_shiftBtnGroup">
+                  <!-- Populated by JS -->
+                </div>
+                <input type="hidden" id="fert_shift" value="1">
+              </div>
+
+              <!-- Status (Kolom C) -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">
+                  Status Kegiatan <span class="text-red-500">*</span>
+                </label>
+                <div class="grid grid-cols-2 gap-1.5" id="fert_statusBtnGroup">
+                  <!-- Populated by JS -->
+                </div>
+                <input type="hidden" id="fert_status" value="Working">
+              </div>
+            </div>
+
+            <!-- Grid 2 Kolom Pelaksana -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+              <!-- Name (Mandor - Kolom A) -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">
+                  Nama Mandor (Name) <span class="text-red-500">*</span>
+                </label>
+                <div class="relative">
+                  <input type="text" id="fert_nameSearch" placeholder="Ketik nama mandor..." oninput="filterDropdown('fert_nameSearch', 'fert_nameSelect')" class="w-full text-xs p-2 pr-7 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none">
+                  <i class="fa-solid fa-magnifying-glass absolute right-2.5 top-2.5 text-slate-400 text-xs"></i>
+                </div>
+                <select id="fert_nameSelect" size="3" onchange="selectFromSearch('fert_nameSearch', 'fert_nameSelect', 'fert_name')" class="w-full text-xs p-1 mt-1 rounded-lg border border-slate-200 hidden bg-white shadow-lg z-10 max-h-32">
+                </select>
+                <input type="hidden" id="fert_name" required>
+              </div>
+
+              <!-- Name of Assistan (Kolom B) -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">
+                  Nama Asisten (Name of Assistan) <span class="text-red-500">*</span>
+                </label>
+                <div class="relative">
+                  <input type="text" id="fert_assistanSearch" placeholder="Ketik nama asisten..." oninput="filterDropdown('fert_assistanSearch', 'fert_assistanSelect')" class="w-full text-xs p-2 pr-7 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none">
+                  <i class="fa-solid fa-magnifying-glass absolute right-2.5 top-2.5 text-slate-400 text-xs"></i>
+                </div>
+                <select id="fert_assistanSelect" size="3" onchange="selectFromSearch('fert_assistanSearch', 'fert_assistanSelect', 'fert_assistan')" class="w-full text-xs p-1 mt-1 rounded-lg border border-slate-200 hidden bg-white shadow-lg z-10 max-h-32">
+                </select>
+                <input type="hidden" id="fert_assistan" required>
+              </div>
+            </div>
+
+            <!-- Start Time & End Time (HANYA AKTIF JIKA STATUS = HOLD) -->
+            <div id="fert_time_container" class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 transition-all duration-300">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-700 flex items-center">
+                  <i class="fa-solid fa-clock mr-1.5 text-slate-500"></i> Jam Kejadian Jeda (Start & End Time):
+                </span>
+                <span id="fert_time_badge" class="text-[10px] font-semibold text-slate-400 bg-slate-200 px-2 py-0.5 rounded">
+                  Hanya aktif jika Status HOLD
+                </span>
+              </div>
+              
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <div class="flex justify-between items-center mb-1">
+                    <label class="text-[11px] font-semibold text-slate-600">Start Time (Mulai Hold):</label>
+                    <button type="button" id="btn_fert_setStart" onclick="setFertTimeNow('start')" disabled class="text-[10px] text-amber-700 hover:underline font-bold disabled:text-slate-400">Set Sekarang</button>
+                  </div>
+                  <input type="time" id="fert_startTime" disabled class="w-full text-xs p-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none bg-slate-100 disabled:opacity-60">
+                </div>
+                <div>
+                  <div class="flex justify-between items-center mb-1">
+                    <label class="text-[11px] font-semibold text-slate-600">End Time (Selesai Hold):</label>
+                    <button type="button" id="btn_fert_setEnd" onclick="setFertTimeNow('end')" disabled class="text-[10px] text-amber-700 hover:underline font-bold disabled:text-slate-400">Set Sekarang</button>
+                  </div>
+                  <input type="time" id="fert_endTime" disabled class="w-full text-xs p-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none bg-slate-100 disabled:opacity-60">
+                </div>
+              </div>
+              <p id="fert_time_hint" class="text-[10px] text-slate-500 italic">
+                *Pada kegiatan normal (Working), Start Time dan End Time tidak perlu diisi. Kolom ini otomatis aktif saat status dipilih HOLD.
+              </p>
+            </div>
+
+          </div>
+
+          <!-- CARD 2: LOKASI KERJA & RENCANA PEMUPUKAN (PLAN) -->
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
+            <div class="flex items-center justify-between border-b pb-2">
+              <h2 class="font-bold text-slate-800 text-sm flex items-center space-x-2">
+                <span class="w-5 h-5 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center text-xs">2</span>
+                <span>Lokasi Kerja & Rencana Aplikasi (Sheet Plan)</span>
+              </h2>
+              <span class="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-medium border border-amber-200">Relasi Paddock & Pupuk</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <!-- Paddock (Sheet Plan Kolom F) -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">
+                  Paddock (Petak) <span class="text-red-500">*</span>
+                </label>
+                <div class="relative">
+                  <input type="text" id="fert_paddockSearch" placeholder="Cari kode petak (misal: JAGF)..." oninput="filterFertilizerPaddockDropdown()" class="w-full text-xs p-2 pr-7 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none font-bold text-amber-950">
+                  <i class="fa-solid fa-magnifying-glass absolute right-2.5 top-2.5 text-slate-400 text-xs"></i>
+                </div>
+                <select id="fert_paddockSelect" size="4" onchange="selectFertilizerPaddock()" class="w-full text-xs p-1 mt-1 rounded-lg border border-slate-200 hidden bg-white shadow-lg z-10 max-h-36">
+                </select>
+                <input type="hidden" id="fert_paddock" required>
+              </div>
+
+              <!-- Type (Sheet Plan Kolom O - Otomatis Terisi) -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">
+                  Type Pupuk (Kolom O) <span class="text-[10px] text-slate-500 font-normal">(Otomatis dari Plan)</span>
+                </label>
+                <input type="text" id="fert_type" readonly placeholder="Otomatis terisi dari Plan..." class="w-full text-xs p-2 rounded-lg border border-slate-300 bg-slate-50 font-bold text-amber-900 outline-none">
+              </div>
+            </div>
+
+            <!-- Activity (Sheet Plan Kolom N - Button Selector) -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">
+                Activity (Kegiatan Pemupukan - Kolom N) <span class="text-red-500">*</span>
+              </label>
+              <div class="flex flex-wrap gap-1.5" id="fert_activityBtnGroup">
+                <span class="text-[11px] text-slate-400 italic">Pilih Paddock terlebih dahulu untuk memunculkan Activity...</span>
+              </div>
+              <input type="hidden" id="fert_activity" required>
+            </div>
+
+            <!-- Jenis Pupuk / Material (Sheet Data - Filtered by Type) -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">
+                Jenis Pupuk (Material) <span class="text-red-500">*</span>
+              </label>
+              <div class="flex flex-wrap gap-1.5" id="fert_materialBtnGroup">
+                <!-- Populated by JS -->
+              </div>
+              <input type="hidden" id="fert_material" required>
+            </div>
+
+            <!-- Dosis Manual (kg/Ha atau dosis rekomendasi) -->
+            <div class="max-w-xs">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">
+                Dosis Rekomendasi (Dosis) <span class="text-red-500">*</span>
+              </label>
+              <div class="relative">
+                <input type="text" inputmode="decimal" id="fert_dosis" placeholder="misal: 250" class="w-full text-xs p-2 pr-14 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none font-bold text-slate-800">
+                <span class="absolute right-3 top-2 text-[11px] text-slate-400 font-bold">kg/Ha</span>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- CARD 3: ARMADA & PERALATAN (UNIT, NO. UNIT & HOSE) -->
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
+            <div class="flex items-center justify-between border-b pb-2">
+              <h2 class="font-bold text-slate-800 text-sm flex items-center space-x-2">
+                <span class="w-5 h-5 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center text-xs">3</span>
+                <span>Armada, Peralatan & Status Hose</span>
+              </h2>
+              <span class="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-medium border border-amber-200">Sheet Data Kolom E, F, O</span>
+            </div>
+
+            <!-- Unit (Kolom E) -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">
+                Unit Alat (Kolom E) <span class="text-red-500">*</span>
+              </label>
+              <div class="flex flex-wrap gap-1.5" id="fert_unitBtnGroup">
+                <!-- Populated by JS -->
+              </div>
+              <input type="hidden" id="fert_unit" required>
+            </div>
+
+            <!-- No. Unit (Kolom F) -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">
+                Nomor Unit (No. Unit - Kolom F) <span class="text-red-500">*</span>
+              </label>
+              <div class="flex flex-wrap gap-1.5" id="fert_noUnitBtnGroup">
+                <span class="text-[11px] text-slate-400 italic">Pilih Unit di atas untuk memunculkan No. Unit...</span>
+              </div>
+              <input type="hidden" id="fert_noUnit" required>
+            </div>
+
+            <!-- Status Hose (Kolom O) -->
+            <div class="pt-2 border-t border-slate-100">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">
+                Status Hose (Kolom O) <span class="text-red-500">*</span>
+              </label>
+              <div class="flex flex-wrap gap-1.5" id="fert_statusHoseBtnGroup">
+                <!-- Populated by JS -->
+              </div>
+              <input type="hidden" id="fert_statusHose" value="Pasang">
+            </div>
+
+          </div>
+
+          <!-- CARD 4: REALISASI PEMUPUKAN & PERHITUNGAN DOSIS AKTUAL -->
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
+            <div class="flex items-center justify-between border-b pb-2">
+              <h2 class="font-bold text-slate-800 text-sm flex items-center space-x-2">
+                <span class="w-5 h-5 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center text-xs">4</span>
+                <span>Realisasi Pemupukan & Kalkulasi Dosis Aktual</span>
+              </h2>
+              <span class="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-bold border border-emerald-200">Auto Calculate</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <!-- Pengisian Ke- -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">
+                  Pengisian Ke- <span class="text-red-500">*</span>
+                </label>
+                <input type="text" inputmode="numeric" id="fert_pengisianKe" placeholder="1, 2, 3..." class="w-full text-xs p-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none font-bold text-slate-800">
+              </div>
+
+              <!-- Jumlah -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">
+                  Jumlah Pupuk (Jumlah) <span class="text-red-500">*</span>
+                </label>
+                <div class="relative">
+                  <input type="text" inputmode="decimal" id="fert_jumlah" oninput="calculateFertilizerDosisAktual()" placeholder="misal: 250" class="w-full text-xs p-2 pr-12 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none font-bold text-slate-800">
+                  <span class="absolute right-3 top-2 text-[11px] text-slate-400 font-bold">kg</span>
+                </div>
+              </div>
+
+              <!-- Hasil Kerja -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">
+                  Hasil Kerja (Luasan Selesai) <span class="text-red-500">*</span>
+                </label>
+                <div class="relative">
+                  <input type="text" inputmode="decimal" id="fert_hasilKerja" oninput="calculateFertilizerDosisAktual()" placeholder="misal: 1.0" class="w-full text-xs p-2 pr-12 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none font-bold text-slate-800">
+                  <span class="absolute right-3 top-2 text-[11px] text-slate-400 font-bold">Ha</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Banner Hasil Kalkulasi Dosis Aktual -->
+            <div class="p-3 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-300 rounded-xl flex items-center justify-between shadow-sm">
+              <div class="space-y-0.5">
+                <span class="text-[10px] text-emerald-800 uppercase font-black tracking-wider block">Kalkulasi Otomatis Dosis Aktual:</span>
+                <p class="text-xs text-slate-600">Rumus: <code>Jumlah (kg) ÷ Hasil Kerja (Ha)</code></p>
+              </div>
+              <div class="text-right">
+                <span id="fert_dosisAktualDisplay" class="text-xl sm:text-2xl font-black text-emerald-800 font-mono">0</span>
+                <span class="text-xs font-bold text-emerald-700 ml-1">kg/Ha</span>
+                <input type="hidden" id="fert_dosisAktual" value="0">
+              </div>
+            </div>
+
+            <!-- Pemerataan Pupuk (Input Manual) -->
+            <div class="pt-2 border-t border-slate-100">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">
+                Pemerataan Pupuk di Lapangan <span class="text-red-500">*</span>
+              </label>
+              <div class="flex flex-wrap gap-2 mb-2" id="fert_pemerataanQuickButtons">
+                <button type="button" onclick="setFertPemerataan('Merata')" class="py-1 px-3 rounded-full text-xs font-semibold border border-slate-300 hover:bg-slate-100 text-slate-700">Merata</button>
+                <button type="button" onclick="setFertPemerataan('Cukup Merata')" class="py-1 px-3 rounded-full text-xs font-semibold border border-slate-300 hover:bg-slate-100 text-slate-700">Cukup Merata</button>
+                <button type="button" onclick="setFertPemerataan('Kurang Merata')" class="py-1 px-3 rounded-full text-xs font-semibold border border-slate-300 hover:bg-slate-100 text-slate-700">Kurang Merata</button>
+                <button type="button" onclick="setFertPemerataan('Tidak Merata')" class="py-1 px-3 rounded-full text-xs font-semibold border border-slate-300 hover:bg-slate-100 text-slate-700">Tidak Merata</button>
+              </div>
+              <input type="text" id="fert_pemerataan" placeholder="Ketik keterangan pemerataan pupuk..." class="w-full text-xs p-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none text-slate-800">
+            </div>
+
+          </div>
+
+          <!-- CARD 5: FOTO DOKUMENTASI & CATATAN LAPANGAN -->
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
+            <div class="flex items-center justify-between border-b pb-2">
+              <h2 class="font-bold text-slate-800 text-sm flex items-center space-x-2">
+                <span class="w-5 h-5 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center text-xs">5</span>
+                <span>Dokumentasi Foto QC & Catatan Lapangan</span>
+              </h2>
+              <span class="text-[11px] text-slate-500">Bukti Lapangan</span>
+            </div>
+
+            <!-- Upload Foto -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1.5">
+                Lampiran Foto Bukti QC Pemupukan:
+              </label>
+              
+              <div class="flex items-center space-x-2">
+                <button type="button" onclick="document.getElementById('fert_cameraInput').click()" class="py-2 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center space-x-1.5 shadow-sm active:scale-95 transition">
+                  <i class="fa-solid fa-camera"></i>
+                  <span>Buka Kamera</span>
+                </button>
+                <button type="button" onclick="document.getElementById('fert_galleryInput').click()" class="py-2 px-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-bold text-xs flex items-center space-x-1.5 active:scale-95 transition">
+                  <i class="fa-solid fa-image"></i>
+                  <span>Pilih dari Galeri</span>
+                </button>
+              </div>
+
+              <input type="file" id="fert_cameraInput" accept="image/*" capture="environment" onchange="handleFertilizerPhoto(this)" class="hidden">
+              <input type="file" id="fert_galleryInput" accept="image/*" onchange="handleFertilizerPhoto(this)" class="hidden">
+
+              <div id="fert_photoPreviewContainer" class="mt-3 hidden relative inline-block">
+                <img id="fert_photoPreview" src="" alt="Preview Foto" class="max-h-48 rounded-lg border border-slate-300 shadow-sm object-cover">
+                <button type="button" onclick="removeFertilizerPhoto()" class="absolute -top-2 -right-2 w-6 h-6 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center text-xs shadow" title="Hapus Foto">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Catatan (Noted*) -->
+            <div class="pt-2 border-t border-slate-100">
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-xs font-semibold text-slate-700">
+                  Catatan / Keterangan Khusus (Noted*) <span id="fert_catatanAsterisk" class="text-red-500 hidden">* (Wajib saat HOLD)</span>
+                </label>
+                <span class="text-[10px] text-slate-400">Wajib jika Status HOLD</span>
+              </div>
+              <textarea id="fert_catatan" rows="3" placeholder="Tuliskan catatan kondisi lapangan, kendala teknis, atau alasan HOLD..." class="w-full text-xs p-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none leading-relaxed text-slate-800"></textarea>
+            </div>
+
+          </div>
+
+          <!-- TOMBOL AKSI FERTILIZER -->
+          <div class="p-4 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-wrap gap-2 items-center justify-between">
+            <button type="button" onclick="resetFertilizerForm()" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs flex items-center space-x-1.5 active:scale-95 transition">
+              <i class="fa-solid fa-rotate-left"></i>
+              <span>Reset Form</span>
+            </button>
+
+            <div class="flex items-center space-x-2">
+              <button type="button" onclick="saveFertilizerFormData('draft')" class="py-2.5 px-4 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-xl font-bold text-xs flex items-center space-x-1.5 active:scale-95 transition">
+                <i class="fa-solid fa-floppy-disk"></i>
+                <span>Simpan Draft</span>
+              </button>
+              <button type="submit" class="py-2.5 px-5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl font-bold text-xs flex items-center space-x-1.5 shadow-md active:scale-95 transition">
+                <i class="fa-solid fa-check-double"></i>
+                <span id="fert_submitBtnLabel">Simpan Data QC Fertilizer</span>
+              </button>
+            </div>
+          </div>
+
+        </form>
+
+      </div>
+      <!-- END CONTAINER FORM FERTILIZER -->
     </section>
 
 
@@ -2664,6 +3067,7 @@
     function renderRecordCard(rec) {
       const isUploaded = (rec.uploadStatus === 'uploaded');
       const isDraft = (rec.saveType === 'draft');
+      const isFertilizer = (rec.formType === 'fertilizer');
 
       let statusBadge = '';
       if (isUploaded) {
@@ -2674,9 +3078,79 @@
         statusBadge = '<span class="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] px-2 py-0.5 rounded-full font-bold"><i class="fa-solid fa-hourglass-half mr-1"></i>Siap Upload</span>';
       }
 
-      const timeRange = (rec.startTime || rec.time || '-') + (rec.endTime ? ' s/d ' + rec.endTime : '');
       const photoBadge = rec.photoBase64 ? '<span class="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded font-bold ml-1"><i class="fa-solid fa-image mr-0.5"></i>Foto</span>' : '';
-      
+
+      // JIKA RECORD ADALAH QC FERTILIZER
+      if (isFertilizer) {
+        const typeBadge = '<span class="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] px-2 py-0.5 rounded font-bold ml-1"><i class="fa-solid fa-seedling mr-0.5"></i>FERTILIZER</span>';
+        const fertStatusBadge = (rec.status === 'Hold') 
+          ? '<span class="bg-red-100 text-red-800 border border-red-300 text-[10px] px-1.5 py-0.5 rounded font-bold">HOLD</span>'
+          : '<span class="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] px-1.5 py-0.5 rounded font-bold">WORKING</span>';
+
+        const holdTimeInfo = (rec.status === 'Hold' && (rec.startTime || rec.endTime)) 
+          ? ` | Hold: ${rec.startTime || '-'} s/d ${rec.endTime || '-'}` : '';
+
+        return `
+          <div class="p-3 bg-white hover:bg-amber-50/40 rounded-lg border border-amber-200 transition space-y-2">
+            <div class="flex items-start justify-between">
+              <div>
+                <div class="flex items-center space-x-1 flex-wrap gap-y-1">
+                  <span class="font-bold text-sm text-amber-950">${rec.paddock || 'Paddock Tidak Diisi'}</span>
+                  ${fertStatusBadge}
+                  ${typeBadge}
+                  ${photoBadge}
+                </div>
+                <p class="text-[11px] text-slate-500 mt-0.5">
+                  <span><i class="fa-solid fa-calendar mr-1"></i>${formatDateDisplay(rec.date)} (Shift ${rec.shift || '-'}${holdTimeInfo})</span> | 
+                  <span><i class="fa-solid fa-user mr-1"></i>${rec.name || 'Mandor -'}</span>
+                </p>
+              </div>
+              <div>${statusBadge}</div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 text-[11px] bg-amber-50/50 p-2 rounded border border-amber-100">
+              <div><strong class="text-slate-600">Unit:</strong> ${rec.unit || '-'} (${rec.noUnit || '-'})</div>
+              <div><strong class="text-slate-600">Activity:</strong> ${rec.activity || '-'}</div>
+              <div><strong class="text-slate-600">Pupuk:</strong> ${rec.jenisPupuk || rec.material || '-'}</div>
+              <div><strong class="text-slate-600">Dosis Rek:</strong> ${rec.dosis || '-'} kg/Ha</div>
+              <div><strong class="text-slate-600">Pengisian Ke:</strong> ${rec.pengisianKe || '-'} (${rec.jumlah || '-'} kg)</div>
+              <div><strong class="text-slate-600">Hasil Kerja:</strong> ${rec.hasilKerja || '-'} Ha</div>
+              <div class="col-span-2 flex justify-between items-center bg-white p-1 rounded border border-amber-200">
+                <span class="text-slate-600 font-semibold">Status Hose: <strong>${rec.statusHose || '-'}</strong> | Dosis Aktual:</span>
+                <span class="font-black text-amber-900 text-xs">${rec.dosisAktual || '-'} kg/Ha</span>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-end space-x-1.5 pt-1 border-t border-slate-100 text-xs">
+              <button onclick="openReportModal('${rec.id}')" class="p-1.5 px-2.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded font-bold text-xs flex items-center space-x-1 transition active:scale-95" title="Laporan Kegiatan Harian (PDF / JPG)">
+                <i class="fa-solid fa-file-pdf text-amber-700"></i>
+                <span>Laporan</span>
+              </button>
+              <button onclick="showRecordDetail('${rec.id}')" class="p-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium" title="Lihat Seluruh Kolom">
+                <i class="fa-solid fa-eye"></i> Detail
+              </button>
+              <button onclick="editFertilizerRecord('${rec.id}')" class="p-1.5 px-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded font-medium" title="Edit">
+                <i class="fa-solid fa-pen"></i> Edit
+              </button>
+              <button onclick="deleteRecord('${rec.id}')" class="p-1.5 px-2.5 bg-red-50 hover:bg-red-100 text-red-700 rounded font-medium" title="Hapus">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+              ${!isUploaded ? `
+                <button onclick="uploadSingleRecord('${rec.id}')" class="p-1.5 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded font-bold active:scale-95 shadow-sm transition" title="Upload ke Sheet Form QC Fertilizer">
+                  <i class="fa-solid fa-cloud-arrow-up"></i> Upload
+                </button>
+              ` : `
+                <button onclick="uploadSingleRecord('${rec.id}')" class="p-1.5 px-2.5 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded font-medium text-[11px]" title="Upload Ulang">
+                  <i class="fa-solid fa-arrow-rotate-right"></i> Re-Upload
+                </button>
+              `}
+            </div>
+          </div>
+        `;
+      }
+
+      // JIKA RECORD ADALAH QC SPRAYING
+      const timeRange = (rec.startTime || rec.time || '-') + (rec.endTime ? ' s/d ' + rec.endTime : '');
       const holdCount = (rec.holdIntervals && rec.holdIntervals.length > 0) ? rec.holdIntervals.length : 0;
       const holdTimingBadge = holdCount > 0 ? `<span class="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded ml-1"><i class="fa-solid fa-pause mr-0.5"></i>Jeda: ${holdCount}x (${formatMinutesToText(rec.totalHoldMinutes || 0)})</span>` : '';
 
@@ -2687,6 +3161,7 @@
               <div class="flex items-center space-x-1 flex-wrap gap-y-1">
                 <span class="font-bold text-sm text-emerald-950">${rec.paddock || 'Paddock Tidak Diisi'}</span>
                 <span class="badge-working text-[10px] px-2 py-0.5 rounded font-bold ml-1">WORKING</span>
+                <span class="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1">SPRAY</span>
                 ${holdTimingBadge}
                 ${photoBadge}
               </div>
@@ -2748,6 +3223,568 @@
     let currentReportRecordId = null;
 
     
+    
+    // =========================================================================
+    // MODUL QC FERTILIZER (APLIKASI PEMUPUKAN)
+    // =========================================================================
+    let activeFormType = 'spray'; // 'spray' or 'fertilizer'
+    let editingFertilizerRecordId = null;
+    let fertPhotoBase64 = null;
+
+    function switchFormType(type) {
+      activeFormType = type;
+      const btnSpray = document.getElementById('btnFormTypeSpray');
+      const btnFert = document.getElementById('btnFormTypeFertilizer');
+      const cSpray = document.getElementById('containerFormSpray');
+      const cFert = document.getElementById('containerFormFertilizer');
+
+      if (type === 'spray') {
+        btnSpray.className = 'flex-1 py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition shadow-sm bg-emerald-700 text-white';
+        btnFert.className = 'flex-1 py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition bg-slate-100 text-slate-700 hover:bg-slate-200';
+        cSpray.classList.remove('hidden');
+        cFert.classList.add('hidden');
+      } else {
+        btnFert.className = 'flex-1 py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition shadow-sm bg-amber-600 text-white';
+        btnSpray.className = 'flex-1 py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition bg-slate-100 text-slate-700 hover:bg-slate-200';
+        cFert.classList.remove('hidden');
+        cSpray.classList.add('hidden');
+
+        // Pastikan UI Master Data terisi
+        populateFertilizerMasterDataUI();
+        if (!document.getElementById('fert_date').value) {
+          document.getElementById('fert_date').value = getTodayDate();
+        }
+      }
+    }
+
+    function populateFertilizerMasterDataUI() {
+      // 1. Shift (Kolom D)
+      const shifts = masterData.shifts || ['1', '2'];
+      const curShift = document.getElementById('fert_shift').value || '1';
+      renderFertSingleButtonGroup('fert_shiftBtnGroup', shifts, 'fert_shift', curShift);
+
+      // 2. Status (Kolom C)
+      const statuses = masterData.statuses || ['Working', 'Hold'];
+      const curStatus = document.getElementById('fert_status').value || 'Working';
+      renderFertSingleButtonGroup('fert_statusBtnGroup', statuses, 'fert_status', curStatus, (val) => {
+        onFertilizerStatusChange(val);
+      });
+      onFertilizerStatusChange(curStatus);
+
+      // 3. Name (Kolom A)
+      const nameSelect = document.getElementById('fert_nameSelect');
+      nameSelect.innerHTML = '<option value="">-- Pilih Mandor --</option>' + 
+        (masterData.names || []).map(n => `<option value="${n}">${n}</option>`).join('');
+
+      // 4. Name of Assistan (Kolom B)
+      const asstSelect = document.getElementById('fert_assistanSelect');
+      asstSelect.innerHTML = '<option value="">-- Pilih Asisten --</option>' + 
+        (masterData.assistants || []).map(a => `<option value="${a}">${a}</option>`).join('');
+
+      // 5. Paddock (Sheet Plan Kolom F)
+      const paddockSelect = document.getElementById('fert_paddockSelect');
+      const allPaddocks = [...new Set((masterData.plan || []).map(p => p.paddock).filter(Boolean))].sort();
+      paddockSelect.innerHTML = '<option value="">-- Pilih Paddock --</option>' + 
+        allPaddocks.map(p => `<option value="${p}">${p}</option>`).join('');
+
+      // 6. Unit (Kolom E) & No. Unit (Kolom F)
+      const unitKeys = Object.keys(masterData.unitMap || {});
+      const fallbackUnits = unitKeys.length > 0 ? unitKeys : ['Tractor Fertilizer', 'Manual', 'Boom Spreader'];
+      const curUnit = document.getElementById('fert_unit').value || fallbackUnits[0];
+      renderFertSingleButtonGroup('fert_unitBtnGroup', fallbackUnits, 'fert_unit', curUnit, (unitVal) => {
+        onFertilizerUnitChange(unitVal);
+      });
+      onFertilizerUnitChange(curUnit);
+
+      // 7. Status Hose (Kolom O)
+      const hoseOptions = (masterData.statusHose && masterData.statusHose.length > 0) ? masterData.statusHose : ['Pasang', 'Lepas'];
+      const curHose = document.getElementById('fert_statusHose').value || hoseOptions[0];
+      renderFertSingleButtonGroup('fert_statusHoseBtnGroup', hoseOptions, 'fert_statusHose', curHose);
+
+      // 8. Jenis Pupuk / Material (Sheet Data)
+      const pupukList = (masterData.fertilizerMaterials && masterData.fertilizerMaterials.length > 0) 
+        ? masterData.fertilizerMaterials 
+        : ['NPK Plus 15-15-15', 'NPK 15-10-15', 'NPK 15-8-15', 'HX-DAP', 'TSP-P205 (Phospate) 46%', 'NK 20:30', 'Urea', 'ZA', 'KCl'];
+      renderFertPupukButtons(pupukList);
+    }
+
+    function renderFertSingleButtonGroup(containerId, items, hiddenInputId, defaultValue, onChangeCallback) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      container.innerHTML = '';
+
+      items.forEach(item => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = item;
+        btn.setAttribute('data-value', item);
+        btn.className = 'py-1.5 px-3 rounded-lg text-xs font-semibold border transition active:scale-95 text-center flex-1 ';
+
+        if (item === defaultValue) {
+          btn.className += 'bg-amber-600 text-white border-amber-700 shadow-sm font-bold';
+        } else {
+          btn.className += 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100';
+        }
+
+        btn.onclick = function() {
+          container.querySelectorAll('button').forEach(b => {
+            b.className = 'py-1.5 px-3 rounded-lg text-xs font-semibold border transition active:scale-95 text-center flex-1 bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100';
+          });
+          btn.className = 'py-1.5 px-3 rounded-lg text-xs font-semibold border transition active:scale-95 text-center flex-1 bg-amber-600 text-white border-amber-700 shadow-sm font-bold';
+          document.getElementById(hiddenInputId).value = item;
+          if (onChangeCallback) onChangeCallback(item);
+        };
+
+        container.appendChild(btn);
+      });
+
+      document.getElementById(hiddenInputId).value = defaultValue || '';
+    }
+
+    function onFertilizerStatusChange(status) {
+      const startTimeInput = document.getElementById('fert_startTime');
+      const endTimeInput = document.getElementById('fert_endTime');
+      const btnStart = document.getElementById('btn_fert_setStart');
+      const btnEnd = document.getElementById('btn_fert_setEnd');
+      const badge = document.getElementById('fert_time_badge');
+      const container = document.getElementById('fert_time_container');
+      const asterisk = document.getElementById('fert_catatanAsterisk');
+      const catatanInput = document.getElementById('fert_catatan');
+
+      if (status === 'Hold') {
+        startTimeInput.disabled = false;
+        endTimeInput.disabled = false;
+        startTimeInput.classList.remove('bg-slate-100', 'disabled:opacity-60');
+        endTimeInput.classList.remove('bg-slate-100', 'disabled:opacity-60');
+        startTimeInput.classList.add('bg-white');
+        endTimeInput.classList.add('bg-white');
+
+        btnStart.disabled = false;
+        btnEnd.disabled = false;
+
+        badge.textContent = 'Wajib Diisi (Status HOLD)';
+        badge.className = 'text-[10px] font-bold text-amber-900 bg-amber-200 px-2 py-0.5 rounded border border-amber-300';
+        container.className = 'p-3 bg-amber-50/60 border-2 border-amber-400 rounded-xl space-y-2 transition-all duration-300';
+
+        asterisk.classList.remove('hidden');
+        catatanInput.placeholder = 'Wajib diisi: Tuliskan alasan kendala atau kegiatan di-HOLD secara rinci...';
+      } else {
+        startTimeInput.disabled = true;
+        endTimeInput.disabled = true;
+        startTimeInput.value = '';
+        endTimeInput.value = '';
+        startTimeInput.className = 'w-full text-xs p-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none bg-slate-100 disabled:opacity-60';
+        endTimeInput.className = 'w-full text-xs p-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none bg-slate-100 disabled:opacity-60';
+
+        btnStart.disabled = true;
+        btnEnd.disabled = true;
+
+        badge.textContent = 'Hanya aktif jika Status HOLD';
+        badge.className = 'text-[10px] font-semibold text-slate-400 bg-slate-200 px-2 py-0.5 rounded';
+        container.className = 'p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 transition-all duration-300';
+
+        asterisk.classList.add('hidden');
+        catatanInput.placeholder = 'Tuliskan catatan kondisi lapangan, kendala teknis, atau keterangan lain...';
+      }
+    }
+
+    function setFertTimeNow(which) {
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      const timeStr = `${hh}:${mm}`;
+      if (which === 'start') {
+        document.getElementById('fert_startTime').value = timeStr;
+      } else {
+        document.getElementById('fert_endTime').value = timeStr;
+      }
+    }
+
+    function filterFertilizerPaddockDropdown() {
+      const q = document.getElementById('fert_paddockSearch').value.toLowerCase().trim();
+      const sel = document.getElementById('fert_paddockSelect');
+      if (!q) {
+        sel.classList.add('hidden');
+        return;
+      }
+
+      const allPaddocks = [...new Set((masterData.plan || []).map(p => p.paddock).filter(Boolean))].sort();
+      const filtered = allPaddocks.filter(p => p.toLowerCase().includes(q));
+
+      if (filtered.length > 0) {
+        sel.innerHTML = filtered.map(p => `<option value="${p}">${p}</option>`).join('');
+        sel.classList.remove('hidden');
+      } else {
+        sel.classList.add('hidden');
+      }
+    }
+
+    function selectFertilizerPaddock() {
+      const sel = document.getElementById('fert_paddockSelect');
+      const val = sel.value;
+      if (!val) return;
+
+      document.getElementById('fert_paddockSearch').value = val;
+      document.getElementById('fert_paddock').value = val;
+      sel.classList.add('hidden');
+
+      // Ambil relasi dari sheet Plan
+      onFertilizerPaddockSelected(val);
+    }
+
+    function onFertilizerPaddockSelected(paddockVal) {
+      const plans = (masterData.plan || []).filter(p => p.paddock === paddockVal);
+      
+      // Ambil type & activities yang ada
+      let autoType = 'Fertilizer';
+      let activities = [];
+
+      if (plans.length > 0) {
+        // Cari plan yang bukan semprot / cari activity pupuk
+        const fertPlan = plans.find(p => {
+          const act = (p.activity || '').toLowerCase();
+          const typ = (p.type || '').toLowerCase();
+          return act.includes('dressing') || act.includes('pupuk') || act.includes('fertiliz') || typ.includes('fertiliz');
+        }) || plans[0];
+
+        autoType = fertPlan.type || fertPlan.activity || 'Fertilizer';
+        activities = [...new Set(plans.map(p => p.activity).filter(Boolean))];
+      }
+
+      if (activities.length === 0) {
+        activities = ['Single Dressing', 'Top Dressing', 'Bassalt Dressing', 'Manual Fertilizer'];
+      }
+
+      document.getElementById('fert_type').value = autoType;
+
+      // Render Activity Buttons
+      renderFertSingleButtonGroup('fert_activityBtnGroup', activities, 'fert_activity', activities[0], (actVal) => {
+        onFertilizerActivityChange(actVal, autoType);
+      });
+      onFertilizerActivityChange(activities[0], autoType);
+    }
+
+    function onFertilizerActivityChange(activityVal, typeVal) {
+      // Filter Jenis Pupuk sesuai activity/type
+      let filteredPupuk = (masterData.fertilizerMaterials && masterData.fertilizerMaterials.length > 0) 
+        ? masterData.fertilizerMaterials 
+        : ['NPK Plus 15-15-15', 'NPK 15-10-15', 'NPK 15-8-15', 'HX-DAP', 'TSP-P205 (Phospate) 46%', 'NK 20:30', 'Urea', 'ZA', 'KCl'];
+
+      // Jika ada korelasi activity di sheet Bahan (misal: Bassalt Dressing B, Single Dressing D)
+      const actLower = (activityVal || '').toLowerCase();
+      if (actLower.includes('single')) {
+        filteredPupuk = ['NPK Plus 15-15-15', 'NPK 15-10-15', 'NPK 15-8-15', 'TSP-P205 (Phospate) 46%', 'NK 20:30', 'Urea', 'ZA'];
+      } else if (actLower.includes('top')) {
+        filteredPupuk = ['NPK Plus 15-15-15', 'NPK 15-10-15', 'NPK 15-8-15', 'NK 20:30', 'Urea', 'ZA'];
+      } else if (actLower.includes('bassalt')) {
+        filteredPupuk = ['NPK 15-8-15', 'NPK 15-10-15', 'HX-DAP', 'TSP-P205 (Phospate) 46%'];
+      }
+
+      renderFertPupukButtons(filteredPupuk);
+    }
+
+    function renderFertPupukButtons(pupukList) {
+      const container = document.getElementById('fert_materialBtnGroup');
+      if (!container) return;
+      container.innerHTML = '';
+
+      pupukList.forEach((p, idx) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = p;
+        btn.className = 'py-1.5 px-3 rounded-lg text-xs font-semibold border transition active:scale-95 ';
+
+        if (idx === 0) {
+          btn.className += 'bg-amber-600 text-white border-amber-700 shadow-sm font-bold';
+          document.getElementById('fert_material').value = p;
+        } else {
+          btn.className += 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100';
+        }
+
+        btn.onclick = function() {
+          container.querySelectorAll('button').forEach(b => {
+            b.className = 'py-1.5 px-3 rounded-lg text-xs font-semibold border transition active:scale-95 bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100';
+          });
+          btn.className = 'py-1.5 px-3 rounded-lg text-xs font-semibold border transition active:scale-95 bg-amber-600 text-white border-amber-700 shadow-sm font-bold';
+          document.getElementById('fert_material').value = p;
+        };
+
+        container.appendChild(btn);
+      });
+    }
+
+    function onFertilizerUnitChange(unitVal) {
+      const noUnitContainer = document.getElementById('fert_noUnitBtnGroup');
+      const noUnitHidden = document.getElementById('fert_noUnit');
+      if (!noUnitContainer) return;
+      noUnitContainer.innerHTML = '';
+
+      let availableNoUnits = (masterData.unitMap && masterData.unitMap[unitVal]) ? masterData.unitMap[unitVal] : [];
+      if (availableNoUnits.length === 0) {
+        availableNoUnits = [unitVal + '-01', unitVal + '-02'];
+      }
+
+      availableNoUnits.forEach((noUnit, idx) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = noUnit;
+        btn.className = 'py-1.5 px-3 rounded-lg text-xs font-semibold border transition active:scale-95 ';
+
+        if (idx === 0) {
+          btn.className += 'bg-amber-600 text-white border-amber-700 shadow-sm font-bold';
+          noUnitHidden.value = noUnit;
+        } else {
+          btn.className += 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100';
+        }
+
+        btn.onclick = function() {
+          noUnitContainer.querySelectorAll('button').forEach(b => {
+            b.className = 'py-1.5 px-3 rounded-lg text-xs font-semibold border transition active:scale-95 bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100';
+          });
+          btn.className = 'py-1.5 px-3 rounded-lg text-xs font-semibold border transition active:scale-95 bg-amber-600 text-white border-amber-700 shadow-sm font-bold';
+          noUnitHidden.value = noUnit;
+        };
+
+        noUnitContainer.appendChild(btn);
+      });
+    }
+
+    function setFertPemerataan(val) {
+      document.getElementById('fert_pemerataan').value = val;
+    }
+
+    function calculateFertilizerDosisAktual() {
+      const jRaw = document.getElementById('fert_jumlah').value || '';
+      const hRaw = document.getElementById('fert_hasilKerja').value || '';
+
+      const jumlah = parseFloat(jRaw.replace(',', '.'));
+      const hasilKerja = parseFloat(hRaw.replace(',', '.'));
+
+      const display = document.getElementById('fert_dosisAktualDisplay');
+      const hidden = document.getElementById('fert_dosisAktual');
+
+      if (!isNaN(jumlah) && !isNaN(hasilKerja) && hasilKerja > 0) {
+        const res = Math.round((jumlah / hasilKerja) * 100) / 100;
+        const resFormatted = String(res).replace('.', ',');
+        display.textContent = resFormatted;
+        hidden.value = res;
+      } else {
+        display.textContent = '0';
+        hidden.value = '0';
+      }
+    }
+
+    function handleFertilizerPhoto(input) {
+      if (!input.files || !input.files[0]) return;
+      const file = input.files[0];
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          const maxDim = 1280;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          fertPhotoBase64 = dataUrl.replace(/^data:image\/[a-z]+;base64,/, '');
+
+          document.getElementById('fert_photoPreview').src = dataUrl;
+          document.getElementById('fert_photoPreviewContainer').classList.remove('hidden');
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function removeFertilizerPhoto() {
+      fertPhotoBase64 = null;
+      document.getElementById('fert_photoPreview').src = '';
+      document.getElementById('fert_photoPreviewContainer').classList.add('hidden');
+      document.getElementById('fert_cameraInput').value = '';
+      document.getElementById('fert_galleryInput').value = '';
+    }
+
+    function resetFertilizerForm() {
+      editingFertilizerRecordId = null;
+      document.getElementById('fertilizerForm').reset();
+      document.getElementById('fert_date').value = getTodayDate();
+      document.getElementById('fert_submitBtnLabel').textContent = 'Simpan Data QC Fertilizer';
+      removeFertilizerPhoto();
+      calculateFertilizerDosisAktual();
+      populateFertilizerMasterDataUI();
+    }
+
+    function saveFertilizerFormData(saveType) {
+      const date = document.getElementById('fert_date').value;
+      const shift = document.getElementById('fert_shift').value;
+      const status = document.getElementById('fert_status').value;
+      const name = document.getElementById('fert_name').value;
+      const assistan = document.getElementById('fert_assistan').value;
+      const paddock = document.getElementById('fert_paddock').value;
+      const unit = document.getElementById('fert_unit').value;
+      const noUnit = document.getElementById('fert_noUnit').value;
+      const type = document.getElementById('fert_type').value || 'Fertilizer';
+      const activity = document.getElementById('fert_activity').value;
+      const jenisPupuk = document.getElementById('fert_material').value;
+      const dosis = document.getElementById('fert_dosis').value;
+      const statusHose = document.getElementById('fert_statusHose').value;
+      const pengisianKe = document.getElementById('fert_pengisianKe').value;
+      const jumlah = document.getElementById('fert_jumlah').value;
+      const hasilKerja = document.getElementById('fert_hasilKerja').value;
+      const dosisAktual = document.getElementById('fert_dosisAktual').value;
+      const pemerataanPupuk = document.getElementById('fert_pemerataan').value;
+      const catatan = document.getElementById('fert_catatan').value;
+
+      const startTime = document.getElementById('fert_startTime').value;
+      const endTime = document.getElementById('fert_endTime').value;
+
+      if (!date) {
+        showToast('Tanggal wajib diisi!', 'error');
+        return;
+      }
+      if (!name) {
+        showToast('Nama Mandor wajib dipilih!', 'error');
+        return;
+      }
+      if (!assistan) {
+        showToast('Nama Asisten wajib dipilih!', 'error');
+        return;
+      }
+      if (!paddock) {
+        showToast('Paddock wajib dipilih!', 'error');
+        return;
+      }
+
+      // Validasi Khusus jika status HOLD
+      if (status === 'Hold') {
+        if (!startTime || !endTime) {
+          showToast('Start Time dan End Time wajib diisi saat status HOLD!', 'error');
+          return;
+        }
+        if (!catatan.trim()) {
+          showToast('Catatan wajib diisi saat status HOLD untuk mencatat alasan kendala!', 'error');
+          return;
+        }
+      }
+
+      const recId = editingFertilizerRecordId || ('qc_fert_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5));
+      
+      const record = {
+        id: recId,
+        formType: 'fertilizer',
+        date: date,
+        shift: shift,
+        name: name,
+        nameOfAssistan: assistan,
+        status: status,
+        startTime: status === 'Hold' ? startTime : '',
+        endTime: status === 'Hold' ? endTime : '',
+        paddock: paddock,
+        unit: unit,
+        noUnit: noUnit,
+        type: type,
+        activity: activity,
+        jenisPupuk: jenisPupuk,
+        material: jenisPupuk,
+        dosis: dosis,
+        statusHose: statusHose,
+        pengisianKe: pengisianKe,
+        jumlah: jumlah,
+        hasilKerja: hasilKerja,
+        dosisAktual: dosisAktual,
+        pemerataanPupuk: pemerataanPupuk,
+        catatan: catatan,
+        noted: catatan,
+        photoBase64: fertPhotoBase64,
+        saveType: saveType, // 'draft' or 'ready'
+        uploadStatus: 'pending',
+        createdAt: new Date().toISOString()
+      };
+
+      const existingIdx = savedRecords.findIndex(r => r.id === recId);
+      if (existingIdx !== -1) {
+        savedRecords[existingIdx] = record;
+        showToast('Data QC Fertilizer berhasil diperbarui!', 'success');
+      } else {
+        savedRecords.unshift(record);
+        showToast(saveType === 'draft' ? 'Draft QC Fertilizer tersimpan!' : 'Data QC Fertilizer berhasil disimpan!', 'success');
+      }
+
+      saveRecordsToStorage();
+      resetFertilizerForm();
+      switchTab('historyTab');
+    }
+
+    function editFertilizerRecord(id) {
+      const rec = savedRecords.find(r => r.id === id);
+      if (!rec) return;
+
+      switchTab('inputTab');
+      switchFormType('fertilizer');
+
+      editingFertilizerRecordId = rec.id;
+      document.getElementById('fert_submitBtnLabel').textContent = 'Perbarui Data QC Fertilizer';
+
+      document.getElementById('fert_date').value = rec.date || getTodayDate();
+      document.getElementById('fert_shift').value = rec.shift || '1';
+      document.getElementById('fert_status').value = rec.status || 'Working';
+      onFertilizerStatusChange(rec.status || 'Working');
+
+      document.getElementById('fert_startTime').value = rec.startTime || '';
+      document.getElementById('fert_endTime').value = rec.endTime || '';
+
+      document.getElementById('fert_name').value = rec.name || '';
+      document.getElementById('fert_nameSearch').value = rec.name || '';
+      document.getElementById('fert_assistan').value = rec.nameOfAssistan || '';
+      document.getElementById('fert_assistanSearch').value = rec.nameOfAssistan || '';
+
+      document.getElementById('fert_paddock').value = rec.paddock || '';
+      document.getElementById('fert_paddockSearch').value = rec.paddock || '';
+      onFertilizerPaddockSelected(rec.paddock || '');
+
+      document.getElementById('fert_unit').value = rec.unit || '';
+      onFertilizerUnitChange(rec.unit || '');
+      document.getElementById('fert_noUnit').value = rec.noUnit || '';
+
+      document.getElementById('fert_type').value = rec.type || '';
+      document.getElementById('fert_activity').value = rec.activity || '';
+      document.getElementById('fert_material').value = rec.jenisPupuk || rec.material || '';
+      document.getElementById('fert_dosis').value = rec.dosis || '';
+
+      document.getElementById('fert_statusHose').value = rec.statusHose || 'Pasang';
+      document.getElementById('fert_pengisianKe').value = rec.pengisianKe || '';
+      document.getElementById('fert_jumlah').value = rec.jumlah || '';
+      document.getElementById('fert_hasilKerja').value = rec.hasilKerja || '';
+      calculateFertilizerDosisAktual();
+
+      document.getElementById('fert_pemerataan').value = rec.pemerataanPupuk || '';
+      document.getElementById('fert_catatan').value = rec.catatan || rec.noted || '';
+
+      if (rec.photoBase64) {
+        fertPhotoBase64 = rec.photoBase64;
+        document.getElementById('fert_photoPreview').src = 'data:image/jpeg;base64,' + rec.photoBase64;
+        document.getElementById('fert_photoPreviewContainer').classList.remove('hidden');
+      } else {
+        removeFertilizerPhoto();
+      }
+
+      showToast('Mode Edit: Silakan sesuaikan data QC Fertilizer', 'info');
+    }
+
     // =========================================================
     // FITUR LAPORAN HARIAN KEGIATAN QC (PDF & JPG EXPORT)
     // =========================================================
@@ -2783,6 +3820,9 @@
     }
 
     function generateReportHTML(rec) {
+      if (rec.formType === 'fertilizer') {
+        return generateFertilizerReportHTML(rec);
+      }
       const grossText = formatMinutesToText(rec.grossMinutes || 0);
       const holdText = formatMinutesToText(rec.totalHoldMinutes || 0);
       const netText = formatMinutesToText(rec.netWorkMinutes || rec.grossMinutes || 0);
@@ -3105,6 +4145,501 @@
       `;
     }
 
+    
+    function generateFertilizerReportHTML(rec) {
+      let photoSectionHtml = '';
+      if (rec.photoBase64) {
+        photoSectionHtml = `
+          <div class="mt-4 pt-3 border-t border-slate-200">
+            <div class="font-bold text-slate-800 text-[11px] uppercase mb-2 flex items-center">
+              <i class="fa-solid fa-camera mr-1.5 text-amber-700"></i> Dokumentasi Foto Hasil Aplikasi Pemupukan:
+            </div>
+            <div class="flex flex-col sm:flex-row items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <img src="data:image/jpeg;base64,${rec.photoBase64}" alt="Foto Bukti QC Pupuk" class="max-h-56 max-w-full rounded shadow-sm border border-slate-300 object-contain">
+              <div class="text-[11px] text-slate-600 space-y-1">
+                <p><strong>Lokasi Petak:</strong> ${rec.paddock || '-'}</p>
+                <p><strong>Jenis Pupuk:</strong> ${rec.jenisPupuk || rec.material || '-'}</p>
+                <p><strong>Tanggal:</strong> ${formatDateDisplay(rec.date)} (Shift ${rec.shift || '-'})</p>
+                <p><strong>Mandor:</strong> ${rec.name || '-'}</p>
+                ${rec.photoDriveUrl ? `<p class="pt-1"><a href="${rec.photoDriveUrl}" target="_blank" class="text-blue-600 underline font-semibold">Tersimpan di Google Drive</a></p>` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <!-- KOP LAPORAN RESMI FERTILIZER -->
+        <div class="border-b-2 border-amber-700 pb-3 mb-4">
+          <div class="flex justify-between items-start">
+            <div class="flex items-center space-x-3">
+              <div class="w-12 h-12 rounded-xl bg-amber-700 text-white font-extrabold flex flex-col items-center justify-center shadow-md">
+                <span class="text-base tracking-tighter leading-none">UM</span>
+                <span class="text-[7px] tracking-widest text-amber-200 font-normal">PUPUK</span>
+              </div>
+              <div>
+                <h1 class="text-sm sm:text-base font-extrabold text-amber-950 uppercase tracking-wide">PT. GLOBAL PAPUA ABADI</h1>
+                <p class="text-[11px] font-bold text-slate-700 uppercase tracking-tight">Departemen Upkeep & Manuring — Divisi Agronomi</p>
+                <p class="text-[9px] text-slate-500">Merauke, Papua Selatan | Sistem Kontrol Kualitas Aplikasi Pemupukan Tebu</p>
+              </div>
+            </div>
+            <div class="text-right text-[10px] space-y-0.5">
+              <span class="inline-block px-2 py-0.5 bg-amber-100 text-amber-900 font-extrabold rounded border border-amber-300 uppercase">
+                ${rec.uploadStatus === 'uploaded' ? 'DOKUMEN TERVERIFIKASI' : 'DRAFT LAPORAN HARIAN'}
+              </span>
+              <p class="text-slate-500 font-mono text-[9px] mt-1">ID: ${rec.id || '-'}</p>
+              <p class="text-slate-600 font-semibold">Dicetak: ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+            </div>
+          </div>
+
+          <div class="mt-3 pt-2 border-t border-slate-200 text-center">
+            <h2 class="text-sm sm:text-base font-black text-slate-900 tracking-wide uppercase">LAPORAN KEGIATAN HARIAN APLIKASI QC PEMUPUKAN (FERTILIZER)</h2>
+            <p class="text-[10px] text-slate-600 font-medium italic">Standard Operating Procedure (SOP) Pemupukan Tebu & Verifikasi Dosis Aktual</p>
+          </div>
+        </div>
+
+        <!-- 1. INFORMASI PELAKSANA & LOKASI -->
+        <div class="mb-3">
+          <div class="bg-amber-700 text-white font-bold text-[10px] px-2.5 py-1 rounded-t flex justify-between">
+            <span>I. INFORMASI PELAKSANA, LOKASI & PROGRAM PEMUPUKAN</span>
+            <span>STATUS: ${(rec.status || 'Working').toUpperCase()}</span>
+          </div>
+          <div class="border border-t-0 border-slate-300 p-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] bg-slate-50/50">
+            <div>
+              <span class="text-slate-500 text-[10px] block">Tanggal Pekerjaan:</span>
+              <span class="font-bold text-slate-800">${formatDateDisplay(rec.date) || '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Shift Kerja:</span>
+              <span class="font-bold text-slate-800">Shift ${rec.shift || '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Mandor Lapangan:</span>
+              <span class="font-bold text-slate-800">${rec.name || '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Asisten Lapangan:</span>
+              <span class="font-bold text-slate-800">${rec.nameOfAssistan || '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Nomor Paddock (Petak):</span>
+              <span class="font-extrabold text-amber-900 text-xs">${rec.paddock || '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Type Pupuk:</span>
+              <span class="font-bold text-slate-800">${rec.type || '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Activity (Kegiatan):</span>
+              <span class="font-extrabold text-slate-900">${rec.activity || '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Status Hose:</span>
+              <span class="font-bold text-amber-800">${rec.statusHose || '-'}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. JAM OPERASIONAL & STATUS HOLD -->
+        ${rec.status === 'Hold' ? `
+          <div class="mb-3 p-2.5 bg-red-50 border border-red-200 rounded-lg text-[11px]">
+            <div class="font-bold text-red-900 text-xs mb-1 flex items-center">
+              <i class="fa-solid fa-triangle-exclamation mr-1.5 text-red-600"></i> KEGIATAN BERSTATUS HOLD (TERHENTI/TERTUNDA)
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-slate-700">
+              <p><strong>Jam Mulai Hold:</strong> ${rec.startTime || '-'}</p>
+              <p><strong>Jam Selesai Hold:</strong> ${rec.endTime || '-'}</p>
+              <p class="col-span-2 text-red-800 font-semibold">Alasan Kendala: ${rec.catatan || rec.noted || '-'}</p>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- 3. ARMADA & PERALATAN -->
+        <div class="mb-3">
+          <div class="bg-amber-700 text-white font-bold text-[10px] px-2.5 py-1 rounded-t">
+            <span>II. ARMADA, PERALATAN & KELENGKAPAN HOSE</span>
+          </div>
+          <div class="border border-t-0 border-slate-300 p-2.5 grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] bg-slate-50/50">
+            <div>
+              <span class="text-slate-500 text-[10px] block">Unit Alat:</span>
+              <span class="font-bold text-slate-800">${rec.unit || '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Nomor Unit (Armada):</span>
+              <span class="font-extrabold text-slate-900">${rec.noUnit || '-'}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Status Hose:</span>
+              <span class="font-bold text-amber-900">${rec.statusHose || '-'}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. REKAPITULASI PEMUPUKAN & DOSIS AKTUAL -->
+        <div class="mb-3">
+          <div class="bg-amber-700 text-white font-bold text-[10px] px-2.5 py-1 rounded-t flex justify-between">
+            <span>III. REALISASI PENGISIAN & VERIFIKASI DOSIS AKTUAL</span>
+            <span>Pengisian Ke-${rec.pengisianKe || '-'}</span>
+          </div>
+          <div class="border border-t-0 border-slate-300 overflow-x-auto">
+            <table class="w-full text-left border-collapse text-[11px]">
+              <thead>
+                <tr class="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
+                  <th class="py-2 px-2.5">Jenis Pupuk (Material)</th>
+                  <th class="py-2 px-2 text-center">Dosis Rekomendasi</th>
+                  <th class="py-2 px-2 text-right">Jumlah Diisi</th>
+                  <th class="py-2 px-2 text-right">Hasil Kerja Selesai</th>
+                  <th class="py-2 px-2.5 text-right font-black text-amber-900">Dosis Aktual Lapangan</th>
+                  <th class="py-2 px-2 text-center">Pemerataan</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="bg-white">
+                  <td class="py-2 px-2.5 font-black text-slate-900">${rec.jenisPupuk || rec.material || '-'}</td>
+                  <td class="py-2 px-2 text-center font-mono">${rec.dosis ? rec.dosis + ' kg/Ha' : '-'}</td>
+                  <td class="py-2 px-2 text-right font-mono font-bold text-slate-700">${rec.jumlah ? rec.jumlah + ' kg' : '-'}</td>
+                  <td class="py-2 px-2 text-right font-mono font-bold text-slate-700">${rec.hasilKerja ? rec.hasilKerja + ' Ha' : '-'}</td>
+                  <td class="py-2 px-2.5 text-right font-mono font-black text-amber-900 text-xs">${rec.dosisAktual ? rec.dosisAktual + ' kg/Ha' : '-'}</td>
+                  <td class="py-2 px-2 text-center font-semibold text-slate-700">${rec.pemerataanPupuk || '-'}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 5. FOTO DOKUMENTASI -->
+        ${photoSectionHtml}
+
+        <!-- 6. CATATAN & PENGESAHAN -->
+        <div class="mt-4 pt-3 border-t border-slate-300">
+          <div class="mb-3 p-2.5 bg-slate-50 border border-slate-200 rounded">
+            <span class="text-slate-500 text-[10px] font-bold block uppercase mb-1">Catatan Lapangan Mandor:</span>
+            <p class="text-slate-800 text-[11px] leading-relaxed italic">${rec.catatan || rec.noted || 'Tidak ada catatan tambahan khusus.'}</p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-6 pt-4 text-center text-[11px]">
+            <div class="border-t border-slate-400 pt-2">
+              <p class="text-slate-500 text-[10px]">Disiapkan & Dilaporkan Oleh,</p>
+              <p class="font-extrabold text-slate-900 text-xs mt-8 uppercase underline">${rec.name || 'MANDOR LAPANGAN'}</p>
+              <p class="text-[10px] text-slate-600">Mandor Upkeep & Manuring</p>
+            </div>
+            <div class="border-t border-slate-400 pt-2">
+              <p class="text-slate-500 text-[10px]">Diperiksa & Diverifikasi Oleh,</p>
+              <p class="font-extrabold text-slate-900 text-xs mt-8 uppercase underline">${rec.nameOfAssistan || 'ASISTEN LAPANGAN'}</p>
+              <p class="text-[10px] text-slate-600">Asisten Upkeep & Manuring</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    
+    function downloadFertilizerReportJPG(rec) {
+      showToast('Sedang membuat file gambar JPG Pupuk...', 'info');
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const W = 1200;
+      const hasPhoto = Boolean(rec.photoBase64);
+      let H = 1400;
+      if (hasPhoto) H += 420;
+
+      canvas.width = W;
+      canvas.height = H;
+
+      // Background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, W, H);
+
+      let y = 40;
+
+      // Header Banner Box (Amber Theme)
+      ctx.fillStyle = '#b45309'; // amber-700
+      ctx.fillRect(40, y, W - 80, 100);
+
+      // Logo UM Badge
+      ctx.fillStyle = '#92400e'; // amber-800
+      ctx.beginPath();
+      ctx.roundRect(60, y + 15, 70, 70, 12);
+      ctx.fill();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 32px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('UM', 95, y + 55);
+      ctx.font = 'bold 10px sans-serif';
+      ctx.fillStyle = '#fde68a';
+      ctx.fillText('PUPUK', 95, y + 72);
+
+      // Company text
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 24px sans-serif';
+      ctx.fillText('PT. GLOBAL PAPUA ABADI', 150, y + 42);
+      ctx.font = '16px sans-serif';
+      ctx.fillStyle = '#fef3c7';
+      ctx.fillText('DEPARTEMEN UPKEEP & MANURING — DIVISI AGRONOMI', 150, y + 68);
+      ctx.font = '13px sans-serif';
+      ctx.fillStyle = '#fde68a';
+      ctx.fillText('Laporan Harian Kontrol Kualitas Aplikasi Pemupukan Tebu', 150, y + 88);
+
+      // Right header badge
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillText(`ID: ${rec.id || '-'}`, W - 60, y + 42);
+      ctx.font = '13px sans-serif';
+      ctx.fillStyle = '#fde68a';
+      ctx.fillText(`Shift ${rec.shift || '-'} | ${formatDateDisplay(rec.date)}`, W - 60, y + 68);
+
+      y += 130;
+
+      // Document Title
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 24px sans-serif';
+      ctx.fillText('LAPORAN HARIAN KEGIATAN APLIKASI QC PEMUPUKAN (FERTILIZER)', W / 2, y);
+      y += 25;
+      ctx.font = 'italic 14px sans-serif';
+      ctx.fillStyle = '#475569';
+      ctx.fillText('Standard Operating Procedure (SOP) Pemupukan & Verifikasi Dosis Aktual', W / 2, y);
+      y += 35;
+
+      function drawFertSectionHeader(title, rightNote) {
+        ctx.fillStyle = '#b45309';
+        ctx.fillRect(40, y, W - 80, 32);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 15px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(title, 55, y + 22);
+        if (rightNote) {
+          ctx.textAlign = 'right';
+          ctx.font = 'bold 13px sans-serif';
+          ctx.fillStyle = '#fde68a';
+          ctx.fillText(rightNote, W - 55, y + 22);
+        }
+        y += 32;
+      }
+
+      function drawFertKeyValueGrid(items, rowHeight = 48) {
+        const boxH = Math.ceil(items.length / 4) * rowHeight;
+        ctx.fillStyle = '#fffbeb';
+        ctx.fillRect(40, y, W - 80, boxH);
+        ctx.strokeStyle = '#fde68a';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(40, y, W - 80, boxH);
+
+        const colW = (W - 80) / 4;
+        items.forEach((it, idx) => {
+          const col = idx % 4;
+          const row = Math.floor(idx / 4);
+          const cx = 40 + (col * colW) + 15;
+          const cy = y + (row * rowHeight) + 18;
+
+          ctx.textAlign = 'left';
+          ctx.fillStyle = '#78350f';
+          ctx.font = '11px sans-serif';
+          ctx.fillText(it.label.toUpperCase(), cx, cy);
+
+          ctx.fillStyle = '#0f172a';
+          ctx.font = it.bold ? 'bold 14px sans-serif' : '13px sans-serif';
+          ctx.fillText(it.val || '-', cx, cy + 18);
+        });
+
+        y += boxH + 20;
+      }
+
+      // Section 1
+      drawFertSectionHeader('I. INFORMASI PELAKSANA, LOKASI & PROGRAM', 'STATUS: ' + (rec.status || 'Working').toUpperCase());
+      drawFertKeyValueGrid([
+        { label: 'Tanggal', val: formatDateDisplay(rec.date), bold: true },
+        { label: 'Shift Kerja', val: 'Shift ' + (rec.shift || '-') },
+        { label: 'Mandor Lapangan', val: rec.name || '-', bold: true },
+        { label: 'Asisten Lapangan', val: rec.nameOfAssistan || '-' },
+        { label: 'Paddock (Petak)', val: rec.paddock || '-', bold: true },
+        { label: 'Type Pupuk', val: rec.type || '-' },
+        { label: 'Activity', val: rec.activity || '-', bold: true },
+        { label: 'Status Hose', val: rec.statusHose || '-' }
+      ]);
+
+      // Section 2: Waktu / Status
+      if (rec.status === 'Hold') {
+        drawFertSectionHeader('II. STATUS KEGIATAN HOLD (TERHENTI/TERTUNDA)');
+        drawFertKeyValueGrid([
+          { label: 'Status', val: 'HOLD', bold: true },
+          { label: 'Jam Mulai Hold', val: rec.startTime || '-', bold: true },
+          { label: 'Jam Selesai Hold', val: rec.endTime || '-', bold: true },
+          { label: 'Alasan Kendala', val: rec.catatan || rec.noted || '-' }
+        ]);
+      }
+
+      // Section 3: Armada
+      drawFertSectionHeader('III. ARMADA & PERALATAN');
+      drawFertKeyValueGrid([
+        { label: 'Unit Alat', val: rec.unit || '-' },
+        { label: 'Nomor Unit', val: rec.noUnit || '-', bold: true },
+        { label: 'Status Hose', val: rec.statusHose || '-', bold: true },
+        { label: 'Pemerataan Pupuk', val: rec.pemerataanPupuk || '-' }
+      ]);
+
+      // Section 4: Tabel Realisasi Dosis
+      drawFertSectionHeader('IV. REALISASI PENGISIAN & VERIFIKASI DOSIS AKTUAL');
+      
+      const fertCols = [
+        { label: 'JENIS PUPUK', w: 260, align: 'left' },
+        { label: 'DOSIS REK.', w: 160, align: 'center' },
+        { label: 'PENGISIAN KE', w: 140, align: 'center' },
+        { label: 'JUMLAH (KG)', w: 160, align: 'right' },
+        { label: 'HASIL KERJA (HA)', w: 180, align: 'right' },
+        { label: 'DOSIS AKTUAL', w: 220, align: 'right' }
+      ];
+
+      // Header row
+      ctx.fillStyle = '#fef3c7';
+      ctx.fillRect(40, y, W - 80, 32);
+      ctx.strokeStyle = '#fde68a';
+      ctx.strokeRect(40, y, W - 80, 32);
+      ctx.fillStyle = '#78350f';
+      ctx.font = 'bold 12px sans-serif';
+
+      let hx = 40;
+      fertCols.forEach(c => {
+        ctx.textAlign = c.align;
+        const tx = c.align === 'center' ? hx + c.w / 2 : c.align === 'right' ? hx + c.w - 15 : hx + 15;
+        ctx.fillText(c.label, tx, y + 20);
+        hx += c.w;
+      });
+      y += 32;
+
+      // Data row
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(40, y, W - 80, 36);
+      ctx.strokeStyle = '#fde68a';
+      ctx.strokeRect(40, y, W - 80, 36);
+
+      ctx.fillStyle = '#0f172a';
+      let rx = 40;
+      ctx.textAlign = 'left';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.fillText(rec.jenisPupuk || rec.material || '-', rx + 15, y + 22);
+      rx += fertCols[0].w;
+
+      ctx.textAlign = 'center';
+      ctx.font = '12px sans-serif';
+      ctx.fillText((rec.dosis || '-') + ' kg/Ha', rx + fertCols[1].w / 2, y + 22);
+      rx += fertCols[1].w;
+
+      ctx.fillText(String(rec.pengisianKe || '-'), rx + fertCols[2].w / 2, y + 22);
+      rx += fertCols[2].w;
+
+      ctx.textAlign = 'right';
+      ctx.fillText((rec.jumlah || '-') + ' kg', rx + fertCols[3].w - 15, y + 22);
+      rx += fertCols[3].w;
+
+      ctx.fillText((rec.hasilKerja || '-') + ' Ha', rx + fertCols[4].w - 15, y + 22);
+      rx += fertCols[4].w;
+
+      ctx.font = 'bold 15px sans-serif';
+      ctx.fillStyle = '#b45309';
+      ctx.fillText((rec.dosisAktual || '-') + ' kg/Ha', rx + fertCols[5].w - 15, y + 22);
+
+      y += 56;
+
+      function finalizeFertDrawingAndDownload() {
+        // Catatan box
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(40, y, W - 80, 50);
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.strokeRect(40, y, W - 80, 50);
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#64748b';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.fillText('CATATAN LAPANGAN MANDOR:', 55, y + 20);
+        ctx.font = 'italic 12px sans-serif';
+        ctx.fillStyle = '#1e293b';
+        ctx.fillText(rec.catatan || rec.noted || 'Tidak ada catatan tambahan khusus.', 55, y + 38);
+        y += 75;
+
+        // Signatures
+        const signW = (W - 80) / 2;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#64748b';
+        ctx.font = '12px sans-serif';
+        ctx.fillText('Disiapkan & Dilaporkan Oleh,', 40 + signW / 2, y);
+        ctx.fillText('Diperiksa & Diverifikasi Oleh,', 40 + signW + signW / 2, y);
+
+        y += 60;
+        ctx.strokeStyle = '#94a3b8';
+        ctx.beginPath();
+        ctx.moveTo(80, y);
+        ctx.lineTo(80 + signW - 80, y);
+        ctx.moveTo(40 + signW + 40, y);
+        ctx.lineTo(W - 80, y);
+        ctx.stroke();
+
+        y += 18;
+        ctx.font = 'bold 14px sans-serif';
+        ctx.fillStyle = '#0f172a';
+        ctx.fillText((rec.name || 'MANDOR LAPANGAN').toUpperCase(), 40 + signW / 2, y);
+        ctx.fillText((rec.nameOfAssistan || 'ASISTEN LAPANGAN').toUpperCase(), 40 + signW + signW / 2, y);
+
+        y += 16;
+        ctx.font = '11px sans-serif';
+        ctx.fillStyle = '#64748b';
+        ctx.fillText('Mandor Upkeep & Manuring', 40 + signW / 2, y);
+        ctx.fillText('Asisten Upkeep & Manuring', 40 + signW + signW / 2, y);
+
+        canvas.toBlob(blob => {
+          if (!blob) {
+            showToast('Gagal membuat gambar laporan', 'error');
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          const cleanDate = (rec.date || 'Date').replace(/[^a-zA-Z0-9_-]/g, '_');
+          const cleanPaddock = (rec.paddock || 'Paddock').replace(/[^a-zA-Z0-9_-]/g, '_');
+          link.download = `Laporan_QC_Fertilizer_${cleanPaddock}_${cleanDate}.jpg`;
+          link.href = url;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          showToast('Gambar Laporan QC Fertilizer berhasil diunduh!', 'success');
+        }, 'image/jpeg', 0.95);
+      }
+
+      if (hasPhoto) {
+        drawFertSectionHeader('V. DOKUMENTASI FOTO HASIL APLIKASI QC PEMUPUKAN');
+        const img = new Image();
+        img.onload = function() {
+          const maxImgW = W - 120;
+          const maxImgH = 320;
+          let iw = img.width;
+          let ih = img.height;
+          const ratio = Math.min(maxImgW / iw, maxImgH / ih);
+          iw = iw * ratio;
+          ih = ih * ratio;
+
+          ctx.fillStyle = '#f8fafc';
+          ctx.fillRect(40, y, W - 80, ih + 30);
+          ctx.strokeStyle = '#cbd5e1';
+          ctx.strokeRect(40, y, W - 80, ih + 30);
+
+          const ix = 40 + (W - 80 - iw) / 2;
+          ctx.drawImage(img, ix, y + 15, iw, ih);
+          y += ih + 50;
+          finalizeFertDrawingAndDownload();
+        };
+        img.onerror = function() {
+          y += 20;
+          finalizeFertDrawingAndDownload();
+        };
+        img.src = 'data:image/jpeg;base64,' + rec.photoBase64;
+      } else {
+        finalizeFertDrawingAndDownload();
+      }
+    }
+
     // =========================================================
     // NATIVE CANVAS RENDERING UNTUK DOWNLOAD GAMBAR JPG
     // =========================================================
@@ -3112,6 +4647,11 @@
       if (!currentReportRecordId) return;
       const rec = savedRecords.find(r => r.id === currentReportRecordId);
       if (!rec) return;
+
+      if (rec.formType === 'fertilizer') {
+        downloadFertilizerReportJPG(rec);
+        return;
+      }
 
       showToast('Sedang membuat file gambar JPG...', 'info');
 
@@ -3450,7 +4990,62 @@
       const body = document.getElementById('modalBody');
       const title = document.getElementById('modalTitle');
 
-      title.textContent = `Detail Form QC: ${rec.paddock || 'Paddock'} (${rec.date || '-'}) [WORKING]`;
+      const isFertilizer = (rec.formType === 'fertilizer');
+      title.textContent = isFertilizer 
+        ? `Detail QC Fertilizer: ${rec.paddock || 'Paddock'} (${formatDateDisplay(rec.date)}) [${(rec.status || 'Working').toUpperCase()}]`
+        : `Detail Form QC Spray: ${rec.paddock || 'Paddock'} (${formatDateDisplay(rec.date)}) [WORKING]`;
+
+      if (isFertilizer) {
+        const fertFields = [
+          ['Tanggal', formatDateDisplay(rec.date)],
+          ['Shift', rec.shift],
+          ['Nama Mandor (Name)', rec.name],
+          ['Nama Asisten', rec.nameOfAssistan],
+          ['Status Kegiatan', rec.status],
+          ['Start Time (Mulai Hold)', rec.startTime || '-'],
+          ['End Time (Selesai Hold)', rec.endTime || '-'],
+          ['Paddock (Petak)', rec.paddock],
+          ['Unit Alat', rec.unit],
+          ['Nomor Unit', rec.noUnit],
+          ['Type Pupuk', rec.type],
+          ['Activity', rec.activity],
+          ['Jenis Pupuk (Material)', rec.jenisPupuk || rec.material],
+          ['Dosis Rekomendasi (kg/Ha)', rec.dosis],
+          ['Status Hose', rec.statusHose],
+          ['Pengisian Ke-', rec.pengisianKe],
+          ['Jumlah Pupuk (kg)', rec.jumlah],
+          ['Hasil Kerja (Ha)', rec.hasilKerja],
+          ['Dosis Aktual (kg/Ha)', rec.dosisAktual],
+          ['Pemerataan Pupuk', rec.pemerataanPupuk],
+          ['Catatan (Noted*)', rec.catatan || rec.noted],
+          ['Status Upload', rec.uploadStatus === 'uploaded' ? 'SUDAH DIUPLOAD KE FORM QC FERTILIZER (' + (rec.uploadedAt || '-') + ')' : 'BELUM DIUPLOAD (PENDING)']
+        ];
+
+        let fertPhotoHtml = '';
+        if (rec.photoBase64) {
+          fertPhotoHtml = `
+            <div class="col-span-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+              <span class="text-[10px] text-amber-900 block uppercase font-bold mb-2"><i class="fa-solid fa-camera mr-1"></i>Foto Bukti QC Pemupukan</span>
+              <img src="data:image/jpeg;base64,${rec.photoBase64}" alt="Foto Bukti QC Pupuk" class="w-full max-h-60 object-contain rounded-lg border border-slate-300">
+              ${rec.photoDriveUrl ? `<a href="${rec.photoDriveUrl}" target="_blank" class="text-xs text-blue-600 underline font-semibold mt-1 block">Buka di Google Drive</a>` : ''}
+            </div>
+          `;
+        }
+
+        body.innerHTML = `
+          <div class="grid grid-cols-2 gap-2">
+            ${fertFields.map(([k, v]) => `
+              <div class="p-2 bg-slate-50 rounded border border-slate-100">
+                <span class="text-[10px] text-slate-500 block uppercase font-bold">${k}</span>
+                <span class="font-semibold text-slate-800">${v !== undefined && v !== '' ? v : '-'}</span>
+              </div>
+            `).join('')}
+            ${fertPhotoHtml}
+          </div>
+        `;
+        modal.classList.remove('hidden');
+        return;
+      }
 
       const fields = [
         ['Date', rec.date], ['Start Time', rec.startTime || rec.time], ['End Time', rec.endTime],
@@ -3550,8 +5145,10 @@
       showToast('Mengupload data & foto ke Google Spreadsheet...', 'info');
 
       try {
+        const isFertilizer = (rec.formType === 'fertilizer');
         const payload = {
-          action: 'saveFormQC',
+          action: isFertilizer ? 'saveFormQCFertilizer' : 'saveFormQC',
+          formType: isFertilizer ? 'fertilizer' : 'spray',
           data: [rec]
         };
 
@@ -3567,7 +5164,7 @@
           rec.uploadedAt = new Date().toLocaleString('id-ID');
           localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(savedRecords));
           renderHistoryList();
-          showToast('Data & Foto berhasil diupload ke Form QC!', 'success');
+          showToast(isFertilizer ? 'Data & Foto berhasil diupload ke Form QC Fertilizer!' : 'Data & Foto berhasil diupload ke Form QC Spray!', 'success');
         } else {
           showToast('Gagal upload: ' + (result.message || 'Error server'), 'error');
         }
@@ -3598,19 +5195,33 @@
       showToast(`Mengupload ${pendingRecords.length} data ke Spreadsheet...`, 'info');
 
       try {
-        const payload = {
-          action: 'saveFormQC',
-          data: pendingRecords
-        };
+        const pendingSpray = pendingRecords.filter(r => r.formType !== 'fertilizer');
+        const pendingFert = pendingRecords.filter(r => r.formType === 'fertilizer');
+        let totalUploaded = 0;
 
-        const response = await fetch(appConfig.appsScriptUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payload)
-        });
+        // Upload Spray
+        if (pendingSpray.length > 0) {
+          const resSpray = await fetch(appConfig.appsScriptUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'saveFormQC', formType: 'spray', data: pendingSpray })
+          });
+          const resJ = await resSpray.json();
+          if (resJ.status === 'success') totalUploaded += pendingSpray.length;
+        }
 
-        const result = await response.json();
-        if (result.status === 'success') {
+        // Upload Fertilizer
+        if (pendingFert.length > 0) {
+          const resFert = await fetch(appConfig.appsScriptUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'saveFormQCFertilizer', formType: 'fertilizer', data: pendingFert })
+          });
+          const resJ = await resFert.json();
+          if (resJ.status === 'success') totalUploaded += pendingFert.length;
+        }
+
+        if (totalUploaded > 0) {
           const nowStr = new Date().toLocaleString('id-ID');
           pendingRecords.forEach(r => {
             r.uploadStatus = 'uploaded';
@@ -3618,7 +5229,7 @@
           });
           localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(savedRecords));
           renderHistoryList();
-          showToast(`Berhasil mengupload ${pendingRecords.length} data ke Form QC!`, 'success');
+          showToast(`Berhasil mengupload ${totalUploaded} data ke Spreadsheet!`, 'success');
         } else {
           showToast('Gagal upload: ' + (result.message || 'Error server'), 'error');
         }
