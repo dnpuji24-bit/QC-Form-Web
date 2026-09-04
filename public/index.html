@@ -2904,6 +2904,121 @@
     let selectedUserForAccess = null;
 
     
+    
+    // =========================================================================
+    // FUNGSI PERSETUJUAN AKUN & MANAJEMEN ROLE OLEH OWNER (RULE 5 & 6)
+    // =========================================================================
+    async function approveUser(username) {
+      const roleSelect = document.getElementById(`approveRoleSelect_${username}`);
+      const assignedRole = roleSelect ? roleSelect.value : 'mandor';
+
+      const usersDB = getUsersDB();
+      const user = usersDB.find(u => (u.username && u.username.toLowerCase() === username.toLowerCase()) || (u.email && u.email.toLowerCase() === username.toLowerCase()));
+
+      if (user) {
+        user.status = 'APPROVED';
+        user.role = assignedRole;
+        user.approvedBy = (currentUser && currentUser.fullName) || 'Puji Hartono (Owner)';
+        user.approvedAt = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        user.modifiedAt = user.approvedAt;
+        user.modifiedBy = user.approvedBy;
+        saveUsersDB(usersDB);
+      }
+
+      logSystemActivity('APPROVE_USER', `Owner menyetujui pendaftaran akun @${username} (${user ? user.fullName : ''}) sebagai ${assignedRole}.`);
+      showToast(`Akun @${username} berhasil disetujui sebagai ${assignedRole.toUpperCase()}!`, 'success');
+
+      // Sinkronkan perubahan status ke Google Spreadsheet jika online
+      const targetGasUrl = appConfig.appsScriptUrl || EMBEDDED_APPS_SCRIPT_URL;
+      if (navigator.onLine && targetGasUrl) {
+        try {
+          fetch(targetGasUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'updateUserRoleAndStatus',
+              targetUsername: user ? (user.email || user.username) : username,
+              newRole: assignedRole,
+              newStatus: 'APPROVED',
+              adminUsername: (currentUser && (currentUser.email || currentUser.username)) || 'dnpuji24@gmail.com'
+            })
+          }).catch(err => console.error('Approve sync error:', err));
+        } catch (e) {}
+      }
+
+      renderUsersManagementUI();
+      applyRolePermissions();
+    }
+
+    async function rejectUser(username) {
+      if (!confirm(`Apakah Anda yakin ingin MENOLAK pendaftaran akun @${username}?`)) return;
+
+      const usersDB = getUsersDB();
+      const user = usersDB.find(u => (u.username && u.username.toLowerCase() === username.toLowerCase()) || (u.email && u.email.toLowerCase() === username.toLowerCase()));
+
+      if (user) {
+        user.status = 'REJECTED';
+        user.modifiedAt = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        user.modifiedBy = (currentUser && currentUser.fullName) || 'Puji Hartono (Owner)';
+        saveUsersDB(usersDB);
+      }
+
+      logSystemActivity('REJECT_USER', `Owner menolak pendaftaran akun @${username}.`);
+      showToast(`Pendaftaran akun @${username} telah ditolak.`, 'info');
+
+      const targetGasUrl = appConfig.appsScriptUrl || EMBEDDED_APPS_SCRIPT_URL;
+      if (navigator.onLine && targetGasUrl) {
+        try {
+          fetch(targetGasUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'updateUserRoleAndStatus',
+              targetUsername: user ? (user.email || user.username) : username,
+              newStatus: 'REJECTED',
+              adminUsername: (currentUser && (currentUser.email || currentUser.username)) || 'dnpuji24@gmail.com'
+            })
+          }).catch(err => console.error('Reject sync error:', err));
+        } catch (e) {}
+      }
+
+      renderUsersManagementUI();
+      applyRolePermissions();
+    }
+
+    async function updateUserRole(username, newRole) {
+      const usersDB = getUsersDB();
+      const user = usersDB.find(u => (u.username && u.username.toLowerCase() === username.toLowerCase()) || (u.email && u.email.toLowerCase() === username.toLowerCase()));
+
+      if (user) {
+        user.role = newRole;
+        user.modifiedAt = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        user.modifiedBy = (currentUser && currentUser.fullName) || 'Puji Hartono (Owner)';
+        saveUsersDB(usersDB);
+      }
+
+      logSystemActivity('CHANGE_ROLE', `Owner mengubah role @${username} menjadi ${newRole}.`);
+      showToast(`Peran @${username} diubah menjadi ${newRole.toUpperCase()}!`, 'success');
+
+      const targetGasUrl = appConfig.appsScriptUrl || EMBEDDED_APPS_SCRIPT_URL;
+      if (navigator.onLine && targetGasUrl) {
+        try {
+          fetch(targetGasUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'updateUserRoleAndStatus',
+              targetUsername: user ? (user.email || user.username) : username,
+              newRole: newRole,
+              adminUsername: (currentUser && (currentUser.email || currentUser.username)) || 'dnpuji24@gmail.com'
+            })
+          }).catch(err => console.error('Role update sync error:', err));
+        } catch (e) {}
+      }
+
+      renderUsersManagementUI();
+    }
+
     function deleteUserPermanently(username) {
       if (username === 'owner') {
         showToast('Akun Owner utama dilindungi dan tidak dapat dihapus!', 'warning');
