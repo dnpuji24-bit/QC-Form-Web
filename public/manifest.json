@@ -1,0 +1,17 @@
+{
+  "name": "Aplikasi Form QC Kebun",
+  "short_name": "QC Form",
+  "description": "Form Input QC Semprot & Pemupukan Kebun - Upkeep & Manuring",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#064e3b",
+  "theme_color": "#059669",
+  "icons": [
+    {
+      "src": "logo.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

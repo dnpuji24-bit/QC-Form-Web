@@ -1,0 +1,794 @@
+{
+  "names": [
+    "ALBERTO NGORANUBUN",
+    "BENEDIKTUS WAGIYOP",
+    "GERMANUS KWAMTAHAI",
+    "GUSTINUS LORONG",
+    "JUMRI",
+    "MOHAMAD IRAWAN",
+    "PUJI WASTONI",
+    "BANU MUFARRIDHIN"
+  ],
+  "assistants": [
+    "PUJI HARTONO",
+    "JOSUA F. SIMARMATA",
+    "MOH. SABRI",
+    "EFFRATA ALEX F",
+    "MUH. SABILLAH",
+    "EFRI NANDO",
+    "ARSYI P.B AMBARITA",
+    "HEPSON J OMPUSUNGGU",
+    "SUVENI. M SIBORO"
+  ],
+  "statuses": [
+    "Working",
+    "Hold"
+  ],
+  "shifts": [
+    "1",
+    "2"
+  ],
+  "unitMap": {
+    "Tractor Spray": [
+      "TS003G",
+      "TS004G",
+      "TS005G"
+    ],
+    "Boom Spray Cropland": [
+      "TR128G"
+    ],
+    "Boom Spray Baldan": [
+      "TR069G"
+    ],
+    "Drone": [
+      "DJIT50-01",
+      "DJIT50-02",
+      "DJIT50-03",
+      "DJIT50-04",
+      "DJIT50-05",
+      "DJIT50-06",
+      "DJIT100-01"
+    ]
+  },
+  "dropper": [
+    "Yes",
+    "No"
+  ],
+  "nozzles": [
+    "TTI60-11025 (Ungu)",
+    "TTI60-11004 (Merah)",
+    "TTI60-11005 (Coklat)",
+    "TTI60-11008 (Putih)"
+  ],
+  "waterQualities": [
+    "Clean",
+    "Slighty Muddy",
+    "Bad"
+  ],
+  "weatherConditions": [
+    "Sunny",
+    "Cloudy",
+    "Rainning"
+  ],
+  "allVarieties": [
+    "GMP4",
+    "GMP5",
+    "GMP6",
+    "Q200",
+    "Q208",
+    "Q232",
+    "Q240",
+    "Q253",
+    "R1",
+    "R2",
+    "R3",
+    "SRA09"
+  ],
+  "plan": [
+    {
+      "paddock": "JAGF-1-C-030",
+      "variety": "",
+      "luas_target": "1,17",
+      "activity": "Single Dressing",
+      "type": "",
+      "deskripsi": "Single Dressing D"
+    },
+    {
+      "paddock": "JAGF-1-D-004",
+      "variety": "",
+      "luas_target": "0,24",
+      "activity": "Single Dressing",
+      "type": "",
+      "deskripsi": "Single Dressing D"
+    },
+    {
+      "paddock": "JAGF-1-D-016",
+      "variety": "",
+      "luas_target": "10,00",
+      "activity": "Single Dressing",
+      "type": "",
+      "deskripsi": "Single Dressing D"
+    },
+    {
+      "paddock": "JAGF-1-D-025",
+      "variety": "",
+      "luas_target": "1,93",
+      "activity": "Single Dressing",
+      "type": "",
+      "deskripsi": "Single Dressing D"
+    },
+    {
+      "paddock": "JAGF-1-D-037",
+      "variety": "",
+      "luas_target": "3,77",
+      "activity": "Single Dressing",
+      "type": "",
+      "deskripsi": "Single Dressing D"
+    },
+    {
+      "paddock": "JAGF-1-D-003",
+      "variety": "",
+      "luas_target": "15,86",
+      "activity": "Top Dressing",
+      "type": "",
+      "deskripsi": "Top Dressing C"
+    },
+    {
+      "paddock": "JAGF-2-H-035",
+      "variety": "",
+      "luas_target": "55,00",
+      "activity": "Top Dressing",
+      "type": "",
+      "deskripsi": "Top Dressing C"
+    },
+    {
+      "paddock": "JAGF-1-D-002",
+      "variety": "",
+      "luas_target": "92,99",
+      "activity": "Top Dressing",
+      "type": "",
+      "deskripsi": "Top Dressing C"
+    },
+    {
+      "paddock": "JAGF-2-K-003",
+      "variety": "",
+      "luas_target": "150,00",
+      "activity": "Bassalt Dressing",
+      "type": "",
+      "deskripsi": "Bassalt Dressing D"
+    },
+    {
+      "paddock": "JAGF-1-D-066",
+      "variety": "",
+      "luas_target": "5,96",
+      "activity": "Single Dressing",
+      "type": "",
+      "deskripsi": "Single Dressing D"
+    },
+    {
+      "paddock": "JAGF-1-D-068",
+      "variety": "",
+      "luas_target": "0,29",
+      "activity": "Single Dressing",
+      "type": "",
+      "deskripsi": "Single Dressing D"
+    },
+    {
+      "paddock": "JAGF-1-A-007",
+      "variety": "",
+      "luas_target": "11,24",
+      "activity": "Insecticide",
+      "type": "Insecticide",
+      "deskripsi": "Insecticide C"
+    },
+    {
+      "paddock": "JAGF-2-H-031",
+      "variety": "",
+      "luas_target": "7,91",
+      "activity": "Insecticide",
+      "type": "Insecticide",
+      "deskripsi": "Insecticide C"
+    },
+    {
+      "paddock": "JAGF-1-C-029",
+      "variety": "",
+      "luas_target": "14,64",
+      "activity": "Knockdown",
+      "type": "Herbicide",
+      "deskripsi": "Knockdown (Plant) B"
+    },
+    {
+      "paddock": "JAGF-1-D-061",
+      "variety": "",
+      "luas_target": "15,80",
+      "activity": "Insecticide",
+      "type": "Insecticide",
+      "deskripsi": "Insecticide C"
+    },
+    {
+      "paddock": "JAGF-1-B-014",
+      "variety": "",
+      "luas_target": "17,81",
+      "activity": "Insecticide",
+      "type": "Insecticide",
+      "deskripsi": "Insecticide C"
+    },
+    {
+      "paddock": "JAGF-1-C-031",
+      "variety": "",
+      "luas_target": "0,83",
+      "activity": "Pre Emergence",
+      "type": "Herbicide",
+      "deskripsi": "Pre Emergence RC"
+    },
+    {
+      "paddock": "JAGF-1-D-021",
+      "variety": "",
+      "luas_target": "2,91",
+      "activity": "Post Emergence",
+      "type": "Herbicide",
+      "deskripsi": "Post Emergence E"
+    },
+    {
+      "paddock": "JAGF-1-D-022",
+      "variety": "",
+      "luas_target": "2,64",
+      "activity": "Post Emergence",
+      "type": "Herbicide",
+      "deskripsi": "Post Emergence E"
+    },
+    {
+      "paddock": "JAGF-1-D-024",
+      "variety": "",
+      "luas_target": "8,34",
+      "activity": "Post Emergence",
+      "type": "Herbicide",
+      "deskripsi": "Post Emergence E"
+    },
+    {
+      "paddock": "JAGF-1-D-026",
+      "variety": "",
+      "luas_target": "7,05",
+      "activity": "Post Emergence",
+      "type": "Herbicide",
+      "deskripsi": "Post Emergence E"
+    },
+    {
+      "paddock": "JAGF-1-D-027",
+      "variety": "",
+      "luas_target": "1,46",
+      "activity": "Post Emergence",
+      "type": "Herbicide",
+      "deskripsi": "Post Emergence E"
+    },
+    {
+      "paddock": "JAGF-1-D-028",
+      "variety": "",
+      "luas_target": "0,72",
+      "activity": "Post Emergence",
+      "type": "Herbicide",
+      "deskripsi": "Post Emergence E"
+    },
+    {
+      "paddock": "JAGF-1-D-029",
+      "variety": "",
+      "luas_target": "4,31",
+      "activity": "Post Emergence",
+      "type": "Herbicide",
+      "deskripsi": "Post Emergence E"
+    },
+    {
+      "paddock": "JAGF-1-D-030",
+      "variety": "",
+      "luas_target": "2,42",
+      "activity": "Post Emergence",
+      "type": "Herbicide",
+      "deskripsi": "Post Emergence E"
+    },
+    {
+      "paddock": "JAGF-1-D-033",
+      "variety": "",
+      "luas_target": "3,08",
+      "activity": "Post Emergence",
+      "type": "Herbicide",
+      "deskripsi": "Post Emergence E"
+    },
+    {
+      "paddock": "JAGF-1-D-034",
+      "variety": "",
+      "luas_target": "2,82",
+      "activity": "Post Emergence",
+      "type": "Herbicide",
+      "deskripsi": "Post Emergence E"
+    },
+    {
+      "paddock": "JAGF-2-I-092",
+      "variety": "",
+      "luas_target": "0,43",
+      "activity": "Post Emergence",
+      "type": "Herbicide",
+      "deskripsi": "Post Emergence B"
+    },
+    {
+      "paddock": "JAGF-2-H-026",
+      "variety": "",
+      "luas_target": "7,37",
+      "activity": "Pre Emergence",
+      "type": "Herbicide",
+      "deskripsi": "Pre Emergence RC"
+    },
+    {
+      "paddock": "JAGF-2-H-029",
+      "variety": "",
+      "luas_target": "12,40",
+      "activity": "Pre Emergence",
+      "type": "Herbicide",
+      "deskripsi": "Pre Emergence RC"
+    },
+    {
+      "paddock": "JAGF-2-I-101",
+      "variety": "",
+      "luas_target": "1,70",
+      "activity": "Pre Emergence",
+      "type": "Herbicide",
+      "deskripsi": "Pre Emergence RC"
+    },
+    {
+      "paddock": "JAGF-1-C-029",
+      "variety": "",
+      "luas_target": "14,64",
+      "activity": "Pre Emergence",
+      "type": "Herbicide",
+      "deskripsi": "Pre Emergence RC"
+    },
+    {
+      "paddock": "JAGF-2-G-008",
+      "variety": "",
+      "luas_target": "0,64",
+      "activity": "Pre Emergence",
+      "type": "Herbicide",
+      "deskripsi": "Pre Emergence PC"
+    },
+    {
+      "paddock": "JAGF-2-J-009",
+      "variety": "",
+      "luas_target": "17,65",
+      "activity": "Pre Emergence",
+      "type": "Herbicide",
+      "deskripsi": "Pre Emergence PC"
+    },
+    {
+      "paddock": "JAGF-1-D-038",
+      "variety": "",
+      "luas_target": "2,20",
+      "activity": "Insecticide",
+      "type": "Insecticide",
+      "deskripsi": "Insecticide B"
+    },
+    {
+      "paddock": "JAGF-2-H-023",
+      "variety": "",
+      "luas_target": "6,56",
+      "activity": "Insecticide",
+      "type": "Insecticide",
+      "deskripsi": "Insecticide E"
+    },
+    {
+      "paddock": "JAGF-1-D-058",
+      "variety": "",
+      "luas_target": "44,80",
+      "activity": "Insecticide",
+      "type": "Insecticide",
+      "deskripsi": "Insecticide C"
+    },
+    {
+      "paddock": "JAGF-1-C-003",
+      "variety": "",
+      "luas_target": "31,85",
+      "activity": "Insecticide",
+      "type": "Insecticide",
+      "deskripsi": "Insecticide F"
+    },
+    {
+      "paddock": "JAGF-2-I-130",
+      "variety": "",
+      "luas_target": "15,40",
+      "activity": "Insecticide",
+      "type": "Insecticide",
+      "deskripsi": "Insecticide F"
+    },
+    {
+      "paddock": "JAGF-2-G-009",
+      "variety": "",
+      "luas_target": "43,52",
+      "activity": "Insecticide",
+      "type": "Insecticide",
+      "deskripsi": "Insecticide D"
+    },
+    {
+      "paddock": "JAGF-2-G-010",
+      "variety": "",
+      "luas_target": "232,30",
+      "activity": "Top Dressing",
+      "type": "",
+      "deskripsi": "Top Dressing C"
+    }
+  ],
+  "bahan": {
+    "Bassalt Dressing B": {
+      "pesticide1": "NPK 15-8-15",
+      "dosage1": 150.0,
+      "pesticide2": "",
+      "dosage2": "",
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "",
+      "adjuvant_dosage": ""
+    },
+    "Bassalt Dressing C": {
+      "pesticide1": "NPK 15-10-15",
+      "dosage1": 250.0,
+      "pesticide2": "",
+      "dosage2": "",
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "",
+      "adjuvant_dosage": ""
+    },
+    "Bassalt Dressing D": {
+      "pesticide1": "HX-DAP",
+      "dosage1": 250.0,
+      "pesticide2": "",
+      "dosage2": "",
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "",
+      "adjuvant_dosage": ""
+    },
+    "Insecticide A": {
+      "pesticide1": "Incipio",
+      "dosage1": 0.2,
+      "pesticide2": "",
+      "dosage2": "",
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "Prima Boost",
+      "adjuvant_dosage": 0.05
+    },
+    "Insecticide B": {
+      "pesticide1": "Prevathon",
+      "dosage1": 1.5,
+      "pesticide2": "",
+      "dosage2": "",
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "Agristick 400SL",
+      "adjuvant_dosage": 0.05
+    },
+    "Insecticide C": {
+      "pesticide1": "Punggawa 50 SC",
+      "dosage1": 1.4,
+      "pesticide2": "",
+      "dosage2": "",
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "Agristick 400SL",
+      "adjuvant_dosage": 0.05
+    },
+    "Insecticide D": {
+      "pesticide1": "Confidor 60 ml",
+      "dosage1": 0.8,
+      "pesticide2": "",
+      "dosage2": "",
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "Agristick 400SL",
+      "adjuvant_dosage": 0.8
+    },
+    "Insecticide E": {
+      "pesticide1": "Prevathon",
+      "dosage1": 1.5,
+      "pesticide2": "Confidor 60 ml",
+      "dosage2": 0.8,
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "Agristick 400SL",
+      "adjuvant_dosage": 0.2
+    },
+    "Insecticide F": {
+      "pesticide1": "Punggawa 50 SC",
+      "dosage1": 1.4,
+      "pesticide2": "Confidor 60 ml",
+      "dosage2": 0.8,
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "Agristick 400SL",
+      "adjuvant_dosage": 0.2
+    },
+    "Knockdown (Plant) A": {
+      "pesticide1": "Rollup 480 SL",
+      "dosage1": 3.5,
+      "pesticide2": "",
+      "dosage2": "",
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "Agristick 400SL",
+      "adjuvant_dosage": 0.1
+    },
+    "Knockdown (Plant) B": {
+      "pesticide1": "Rollup 480 SL",
+      "dosage1": 3.5,
+      "pesticide2": "",
+      "dosage2": "",
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "Agridex 715 EC",
+      "adjuvant_dosage": 0.2
+    },
+    "Post Emergence A": {
+      "pesticide1": "Prima Kuat 276 SL",
+      "dosage1": 1.0,
+      "pesticide2": "Prima Maxin 50 WP",
+      "dosage2": 0.6,
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "Agristick 400SL",
+      "adjuvant_dosage": 0.15
+    },
+    "Post Emergence B": {
+      "pesticide1": "Omni Care 288 EC",
+      "dosage1": 0.9,
+      "pesticide2": "Prima Jos 865 SL",
+      "dosage2": 0.6,
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "Agristick 400SL",
+      "adjuvant_dosage": 0.2
+    },
+    "Post Emergence C": {
+      "pesticide1": "Prima Kuat 276 SL",
+      "dosage1": 1.0,
+      "pesticide2": "DKHexaron 60WG",
+      "dosage2": 2.5,
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "Agristick 400SL",
+      "adjuvant_dosage": 0.1
+    },
+    "Post Emergence D": {
+      "pesticide1": "Garlon 670 EC",
+      "dosage1": 1.0,
+      "pesticide2": "",
+      "dosage2": "",
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "Agridex 715 EC",
+      "adjuvant_dosage": 0.25
+    },
+    "Post Emergence E": {
+      "pesticide1": "Rollup 480 SL",
+      "dosage1": 3.5,
+      "pesticide2": "",
+      "dosage2": "",
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "Agristick 400SL",
+      "adjuvant_dosage": 0.5
+    },
+    "Pre Emergence PC": {
+      "pesticide1": "Prowl 330 EC",
+      "dosage1": 3.0,
+      "pesticide2": "Venator 550SC @1 Ltr",
+      "dosage2": 4.0,
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "",
+      "adjuvant_dosage": ""
+    },
+    "Pre Emergence PC A": {
+      "pesticide1": "Prowl 330 EC",
+      "dosage1": 3.0,
+      "pesticide2": "Atres",
+      "dosage2": 4.0,
+      "pesticide3": "Omni Care 288 EC",
+      "dosage3": 0.9,
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "",
+      "adjuvant_dosage": ""
+    },
+    "Pre Emergence RC": {
+      "pesticide1": "Toleran 75 WG",
+      "dosage1": 0.06,
+      "pesticide2": "Prima Kuat 276 SL",
+      "dosage2": 1.0,
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "",
+      "adjuvant_dosage": ""
+    },
+    "Single Dressing A": {
+      "pesticide1": "NPK Plus 15-15-15",
+      "dosage1": 700.0,
+      "pesticide2": "",
+      "dosage2": "",
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "",
+      "adjuvant_dosage": ""
+    },
+    "Single Dressing B": {
+      "pesticide1": "NPK 15-10-15",
+      "dosage1": 700.0,
+      "pesticide2": "",
+      "dosage2": "",
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "",
+      "adjuvant_dosage": ""
+    },
+    "Single Dressing C": {
+      "pesticide1": "NPK 15-8-15",
+      "dosage1": 700.0,
+      "pesticide2": "",
+      "dosage2": "",
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "",
+      "adjuvant_dosage": ""
+    },
+    "Single Dressing D": {
+      "pesticide1": "TSP-P205 (Phospate) 46%",
+      "dosage1": 100.0,
+      "pesticide2": "NK 20:30",
+      "dosage2": 600.0,
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "",
+      "adjuvant_dosage": ""
+    },
+    "Top Dressing A": {
+      "pesticide1": "NPK Plus 15-15-15",
+      "dosage1": 600.0,
+      "pesticide2": "",
+      "dosage2": "",
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "",
+      "adjuvant_dosage": ""
+    },
+    "Top Dressing B": {
+      "pesticide1": "NPK 15-10-15",
+      "dosage1": 600.0,
+      "pesticide2": "",
+      "dosage2": "",
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "",
+      "adjuvant_dosage": ""
+    },
+    "Top Dressing C": {
+      "pesticide1": "NPK 15-8-15",
+      "dosage1": 600.0,
+      "pesticide2": "",
+      "dosage2": "",
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "",
+      "adjuvant_dosage": ""
+    },
+    "Top Dressing D": {
+      "pesticide1": "TSP-P205 (Phospate) 46%",
+      "dosage1": 100.0,
+      "pesticide2": "NK 20:30",
+      "dosage2": 400.0,
+      "pesticide3": "",
+      "dosage3": "",
+      "pesticide4": "",
+      "dosage4": "",
+      "adjuvant": "",
+      "adjuvant_dosage": ""
+    }
+  },
+  "formHeaders": [
+    "Date",
+    "Time",
+    "Shift",
+    "Status",
+    "Name",
+    "Name of Assistan",
+    "Paddock",
+    "Variety",
+    "Area (Ha)",
+    "Unit",
+    "No. Unit",
+    "Dropper",
+    "Droplet Size",
+    "Nozzle",
+    "Height (m)",
+    "Row Spacing (m)",
+    "Speed (Km/Jam)",
+    "Type",
+    "Activity",
+    "Deskripsi",
+    "Pesticide 1",
+    "Dosage",
+    "Pesticide 2",
+    "Dosage",
+    "Pesticide 3",
+    "Dosage",
+    "Pesticide 4",
+    "Dosage",
+    "Adjuvant",
+    "Adjuvant Dosage",
+    "Estimated Usage Pesticide 1",
+    "Estimated Usage Pesticide 2",
+    "Estimated Usage Pesticide 3",
+    "Estimated Usage Pesticide 4",
+    "Estimated Usage Adjuvant",
+    "Actual Usage Pesticide 1",
+    "Actual Usage Pesticide 2",
+    "Actual Usage Pesticide 3",
+    "Actual Usage Pesticide 4",
+    "Actual Usage Adjuvant",
+    "Water Rate",
+    "Water Quality",
+    "Actual Usage",
+    "Wind Speed (Km/jam)",
+    "Temperature (\u00b0C)",
+    "Humidity (NRC)",
+    "Delta T (\u00b0C)",
+    "Weather Condition",
+    "Noted\\*"
+  ]
+}
