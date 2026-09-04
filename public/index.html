@@ -2026,6 +2026,12 @@
     // =========================================================================
     // KONFIGURASI FIREBASE RESMI (PROJECT ID: form-qc-unm)
     // =========================================================================
+    
+    // =========================================================================
+    // URL RESMI GOOGLE APPS SCRIPT SPREADSHEET (TERINTEGRASI DI DALAM KODE)
+    // =========================================================================
+    const EMBEDDED_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwjqnVwOBDQg3ptclpw_bCQO9kAcYUcHkxz4tdlNppcPYmMpCocPTbG8fgGVlp1muY/exec";
+
     const firebaseConfig = {
       apiKey: "AIzaSyDe91vCxfcj0yf3iAShTrR1XRLLMaQ3HKM",
       authDomain: "form-qc-unm.firebaseapp.com",
@@ -2049,7 +2055,7 @@
     let masterData = null;
     let savedRecords = [];
     let appConfig = {
-      appsScriptUrl: '',
+      appsScriptUrl: 'https://script.google.com/macros/s/AKfycbwjqnVwOBDQg3ptclpw_bCQO9kAcYUcHkxz4tdlNppcPYmMpCocPTbG8fgGVlp1muY/exec',
       spreadsheetId: '1Yr9wcSl5Q1qLugdoRNAdSpPAHmHad54repNunzX5Ed0',
       
     };
@@ -2535,10 +2541,11 @@
       usersDB.push(newUser);
       saveUsersDB(usersDB);
 
-      // Kirim ke Google Apps Script Spreadsheet jika online
-      if (navigator.onLine && appConfig.appsScriptUrl) {
+      // Kirim ke Google Apps Script Spreadsheet secara langsung
+      const targetGasUrl = appConfig.appsScriptUrl || 'https://script.google.com/macros/s/AKfycbwjqnVwOBDQg3ptclpw_bCQO9kAcYUcHkxz4tdlNppcPYmMpCocPTbG8fgGVlp1muY/exec';
+      if (navigator.onLine && targetGasUrl) {
         try {
-          fetch(appConfig.appsScriptUrl, {
+          await fetch(targetGasUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({
@@ -2551,7 +2558,9 @@
               deviceInfo: navigator.userAgent.includes('Mobile') ? 'HP Mandor' : 'Desktop'
             })
           });
-        } catch (err) {}
+        } catch (err) {
+          console.error('Error sending registration to Spreadsheet:', err);
+        }
       }
 
       logSystemActivity('REGISTER', `Pendaftaran akun baru: ${fullName} (${email}) mengajukan role ${role}.`);
@@ -3188,7 +3197,7 @@
     
     async function syncUsersWithGoogleSheetsSilently() {
       try {
-        const res = await fetch(`${appConfig.appsScriptUrl}?action=getUsers&t=${Date.now()}`);
+        const targetGasUrl = appConfig.appsScriptUrl || 'https://script.google.com/macros/s/AKfycbwjqnVwOBDQg3ptclpw_bCQO9kAcYUcHkxz4tdlNppcPYmMpCocPTbG8fgGVlp1muY/exec'; const res = await fetch(`${targetGasUrl}?action=getUsers&t=${Date.now()}`);
         const result = await res.json();
         if (result.status === 'success' && result.users && Array.isArray(result.users)) {
           const localDB = getUsersDB();
@@ -3223,7 +3232,7 @@
 
       showToast('Menyinkronkan data pengguna dari Spreadsheet...', 'info');
       try {
-        const res = await fetch(`${appConfig.appsScriptUrl}?action=getUsers&t=${Date.now()}`);
+        const targetGasUrl = appConfig.appsScriptUrl || 'https://script.google.com/macros/s/AKfycbwjqnVwOBDQg3ptclpw_bCQO9kAcYUcHkxz4tdlNppcPYmMpCocPTbG8fgGVlp1muY/exec'; const res = await fetch(`${targetGasUrl}?action=getUsers&t=${Date.now()}`);
         const result = await res.json();
         if (result.status === 'success' && result.users) {
           const localDB = getUsersDB();
@@ -3252,6 +3261,10 @@
       const rawConfig = localStorage.getItem(STORAGE_KEY_CONFIG);
       if (rawConfig) {
         try { appConfig = Object.assign(appConfig, JSON.parse(rawConfig)); } catch (e) {}
+      }
+      // Pastikan URL selalu menggunakan URL resmi jika kosong
+      if (!appConfig.appsScriptUrl) {
+        appConfig.appsScriptUrl = 'https://script.google.com/macros/s/AKfycbwjqnVwOBDQg3ptclpw_bCQO9kAcYUcHkxz4tdlNppcPYmMpCocPTbG8fgGVlp1muY/exec';
       }
       const cfgUrlEl = document.getElementById('cfg_appsScriptUrl'); if (cfgUrlEl) cfgUrlEl.value = appConfig.appsScriptUrl || '';
 
