@@ -69,7 +69,7 @@
 <body class="bg-slate-100 text-slate-800 font-sans min-h-screen pb-24">
 
     <!-- ==================== AUTHENTICATION SCREEN (LOGIN & REGISTER) ==================== -->
-  <div id="authScreen" class="fixed inset-0 bg-gradient-to-br from-emerald-950 via-slate-900 to-teal-950 z-50 flex items-center justify-center p-3 overflow-y-auto hidden">
+  <div id="authScreen" class="fixed inset-0 bg-gradient-to-br from-emerald-950 via-slate-900 to-teal-950 z-50 flex items-center justify-center p-3 overflow-y-auto">
     <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl overflow-hidden border border-emerald-700/30 my-auto animate-fade-in">
       
       <!-- Brand Header -->
@@ -190,6 +190,9 @@
     </div>
   </div>
 
+  <!-- ==================== MAIN APPLICATION WRAPPER ==================== -->
+  <div id="mainApp" class="hidden">
+
   <!-- TOP APP BAR -->
   <header class="bg-emerald-700 text-white sticky top-0 z-40 shadow-md">
     <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -215,37 +218,29 @@
       </div>
     </div>
 
-    <!-- SUB NAVIGATION TABS (DASHBOARD, INPUT, KALKULATOR, DATA, LOGS, USERS, PENGATURAN) -->
-    <div class="max-w-5xl mx-auto px-1 sm:px-2 flex overflow-x-auto border-t border-emerald-600 text-xs sm:text-sm font-medium scrollbar-none">
-      <button onclick="switchTab('dashboardTab')" id="tabBtn-dashboardTab" class="flex-shrink-0 px-3 py-2.5 text-center border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center space-x-1.5 transition">
+        <!-- SUB NAVIGATION TABS (DASHBOARD, INPUT, KALKULATOR, DATA & UPLOAD, PENGATURAN) -->
+    <div class="max-w-4xl mx-auto px-2 flex overflow-x-auto border-t border-emerald-600 text-xs sm:text-sm font-medium scrollbar-none">
+      <button onclick="switchTab('dashboardTab')" id="tabBtn-dashboardTab" class="flex-1 py-2.5 text-center border-b-2 border-white text-white font-bold flex items-center justify-center space-x-1.5 transition">
         <i class="fa-solid fa-chart-pie"></i>
         <span>Dashboard</span>
       </button>
-      <button onclick="switchTab('inputTab')" id="tabBtn-inputTab" class="flex-shrink-0 px-3 py-2.5 text-center border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center space-x-1.5">
+      <button onclick="switchTab('inputTab')" id="tabBtn-inputTab" class="flex-1 py-2.5 text-center border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center space-x-1.5 transition">
         <i class="fa-solid fa-pen-to-square"></i>
         <span>Form Input</span>
       </button>
-      <button onclick="switchTab('calcTab')" id="tabBtn-calcTab" class="flex-shrink-0 px-3 py-2.5 text-center border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center space-x-1.5">
+      <button onclick="switchTab('calcTab')" id="tabBtn-calcTab" class="flex-1 py-2.5 text-center border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center space-x-1.5 transition">
         <i class="fa-solid fa-calculator"></i>
         <span>Kalkulator</span>
       </button>
-      <button onclick="switchTab('historyTab')" id="tabBtn-historyTab" class="flex-shrink-0 px-3 py-2.5 text-center border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center space-x-1.5">
+      <button onclick="switchTab('historyTab')" id="tabBtn-historyTab" class="flex-1 py-2.5 text-center border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center space-x-1.5 transition">
         <i class="fa-solid fa-list-check"></i>
         <span>Data & Upload</span>
         <span id="pendingBadge" class="hidden ml-1 px-1.5 py-0.2 text-[9px] bg-amber-400 text-slate-900 font-bold rounded-full">0</span>
       </button>
-      <button onclick="switchTab('usersTab')" id="tabBtn-usersTab" class="flex-shrink-0 px-3 py-2.5 text-center border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center space-x-1.5">
-        <i class="fa-solid fa-users"></i>
-        <span>Users</span>
-        <span id="pendingUsersBadge" class="ml-1 px-1.5 py-0.2 text-[9px] bg-amber-400 text-slate-900 font-black rounded-full">0</span>
-      </button>
-      <button onclick="openChangeHistoryModal()" id="tabBtn-changeHistory" class="flex-shrink-0 px-3 py-2.5 text-center border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center space-x-1.5">
-        <i class="fa-solid fa-clock-rotate-left"></i>
-        <span>History</span>
-      </button>
-      <button onclick="switchTab('settingsTab')" id="tabBtn-settingsTab" class="flex-shrink-0 px-3 py-2.5 text-center border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center space-x-1.5">
+      <button onclick="switchTab('settingsTab')" id="tabBtn-settingsTab" class="flex-1 py-2.5 text-center border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center space-x-1.5 transition relative">
         <i class="fa-solid fa-gear"></i>
         <span>Pengaturan</span>
+        <span id="navOwnerPendingBadge" class="hidden absolute top-1.5 right-2 w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
       </button>
     </div>
   </header>
@@ -257,6 +252,23 @@
     <!-- ==================== TAB 0: DASHBOARD PENGAWASAN (SEMUA MANDOR & HASIL KERJA) ==================== -->
     <section id="dashboardTab" class="tab-content block space-y-4">
       
+      
+      <!-- OWNER PENDING NOTIFICATION BANNER (RULE 5) -->
+      <div id="ownerPendingNotificationBanner" class="hidden p-3.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-2xl shadow-sm flex items-center justify-between gap-2 flex-wrap animate-fade-in">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center text-white">
+            <i class="fa-solid fa-bell text-base animate-bounce"></i>
+          </div>
+          <div>
+            <h4 class="font-black text-xs sm:text-sm leading-tight">Pemberitahuan Owner: Ada <span id="bannerPendingCount">0</span> Pendaftaran Akun Menunggu Persetujuan!</h4>
+            <p class="text-[11px] text-amber-100">Silakan tinjau dan tetapkan peran (role) untuk akun baru.</p>
+          </div>
+        </div>
+        <button type="button" onclick="switchTab('settingsTab'); openOwnerUserManagement()" class="py-1.5 px-3.5 bg-white text-amber-950 hover:bg-amber-50 rounded-xl text-xs font-extrabold shadow-sm active:scale-95 transition whitespace-nowrap">
+          Tinjau Akun Sekarang &rarr;
+        </button>
+      </div>
+
       <!-- Top Metrics Summary Cards -->
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-1">
@@ -1495,94 +1507,237 @@
 
 
     <!-- ==================== TAB 3: PENGATURAN & SINKRONISASI ==================== -->
+        <!-- ==================== TAB 4: PENGATURAN (SUB-MENU USER MANAGEMENT & HISTORY KHUSUS OWNER) ==================== -->
     <section id="settingsTab" class="tab-content hidden space-y-4">
       
-      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
+      <!-- CARD 1: PROFIL PENGGUNA & GANTI PASSWORD -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-3">
         <div class="flex items-center justify-between border-b pb-2">
-          <div class="flex items-center space-x-2 text-emerald-800 font-bold text-sm">
-            <i class="fa-solid fa-shield-halved text-emerald-600"></i>
-            <span>Keamanan Akses Perangkat</span>
-          </div>
-          <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full font-bold flex items-center space-x-1">
-            <i class="fa-solid fa-circle-check text-emerald-600"></i>
-            <span>Terverifikasi Admin</span>
-          </span>
+          <h3 class="font-bold text-slate-800 text-sm flex items-center space-x-2">
+            <i class="fa-solid fa-user-shield text-emerald-600"></i>
+            <span>Profil Pengguna & Keamanan Akun</span>
+          </h3>
+          <span id="settingsUserRoleBadge" class="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">OWNER</span>
         </div>
 
-        <div class="space-y-3 text-xs">
-          <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
-            <div class="flex items-center justify-between">
-              <span class="text-slate-600 font-semibold">Otorisasi Perangkat:</span>
-              <span class="font-mono font-bold text-emerald-800">Aktif</span>
-            </div>
-            <p class="text-[11px] text-slate-500">Kode keamanan dikendalikan terpusat oleh Admin pada Google Apps Script. Mandor di perangkat tidak dapat mengubah kode akses.</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
+          <div>
+            <span class="text-[10px] text-slate-400 font-bold block">NAMA LENGKAP:</span>
+            <p id="settingsUserFullName" class="font-extrabold text-slate-900 text-sm">Puji Hartono (Owner)</p>
           </div>
-          <button onclick="lockCurrentDevice()" class="py-2 px-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-semibold flex items-center space-x-1.5">
-            <i class="fa-solid fa-lock text-slate-600"></i>
-            <span>Kunci / Logout Perangkat Ini</span>
+          <div>
+            <span class="text-[10px] text-slate-400 font-bold block">EMAIL / USERNAME:</span>
+            <p id="settingsUserEmail" class="font-mono text-slate-700 font-bold">dnpuji24@gmail.com</p>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-2 pt-1 flex-wrap gap-y-2">
+          <button type="button" onclick="openChangePasswordModal()" class="py-2 px-3 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-700 shadow-2xs flex items-center space-x-1.5 active:scale-95 transition">
+            <i class="fa-solid fa-key text-emerald-600"></i>
+            <span>Ganti Password Saya</span>
+          </button>
+          <button type="button" onclick="confirmLogout()" class="py-2 px-3 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl text-xs font-bold text-red-700 shadow-2xs flex items-center space-x-1.5 active:scale-95 transition">
+            <i class="fa-solid fa-right-from-bracket text-red-600"></i>
+            <span>Keluar (Logout)</span>
           </button>
         </div>
       </div>
 
-      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
-        <div class="flex items-center space-x-2 text-emerald-800 border-b pb-2 font-bold text-sm">
-          <i class="fa-solid fa-plug text-emerald-600"></i>
-          <span>Pengaturan Koneksi Google Sheets</span>
+      <!-- CARD 2: MENU KHUSUS OWNER (SUB-MENU USERS & HISTORY - RULE 9) -->
+      <div id="ownerExclusiveCard" class="bg-white rounded-xl shadow-sm border border-amber-300 p-4 space-y-4">
+        <div class="flex items-center justify-between border-b border-amber-200 pb-2">
+          <div class="flex items-center space-x-2">
+            <span class="w-6 h-6 rounded-lg bg-amber-600 text-white flex items-center justify-center text-xs">
+              <i class="fa-solid fa-crown"></i>
+            </span>
+            <h3 class="font-extrabold text-slate-900 text-sm">Menu Khusus Owner (Hak Akses Penuh)</h3>
+          </div>
+          <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">Akses Terbatas</span>
         </div>
 
-        <div class="space-y-3.5 text-xs">
-          <div>
-            <label class="block font-semibold text-slate-700 mb-1">Google Apps Script Web App URL</label>
-            <input type="url" id="cfg_appsScriptUrl" placeholder="https://script.google.com/macros/s/.../exec" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:bg-white">
-            <p class="text-[11px] text-slate-500 mt-1">URL Web App dari deployment Google Apps Script pada spreadsheet Anda.</p>
-          </div>
+        <p class="text-xs text-slate-600 leading-relaxed">
+          Sebagai Owner pemilik sistem, Anda memiliki wewenang untuk menyetujui pendaftaran akun baru, mengatur peran (role) pengguna, serta memantau audit trail perubahan data.
+        </p>
 
-          <div>
-            <label class="block font-semibold text-slate-700 mb-1">Spreadsheet ID (Referensi)</label>
-            <input type="text" id="cfg_spreadsheetId" value="1Yr9wcSl5Q1qLugdoRNAdSpPAHmHad54repNunzX5Ed0" class="w-full p-2.5 bg-slate-100 border border-slate-300 rounded-lg text-xs text-slate-600 font-mono" readonly>
-          </div>
+        <!-- Pilihan Sub-Menu Owner -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button type="button" onclick="openOwnerUserManagement()" class="p-3.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl font-bold text-xs shadow-sm flex items-center justify-between active:scale-95 transition">
+            <div class="flex items-center space-x-2.5 text-left">
+              <div class="w-8 h-8 rounded-lg bg-amber-800 flex items-center justify-center text-white text-base">
+                <i class="fa-solid fa-users-gear"></i>
+              </div>
+              <div>
+                <span class="block font-bold">User Management (Kelola Akun)</span>
+                <span class="text-[10px] text-amber-200 font-normal">Persetujuan & Peran Akun Tim</span>
+              </div>
+            </div>
+            <span id="ownerPendingUsersBadge" class="hidden px-2 py-0.5 rounded-full bg-white text-amber-950 font-black text-[10px]">0</span>
+          </button>
 
-          <div class="pt-2 flex flex-wrap gap-2">
-            <button onclick="saveConfig()" class="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold active:scale-95 transition">
-              <i class="fa-solid fa-floppy-disk mr-1"></i> Simpan Pengaturan
-            </button>
-            <button onclick="resetMasterDataToDefault()" class="py-2.5 px-4 bg-slate-700 hover:bg-slate-800 text-white rounded-lg font-bold active:scale-95 transition">
-              <i class="fa-solid fa-rotate-left mr-1"></i> Reset Master Data Default
-            </button>
-            <button onclick="syncMasterData()" class="py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold active:scale-95 transition">
-              <i class="fa-solid fa-arrows-rotate mr-1"></i> Sinkronkan Master Data Sekarang
-            </button>
-          </div>
+          <button type="button" onclick="openChangeHistoryModal()" class="p-3.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl font-bold text-xs shadow-2xs flex items-center justify-between active:scale-95 transition">
+            <div class="flex items-center space-x-2.5 text-left">
+              <div class="w-8 h-8 rounded-lg bg-slate-200 flex items-center justify-center text-slate-700 text-base">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+              </div>
+              <div>
+                <span class="block font-bold">Change History (Audit Trail)</span>
+                <span class="text-[10px] text-slate-500 font-normal">Riwayat Login & Modifikasi</span>
+              </div>
+            </div>
+            <i class="fa-solid fa-arrow-right text-slate-400"></i>
+          </button>
         </div>
+
+        <!-- TAMPILAN TERINTEGRASI USER MANAGEMENT (GAMBAR 2 & 3) -->
+        <div id="ownerUserManagementSubView" class="pt-3 border-t border-slate-200 space-y-4">
+          <!-- Header Counts -->
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <h4 class="font-extrabold text-xs sm:text-sm text-slate-800 uppercase tracking-wide">Persetujuan & Pengguna Aktif</h4>
+            <span id="userCountSummaryHeader" class="text-xs font-bold text-slate-500">1 user(s) · 0 pending</span>
+          </div>
+
+          <!-- Role Pill Counters -->
+          <div class="flex items-center space-x-2 overflow-x-auto pb-1 text-xs font-bold">
+            <span class="inline-flex items-center px-3 py-1.5 rounded-full bg-[#fef3c7] text-[#92400e] border border-[#fde68a] shadow-2xs">
+              <i class="fa-solid fa-crown mr-1.5 text-amber-600"></i>
+              <span id="pillCount_owner">1</span>&nbsp;Owner
+            </span>
+            <span class="inline-flex items-center px-3 py-1.5 rounded-full bg-[#e0f2fe] text-[#0369a1] border border-[#bae6fd] shadow-2xs">
+              <i class="fa-solid fa-user-group mr-1.5 text-blue-600"></i>
+              <span id="pillCount_team">0</span>&nbsp;Team
+            </span>
+            <span class="inline-flex items-center px-3 py-1.5 rounded-full bg-[#f1f5f9] text-[#475569] border border-[#cbd5e1] shadow-2xs">
+              <i class="fa-solid fa-eye mr-1.5 text-slate-500"></i>
+              <span id="pillCount_viewer">0</span>&nbsp;Viewer
+            </span>
+            <span class="inline-flex items-center px-3 py-1.5 rounded-full bg-[#ffedd5] text-[#c2410c] border border-[#fed7aa] shadow-2xs">
+              <i class="fa-solid fa-hourglass-half mr-1.5 text-orange-500"></i>
+              <span id="pillCount_pending">0</span>&nbsp;Pending
+            </span>
+          </div>
+
+          <!-- Card 1: Pending Approvals (Rule 5 & 6) -->
+          <div class="bg-slate-50 rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div class="p-3 bg-amber-50/80 border-b border-amber-200 flex items-center justify-between">
+              <div class="flex items-center space-x-2">
+                <i class="fa-regular fa-clock text-amber-800 text-sm"></i>
+                <h4 class="font-extrabold text-xs text-amber-950 uppercase">Pending Approvals (Menunggu Persetujuan)</h4>
+              </div>
+              <span class="text-[10px] text-amber-800 font-bold italic">*Pendaftar baru muncul di sini</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr class="bg-slate-100 text-slate-600 font-bold border-b border-slate-200 text-[11px]">
+                    <th class="p-2.5 w-10 text-center">NO</th>
+                    <th class="p-2.5">NAMA LENGKAP</th>
+                    <th class="p-2.5">EMAIL / USERNAME</th>
+                    <th class="p-2.5">WAKTU DAFTAR</th>
+                    <th class="p-2.5 text-center">AKSI OWNER</th>
+                  </tr>
+                </thead>
+                <tbody id="pendingApprovalsTableBody" class="divide-y divide-slate-200/70 text-[11px]">
+                  <tr>
+                    <td colspan="5" class="py-6 text-center text-slate-400 italic bg-white">
+                      Tidak ada pendaftaran menunggu
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Card 2: Active Users (Rule 6) -->
+          <div class="bg-slate-50 rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div class="p-3 bg-slate-100 border-b border-slate-200 flex items-center justify-between">
+              <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-user-check text-slate-700 text-sm"></i>
+                <h4 class="font-extrabold text-xs text-slate-800 uppercase">Active Users (Pengguna Terverifikasi)</h4>
+              </div>
+              <span class="text-[11px] font-bold text-slate-500" id="activeUsersCountText">1 User</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr class="bg-slate-100 text-slate-600 font-bold border-b border-slate-200 text-[11px]">
+                    <th class="p-2.5 w-10 text-center">NO</th>
+                    <th class="p-2.5">NAMA</th>
+                    <th class="p-2.5">EMAIL / USERNAME</th>
+                    <th class="p-2.5">ROLE</th>
+                    <th class="p-2.5">TERAKHIR DIUBAH</th>
+                    <th class="p-2.5">DIUBAH OLEH</th>
+                    <th class="p-2.5 text-center">AKSI</th>
+                  </tr>
+                </thead>
+                <tbody id="activeUsersTableBody" class="divide-y divide-slate-200/70 text-[11px]">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
       </div>
 
-      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
-        <div class="flex items-center space-x-2 text-emerald-800 border-b pb-2 font-bold text-sm">
-          <i class="fa-solid fa-database text-emerald-600"></i>
-          <span>Backup & Ekspor Data Lokal</span>
+      <!-- CARD 3: KONEKSI GOOGLE SPREADSHEET (INCLUDE DI DALAM KODE - RULE 11) -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-3">
+        <div class="flex items-center justify-between border-b pb-2">
+          <div class="flex items-center space-x-2 text-emerald-800 font-bold text-sm">
+            <i class="fa-solid fa-cloud-check text-emerald-600"></i>
+            <span>Koneksi Google Spreadsheet & Cloud Database</span>
+          </div>
+          <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-extrabold border border-emerald-300">
+            Terhubung Otomatis
+          </span>
         </div>
 
-        <div class="space-y-3 text-xs">
-          <p class="text-slate-600">Seluruh data input mandor tersimpan aman di memori HP (LocalStorage). Anda dapat mengekspor atau mengunduh data dalam bentuk file JSON sebagai backup cadangan di lapangan.</p>
-          
-          <div class="flex flex-wrap gap-2 pt-1">
-            <button onclick="exportDataToJson()" class="py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-semibold flex items-center space-x-1.5">
-              <i class="fa-solid fa-download"></i>
-              <span>Download Backup JSON</span>
-            </button>
-            <button onclick="document.getElementById('importFile').click()" class="py-2 px-3 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg font-semibold flex items-center space-x-1.5">
-              <i class="fa-solid fa-upload"></i>
-              <span>Restore Data JSON</span>
-            </button>
-            <input type="file" id="importFile" onchange="importDataFromJson(event)" accept=".json" class="hidden">
-            <button onclick="clearUploadedData()" class="py-2 px-3 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg font-semibold">
-              <i class="fa-solid fa-trash-can mr-1"></i> Bersihkan Data Terupload
-            </button>
+        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1.5">
+          <p class="text-slate-600">
+            <strong>Endpoint API:</strong> Terintegrasi di dalam kode aplikasi web (tanpa perlu input link manual).
+          </p>
+          <p class="text-slate-600">
+            <strong>Spreadsheet Target:</strong> <code>Application QC Form</code>
+          </p>
+          <p class="text-[11px] text-slate-500">
+            Mencakup sinkronisasi otomatis ke lembar: <code>Form QC Spray</code>, <code>Form QC Fertilizer</code>, <code>Users</code>, dan <code>Activity_Logs</code>.
+          </p>
+        </div>
+
+        <button type="button" onclick="syncMasterData()" class="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold text-xs shadow-sm flex items-center justify-center space-x-2 active:scale-95 transition">
+          <i class="fa-solid fa-rotate"></i>
+          <span>Sinkronkan Master Data Sekarang</span>
+        </button>
+      </div>
+
+      <!-- CARD 4: CADANGAN & PEMELIHARAAN DATA -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-3">
+        <div class="flex items-center justify-between border-b pb-2">
+          <div class="flex items-center space-x-2 text-slate-700 font-bold text-sm">
+            <i class="fa-solid fa-database text-slate-500"></i>
+            <span>Cadangan Data Lokal (Offline Cache)</span>
           </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+          <button type="button" onclick="exportLocalDataJSON()" class="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl font-semibold text-slate-700 text-center border border-slate-300 transition">
+            <i class="fa-solid fa-file-export block text-base mb-1 text-emerald-700"></i>
+            <span>Backup Data JSON</span>
+          </button>
+          <button type="button" onclick="document.getElementById('restoreFileInput').click()" class="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl font-semibold text-slate-700 text-center border border-slate-300 transition">
+            <i class="fa-solid fa-file-import block text-base mb-1 text-blue-700"></i>
+            <span>Restore Data JSON</span>
+          </button>
+          <input type="file" id="restoreFileInput" accept=".json" onchange="importLocalDataJSON(this)" class="hidden">
+          <button type="button" onclick="clearUploadedData()" class="p-2.5 bg-red-50 hover:bg-red-100 rounded-xl font-semibold text-red-700 text-center border border-red-200 transition">
+            <i class="fa-solid fa-trash-can block text-base mb-1 text-red-600"></i>
+            <span>Bersihkan Terupload</span>
+          </button>
         </div>
       </div>
 
     </section>
+
 
   
     <!-- ==================== TAB: LOG AKTIVITAS (AUDIT TRAIL & HISTORY LOGIN) ==================== -->
@@ -1737,6 +1892,8 @@
 
 
   </main>
+  </div>
+  <!-- ==================== END MAIN APP ==================== -->
 
   <!-- RECORD DETAIL MODAL -->
   <div id="detailModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3">
@@ -1957,7 +2114,7 @@
 
   <!-- EMBEDDED MASTER DATA (OFFLINE-FIRST) -->
   <script>
-    const INITIAL_MASTER_DATA = {"names": ["ALBERTO NGORANUBUN", "BENEDIKTUS WAGIYOP", "GERMANUS KWAMTAHAI", "GUSTINUS LORONG", "JUMRI", "MOHAMAD IRAWAN", "PUJI WASTONI", "BANU MUFARRIDHIN"], "assistants": ["PUJI HARTONO", "JOSUA F. SIMARMATA", "MOH. SABRI", "EFFRATA ALEX F", "MUH. SABILLAH", "EFRI NANDO", "ARSYI P.B AMBARITA", "HEPSON J OMPUSUNGGU", "SUVENI. M SIBORO"], "statuses": ["Working", "Hold"], "shifts": ["1", "2"], "unitMap": {"Tractor Spray": ["TS003G", "TS004G", "TS005G"], "Boom Spray Cropland": ["TR128G"], "Boom Spray Baldan": ["TR069G"], "Drone": ["DJIT50-01", "DJIT50-02", "DJIT50-03", "DJIT50-04", "DJIT50-05", "DJIT50-06", "DJIT100-01"]}, "dropper": ["Yes", "No"], "nozzles": ["TTI60-11025 (Ungu)", "TTI60-11004 (Merah)", "TTI60-11005 (Coklat)", "TTI60-11008 (Putih)"], "waterQualities": ["Clean", "Slighty Muddy", "Bad"], "weatherConditions": ["Sunny", "Cloudy", "Rainning"], "allVarieties": ["GMP4", "GMP5", "GMP6", "Q200", "Q208", "Q232", "Q240", "Q253", "R1", "R2", "R3", "SRA09"], "plan": [{"paddock": "JAGF-1-C-030", "variety": "", "luas_target": "1,17", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-004", "variety": "", "luas_target": "0,24", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-016", "variety": "", "luas_target": "10,00", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-025", "variety": "", "luas_target": "1,93", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-037", "variety": "", "luas_target": "3,77", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-003", "variety": "", "luas_target": "15,86", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}, {"paddock": "JAGF-2-H-035", "variety": "", "luas_target": "55,00", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}, {"paddock": "JAGF-1-D-002", "variety": "", "luas_target": "92,99", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}, {"paddock": "JAGF-2-K-003", "variety": "", "luas_target": "150,00", "activity": "Bassalt Dressing", "type": "", "deskripsi": "Bassalt Dressing D"}, {"paddock": "JAGF-1-D-066", "variety": "", "luas_target": "5,96", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-068", "variety": "", "luas_target": "0,29", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-A-007", "variety": "", "luas_target": "11,24", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-2-H-031", "variety": "", "luas_target": "7,91", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-C-029", "variety": "", "luas_target": "14,64", "activity": "Knockdown", "type": "Herbicide", "deskripsi": "Knockdown (Plant) B"}, {"paddock": "JAGF-1-D-061", "variety": "", "luas_target": "15,80", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-B-014", "variety": "", "luas_target": "17,81", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-C-031", "variety": "", "luas_target": "0,83", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-1-D-021", "variety": "", "luas_target": "2,91", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-022", "variety": "", "luas_target": "2,64", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-024", "variety": "", "luas_target": "8,34", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-026", "variety": "", "luas_target": "7,05", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-027", "variety": "", "luas_target": "1,46", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-028", "variety": "", "luas_target": "0,72", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-029", "variety": "", "luas_target": "4,31", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-030", "variety": "", "luas_target": "2,42", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-033", "variety": "", "luas_target": "3,08", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-034", "variety": "", "luas_target": "2,82", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-2-I-092", "variety": "", "luas_target": "0,43", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence B"}, {"paddock": "JAGF-2-H-026", "variety": "", "luas_target": "7,37", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-2-H-029", "variety": "", "luas_target": "12,40", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-2-I-101", "variety": "", "luas_target": "1,70", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-1-C-029", "variety": "", "luas_target": "14,64", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-2-G-008", "variety": "", "luas_target": "0,64", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence PC"}, {"paddock": "JAGF-2-J-009", "variety": "", "luas_target": "17,65", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence PC"}, {"paddock": "JAGF-1-D-038", "variety": "", "luas_target": "2,20", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide B"}, {"paddock": "JAGF-2-H-023", "variety": "", "luas_target": "6,56", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide E"}, {"paddock": "JAGF-1-D-058", "variety": "", "luas_target": "44,80", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-C-003", "variety": "", "luas_target": "31,85", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide F"}, {"paddock": "JAGF-2-I-130", "variety": "", "luas_target": "15,40", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide F"}, {"paddock": "JAGF-2-G-009", "variety": "", "luas_target": "43,52", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide D"}, {"paddock": "JAGF-2-G-010", "variety": "", "luas_target": "232,30", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}], "bahan": {"Bassalt Dressing B": {"pesticide1": "NPK 15-8-15", "dosage1": 150.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Bassalt Dressing C": {"pesticide1": "NPK 15-10-15", "dosage1": 250.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Bassalt Dressing D": {"pesticide1": "HX-DAP", "dosage1": 250.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Insecticide A": {"pesticide1": "Incipio", "dosage1": 0.2, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Prima Boost", "adjuvant_dosage": 0.05}, "Insecticide B": {"pesticide1": "Prevathon", "dosage1": 1.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.05}, "Insecticide C": {"pesticide1": "Punggawa 50 SC", "dosage1": 1.4, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.05}, "Insecticide D": {"pesticide1": "Confidor 60 ml", "dosage1": 0.8, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.8}, "Insecticide E": {"pesticide1": "Prevathon", "dosage1": 1.5, "pesticide2": "Confidor 60 ml", "dosage2": 0.8, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.2}, "Insecticide F": {"pesticide1": "Punggawa 50 SC", "dosage1": 1.4, "pesticide2": "Confidor 60 ml", "dosage2": 0.8, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.2}, "Knockdown (Plant) A": {"pesticide1": "Rollup 480 SL", "dosage1": 3.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.1}, "Knockdown (Plant) B": {"pesticide1": "Rollup 480 SL", "dosage1": 3.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agridex 715 EC", "adjuvant_dosage": 0.2}, "Post Emergence A": {"pesticide1": "Prima Kuat 276 SL", "dosage1": 1.0, "pesticide2": "Prima Maxin 50 WP", "dosage2": 0.6, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.15}, "Post Emergence B": {"pesticide1": "Omni Care 288 EC", "dosage1": 0.9, "pesticide2": "Prima Jos 865 SL", "dosage2": 0.6, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.2}, "Post Emergence C": {"pesticide1": "Prima Kuat 276 SL", "dosage1": 1.0, "pesticide2": "DKHexaron 60WG", "dosage2": 2.5, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.1}, "Post Emergence D": {"pesticide1": "Garlon 670 EC", "dosage1": 1.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agridex 715 EC", "adjuvant_dosage": 0.25}, "Post Emergence E": {"pesticide1": "Rollup 480 SL", "dosage1": 3.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.5}, "Pre Emergence PC": {"pesticide1": "Prowl 330 EC", "dosage1": 3.0, "pesticide2": "Venator 550SC @1 Ltr", "dosage2": 4.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Pre Emergence PC A": {"pesticide1": "Prowl 330 EC", "dosage1": 3.0, "pesticide2": "Atres", "dosage2": 4.0, "pesticide3": "Omni Care 288 EC", "dosage3": 0.9, "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Pre Emergence RC": {"pesticide1": "Toleran 75 WG", "dosage1": 0.06, "pesticide2": "Prima Kuat 276 SL", "dosage2": 1.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing A": {"pesticide1": "NPK Plus 15-15-15", "dosage1": 700.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing B": {"pesticide1": "NPK 15-10-15", "dosage1": 700.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing C": {"pesticide1": "NPK 15-8-15", "dosage1": 700.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing D": {"pesticide1": "TSP-P205 (Phospate) 46%", "dosage1": 100.0, "pesticide2": "NK 20:30", "dosage2": 600.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing A": {"pesticide1": "NPK Plus 15-15-15", "dosage1": 600.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing B": {"pesticide1": "NPK 15-10-15", "dosage1": 600.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing C": {"pesticide1": "NPK 15-8-15", "dosage1": 600.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing D": {"pesticide1": "TSP-P205 (Phospate) 46%", "dosage1": 100.0, "pesticide2": "NK 20:30", "dosage2": 400.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}}, "formHeaders": ["Date", "Time", "Shift", "Status", "Name", "Name of Assistan", "Paddock", "Variety", "Area (Ha)", "Unit", "No. Unit", "Dropper", "Droplet Size", "Nozzle", "Height (m)", "Row Spacing (m)", "Speed (Km/Jam)", "Type", "Activity", "Deskripsi", "Pesticide 1", "Dosage", "Pesticide 2", "Dosage", "Pesticide 3", "Dosage", "Pesticide 4", "Dosage", "Adjuvant", "Adjuvant Dosage", "Estimated Usage Pesticide 1", "Estimated Usage Pesticide 2", "Estimated Usage Pesticide 3", "Estimated Usage Pesticide 4", "Estimated Usage Adjuvant", "Actual Usage Pesticide 1", "Actual Usage Pesticide 2", "Actual Usage Pesticide 3", "Actual Usage Pesticide 4", "Actual Usage Adjuvant", "Water Rate", "Water Quality", "Actual Usage", "Wind Speed (Km/jam)", "Temperature (\u00b0C)", "Humidity (NRC)", "Delta T (\u00b0C)", "Weather Condition", "Noted\\*"], "securityCode": "QC2026"};
+    const INITIAL_MASTER_DATA = {"names": ["ALBERTO NGORANUBUN", "BENEDIKTUS WAGIYOP", "GERMANUS KWAMTAHAI", "GUSTINUS LORONG", "JUMRI", "MOHAMAD IRAWAN", "PUJI WASTONI", "BANU MUFARRIDHIN"], "assistants": ["PUJI HARTONO", "JOSUA F. SIMARMATA", "MOH. SABRI", "EFFRATA ALEX F", "MUH. SABILLAH", "EFRI NANDO", "ARSYI P.B AMBARITA", "HEPSON J OMPUSUNGGU", "SUVENI. M SIBORO"], "statuses": ["Working", "Hold"], "shifts": ["1", "2"], "unitMap": {"Tractor Spray": ["TS003G", "TS004G", "TS005G"], "Boom Spray Cropland": ["TR128G"], "Boom Spray Baldan": ["TR069G"], "Drone": ["DJIT50-01", "DJIT50-02", "DJIT50-03", "DJIT50-04", "DJIT50-05", "DJIT50-06", "DJIT100-01"]}, "dropper": ["Yes", "No"], "nozzles": ["TTI60-11025 (Ungu)", "TTI60-11004 (Merah)", "TTI60-11005 (Coklat)", "TTI60-11008 (Putih)"], "waterQualities": ["Clean", "Slighty Muddy", "Bad"], "weatherConditions": ["Sunny", "Cloudy", "Rainning"], "allVarieties": ["GMP4", "GMP5", "GMP6", "Q200", "Q208", "Q232", "Q240", "Q253", "R1", "R2", "R3", "SRA09"], "plan": [{"paddock": "JAGF-1-C-030", "variety": "", "luas_target": "1,17", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-004", "variety": "", "luas_target": "0,24", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-016", "variety": "", "luas_target": "10,00", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-025", "variety": "", "luas_target": "1,93", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-037", "variety": "", "luas_target": "3,77", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-003", "variety": "", "luas_target": "15,86", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}, {"paddock": "JAGF-2-H-035", "variety": "", "luas_target": "55,00", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}, {"paddock": "JAGF-1-D-002", "variety": "", "luas_target": "92,99", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}, {"paddock": "JAGF-2-K-003", "variety": "", "luas_target": "150,00", "activity": "Bassalt Dressing", "type": "", "deskripsi": "Bassalt Dressing D"}, {"paddock": "JAGF-1-D-066", "variety": "", "luas_target": "5,96", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-068", "variety": "", "luas_target": "0,29", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-A-007", "variety": "", "luas_target": "11,24", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-2-H-031", "variety": "", "luas_target": "7,91", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-C-029", "variety": "", "luas_target": "14,64", "activity": "Knockdown", "type": "Herbicide", "deskripsi": "Knockdown (Plant) B"}, {"paddock": "JAGF-1-D-061", "variety": "", "luas_target": "15,80", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-B-014", "variety": "", "luas_target": "17,81", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-C-031", "variety": "", "luas_target": "0,83", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-1-D-021", "variety": "", "luas_target": "2,91", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-022", "variety": "", "luas_target": "2,64", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-024", "variety": "", "luas_target": "8,34", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-026", "variety": "", "luas_target": "7,05", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-027", "variety": "", "luas_target": "1,46", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-028", "variety": "", "luas_target": "0,72", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-029", "variety": "", "luas_target": "4,31", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-030", "variety": "", "luas_target": "2,42", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-033", "variety": "", "luas_target": "3,08", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-034", "variety": "", "luas_target": "2,82", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-2-I-092", "variety": "", "luas_target": "0,43", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence B"}, {"paddock": "JAGF-2-H-026", "variety": "", "luas_target": "7,37", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-2-H-029", "variety": "", "luas_target": "12,40", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-2-I-101", "variety": "", "luas_target": "1,70", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-1-C-029", "variety": "", "luas_target": "14,64", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-2-G-008", "variety": "", "luas_target": "0,64", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence PC"}, {"paddock": "JAGF-2-J-009", "variety": "", "luas_target": "17,65", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence PC"}, {"paddock": "JAGF-1-D-038", "variety": "", "luas_target": "2,20", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide B"}, {"paddock": "JAGF-2-H-023", "variety": "", "luas_target": "6,56", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide E"}, {"paddock": "JAGF-1-D-058", "variety": "", "luas_target": "44,80", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-C-003", "variety": "", "luas_target": "31,85", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide F"}, {"paddock": "JAGF-2-I-130", "variety": "", "luas_target": "15,40", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide F"}, {"paddock": "JAGF-2-G-009", "variety": "", "luas_target": "43,52", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide D"}, {"paddock": "JAGF-2-G-010", "variety": "", "luas_target": "232,30", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}], "bahan": {"Bassalt Dressing B": {"pesticide1": "NPK 15-8-15", "dosage1": 150.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Bassalt Dressing C": {"pesticide1": "NPK 15-10-15", "dosage1": 250.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Bassalt Dressing D": {"pesticide1": "HX-DAP", "dosage1": 250.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Insecticide A": {"pesticide1": "Incipio", "dosage1": 0.2, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Prima Boost", "adjuvant_dosage": 0.05}, "Insecticide B": {"pesticide1": "Prevathon", "dosage1": 1.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.05}, "Insecticide C": {"pesticide1": "Punggawa 50 SC", "dosage1": 1.4, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.05}, "Insecticide D": {"pesticide1": "Confidor 60 ml", "dosage1": 0.8, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.8}, "Insecticide E": {"pesticide1": "Prevathon", "dosage1": 1.5, "pesticide2": "Confidor 60 ml", "dosage2": 0.8, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.2}, "Insecticide F": {"pesticide1": "Punggawa 50 SC", "dosage1": 1.4, "pesticide2": "Confidor 60 ml", "dosage2": 0.8, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.2}, "Knockdown (Plant) A": {"pesticide1": "Rollup 480 SL", "dosage1": 3.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.1}, "Knockdown (Plant) B": {"pesticide1": "Rollup 480 SL", "dosage1": 3.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agridex 715 EC", "adjuvant_dosage": 0.2}, "Post Emergence A": {"pesticide1": "Prima Kuat 276 SL", "dosage1": 1.0, "pesticide2": "Prima Maxin 50 WP", "dosage2": 0.6, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.15}, "Post Emergence B": {"pesticide1": "Omni Care 288 EC", "dosage1": 0.9, "pesticide2": "Prima Jos 865 SL", "dosage2": 0.6, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.2}, "Post Emergence C": {"pesticide1": "Prima Kuat 276 SL", "dosage1": 1.0, "pesticide2": "DKHexaron 60WG", "dosage2": 2.5, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.1}, "Post Emergence D": {"pesticide1": "Garlon 670 EC", "dosage1": 1.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agridex 715 EC", "adjuvant_dosage": 0.25}, "Post Emergence E": {"pesticide1": "Rollup 480 SL", "dosage1": 3.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.5}, "Pre Emergence PC": {"pesticide1": "Prowl 330 EC", "dosage1": 3.0, "pesticide2": "Venator 550SC @1 Ltr", "dosage2": 4.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Pre Emergence PC A": {"pesticide1": "Prowl 330 EC", "dosage1": 3.0, "pesticide2": "Atres", "dosage2": 4.0, "pesticide3": "Omni Care 288 EC", "dosage3": 0.9, "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Pre Emergence RC": {"pesticide1": "Toleran 75 WG", "dosage1": 0.06, "pesticide2": "Prima Kuat 276 SL", "dosage2": 1.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing A": {"pesticide1": "NPK Plus 15-15-15", "dosage1": 700.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing B": {"pesticide1": "NPK 15-10-15", "dosage1": 700.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing C": {"pesticide1": "NPK 15-8-15", "dosage1": 700.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing D": {"pesticide1": "TSP-P205 (Phospate) 46%", "dosage1": 100.0, "pesticide2": "NK 20:30", "dosage2": 600.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing A": {"pesticide1": "NPK Plus 15-15-15", "dosage1": 600.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing B": {"pesticide1": "NPK 15-10-15", "dosage1": 600.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing C": {"pesticide1": "NPK 15-8-15", "dosage1": 600.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing D": {"pesticide1": "TSP-P205 (Phospate) 46%", "dosage1": 100.0, "pesticide2": "NK 20:30", "dosage2": 400.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}}, "formHeaders": ["Date", "Time", "Shift", "Status", "Name", "Name of Assistan", "Paddock", "Variety", "Area (Ha)", "Unit", "No. Unit", "Dropper", "Droplet Size", "Nozzle", "Height (m)", "Row Spacing (m)", "Speed (Km/Jam)", "Type", "Activity", "Deskripsi", "Pesticide 1", "Dosage", "Pesticide 2", "Dosage", "Pesticide 3", "Dosage", "Pesticide 4", "Dosage", "Adjuvant", "Adjuvant Dosage", "Estimated Usage Pesticide 1", "Estimated Usage Pesticide 2", "Estimated Usage Pesticide 3", "Estimated Usage Pesticide 4", "Estimated Usage Adjuvant", "Actual Usage Pesticide 1", "Actual Usage Pesticide 2", "Actual Usage Pesticide 3", "Actual Usage Pesticide 4", "Actual Usage Adjuvant", "Water Rate", "Water Quality", "Actual Usage", "Wind Speed (Km/jam)", "Temperature (\u00b0C)", "Humidity (NRC)", "Delta T (\u00b0C)", "Weather Condition", "Noted\\*"], };
   </script>
 
   <!-- MAIN APPLICATION LOGIC -->
@@ -1972,7 +2129,7 @@
     let appConfig = {
       appsScriptUrl: '',
       spreadsheetId: '1Yr9wcSl5Q1qLugdoRNAdSpPAHmHad54repNunzX5Ed0',
-      securityCode: 'QC2026'
+      
     };
     let currentEditingId = null;
 
@@ -2165,64 +2322,47 @@
     }
 
     function checkAuthSession() {
+      const authOverlay = document.getElementById('authScreen');
+      const mainApp = document.getElementById('mainApp');
+
       try {
         const raw = localStorage.getItem(STORAGE_KEY_AUTH_USER);
         if (raw) {
           currentUser = JSON.parse(raw);
-          // Jika sesi tersimpan adalah pengunjung atau akun owner dnpuji24, pastikan role owner aktif
-          if (currentUser && (currentUser.email === 'dnpuji24@gmail.com' || currentUser.username === 'dnpuji24' || currentUser.role === 'owner')) {
-            currentUser.role = 'owner';
-            currentUser.status = 'APPROVED';
-            currentUser.fullName = 'Puji Hartono (Owner)';
-            currentUser.email = 'dnpuji24@gmail.com';
-            currentUser.username = 'dnpuji24';
-            localStorage.setItem(STORAGE_KEY_AUTH_USER, JSON.stringify(currentUser));
-            document.getElementById('authScreen').classList.add('hidden');
-            applyRolePermissions();
-            return;
-          } else if (currentUser && currentUser.status === 'APPROVED' && currentUser.role !== 'pengunjung') {
-            document.getElementById('authScreen').classList.add('hidden');
+          if (currentUser && currentUser.status === 'APPROVED') {
+            if (authOverlay) authOverlay.classList.add('hidden');
+            if (mainApp) mainApp.classList.remove('hidden');
             applyRolePermissions();
             return;
           }
         }
       } catch (e) {}
 
-      // Default otomatis ke akun Owner Puji Hartono (dnpuji24@gmail.com) agar tidak pernah terkunci sebagai Pengunjung!
-      forceSetOwnerSession(false);
+      // Jika belum login / pertama kali masuk: TAMPILKAN LAYAR LOGIN & DAFTAR (RULE 1)
+      currentUser = null;
+      if (authOverlay) authOverlay.classList.remove('hidden');
+      if (mainApp) mainApp.classList.add('hidden');
     }
 
-    function forceSetOwnerSession(showToastMsg = true) {
-      currentUser = {
-        username: 'dnpuji24',
-        email: 'dnpuji24@gmail.com',
-        password: '123456',
-        fullName: 'Puji Hartono (Owner)',
-        role: 'owner',
-        status: 'APPROVED',
-        createdAt: new Date().toISOString()
-      };
+    function completeLogin(userObj) {
+      currentUser = userObj;
       localStorage.setItem(STORAGE_KEY_AUTH_USER, JSON.stringify(currentUser));
+      
+      const authOverlay = document.getElementById('authScreen');
+      const mainApp = document.getElementById('mainApp');
+      if (authOverlay) authOverlay.classList.add('hidden');
+      if (mainApp) mainApp.classList.remove('hidden');
 
-      const usersDB = getUsersDB();
-      const ownerIdx = usersDB.findIndex(u => u.username === 'dnpuji24' || u.email === 'dnpuji24@gmail.com' || u.role === 'owner');
-      if (ownerIdx !== -1) {
-        usersDB[ownerIdx] = currentUser;
-      } else {
-        usersDB.unshift(currentUser);
-      }
-      saveUsersDB(usersDB);
+      const lForm = document.getElementById('loginForm');
+      if (lForm) lForm.reset();
 
-      document.getElementById('authScreen').classList.add('hidden');
+      logSystemActivity('LOGIN', `Pengguna ${userObj.fullName} (${userObj.role}) berhasil login.`);
+      showToast(`Selamat datang, ${userObj.fullName}!`, 'success');
+
       applyRolePermissions();
       renderDashboardUI();
-      if (showToastMsg) {
-        showToast('Akun Anda telah diaktifkan sebagai OWNER (Puji Hartono)!', 'success');
-      }
-    }
-
-    function openLoginModalDirectly() {
-      document.getElementById('authScreen').classList.remove('hidden');
+      // Langsung diarahkan menuju halaman Dashboard (Rule 7)
+      switchTab('dashboardTab');
     }
 
     function switchAuthTab(tab) {
@@ -2244,112 +2384,50 @@
       }
     }
 
-    async 
-    function quickFillOwnerLogin() {
-      document.getElementById('login_username').value = 'dnpuji24@gmail.com';
-      document.getElementById('login_password').value = '123456';
-      showToast('Kredensial Owner (dnpuji24@gmail.com) terisi.', 'info');
-    }
-
-    function openChangePasswordModal() {
-      if (!currentUser) return;
-      document.getElementById('changePasswordModal').classList.remove('hidden');
-      document.getElementById('cp_oldPassword').value = '';
-      document.getElementById('cp_newPassword').value = '';
-      document.getElementById('cp_confirmPassword').value = '';
-    }
-
-    function closeChangePasswordModal() {
-      document.getElementById('changePasswordModal').classList.add('hidden');
-    }
-
-    async function handleSaveNewPassword(e) {
-      e.preventDefault();
-      if (!currentUser) return;
-
-      const oldP = document.getElementById('cp_oldPassword').value;
-      const newP = document.getElementById('cp_newPassword').value;
-      const confP = document.getElementById('cp_confirmPassword').value;
-
-      if (oldP !== currentUser.password) {
-        showToast('Kata sandi lama tidak cocok!', 'error');
-        return;
-      }
-      if (newP.length < 4) {
-        showToast('Kata sandi baru minimal 4 karakter!', 'error');
-        return;
-      }
-      if (newP !== confP) {
-        showToast('Konfirmasi kata sandi baru tidak cocok!', 'error');
-        return;
-      }
-
-      const usersDB = getUsersDB();
-      const user = usersDB.find(u => u.username.toLowerCase() === currentUser.username.toLowerCase() || (u.email && u.email.toLowerCase() === (currentUser.email || '').toLowerCase()));
-      if (user) {
-        user.password = newP;
-        user.modifiedAt = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-        saveUsersDB(usersDB);
-      }
-
-      currentUser.password = newP;
-      localStorage.setItem(STORAGE_KEY_AUTH_USER, JSON.stringify(currentUser));
-
-      logSystemActivity('CHANGE_PASSWORD', `Pengguna ${currentUser.fullName} mengubah kata sandi.`);
-      showToast('Kata sandi berhasil diperbarui!', 'success');
-      closeChangePasswordModal();
-
-      // Sync ke Spreadsheet jika online
-      if (navigator.onLine && appConfig.appsScriptUrl) {
-        try {
-          fetch(appConfig.appsScriptUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({
-              action: 'changePassword',
-              username: currentUser.username,
-              newPassword: newP
-            })
-          });
-        } catch (err) {}
-      }
-    }
-
     async function handleLoginSubmit(e) {
       e.preventDefault();
       const uInput = document.getElementById('login_username').value.trim().toLowerCase();
       const pInput = document.getElementById('login_password').value.trim();
 
       if (!uInput || !pInput) {
-        showToast('Username dan password wajib diisi!', 'error');
+        showToast('Email/Username dan kata sandi wajib diisi!', 'error');
         return;
       }
 
-      showToast('Memeriksa kredensial...', 'info');
+      showToast('Memverifikasi kredensial akun...', 'info');
 
-      // 1. Cek dari Database Lokal HP terlebih dahulu (agar bisa login offline)
+      // 1. Cek Database Pengguna Lokal
       const usersDB = getUsersDB();
-      const localUser = usersDB.find(u => {
-        const uMatches = (u.username.toLowerCase() === uInput || (u.email && u.email.toLowerCase() === uInput) || (u.role === 'owner' && (uInput === 'owner' || uInput === 'dnpuji24' || uInput === 'dnpuji24@gmail.com')));
-        return uMatches && (u.password === pInput);
+      const matchedUser = usersDB.find(u => {
+        const emailMatch = u.email && (u.email.toLowerCase() === uInput);
+        const userMatch = u.username && (u.username.toLowerCase() === uInput);
+        const ownerAlias = (u.role === 'owner') && (uInput === 'owner' || uInput === 'dnpuji24' || uInput === 'dnpuji24@gmail.com');
+        return emailMatch || userMatch || ownerAlias;
       });
 
-      if (localUser) {
-        if (localUser.status === 'PENDING') {
-          showToast('Akun Anda sedang MENUNGGU PERSETUJUAN dari Owner. Hubungi Owner untuk aktivasi.', 'warning');
-          return;
-        }
-        if (localUser.status === 'REJECTED' || localUser.status === 'DISABLED') {
-          showToast('Akun Anda telah dinonaktifkan atau ditolak oleh Owner.', 'error');
+      if (matchedUser) {
+        // Validasi Password Ketat (Rule 3)
+        if (matchedUser.password !== pInput) {
+          showToast('Kata sandi salah! Akses ditolak.', 'error');
           return;
         }
 
-        // Login Berhasil dari lokal
-        completeLogin(localUser);
+        // Validasi Status Akun (Rule 8)
+        if (matchedUser.status === 'PENDING') {
+          showToast('Pendaftaran akun Anda masih MENUNGGU PERSETUJUAN dari Owner (dnpuji24@gmail.com). Silakan hubungi Owner untuk aktivasi.', 'warning');
+          return;
+        }
+        if (matchedUser.status === 'REJECTED' || matchedUser.status === 'DISABLED') {
+          showToast('Pendaftaran akun Anda telah DITOLAK atau dinonaktifkan oleh Owner.', 'error');
+          return;
+        }
+
+        // Login Berhasil -> Langsung diarahkan ke Dashboard (Rule 7)
+        completeLogin(matchedUser);
         return;
       }
 
-      // 2. Jika online, coba verifikasi ke Server Google Spreadsheet (Users Sheet)
+      // 2. Jika online dan belum ada di lokal, verifikasi ke Spreadsheet
       if (navigator.onLine && appConfig.appsScriptUrl) {
         try {
           const res = await fetch(appConfig.appsScriptUrl, {
@@ -2359,16 +2437,16 @@
               action: 'login',
               username: uInput,
               password: pInput,
-              deviceInfo: navigator.userAgent.includes('Mobile') ? 'HP Mobile' : 'Desktop'
+              deviceInfo: navigator.userAgent.includes('Mobile') ? 'HP Mandor' : 'Desktop'
             })
           });
           const result = await res.json();
 
           if (result.status === 'success' && result.user) {
-            // Simpan ke database lokal untuk login offline berikutnya
             const existingIdx = usersDB.findIndex(u => u.username.toLowerCase() === result.user.username.toLowerCase());
             const userObj = {
               username: result.user.username,
+              email: result.user.email || uInput,
               password: pInput,
               fullName: result.user.fullName,
               role: result.user.role,
@@ -2382,10 +2460,10 @@
             completeLogin(userObj);
             return;
           } else if (result.status === 'pending') {
-            showToast('Akun Anda sedang MENUNGGU PERSETUJUAN dari Owner.', 'warning');
+            showToast('Akun Anda masih MENUNGGU PERSETUJUAN dari Owner.', 'warning');
             return;
           } else {
-            showToast(result.message || 'Username atau password salah!', 'error');
+            showToast(result.message || 'Email atau kata sandi salah!', 'error');
             return;
           }
         } catch (err) {
@@ -2393,61 +2471,53 @@
         }
       }
 
-      showToast('Username atau password tidak cocok!', 'error');
-    }
-
-    function completeLogin(userObj) {
-      currentUser = userObj;
-      localStorage.setItem(STORAGE_KEY_AUTH_USER, JSON.stringify(currentUser));
-      document.getElementById('authScreen').classList.add('hidden');
-      document.getElementById('loginForm').reset();
-
-      logSystemActivity('LOGIN', `Pengguna ${userObj.fullName} (${userObj.role}) berhasil login.`);
-      showToast(`Selamat datang, ${userObj.fullName}!`, 'success');
-
-      applyRolePermissions();
-      renderDashboardUI();
-      switchTab('dashboardTab');
+      showToast('Akun tidak ditemukan! Silakan mendaftar pada tab "Daftar Akun Baru".', 'error');
     }
 
     async function handleRegisterSubmit(e) {
       e.preventDefault();
       const fullName = document.getElementById('reg_fullName').value.trim();
+      const email = document.getElementById('reg_email').value.trim().toLowerCase();
       const username = document.getElementById('reg_username').value.trim().toLowerCase();
       const role = document.getElementById('reg_role').value;
       const pass = document.getElementById('reg_password').value;
       const passConf = document.getElementById('reg_passwordConfirm').value;
-      const notes = document.getElementById('reg_notes').value.trim();
+
+      // Validasi Email Jelas (Rule 4)
+      if (!email || !email.includes('@') || !email.includes('.')) {
+        showToast('Alamat email tidak valid! Masukkan email aktif yang benar (contoh: alberto@gmail.com).', 'error');
+        return;
+      }
 
       if (pass.length < 4) {
-        showToast('Password minimal 4 karakter!', 'error');
+        showToast('Kata sandi minimal 4 karakter!', 'error');
         return;
       }
       if (pass !== passConf) {
-        showToast('Konfirmasi password tidak cocok!', 'error');
+        showToast('Konfirmasi kata sandi tidak cocok!', 'error');
         return;
       }
 
       const usersDB = getUsersDB();
-      if (usersDB.some(u => u.username.toLowerCase() === username)) {
-        showToast(`Username "${username}" sudah terdaftar! Gunakan username lain.`, 'error');
+      if (usersDB.some(u => (u.username && u.username.toLowerCase() === username) || (u.email && u.email.toLowerCase() === email))) {
+        showToast('Email atau username sudah terdaftar! Gunakan email/username lain.', 'error');
         return;
       }
 
       const newUser = {
         username: username,
+        email: email,
         password: pass,
         fullName: fullName,
         role: role,
-        status: 'PENDING', // Wajib persetujuan Owner
-        notes: notes,
+        status: 'PENDING', // Menunggu persetujuan Owner (Rule 4 & 5)
         createdAt: new Date().toISOString()
       };
 
       usersDB.push(newUser);
       saveUsersDB(usersDB);
 
-      // Kirim pendaftaran ke Spreadsheet jika online
+      // Kirim ke Google Apps Script Spreadsheet jika online
       if (navigator.onLine && appConfig.appsScriptUrl) {
         try {
           fetch(appConfig.appsScriptUrl, {
@@ -2456,22 +2526,22 @@
             body: JSON.stringify({
               action: 'register',
               username: username,
+              email: email,
               password: pass,
               fullName: fullName,
               role: role,
-              notes: notes,
-              deviceInfo: navigator.userAgent.includes('Mobile') ? 'HP Mobile' : 'Desktop'
+              deviceInfo: navigator.userAgent.includes('Mobile') ? 'HP Mandor' : 'Desktop'
             })
           });
         } catch (err) {}
       }
 
-      logSystemActivity('REGISTER', `Pendaftaran akun baru: ${fullName} (${username}) mengajukan role ${role}.`);
-      showToast('Pendaftaran akun berhasil! Silakan hubungi Owner untuk persetujuan akun.', 'success');
+      logSystemActivity('REGISTER', `Pendaftaran akun baru: ${fullName} (${email}) mengajukan role ${role}.`);
+      showToast('Pendaftaran akun berhasil dikirim! Silakan tunggu persetujuan dari Owner (dnpuji24@gmail.com).', 'success');
 
       document.getElementById('registerForm').reset();
       switchAuthTab('login');
-      document.getElementById('login_username').value = username;
+      document.getElementById('login_username').value = email;
     }
 
     function confirmLogout() {
@@ -2499,10 +2569,10 @@
       const role = currentUser.role || 'pengunjung';
       const perms = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.pengunjung;
 
-      // 1. Update Header Info & Settings Profile
+      // 1. Update Header Info
       const nameEl = document.getElementById('headerUserName');
       const badgeEl = document.getElementById('headerUserRoleBadge');
-      if (nameEl) nameEl.textContent = `${currentUser.fullName || currentUser.username}`;
+      if (nameEl) nameEl.textContent = currentUser.fullName || currentUser.username;
       if (badgeEl) {
         badgeEl.textContent = perms.label;
         badgeEl.className = `inline-block text-[9px] px-2 py-0.5 rounded font-black uppercase tracking-wider ${perms.badgeClass}`;
@@ -2518,36 +2588,60 @@
         sBadge.className = `text-[10px] font-black uppercase px-2 py-0.5 rounded ${perms.badgeClass}`;
       }
 
-      // 2. Kontrol Visibilitas Tab Navigasi
+      // 2. Tab Input: Hanya untuk Mandor, Asisten, Owner
       const tabInput = document.getElementById('tabBtn-inputTab');
-      const tabLogs = document.getElementById('tabBtn-logsTab');
-      const tabUsers = document.getElementById('tabBtn-usersTab');
-
-      // Form Input: Hanya untuk yang bisa input (Mandor, Asisten, Owner)
       if (tabInput) {
         if (perms.can_input) tabInput.classList.remove('hidden');
         else tabInput.classList.add('hidden');
       }
 
-      // Log Aktivitas: Hanya untuk Owner, Manager, Admin
-      if (tabLogs) {
-        if (perms.can_see_logs) tabLogs.classList.remove('hidden');
-        else tabLogs.classList.add('hidden');
+      // 3. Sub-Menu Khusus Owner di Tab Pengaturan (Rule 9)
+      const ownerCard = document.getElementById('ownerExclusiveCard');
+      const ownerBanner = document.getElementById('ownerPendingNotificationBanner');
+      const navBadge = document.getElementById('navOwnerPendingBadge');
+
+      const isOwner = (role === 'owner');
+      if (ownerCard) {
+        if (isOwner) ownerCard.classList.remove('hidden');
+        else ownerCard.classList.add('hidden');
       }
 
-      // Kelola Akun: Khusus OWNER
-      if (tabUsers) {
-        if (perms.can_manage_users) {
-          tabUsers.classList.remove('hidden');
-          updatePendingUsersBadge();
-        } else {
-          tabUsers.classList.add('hidden');
+      // Hitung akun yang menunggu persetujuan (Rule 5)
+      const usersDB = getUsersDB();
+      const pendingCount = usersDB.filter(u => u.status === 'PENDING').length;
+
+      if (isOwner && pendingCount > 0) {
+        if (ownerBanner) {
+          ownerBanner.classList.remove('hidden');
+          const bannerCount = document.getElementById('bannerPendingCount');
+          if (bannerCount) bannerCount.textContent = pendingCount;
         }
+        if (navBadge) navBadge.classList.remove('hidden');
+        const badgeOwner = document.getElementById('ownerPendingUsersBadge');
+        if (badgeOwner) {
+          badgeOwner.textContent = pendingCount;
+          badgeOwner.classList.remove('hidden');
+        }
+      } else {
+        if (ownerBanner) ownerBanner.classList.add('hidden');
+        if (navBadge) navBadge.classList.add('hidden');
+        const badgeOwner = document.getElementById('ownerPendingUsersBadge');
+        if (badgeOwner) badgeOwner.classList.add('hidden');
       }
 
-      // Render ulang daftar riwayat & dashboard dengan batasan tombol
+      // Render ulang daftar riwayat & dashboard
       renderHistoryList();
       renderDashboardUI();
+      renderUsersManagementUI();
+    }
+
+    function openOwnerUserManagement() {
+      switchTab('settingsTab');
+      const subView = document.getElementById('ownerUserManagementSubView');
+      if (subView) {
+        subView.scrollIntoView({ behavior: 'smooth' });
+        renderUsersManagementUI();
+      }
     }
 
     function updatePendingUsersBadge() {
