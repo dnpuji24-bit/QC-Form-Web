@@ -1,4 +1,4 @@
-const CACHE='qc-form-v47-1';
+const CACHE='qc-form-v49-1';
 const SHELL=['./','./index.html','./styles.css','./app.js','./manifest.json','./master_data.json','./logo.svg'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>Promise.allSettled(SHELL.map(x=>cache.add(x)))).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));

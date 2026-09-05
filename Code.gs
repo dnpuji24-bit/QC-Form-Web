@@ -176,7 +176,7 @@ function listCloud_(user) { var sh=getSheet_(QC.SHEETS.CLOUD),map=headerMap_(sh,
 
 function upsertCloud_(rec,user) {
   var sh=getSheet_(QC.SHEETS.CLOUD),map=headerMap_(sh,1),row=findRow_(sh,map.RecordID,rec.id,2),photo=savePhoto_(rec);
-  rec.photoBase64=''; var values=blankRow_(sh.getLastColumn());
+  rec.photoBase64=''; (rec.holdIntervals||[]).forEach(function(h){h.photoBase64='';}); var values=blankRow_(sh.getLastColumn());
   setBy_(values,map,'LastUpdated',new Date());setBy_(values,map,'RecordID',rec.id);setBy_(values,map,'FormType',rec.formType);setBy_(values,map,'Date',rec.date);setBy_(values,map,'Shift',rec.shift);setBy_(values,map,'Mandor',rec.name);setBy_(values,map,'Assistan',rec.nameOfAssistan);setBy_(values,map,'Paddock',rec.paddock);setBy_(values,map,'Status',rec.status);setBy_(values,map,'SaveType',rec.saveType||'draft');setBy_(values,map,'SummaryDetails',(rec.activity||rec.type||'')+' | '+(rec.area||0)+' Ha');setBy_(values,map,'RecordJSON',JSON.stringify(rec));setBy_(values,map,'PhotoLink',photo||rec.photoDriveUrl||'');setBy_(values,map,'UpdatedBy',user.username);
   if(row) sh.getRange(row,1,1,values.length).setValues([values]); else sh.appendRow(values);
 }
