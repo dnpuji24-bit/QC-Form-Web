@@ -195,7 +195,7 @@ function writeFertilizer_(rec) {
 function getMasterData_() {
   var ss=SpreadsheetApp.getActiveSpreadsheet(),out={names:[],assistants:[],statuses:[],shifts:[],unitMap:{},dropper:[],nozzles:[],waterQualities:[],weatherConditions:[],varieties:[],plans:[],materials:[]};
   var d=ss.getSheetByName(QC.SHEETS.DATA); if(d){var vals=dataRows_(d,2);vals.forEach(function(r){pushUnique_(out.names,r[0]);pushUnique_(out.assistants,r[1]);pushUnique_(out.statuses,r[2]);pushUnique_(out.shifts,r[3]);if(r[4]){if(!out.unitMap[r[4]])out.unitMap[r[4]]=[];pushUnique_(out.unitMap[r[4]],r[5]);}pushUnique_(out.dropper,r[6]);pushUnique_(out.nozzles,r[7]);pushUnique_(out.varieties,r[8]);pushUnique_(out.waterQualities,r[12]);pushUnique_(out.weatherConditions,r[13]);});}
-  var p=ss.getSheetByName(QC.SHEETS.PLAN);if(p){var pv=p.getDataRange().getDisplayValues();for(var i=1;i<pv.length;i++){if(pv[i][5])out.plans.push({description:pv[i][4],paddock:pv[i][5],area:pv[i][6],variety:pv[i][7],status:pv[i][8],activity:pv[i][13],type:pv[i][14]});}}
+  var p=ss.getSheetByName(QC.SHEETS.PLAN);if(p){var pv=p.getDataRange().getDisplayValues();for(var i=1;i<pv.length;i++){if(pv[i][5])out.plans.push({description:pv[i][4],paddock:pv[i][5],area:pv[i][6],variety:pv[i][7],status:pv[i][8],activity:pv[i][13],type:pv[i][14],category:pv[i][15]});}}
   var b=ss.getSheetByName(QC.SHEETS.BAHAN);if(b){var bv=b.getDataRange().getDisplayValues();for(var j=1;j<bv.length;j++){if(bv[j][2])out.materials.push({description:bv[j][0],slot:bv[j][1],material:bv[j][2],unit:bv[j][3],dosage:bv[j][4]});}}
   return out;
 }

@@ -12,6 +12,8 @@ for required in ['authView','appView','qcForm','metrics','recordsList','usersBod
     assert required in ids, f'Missing #{required}'
 for forbidden in ['password: \'123456\'', 'owner123', 'QC2026', 'getUsersDB']:
     assert forbidden not in js, f'Forbidden insecure client pattern: {forbidden}'
+for required in ["category:pv[i][15]", "==='spray'", 'adjuvantDosage', 'estUsageAdjuvant', 'actualUsage', 'waterQuality', 'weatherCondition']:
+    assert required in ((root / 'Code.gs').read_text(encoding='utf-8') + js), f'Missing spray v47 rule: {required}'
 manifest = json.loads((root / 'public/manifest.json').read_text(encoding='utf-8'))
 firebase = json.loads((root / 'firebase.json').read_text(encoding='utf-8'))
 assert manifest['start_url'] == './'
