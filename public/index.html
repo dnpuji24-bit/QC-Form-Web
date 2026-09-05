@@ -1558,100 +1558,71 @@
         <!-- ==================== TAB 3: DATA & UPLOAD (DENGAN FILTER STATUS, REKAP MANDOR BELUM UPLOAD & DRAFT) ==================== -->
     <section id="historyTab" class="tab-content hidden space-y-4">
       
-      <!-- Top 3 Metrics Summary Cards -->
-      <div class="grid grid-cols-3 gap-2.5">
-        <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-sm text-center">
-          <span class="text-[11px] text-slate-500 block font-medium">Total Tersimpan</span>
-          <span class="text-lg sm:text-xl font-black text-slate-800 font-mono" id="statTotal">0</span>
+      <!-- KARTU INTERAKTIF STATUS LAPORAN (DAPAT DIKLIK LANGSUNG) -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        
+        <!-- KARTU 1: TOTAL TERSIMPAN (SEMUA LAPORAN) -->
+        <div id="cardFilter_all" onclick="selectHistoryStatusFilter('all')" class="bg-slate-100 rounded-2xl p-3 sm:p-3.5 border-2 border-slate-800 shadow-md ring-2 ring-slate-400 text-center cursor-pointer transition active:scale-95 group">
+          <div class="flex items-center justify-between text-slate-500 mb-1">
+            <span class="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider block group-hover:text-slate-900">Total Tersimpan</span>
+            <i class="fa-solid fa-folder-open text-slate-700 text-xs sm:text-sm"></i>
+          </div>
+          <span class="text-xl sm:text-2xl font-black text-slate-900 font-mono block leading-none" id="statTotal">0</span>
+          <span class="text-[10px] text-slate-500 font-medium block mt-1">Semua Laporan</span>
         </div>
-        <div class="bg-amber-50 rounded-xl p-3 border border-amber-200 shadow-sm text-center">
-          <span class="text-[11px] text-amber-700 block font-medium">Pending Upload</span>
-          <span class="text-lg sm:text-xl font-black text-amber-800 font-mono" id="statPending">0</span>
+
+        <!-- KARTU 2: DRAFT DISIMPAN (LAPORAN YANG MASIH DISIMPAN MANDOR) -->
+        <div id="cardFilter_draft" onclick="selectHistoryStatusFilter('draft')" class="bg-white rounded-2xl p-3 sm:p-3.5 border border-slate-200 shadow-2xs text-center cursor-pointer hover:border-amber-400 hover:shadow-sm transition active:scale-95 group">
+          <div class="flex items-center justify-between text-amber-700 mb-1">
+            <span class="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider block group-hover:text-amber-900">Disimpan</span>
+            <i class="fa-solid fa-file-pen text-amber-600 text-xs sm:text-sm"></i>
+          </div>
+          <span class="text-xl sm:text-2xl font-black text-amber-900 font-mono block leading-none" id="statDraft">0</span>
+          <span class="text-[10px] text-amber-700 font-medium block mt-1">Draft Mandor</span>
         </div>
-        <div class="bg-blue-50 rounded-xl p-3 border border-blue-200 shadow-sm text-center">
-          <span class="text-[11px] text-blue-700 block font-medium">Sudah Diupload</span>
-          <span class="text-lg sm:text-xl font-black text-blue-800 font-mono" id="statUploaded">0</span>
+
+        <!-- KARTU 3: PENDING UPLOAD (LAPORAN SELESAI SIAP KIRIM) -->
+        <div id="cardFilter_pending" onclick="selectHistoryStatusFilter('pending')" class="bg-white rounded-2xl p-3 sm:p-3.5 border border-slate-200 shadow-2xs text-center cursor-pointer hover:border-orange-400 hover:shadow-sm transition active:scale-95 group">
+          <div class="flex items-center justify-between text-orange-700 mb-1">
+            <span class="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider block group-hover:text-orange-950">Pending Upload</span>
+            <i class="fa-solid fa-clock text-orange-600 text-xs sm:text-sm"></i>
+          </div>
+          <span class="text-xl sm:text-2xl font-black text-orange-950 font-mono block leading-none" id="statPending">0</span>
+          <span class="text-[10px] text-orange-700 font-medium block mt-1">Siap Kirim</span>
         </div>
+
+        <!-- KARTU 4: SUDAH DIUPLOAD (BERHASIL TERKIRIM KE SPREADSHEET) -->
+        <div id="cardFilter_uploaded" onclick="selectHistoryStatusFilter('uploaded')" class="bg-white rounded-2xl p-3 sm:p-3.5 border border-slate-200 shadow-2xs text-center cursor-pointer hover:border-emerald-400 hover:shadow-sm transition active:scale-95 group">
+          <div class="flex items-center justify-between text-emerald-700 mb-1">
+            <span class="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider block group-hover:text-emerald-950">Sudah Diupload</span>
+            <i class="fa-solid fa-cloud-check text-emerald-600 text-xs sm:text-sm"></i>
+          </div>
+          <span class="text-xl sm:text-2xl font-black text-emerald-950 font-mono block leading-none" id="statUploaded">0</span>
+          <span class="text-[10px] text-emerald-700 font-medium block mt-1">Di Spreadsheet</span>
+        </div>
+
       </div>
 
-      <!-- FILTER PENGAWASAN MANDOR, STATUS UPLOAD & TANGGAL (REQUEST 3) -->
-      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
-        <div class="flex items-center justify-between border-b pb-2 flex-wrap gap-2">
-          <div class="flex items-center space-x-2">
-            <i class="fa-solid fa-filter text-emerald-600 text-sm"></i>
-            <h3 class="font-extrabold text-xs sm:text-sm text-slate-800">Filter Pengawasan & Pencarian Data Mandor</h3>
-          </div>
-          <div class="flex items-center space-x-2">
-            <button type="button" onclick="syncLiveRecordsFromCloud(true)" class="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center space-x-1">
-              <i class="fa-solid fa-cloud-arrow-down"></i>
-              <span>Tarik Data Cloud</span>
-            </button>
-            <button type="button" onclick="resetHistoryFilters()" class="text-xs text-emerald-700 hover:text-emerald-800 font-bold">
-              Reset Filter
-            </button>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
-          <!-- Filter Status Data (Draft vs Siap Upload vs Terupload) -->
-          <div>
-            <label class="block text-[11px] font-bold text-slate-600 mb-1">Status Pengerjaan & Upload:</label>
-            <select id="historyFilterStatus" onchange="renderHistoryList()" class="w-full p-2 text-xs rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-600 outline-none bg-white font-semibold">
-              <option value="all">Semua Status Data</option>
-              <option value="not_uploaded">⚠️ SEMUA BELUM UPLOAD (Draft + Pending)</option>
-              <option value="draft">📝 Sedang Disimpan DRAFT (Mandor Belum Selesai)</option>
-              <option value="pending">⏳ SIAP UPLOAD (Mandor Selesai / Siap Kirim)</option>
-              <option value="uploaded">☁️ SUDAH TERUPLOAD ke Spreadsheet</option>
-            </select>
-          </div>
-
-          <!-- Filter Mandor Pelaksana -->
-          <div>
-            <label class="block text-[11px] font-bold text-slate-600 mb-1">Mandor Pelaksana:</label>
-            <select id="historyFilterMandor" onchange="renderHistoryList()" class="w-full p-2 text-xs rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-600 outline-none bg-white font-semibold">
-              <option value="all">Semua Mandor</option>
-            </select>
-          </div>
-
-          <!-- Filter Tanggal Kegiatan -->
-          <div>
-            <label class="block text-[11px] font-bold text-slate-600 mb-1">Tanggal Kegiatan:</label>
-            <div class="flex space-x-1">
-              <input type="date" id="historyFilterDate" onchange="renderHistoryList()" class="w-full p-2 text-xs rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-600 outline-none font-medium">
-              <button type="button" onclick="setHistoryDatePreset('all')" class="py-1 px-2.5 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg whitespace-nowrap">Semua</button>
-              <button type="button" onclick="setHistoryDatePreset('today')" class="py-1 px-2.5 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg whitespace-nowrap">Hari Ini</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- KARTU REKAPITULASI STATUS MANDOR (SIAPA SUDAH/BELUM UPLOAD & TANGGALNYA - REQUEST 3) -->
-      <div id="historyMandorRecapCard" class="bg-white rounded-2xl p-4 border border-amber-200/80 shadow-sm space-y-2.5">
-        <div class="flex items-center justify-between border-b border-amber-100 pb-2 flex-wrap gap-2">
-          <div class="flex items-center space-x-2">
-            <span class="w-6 h-6 rounded-lg bg-amber-500 text-white flex items-center justify-center text-xs">
-              <i class="fa-solid fa-clipboard-user"></i>
-            </span>
-            <h4 class="font-extrabold text-xs sm:text-sm text-slate-900">Rekapitulasi Mandor Belum Upload & Status Draft</h4>
-          </div>
-          <span class="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded font-bold">
-            Pantauan Lapangan Real-Time
+      <!-- Bilah Keterangan Filter Aktif & Tombol Aksi Cepat -->
+      <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between flex-wrap gap-2">
+        <div class="flex items-center space-x-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-pulse"></span>
+          <span class="text-xs font-bold text-slate-700">
+            Menampilkan: <strong id="historyActiveFilterLabel" class="text-slate-900 font-extrabold">Semua Laporan Tersimpan</strong>
+            <span class="text-slate-500 font-normal ml-1">(<span id="historyFilteredCountText" class="font-bold text-slate-800">0</span> Data)</span>
           </span>
         </div>
 
-        <!-- Wadah Rekap Tiap Mandor -->
-        <div id="historyMandorRecapList" class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-          <!-- Populated by JS -->
+        <div class="flex items-center space-x-2">
+          <button type="button" onclick="syncLiveRecordsFromCloud(true)" class="py-2 px-3 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 active:scale-95 shadow-2xs">
+            <i class="fa-solid fa-cloud-arrow-down text-blue-600"></i>
+            <span class="hidden sm:inline">Tarik Data Cloud</span>
+          </button>
+          <button onclick="uploadAllPendingRecords()" id="btnUploadAll" class="py-2 px-3.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-sm active:scale-95 transition flex items-center space-x-1.5">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+            <span>Upload Semua Pending</span>
+          </button>
         </div>
-      </div>
-
-      <!-- Action Bar: Tombol Upload Semua -->
-      <div class="flex items-center justify-between px-1">
-        <span class="text-xs font-bold text-slate-600">Daftar Rekaman Sesuai Filter (<span id="historyFilteredCountText">0</span> Data):</span>
-        <button onclick="uploadAllPendingRecords()" id="btnUploadAll" class="py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-sm active:scale-95 transition flex items-center space-x-1.5">
-          <i class="fa-solid fa-cloud-arrow-up"></i>
-          <span>Upload Semua Pending</span>
-        </button>
       </div>
 
       <!-- Feed Daftar Kartu Pekerjaan -->
@@ -5381,42 +5352,121 @@
       showToast('Data berhasil dihapus', 'info');
     }
 
+    let activeHistoryCardFilter = 'all'; // 'all' | 'draft' | 'pending' | 'uploaded'
+
+    function selectHistoryStatusFilter(filterType) {
+      activeHistoryCardFilter = filterType;
+      updateHistoryCardStyles();
+      renderHistoryList();
+    }
+
+    function updateHistoryCardStyles() {
+      const cards = {
+        all: document.getElementById('cardFilter_all'),
+        draft: document.getElementById('cardFilter_draft'),
+        pending: document.getElementById('cardFilter_pending'),
+        uploaded: document.getElementById('cardFilter_uploaded')
+      };
+
+      // Reset base styling for all cards
+      if (cards.all) cards.all.className = 'bg-white rounded-2xl p-3 sm:p-3.5 border border-slate-200 shadow-2xs text-center cursor-pointer hover:border-slate-400 hover:shadow-sm transition active:scale-95 group';
+      if (cards.draft) cards.draft.className = 'bg-white rounded-2xl p-3 sm:p-3.5 border border-slate-200 shadow-2xs text-center cursor-pointer hover:border-amber-400 hover:shadow-sm transition active:scale-95 group';
+      if (cards.pending) cards.pending.className = 'bg-white rounded-2xl p-3 sm:p-3.5 border border-slate-200 shadow-2xs text-center cursor-pointer hover:border-orange-400 hover:shadow-sm transition active:scale-95 group';
+      if (cards.uploaded) cards.uploaded.className = 'bg-white rounded-2xl p-3 sm:p-3.5 border border-slate-200 shadow-2xs text-center cursor-pointer hover:border-emerald-400 hover:shadow-sm transition active:scale-95 group';
+
+      // Highlight active card
+      if (activeHistoryCardFilter === 'all' && cards.all) {
+        cards.all.className = 'bg-slate-100 rounded-2xl p-3 sm:p-3.5 border-2 border-slate-800 shadow-md ring-2 ring-slate-400 text-center cursor-pointer transition active:scale-95 group';
+      } else if (activeHistoryCardFilter === 'draft' && cards.draft) {
+        cards.draft.className = 'bg-amber-50 rounded-2xl p-3 sm:p-3.5 border-2 border-amber-600 shadow-md ring-2 ring-amber-300 text-center cursor-pointer transition active:scale-95 group';
+      } else if (activeHistoryCardFilter === 'pending' && cards.pending) {
+        cards.pending.className = 'bg-orange-50 rounded-2xl p-3 sm:p-3.5 border-2 border-orange-600 shadow-md ring-2 ring-orange-300 text-center cursor-pointer transition active:scale-95 group';
+      } else if (activeHistoryCardFilter === 'uploaded' && cards.uploaded) {
+        cards.uploaded.className = 'bg-emerald-50 rounded-2xl p-3 sm:p-3.5 border-2 border-emerald-600 shadow-md ring-2 ring-emerald-300 text-center cursor-pointer transition active:scale-95 group';
+      }
+
+      const labelMap = {
+        all: 'Semua Laporan Tersimpan',
+        draft: 'Laporan Disimpan (Draft Mandor)',
+        pending: 'Laporan Pending (Siap Upload)',
+        uploaded: 'Laporan Sudah Diupload ke Spreadsheet'
+      };
+
+      const lbl = document.getElementById('historyActiveFilterLabel');
+      if (lbl) lbl.textContent = labelMap[activeHistoryCardFilter] || 'Semua Laporan';
+    }
+
     function renderHistoryList() {
       const container = document.getElementById('historyContainer');
-      const filterDate = document.getElementById('historyFilterDate').value;
-      const pendingBadge = document.getElementById('pendingBadge');
+      if (!container) return;
 
       const totalCount = savedRecords.length;
-      const pendingCount = savedRecords.filter(r => r.uploadStatus !== 'uploaded').length;
+      const draftCount = savedRecords.filter(r => r.saveType === 'draft' && r.uploadStatus !== 'uploaded').length;
+      const pendingCount = savedRecords.filter(r => r.saveType !== 'draft' && r.uploadStatus !== 'uploaded').length;
       const uploadedCount = savedRecords.filter(r => r.uploadStatus === 'uploaded').length;
 
-      document.getElementById('statTotal').innerText = totalCount;
-      document.getElementById('statPending').innerText = pendingCount;
-      document.getElementById('statUploaded').innerText = uploadedCount;
+      const elTotal = document.getElementById('statTotal');
+      const elDraft = document.getElementById('statDraft');
+      const elPending = document.getElementById('statPending');
+      const elUploaded = document.getElementById('statUploaded');
+      if (elTotal) elTotal.innerText = totalCount;
+      if (elDraft) elDraft.innerText = draftCount;
+      if (elPending) elPending.innerText = pendingCount;
+      if (elUploaded) elUploaded.innerText = uploadedCount;
 
-      if (pendingCount > 0) {
-        pendingBadge.innerText = pendingCount;
-        pendingBadge.classList.remove('hidden');
-      } else {
-        pendingBadge.classList.add('hidden');
+      const pendingBadge = document.getElementById('pendingBadge');
+      if (pendingBadge) {
+        const totalUnuploaded = draftCount + pendingCount;
+        if (totalUnuploaded > 0) {
+          pendingBadge.innerText = totalUnuploaded;
+          pendingBadge.classList.remove('hidden');
+        } else {
+          pendingBadge.classList.add('hidden');
+        }
       }
 
+      // Filter data berdasarkan kartu interaktif yang diklik
       let recordsToShow = savedRecords;
-      if (filterDate) {
-        recordsToShow = savedRecords.filter(r => r.date === filterDate);
+      if (activeHistoryCardFilter === 'draft') {
+        recordsToShow = savedRecords.filter(r => r.saveType === 'draft' && r.uploadStatus !== 'uploaded');
+      } else if (activeHistoryCardFilter === 'pending') {
+        recordsToShow = savedRecords.filter(r => r.saveType !== 'draft' && r.uploadStatus !== 'uploaded');
+      } else if (activeHistoryCardFilter === 'uploaded') {
+        recordsToShow = savedRecords.filter(r => r.uploadStatus === 'uploaded');
       }
 
+      const countTextEl = document.getElementById('historyFilteredCountText');
+      if (countTextEl) countTextEl.textContent = recordsToShow.length;
+
+      // Sembunyikan tombol upload semua jika tidak ada data yang siap diupload
+      const btnUpAll = document.getElementById('btnUploadAll');
+      if (btnUpAll) {
+        if (draftCount + pendingCount > 0) {
+          btnUpAll.classList.remove('hidden');
+        } else {
+          btnUpAll.classList.add('hidden');
+        }
+      }
+
+      // Pesan saat daftar kosong
       if (recordsToShow.length === 0) {
+        const emptyMsgMap = {
+          all: 'Belum ada data input QC tersimpan.',
+          draft: 'Tidak ada laporan yang berstatus Draft saat ini.',
+          pending: 'Tidak ada laporan yang sedang Pending / Siap Upload.',
+          uploaded: 'Belum ada laporan yang diupload ke Spreadsheet.'
+        };
         container.innerHTML = `
-          <div class="bg-white rounded-xl p-8 text-center text-slate-400 border border-slate-200 space-y-2">
+          <div class="bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-200 space-y-2 shadow-2xs">
             <i class="fa-solid fa-folder-open text-4xl text-slate-300"></i>
-            <p class="text-xs font-semibold">Belum ada data input QC tersimpan.</p>
-            <p class="text-[11px] text-slate-400">Data yang diinput pada form akan otomatis tersimpan di sini dan dapat diupload saat ada sinyal.</p>
+            <p class="text-xs font-bold text-slate-600">${emptyMsgMap[activeHistoryCardFilter] || 'Tidak ada data ditemukan'}</p>
+            <p class="text-[11px] text-slate-400">Klik kartu status lain di atas untuk melihat data lainnya.</p>
           </div>
         `;
         return;
       }
 
+      // Kelompokkan data berdasarkan tanggal
       const grouped = {};
       recordsToShow.forEach(r => {
         const d = r.date || 'Tanpa Tanggal';
@@ -5430,17 +5480,17 @@
       sortedDates.forEach(dateKey => {
         const list = grouped[dateKey];
         const dateSection = document.createElement('div');
-        dateSection.className = 'bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden';
+        dateSection.className = 'bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden';
 
         dateSection.innerHTML = `
           <div class="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
             <div class="flex items-center space-x-2">
               <i class="fa-regular fa-calendar-days text-emerald-700 text-sm"></i>
               <span class="font-bold text-xs text-slate-800">${formatDateDisplay(dateKey)}</span>
-              <span class="text-[11px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-semibold">${list.length} Data</span>
+              <span class="text-[11px] bg-slate-200 text-slate-700 px-2.5 py-0.5 rounded-full font-bold">${list.length} Data</span>
             </div>
           </div>
-          <div class="divide-y divide-slate-100 p-2 space-y-2">
+          <div class="divide-y divide-slate-100 p-2 sm:p-3 space-y-2.5">
             ${list.map(rec => renderRecordCard(rec)).join('')}
           </div>
         `;
