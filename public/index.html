@@ -1085,55 +1085,58 @@
 
           </div>
 
-          <!-- CARD 2: LOKASI KERJA & RENCANA PEMUPUKAN (PLAN) -->
+                    <!-- CARD 2: LOKASI KERJA & RENCANA PEMUPUKAN (LOGIKA DIBALIK: TYPE DULU -> PADDOCK - ATURAN 3) -->
           <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
             <div class="flex items-center justify-between border-b pb-2">
               <h2 class="font-bold text-slate-800 text-sm flex items-center space-x-2">
                 <span class="w-5 h-5 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center text-xs">2</span>
                 <span>Lokasi Kerja & Rencana Aplikasi (Sheet Plan)</span>
               </h2>
-              <span class="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-medium border border-amber-200">Relasi Paddock & Pupuk</span>
+              <span class="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-bold border border-amber-200">1. Pilih Type &rarr; 2. Pilih Paddock</span>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <!-- Paddock (Sheet Plan Kolom F) -->
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">
-                  Paddock (Petak) <span class="text-red-500">*</span>
-                </label>
-                <div class="relative">
-                  <input type="text" id="fert_paddockSearch" placeholder="Cari kode petak (misal: JAGF)..." oninput="filterFertilizerPaddockDropdown()" class="w-full text-xs p-2 pr-7 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none font-bold text-amber-950">
-                  <i class="fa-solid fa-magnifying-glass absolute right-2.5 top-2.5 text-slate-400 text-xs"></i>
-                </div>
-                <select id="fert_paddockSelect" size="4" onchange="selectFertilizerPaddock()" class="w-full text-xs p-1 mt-1 rounded-lg border border-slate-200 hidden bg-white shadow-lg z-10 max-h-36">
-                </select>
-                <input type="hidden" id="fert_paddock" required>
-              </div>
-
-              <!-- Type (Sheet Plan Kolom O - Otomatis Terisi) -->
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">
-                  Type Pupuk (Kolom O) <span class="text-[10px] text-slate-500 font-normal">(Otomatis dari Plan)</span>
-                </label>
-                <input type="text" id="fert_type" readonly placeholder="Otomatis terisi dari Plan..." class="w-full text-xs p-2 rounded-lg border border-slate-300 bg-slate-50 font-bold text-amber-900 outline-none">
-              </div>
-            </div>
-
-            <!-- Activity (Sheet Plan Kolom N - Button Selector) -->
+            <!-- LANGKAH 1: PILIH TYPE DULU (Sheet Plan Kolom O) -->
             <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">
-                Activity (Kegiatan Pemupukan - Kolom N) <span class="text-red-500">*</span>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                <span>1. Pilih Type Pupuk (Sheet Plan Kolom O) <span class="text-red-500">*</span></span>
+                <span class="text-[10px] text-amber-700 font-normal">Pilih Type untuk memfilter daftar Paddock</span>
+              </label>
+              <div class="flex flex-wrap gap-1.5" id="fert_typeBtnGroup">
+                <!-- Populated by JS -->
+              </div>
+              <input type="hidden" id="fert_type" required>
+            </div>
+
+            <!-- LANGKAH 2: PILIH PADDOCK SESUAI TYPE (Sheet Plan Kolom F) -->
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                <span>2. Pilih Paddock (Petak) <span class="text-red-500">*</span></span>
+                <span id="fert_paddockCountHint" class="text-[10px] text-slate-500 font-normal">Hanya petak sesuai type</span>
+              </label>
+              <div class="relative">
+                <input type="text" id="fert_paddockSearch" placeholder="Pilih Type Pupuk di atas terlebih dahulu..." oninput="filterFertilizerPaddockDropdown()" onfocus="filterFertilizerPaddockDropdown()" autocomplete="off" class="w-full text-xs p-2.5 pr-8 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none font-bold text-amber-950">
+                <i class="fa-solid fa-magnifying-glass absolute right-2.5 top-3 text-slate-400 text-xs"></i>
+              </div>
+              <select id="fert_paddockSelect" size="4" onchange="selectFertilizerPaddock()" class="w-full text-xs p-1 mt-1 rounded-lg border border-slate-200 hidden bg-white shadow-xl z-20 max-h-40 divide-y divide-slate-100">
+              </select>
+              <input type="hidden" id="fert_paddock" required>
+            </div>
+
+            <!-- LANGKAH 3: ACTIVITY (Sheet Plan Kolom N) -->
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">
+                3. Activity (Kegiatan Pemupukan - Kolom N) <span class="text-red-500">*</span>
               </label>
               <div class="flex flex-wrap gap-1.5" id="fert_activityBtnGroup">
-                <span class="text-[11px] text-slate-400 italic">Pilih Paddock terlebih dahulu untuk memunculkan Activity...</span>
+                <span class="text-[11px] text-slate-400 italic">Pilih Type & Paddock di atas untuk memunculkan Activity...</span>
               </div>
               <input type="hidden" id="fert_activity" required>
             </div>
 
-            <!-- Jenis Pupuk / Material (Sheet Data - Filtered by Type) -->
+            <!-- LANGKAH 4: JENIS PUPUK / MATERIAL (HANYA PUPUK ASLI - NO PESTICIDE) -->
             <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">
-                Jenis Pupuk (Material) <span class="text-red-500">*</span>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">
+                4. Jenis Pupuk (Material) <span class="text-red-500">*</span>
               </label>
               <div class="flex flex-wrap gap-1.5" id="fert_materialBtnGroup">
                 <!-- Populated by JS -->
@@ -1141,10 +1144,10 @@
               <input type="hidden" id="fert_material" required>
             </div>
 
-            <!-- Dosis Manual (kg/Ha atau dosis rekomendasi) -->
+            <!-- LANGKAH 5: DOSIS REKOMENDASI -->
             <div class="max-w-xs">
-              <label class="block text-xs font-semibold text-slate-700 mb-1">
-                Dosis Rekomendasi (Dosis) <span class="text-red-500">*</span>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">
+                5. Dosis Rekomendasi (Dosis) <span class="text-red-500">*</span>
               </label>
               <div class="relative">
                 <input type="text" inputmode="decimal" id="fert_dosis" placeholder="misal: 250" class="w-full text-xs p-2 pr-14 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-600 outline-none font-bold text-slate-800">
@@ -1661,6 +1664,10 @@
         </div>
 
         <div class="flex items-center space-x-2 pt-1 flex-wrap gap-y-2">
+          <button type="button" onclick="openEditNameModal()" class="py-2 px-3 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-700 shadow-2xs flex items-center space-x-1.5 active:scale-95 transition">
+            <i class="fa-solid fa-user-pen text-amber-600"></i>
+            <span>Edit Nama Saya</span>
+          </button>
           <button type="button" onclick="openChangePasswordModal()" class="py-2 px-3 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-700 shadow-2xs flex items-center space-x-1.5 active:scale-95 transition">
             <i class="fa-solid fa-key text-emerald-600"></i>
             <span>Ganti Password Saya</span>
@@ -2200,7 +2207,54 @@
       measurementId: "G-WPRMDDY9ND"
     };
 
-    const INITIAL_MASTER_DATA = {"names": ["ALBERTO NGORANUBUN", "BENEDIKTUS WAGIYOP", "GERMANUS KWAMTAHAI", "GUSTINUS LORONG", "JUMRI", "MOHAMAD IRAWAN", "PUJI WASTONI", "BANU MUFARRIDHIN"], "assistants": ["PUJI HARTONO", "JOSUA F. SIMARMATA", "MOH. SABRI", "EFFRATA ALEX F", "MUH. SABILLAH", "EFRI NANDO", "ARSYI P.B AMBARITA", "HEPSON J OMPUSUNGGU", "SUVENI. M SIBORO"], "statuses": ["Working", "Hold"], "shifts": ["1", "2"], "unitMap": {"Tractor Spray": ["TS003G", "TS004G", "TS005G"], "Boom Spray Cropland": ["TR128G"], "Boom Spray Baldan": ["TR069G"], "Drone": ["DJIT50-01", "DJIT50-02", "DJIT50-03", "DJIT50-04", "DJIT50-05", "DJIT50-06", "DJIT100-01"]}, "dropper": ["Yes", "No"], "nozzles": ["TTI60-11025 (Ungu)", "TTI60-11004 (Merah)", "TTI60-11005 (Coklat)", "TTI60-11008 (Putih)"], "waterQualities": ["Clean", "Slighty Muddy", "Bad"], "weatherConditions": ["Sunny", "Cloudy", "Rainning"], "allVarieties": ["GMP4", "GMP5", "GMP6", "Q200", "Q208", "Q232", "Q240", "Q253", "R1", "R2", "R3", "SRA09"], "plan": [{"paddock": "JAGF-1-C-030", "variety": "", "luas_target": "1,17", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-004", "variety": "", "luas_target": "0,24", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-016", "variety": "", "luas_target": "10,00", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-025", "variety": "", "luas_target": "1,93", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-037", "variety": "", "luas_target": "3,77", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-003", "variety": "", "luas_target": "15,86", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}, {"paddock": "JAGF-2-H-035", "variety": "", "luas_target": "55,00", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}, {"paddock": "JAGF-1-D-002", "variety": "", "luas_target": "92,99", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}, {"paddock": "JAGF-2-K-003", "variety": "", "luas_target": "150,00", "activity": "Bassalt Dressing", "type": "", "deskripsi": "Bassalt Dressing D"}, {"paddock": "JAGF-1-D-066", "variety": "", "luas_target": "5,96", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-D-068", "variety": "", "luas_target": "0,29", "activity": "Single Dressing", "type": "", "deskripsi": "Single Dressing D"}, {"paddock": "JAGF-1-A-007", "variety": "", "luas_target": "11,24", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-2-H-031", "variety": "", "luas_target": "7,91", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-C-029", "variety": "", "luas_target": "14,64", "activity": "Knockdown", "type": "Herbicide", "deskripsi": "Knockdown (Plant) B"}, {"paddock": "JAGF-1-D-061", "variety": "", "luas_target": "15,80", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-B-014", "variety": "", "luas_target": "17,81", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-C-031", "variety": "", "luas_target": "0,83", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-1-D-021", "variety": "", "luas_target": "2,91", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-022", "variety": "", "luas_target": "2,64", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-024", "variety": "", "luas_target": "8,34", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-026", "variety": "", "luas_target": "7,05", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-027", "variety": "", "luas_target": "1,46", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-028", "variety": "", "luas_target": "0,72", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-029", "variety": "", "luas_target": "4,31", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-030", "variety": "", "luas_target": "2,42", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-033", "variety": "", "luas_target": "3,08", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-1-D-034", "variety": "", "luas_target": "2,82", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}, {"paddock": "JAGF-2-I-092", "variety": "", "luas_target": "0,43", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence B"}, {"paddock": "JAGF-2-H-026", "variety": "", "luas_target": "7,37", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-2-H-029", "variety": "", "luas_target": "12,40", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-2-I-101", "variety": "", "luas_target": "1,70", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-1-C-029", "variety": "", "luas_target": "14,64", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"}, {"paddock": "JAGF-2-G-008", "variety": "", "luas_target": "0,64", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence PC"}, {"paddock": "JAGF-2-J-009", "variety": "", "luas_target": "17,65", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence PC"}, {"paddock": "JAGF-1-D-038", "variety": "", "luas_target": "2,20", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide B"}, {"paddock": "JAGF-2-H-023", "variety": "", "luas_target": "6,56", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide E"}, {"paddock": "JAGF-1-D-058", "variety": "", "luas_target": "44,80", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"}, {"paddock": "JAGF-1-C-003", "variety": "", "luas_target": "31,85", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide F"}, {"paddock": "JAGF-2-I-130", "variety": "", "luas_target": "15,40", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide F"}, {"paddock": "JAGF-2-G-009", "variety": "", "luas_target": "43,52", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide D"}, {"paddock": "JAGF-2-G-010", "variety": "", "luas_target": "232,30", "activity": "Top Dressing", "type": "", "deskripsi": "Top Dressing C"}], "bahan": {"Bassalt Dressing B": {"pesticide1": "NPK 15-8-15", "dosage1": 150.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Bassalt Dressing C": {"pesticide1": "NPK 15-10-15", "dosage1": 250.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Bassalt Dressing D": {"pesticide1": "HX-DAP", "dosage1": 250.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Insecticide A": {"pesticide1": "Incipio", "dosage1": 0.2, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Prima Boost", "adjuvant_dosage": 0.05}, "Insecticide B": {"pesticide1": "Prevathon", "dosage1": 1.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.05}, "Insecticide C": {"pesticide1": "Punggawa 50 SC", "dosage1": 1.4, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.05}, "Insecticide D": {"pesticide1": "Confidor 60 ml", "dosage1": 0.8, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.8}, "Insecticide E": {"pesticide1": "Prevathon", "dosage1": 1.5, "pesticide2": "Confidor 60 ml", "dosage2": 0.8, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.2}, "Insecticide F": {"pesticide1": "Punggawa 50 SC", "dosage1": 1.4, "pesticide2": "Confidor 60 ml", "dosage2": 0.8, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.2}, "Knockdown (Plant) A": {"pesticide1": "Rollup 480 SL", "dosage1": 3.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.1}, "Knockdown (Plant) B": {"pesticide1": "Rollup 480 SL", "dosage1": 3.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agridex 715 EC", "adjuvant_dosage": 0.2}, "Post Emergence A": {"pesticide1": "Prima Kuat 276 SL", "dosage1": 1.0, "pesticide2": "Prima Maxin 50 WP", "dosage2": 0.6, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.15}, "Post Emergence B": {"pesticide1": "Omni Care 288 EC", "dosage1": 0.9, "pesticide2": "Prima Jos 865 SL", "dosage2": 0.6, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.2}, "Post Emergence C": {"pesticide1": "Prima Kuat 276 SL", "dosage1": 1.0, "pesticide2": "DKHexaron 60WG", "dosage2": 2.5, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.1}, "Post Emergence D": {"pesticide1": "Garlon 670 EC", "dosage1": 1.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agridex 715 EC", "adjuvant_dosage": 0.25}, "Post Emergence E": {"pesticide1": "Rollup 480 SL", "dosage1": 3.5, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "Agristick 400SL", "adjuvant_dosage": 0.5}, "Pre Emergence PC": {"pesticide1": "Prowl 330 EC", "dosage1": 3.0, "pesticide2": "Venator 550SC @1 Ltr", "dosage2": 4.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Pre Emergence PC A": {"pesticide1": "Prowl 330 EC", "dosage1": 3.0, "pesticide2": "Atres", "dosage2": 4.0, "pesticide3": "Omni Care 288 EC", "dosage3": 0.9, "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Pre Emergence RC": {"pesticide1": "Toleran 75 WG", "dosage1": 0.06, "pesticide2": "Prima Kuat 276 SL", "dosage2": 1.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing A": {"pesticide1": "NPK Plus 15-15-15", "dosage1": 700.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing B": {"pesticide1": "NPK 15-10-15", "dosage1": 700.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing C": {"pesticide1": "NPK 15-8-15", "dosage1": 700.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Single Dressing D": {"pesticide1": "TSP-P205 (Phospate) 46%", "dosage1": 100.0, "pesticide2": "NK 20:30", "dosage2": 600.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing A": {"pesticide1": "NPK Plus 15-15-15", "dosage1": 600.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing B": {"pesticide1": "NPK 15-10-15", "dosage1": 600.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing C": {"pesticide1": "NPK 15-8-15", "dosage1": 600.0, "pesticide2": "", "dosage2": "", "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}, "Top Dressing D": {"pesticide1": "TSP-P205 (Phospate) 46%", "dosage1": 100.0, "pesticide2": "NK 20:30", "dosage2": 400.0, "pesticide3": "", "dosage3": "", "pesticide4": "", "dosage4": "", "adjuvant": "", "adjuvant_dosage": ""}}, "formHeaders": ["Date", "Time", "Shift", "Status", "Name", "Name of Assistan", "Paddock", "Variety", "Area (Ha)", "Unit", "No. Unit", "Dropper", "Droplet Size", "Nozzle", "Height (m)", "Row Spacing (m)", "Speed (Km/Jam)", "Type", "Activity", "Deskripsi", "Pesticide 1", "Dosage", "Pesticide 2", "Dosage", "Pesticide 3", "Dosage", "Pesticide 4", "Dosage", "Adjuvant", "Adjuvant Dosage", "Estimated Usage Pesticide 1", "Estimated Usage Pesticide 2", "Estimated Usage Pesticide 3", "Estimated Usage Pesticide 4", "Estimated Usage Adjuvant", "Actual Usage Pesticide 1", "Actual Usage Pesticide 2", "Actual Usage Pesticide 3", "Actual Usage Pesticide 4", "Actual Usage Adjuvant", "Water Rate", "Water Quality", "Actual Usage", "Wind Speed (Km/jam)", "Temperature (\u00b0C)", "Humidity (NRC)", "Delta T (\u00b0C)", "Weather Condition", "Noted\\*"], };
+    const INITIAL_MASTER_DATA = {
+      names: ["ALBERTO NGORANUBUN", "BENEDIKTUS WAGIYOP", "GERMANUS KWAMTAHAI", "GUSTINUS LORONG", "JUMRI", "MOHAMAD IRAWAN", "PUJI WASTONI", "BANU MUFARRIDHIN"],
+      assistants: ["PUJI HARTONO", "JOSUA F. SIMARMATA", "MOH. SABRI", "EFFRATA ALEX F", "MUH. SABILLAH", "EFRI NANDO", "ARSYI P.B AMBARITA", "HEPSON J OMPUSUNGGU", "SUVENI. M SIBORO"],
+      statuses: ["Working", "Hold"],
+      shifts: ["1", "2"],
+      unitMap: {
+        "Tractor Spray": ["TS003G", "TS004G", "TS005G"],
+        "Boom Spray Cropland": ["TR128G"],
+        "Boom Spray Baldan": ["TR069G"],
+        "Drone": ["DJIT50-01", "DJIT50-02", "DJIT50-03", "DJIT50-04", "DJIT50-05", "DJIT50-06", "DJIT100-01"],
+        "Tractor Fertilizer": ["TF001", "TF002", "TF003"],
+        "Manual": ["Manual Team 1", "Manual Team 2"]
+      },
+      dropper: ["Yes", "No"],
+      nozzles: ["TTI60-11025 (Ungu)", "TTI60-11004 (Merah)", "TTI60-11005 (Coklat)", "TTI60-11008 (Putih)"],
+      waterQualities: ["Clean", "Slighty Muddy", "Bad"],
+      weatherConditions: ["Sunny", "Cloudy", "Rainning"],
+      statusHose: ["Pasang", "Lepas"],
+      fertilizerMaterials: [
+        "NPK Plus 15-15-15", "NPK 15-10-15", "NPK 15-8-15",
+        "HX-DAP", "TSP-P205 (Phospate) 46%", "NK 20:30", "NK 17:20",
+        "Urea", "ZA", "KCl"
+      ],
+      allVarieties: ["GMP4", "GMP5", "GMP6", "Q200", "Q208", "Q232", "Q240", "Q253", "R1", "R2", "R3", "SRA09"],
+      plan: [
+        {"paddock": "JAGF-1-C-030", "variety": "Q232", "luas_target": "1,17", "activity": "Single Dressing", "type": "Single Dressing", "deskripsi": "Single Dressing D"},
+        {"paddock": "JAGF-1-D-004", "variety": "Q232", "luas_target": "0,24", "activity": "Single Dressing", "type": "Single Dressing", "deskripsi": "Single Dressing D"},
+        {"paddock": "JAGF-1-D-016", "variety": "Q232", "luas_target": "10,00", "activity": "Single Dressing", "type": "Single Dressing", "deskripsi": "Single Dressing D"},
+        {"paddock": "JAGF-1-D-025", "variety": "Q232", "luas_target": "1,93", "activity": "Single Dressing", "type": "Single Dressing", "deskripsi": "Single Dressing D"},
+        {"paddock": "JAGF-1-D-037", "variety": "Q232", "luas_target": "3,77", "activity": "Single Dressing", "type": "Single Dressing", "deskripsi": "Single Dressing D"},
+        {"paddock": "JAGF-1-D-003", "variety": "Q208", "luas_target": "15,86", "activity": "Top Dressing", "type": "Top Dressing", "deskripsi": "Top Dressing C"},
+        {"paddock": "JAGF-2-H-035", "variety": "Q208", "luas_target": "55,00", "activity": "Top Dressing", "type": "Top Dressing", "deskripsi": "Top Dressing C"},
+        {"paddock": "JAGF-1-D-002", "variety": "Q208", "luas_target": "92,99", "activity": "Top Dressing", "type": "Top Dressing", "deskripsi": "Top Dressing C"},
+        {"paddock": "JAGF-2-K-003", "variety": "R1", "luas_target": "150,00", "activity": "Bassalt Dressing", "type": "Bassalt Dressing", "deskripsi": "Bassalt Dressing D"},
+        {"paddock": "JAGF-1-D-066", "variety": "Q232", "luas_target": "5,96", "activity": "Single Dressing", "type": "Single Dressing", "deskripsi": "Single Dressing D"},
+        {"paddock": "JAGF-1-D-068", "variety": "Q232", "luas_target": "0,29", "activity": "Single Dressing", "type": "Single Dressing", "deskripsi": "Single Dressing D"},
+        {"paddock": "JAGF-1-A-007", "variety": "GMP4", "luas_target": "11,24", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"},
+        {"paddock": "JAGF-2-H-031", "variety": "GMP5", "luas_target": "7,91", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"},
+        {"paddock": "JAGF-1-C-029", "variety": "Q200", "luas_target": "14,64", "activity": "Knockdown", "type": "Herbicide", "deskripsi": "Knockdown (Plant) B"},
+        {"paddock": "JAGF-1-D-061", "variety": "Q208", "luas_target": "15,80", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"},
+        {"paddock": "JAGF-1-B-014", "variety": "Q240", "luas_target": "17,81", "activity": "Insecticide", "type": "Insecticide", "deskripsi": "Insecticide C"},
+        {"paddock": "JAGF-1-C-031", "variety": "Q253", "luas_target": "0,83", "activity": "Pre Emergence", "type": "Herbicide", "deskripsi": "Pre Emergence RC"},
+        {"paddock": "JAGF-1-D-021", "variety": "Q232", "luas_target": "2,91", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"},
+        {"paddock": "JAGF-1-D-022", "variety": "Q232", "luas_target": "2,64", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"},
+        {"paddock": "JAGF-1-D-024", "variety": "Q232", "luas_target": "8,34", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"},
+        {"paddock": "JAGF-1-D-026", "variety": "Q232", "luas_target": "7,05", "activity": "Post Emergence", "type": "Herbicide", "deskripsi": "Post Emergence E"}
+      ]
+    };
   </script>
 
   <!-- MAIN APPLICATION LOGIC -->
@@ -4134,6 +4188,7 @@
       }
 
       populateMasterDataUI();
+      populateFertilizerMasterDataUI();
       resetForm();
       renderHistoryList();
       renderDashboardUI();
@@ -6148,116 +6203,25 @@
         showToast('Akses Dibatasi: Anda adalah Mandor Spraying, hanya dapat mengisi form semprot!', 'warning');
         return;
       }
+
+      const btnSpray = document.getElementById('btnFormTypeSpray');
+      const btnFert = document.getElementById('btnFormTypeFertilizer');
+      const cSpray = document.getElementById('containerFormSpray');
+      const cFert = document.getElementById('containerFormFertilizer');
+
       if (type === 'spray') {
-        btnSpray.className = 'flex-1 py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition shadow-sm bg-emerald-700 text-white';
-        btnFert.className = 'flex-1 py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition bg-slate-100 text-slate-700 hover:bg-slate-200';
-        cSpray.classList.remove('hidden');
-        cFert.classList.add('hidden');
+        if (btnSpray) btnSpray.className = 'flex-1 py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition shadow-sm bg-emerald-700 text-white';
+        if (btnFert) btnFert.className = 'flex-1 py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition bg-slate-100 text-slate-700 hover:bg-slate-200';
+        if (cSpray) cSpray.classList.remove('hidden');
+        if (cFert) cFert.classList.add('hidden');
+        populateMasterDataUI();
       } else {
-        btnFert.className = 'flex-1 py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition shadow-sm bg-amber-600 text-white';
-        btnSpray.className = 'flex-1 py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition bg-slate-100 text-slate-700 hover:bg-slate-200';
-        cFert.classList.remove('hidden');
-        cSpray.classList.add('hidden');
-
-        // Pastikan UI Master Data terisi
+        if (btnFert) btnFert.className = 'flex-1 py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition shadow-sm bg-amber-600 text-white';
+        if (btnSpray) btnSpray.className = 'flex-1 py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition bg-slate-100 text-slate-700 hover:bg-slate-200';
+        if (cFert) cFert.classList.remove('hidden');
+        if (cSpray) cSpray.classList.add('hidden');
         populateFertilizerMasterDataUI();
-        if (!document.getElementById('fert_date').value) {
-          document.getElementById('fert_date').value = getTodayDate();
-        }
-        if (fertilizerPengisianList.length === 0) {
-          addFertilizerPengisianRow({ pengisianKe: 1, jumlah: '', hasilKerja: '', dosisAktual: 0, pemerataanPupuk: '' });
-        }
       }
-    }
-
-    function populateFertilizerMasterDataUI() {
-      // 1. Shift (Kolom D)
-      const shifts = masterData.shifts || ['1', '2'];
-      const curShift = document.getElementById('fert_shift').value || '1';
-      renderFertSingleButtonGroup('fert_shiftBtnGroup', shifts, 'fert_shift', curShift);
-
-      // 2. Status (Kolom C)
-      const statuses = masterData.statuses || ['Working', 'Hold'];
-      const curStatus = document.getElementById('fert_status').value || 'Working';
-      renderFertSingleButtonGroup('fert_statusBtnGroup', statuses, 'fert_status', curStatus, (val) => {
-        onFertilizerStatusChange(val);
-      });
-      onFertilizerStatusChange(curStatus);
-
-      // 3. Name (Sheet Data Kolom A)
-      const nameSelect = document.getElementById('fert_name');
-      if (nameSelect) {
-        const curName = nameSelect.value;
-        nameSelect.innerHTML = '<option value="">-- Pilih Mandor (Kolom A) --</option>' + 
-          (masterData.names || []).map(n => `<option value="${n}" ${n === curName ? 'selected' : ''}>${n}</option>`).join('');
-      }
-
-      // 4. Name of Assistan (Sheet Data Kolom B)
-      const asstSelect = document.getElementById('fert_assistan');
-      if (asstSelect) {
-        const curAsst = asstSelect.value;
-        asstSelect.innerHTML = '<option value="">-- Pilih Asisten (Kolom B) --</option>' + 
-          (masterData.assistants || []).map(a => `<option value="${a}" ${a === curAsst ? 'selected' : ''}>${a}</option>`).join('');
-      }
-
-      // 5. Paddock (Sheet Plan Kolom F)
-      const paddockSelect = document.getElementById('fert_paddockSelect');
-      const allPaddocks = [...new Set((masterData.plan || []).map(p => p.paddock).filter(Boolean))].sort();
-      paddockSelect.innerHTML = '<option value="">-- Pilih Paddock --</option>' + 
-        allPaddocks.map(p => `<option value="${p}">${p}</option>`).join('');
-
-      // 6. Unit (Kolom E) & No. Unit (Kolom F)
-      const unitKeys = Object.keys(masterData.unitMap || {});
-      const fallbackUnits = unitKeys.length > 0 ? unitKeys : ['Tractor Fertilizer', 'Manual', 'Boom Spreader'];
-      const curUnit = document.getElementById('fert_unit').value || fallbackUnits[0];
-      renderFertSingleButtonGroup('fert_unitBtnGroup', fallbackUnits, 'fert_unit', curUnit, (unitVal) => {
-        onFertilizerUnitChange(unitVal);
-      });
-      onFertilizerUnitChange(curUnit);
-
-      // 7. Status Hose (Kolom O)
-      const hoseOptions = (masterData.statusHose && masterData.statusHose.length > 0) ? masterData.statusHose : ['Pasang', 'Lepas'];
-      const curHose = document.getElementById('fert_statusHose').value || hoseOptions[0];
-      renderFertSingleButtonGroup('fert_statusHoseBtnGroup', hoseOptions, 'fert_statusHose', curHose);
-
-      // 8. Jenis Pupuk / Material (Sheet Data)
-      const pupukList = (masterData.fertilizerMaterials && masterData.fertilizerMaterials.length > 0) 
-        ? masterData.fertilizerMaterials 
-        : ['NPK Plus 15-15-15', 'NPK 15-10-15', 'NPK 15-8-15', 'HX-DAP', 'TSP-P205 (Phospate) 46%', 'NK 20:30', 'Urea', 'ZA', 'KCl'];
-      renderFertPupukButtons(pupukList);
-    }
-
-    function renderFertSingleButtonGroup(containerId, items, hiddenInputId, defaultValue, onChangeCallback) {
-      const container = document.getElementById(containerId);
-      if (!container) return;
-      container.innerHTML = '';
-
-      items.forEach(item => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.textContent = item;
-        btn.setAttribute('data-value', item);
-        btn.className = 'py-1.5 px-3 rounded-lg text-xs font-semibold border transition active:scale-95 text-center flex-1 ';
-
-        if (item === defaultValue) {
-          btn.className += 'bg-amber-600 text-white border-amber-700 shadow-sm font-bold';
-        } else {
-          btn.className += 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100';
-        }
-
-        btn.onclick = function() {
-          container.querySelectorAll('button').forEach(b => {
-            b.className = 'py-1.5 px-3 rounded-lg text-xs font-semibold border transition active:scale-95 text-center flex-1 bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100';
-          });
-          btn.className = 'py-1.5 px-3 rounded-lg text-xs font-semibold border transition active:scale-95 text-center flex-1 bg-amber-600 text-white border-amber-700 shadow-sm font-bold';
-          document.getElementById(hiddenInputId).value = item;
-          if (onChangeCallback) onChangeCallback(item);
-        };
-
-        container.appendChild(btn);
-      });
-
-      document.getElementById(hiddenInputId).value = defaultValue || '';
     }
 
     function onFertilizerStatusChange(status) {
