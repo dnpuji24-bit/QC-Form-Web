@@ -150,9 +150,10 @@
             <div>
               <label class="block text-xs font-bold text-slate-700 mb-1">Role yang Diajukan <span class="text-red-500">*</span></label>
               <select id="reg_role" required class="w-full text-xs p-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-600 outline-none bg-white font-semibold">
-                <option value="mandor">Mandor (Input & Edit)</option>
-                <option value="asisten">Asisten (Input, Edit, Hapus)</option>
-                <option value="admin">Admin (Lihat, Edit, Hapus)</option>
+                <option value="mandor_spray">Mandor Spraying (Khusus Form Semprot)</option>
+                <option value="mandor_fertilizer">Mandor Fertilizer (Khusus Form Pemupukan)</option>
+                <option value="asisten">Asisten Lapangan (Semprot & Pupuk)</option>
+                <option value="admin">Admin Staff (Pengawasan & Koreksi)</option>
                 <option value="manager">Manager (Monitoring Penuh)</option>
                 <option value="pengunjung">Pengunjung (Hanya Melihat)</option>
               </select>
@@ -2152,6 +2153,7 @@
         can_view: true,
         can_manage_users: true,
         can_see_logs: true,
+        allowed_form: 'all',
         label: 'Owner (Pemilik)',
         badgeClass: 'bg-purple-100 text-purple-900 border-purple-300'
       },
@@ -2162,6 +2164,7 @@
         can_view: true,
         can_manage_users: false,
         can_see_logs: true,
+        allowed_form: 'none',
         label: 'Manager',
         badgeClass: 'bg-blue-100 text-blue-900 border-blue-300'
       },
@@ -2172,6 +2175,7 @@
         can_view: true,
         can_manage_users: false,
         can_see_logs: true,
+        allowed_form: 'none',
         label: 'Admin Staff',
         badgeClass: 'bg-indigo-100 text-indigo-900 border-indigo-300'
       },
@@ -2182,16 +2186,34 @@
         can_view: true,
         can_manage_users: false,
         can_see_logs: false,
+        allowed_form: 'all', // Asisten bisa isi Spray dan Fertilizer
         label: 'Asisten Lapangan',
         badgeClass: 'bg-teal-100 text-teal-900 border-teal-300'
+      },
+      mandor_spray: {
+        can_input: true,
+        can_edit: true,
+        can_delete: false,
+        can_view: true,
+        allowed_form: 'spray', // Khusus Form Spray (Rule 1 & 5)
+        label: 'Mandor Spraying',
+        badgeClass: 'bg-emerald-100 text-emerald-900 border-emerald-300'
+      },
+      mandor_fertilizer: {
+        can_input: true,
+        can_edit: true,
+        can_delete: false,
+        can_view: true,
+        allowed_form: 'fertilizer', // Khusus Form Fertilizer (Rule 1 & 5)
+        label: 'Mandor Fertilizer',
+        badgeClass: 'bg-amber-100 text-amber-900 border-amber-300'
       },
       mandor: {
         can_input: true,
         can_edit: true,
-        can_delete: false, // Mandor DILARANG menghapus data
+        can_delete: false,
         can_view: true,
-        can_manage_users: false,
-        can_see_logs: false,
+        allowed_form: 'all',
         label: 'Mandor Lapangan',
         badgeClass: 'bg-emerald-100 text-emerald-900 border-emerald-300'
       },
@@ -2200,8 +2222,7 @@
         can_edit: false,
         can_delete: false,
         can_view: true,
-        can_manage_users: false,
-        can_see_logs: false,
+        allowed_form: 'none',
         label: 'Pengunjung (Tamu)',
         badgeClass: 'bg-slate-100 text-slate-700 border-slate-300'
       }
@@ -2679,11 +2700,34 @@
         sBadge.className = `text-[10px] font-black uppercase px-2 py-0.5 rounded ${perms.badgeClass}`;
       }
 
-      // 2. Tab Input: Hanya untuk Mandor, Asisten, Owner
+      // 2. Tab Input & Form Switcher Berdasarkan Kemandoran (Rule 1 & 5)
       const tabInput = document.getElementById('tabBtn-inputTab');
       if (tabInput) {
         if (perms.can_input) tabInput.classList.remove('hidden');
         else tabInput.classList.add('hidden');
+      }
+
+      const btnSpray = document.getElementById('btnFormTypeSpray');
+      const btnFert = document.getElementById('btnFormTypeFertilizer');
+
+      if (perms.allowed_form === 'spray') {
+        switchFormType('spray');
+        if (btnFert) btnFert.classList.add('hidden');
+        if (btnSpray) {
+          btnSpray.classList.remove('hidden');
+          btnSpray.className = 'w-full py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-sm bg-emerald-700 text-white cursor-default';
+        }
+      } else if (perms.allowed_form === 'fertilizer') {
+        switchFormType('fertilizer');
+        if (btnSpray) btnSpray.classList.add('hidden');
+        if (btnFert) {
+          btnFert.classList.remove('hidden');
+          btnFert.className = 'w-full py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-sm bg-amber-600 text-white cursor-default';
+        }
+      } else {
+        // Asisten & Owner bebas memilih form
+        if (btnSpray) btnSpray.classList.remove('hidden');
+        if (btnFert) btnFert.classList.remove('hidden');
       }
 
       // 3. Sub-Menu Khusus Owner di Tab Pengaturan (Rule 9)
@@ -3327,11 +3371,12 @@
               <td class="p-2.5 text-center">
                 <div class="flex items-center justify-center space-x-1.5 flex-wrap gap-y-1">
                   <select id="approveRoleSelect_${u.username}" class="p-1 text-xs rounded border border-slate-300 bg-white font-bold text-slate-800">
-                    <option value="mandor" ${u.role === 'mandor' ? 'selected' : ''}>Mandor (Input & Edit)</option>
-                    <option value="asisten" ${u.role === 'asisten' ? 'selected' : ''}>Asisten (Input, Edit, Hapus)</option>
-                    <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin (Lihat, Edit, Hapus)</option>
-                    <option value="manager" ${u.role === 'manager' ? 'selected' : ''}>Manager (Monitoring Penuh)</option>
-                    <option value="pengunjung" ${u.role === 'pengunjung' ? 'selected' : ''}>Pengunjung (Read Only)</option>
+                    <option value="mandor_spray" ${u.role === 'mandor_spray' ? 'selected' : ''}>Mandor Spraying</option>
+                    <option value="mandor_fertilizer" ${u.role === 'mandor_fertilizer' ? 'selected' : ''}>Mandor Fertilizer</option>
+                    <option value="asisten" ${u.role === 'asisten' ? 'selected' : ''}>Asisten Lapangan</option>
+                    <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin Staff</option>
+                    <option value="manager" ${u.role === 'manager' ? 'selected' : ''}>Manager</option>
+                    <option value="pengunjung" ${u.role === 'pengunjung' ? 'selected' : ''}>Pengunjung</option>
                   </select>
                   <button type="button" onclick="approveUser('${u.username}')" class="py-1 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-xs shadow-2xs active:scale-95 transition">
                     Setujui
@@ -3368,7 +3413,8 @@
                   </span>
                 ` : `
                   <select onchange="updateUserRole('${u.username}', this.value)" class="p-1 px-2 rounded-lg border border-slate-300 bg-white font-semibold text-xs text-slate-800 focus:ring-2 focus:ring-amber-600 outline-none">
-                    <option value="mandor" ${u.role === 'mandor' ? 'selected' : ''}>Mandor</option>
+                    <option value="mandor_spray" ${u.role === 'mandor_spray' ? 'selected' : ''}>Mandor Spraying</option>
+                    <option value="mandor_fertilizer" ${u.role === 'mandor_fertilizer' ? 'selected' : ''}>Mandor Fertilizer</option>
                     <option value="asisten" ${u.role === 'asisten' ? 'selected' : ''}>Asisten</option>
                     <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
                     <option value="manager" ${u.role === 'manager' ? 'selected' : ''}>Manager</option>
@@ -3442,12 +3488,20 @@
     // MODUL CHANGE HISTORY (SESUAI GAMBAR 4)
     // =========================================================================
     function openChangeHistoryModal() {
-      renderChangeHistoryUI();
-      document.getElementById('changeHistoryModal').classList.remove('hidden');
+      const modal = document.getElementById('changeHistoryModal');
+      if (modal) {
+        modal.classList.remove('hidden');
+        try {
+          renderChangeHistoryUI();
+        } catch (e) {
+          console.error('Error in renderChangeHistoryUI:', e);
+        }
+      }
     }
 
     function closeChangeHistoryModal() {
-      document.getElementById('changeHistoryModal').classList.add('hidden');
+      const modal = document.getElementById('changeHistoryModal');
+      if (modal) modal.classList.add('hidden');
     }
 
     function renderChangeHistoryUI() {
@@ -3468,11 +3522,13 @@
       }
 
       tbody.innerHTML = logs.map(l => {
-        const action = l.actionType || 'UPDATE';
-        const when = l.timestamp || new Date().toLocaleString('en-US');
-        const by = `${l.fullName} (${(ROLE_PERMISSIONS[l.role] || {}).label || l.role})`;
-        const unit = l.description.includes('Paddock:') ? (l.description.match(/Paddock:\s*([^)]+)/) || ['','Petak'])[1] : (l.username ? `[User] ${l.username}` : '-');
-        const field = l.description || l.actionType;
+        const action = String(l.actionType || 'UPDATE');
+        const when = String(l.timestamp || '-');
+        const roleLabel = (ROLE_PERMISSIONS[l.role] && ROLE_PERMISSIONS[l.role].label) || l.role || '-';
+        const by = `${l.fullName || l.username || 'User'} (${roleLabel})`;
+        const desc = String(l.description || l.actionType || '-');
+        const unit = desc.includes('Paddock:') ? (desc.match(/Paddock:\s*([^)]+)/) || ['','Petak'])[1] : (l.username ? `[User] ${l.username}` : '-');
+        const field = desc;
         return renderChangeHistoryRow(when, action, by, unit, field);
       }).join('');
     }
@@ -5928,6 +5984,7 @@
       }
 
       saveRecordsToStorage();
+      syncRecordToCloud(record);
       resetFertilizerForm();
       switchTab('historyTab');
     }
