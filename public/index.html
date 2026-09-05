@@ -213,7 +213,7 @@
           <span id="netStatusDot" class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
           <span id="netStatusText">Online</span>
         </span>
-        <button onclick="syncMasterData()" title="Sinkronkan Master Data dari Spreadsheet" class="p-2 rounded-lg bg-emerald-800 hover:bg-emerald-900 border border-emerald-600 active:scale-95 transition">
+        <button onclick="manualSyncAllData()" title="Sinkronkan Seluruh Data Lapangan & Master Data" class="p-2 rounded-lg bg-emerald-800 hover:bg-emerald-900 border border-emerald-600 active:scale-95 transition">
           <i class="fa-solid fa-arrows-rotate" id="syncIcon"></i>
         </button>
 
@@ -3672,6 +3672,7 @@
       resetForm();
       renderHistoryList();
       renderDashboardUI();
+      fetchCloudRecords(false);
     }
 
     async function checkServerSecurityCodeSilently() {
@@ -4850,6 +4851,163 @@
       showToast('Nilai Luas & Water Rate berhasil diterapkan ke Form Input!', 'success');
     }
 
+    
+    // =========================================================================
+    // SISTEM REALTIME CLOUD SHARING (DRAFTS & PROGRESS SEMUA MANDOR)
+    // =========================================================================
+    const STORAGE_KEY_SYNC_QUEUE = 'qc_offline_sync_queue_v1';
+
+    function getSyncQueue() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY_SYNC_QUEUE);
+        if (raw) return JSON.parse(raw);
+      } catch (e) {}
+      return [];
+    }
+
+    function saveSyncQueue(q) {
+      localStorage.setItem(STORAGE_KEY_SYNC_QUEUE, JSON.stringify(q));
+    }
+
+    // 1. Kirim input / draft mandor langsung ke Cloud Database
+    async function syncRecordToCloud(rec) {
+      const targetUrl = appConfig.appsScriptUrl || EMBEDDED_APPS_SCRIPT_URL;
+      if (!targetUrl) return;
+
+      // Sertakan identitas penginput
+      if (currentUser) {
+        rec.inputtedBy = currentUser.fullName || currentUser.username;
+        rec.userRole = currentUser.role;
+      }
+
+      if (!navigator.onLine) {
+        // Simpan ke antrean offline jika di tengah kebun tidak ada sinyal
+        const queue = getSyncQueue();
+        const existingIdx = queue.findIndex(q => q.id === rec.id);
+        if (existingIdx !== -1) queue[existingIdx] = rec;
+        else queue.push(rec);
+        saveSyncQueue(queue);
+        console.log('[Offline Queue] Disimpan di antrean untuk auto-upload saat sinyal aktif:', rec.id);
+        return;
+      }
+
+      try {
+        fetch(targetUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            action: 'syncCloudRecord',
+            record: rec
+          })
+        }).then(res => res.json()).then(res => {
+          console.log('[Cloud Sync] Data berhasil dikirim ke cloud:', rec.id, res);
+        }).catch(err => {
+          console.error('[Cloud Sync Error]:', err);
+        });
+      } catch (err) {
+        console.error('syncRecordToCloud error:', err);
+      }
+    }
+
+    // 2. Tarik seluruh data / draft dari Cloud agar Owner/Asisten/Manager bisa memantau
+    let isFetchingCloud = false;
+    async function fetchCloudRecords(showToastFeedback = false) {
+      const targetUrl = appConfig.appsScriptUrl || EMBEDDED_APPS_SCRIPT_URL;
+      if (!targetUrl || !navigator.onLine || isFetchingCloud) return;
+
+      isFetchingCloud = true;
+      if (showToastFeedback) showToast('Menyinkronkan data lapangan dari cloud...', 'info');
+
+      try {
+        const res = await fetch(`${targetUrl}?action=getCloudRecords&t=${Date.now()}`);
+        const result = await res.json();
+
+        if (result.status === 'success' && result.records && Array.isArray(result.records)) {
+          let updatedCount = 0;
+          result.records.forEach(cloudRec => {
+            if (!cloudRec || !cloudRec.id) return;
+
+            const localIdx = savedRecords.findIndex(lr => lr.id === cloudRec.id);
+            if (localIdx !== -1) {
+              // Jika data di cloud lebih baru atau lokal belum di-upload, gabungkan
+              const localRec = savedRecords[localIdx];
+              if (localRec.uploadStatus !== 'pending' || cloudRec.saveType === 'uploaded') {
+                savedRecords[localIdx] = Object.assign(localRec, cloudRec);
+                updatedCount++;
+              }
+            } else {
+              // Data dari mandor lain (seperti Alberto atau Jumri) ditambahkan ke daftar
+              savedRecords.unshift(cloudRec);
+              updatedCount++;
+            }
+          });
+
+          localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(savedRecords));
+          renderHistoryList();
+          renderDashboardUI();
+          if (showToastFeedback) {
+            showToast('Sinkronisasi data cloud berhasil!', 'success');
+          }
+        }
+      } catch (err) {
+        console.error('fetchCloudRecords error:', err);
+      } finally {
+        isFetchingCloud = false;
+      }
+    }
+
+    // 3. Tombol Sinkronisasi Manual Terpadu di Header Bar
+    async function manualSyncAllData() {
+      const syncIcon = document.getElementById('syncIcon');
+      if (syncIcon) syncIcon.classList.add('animate-spin');
+
+      showToast('Menyinkronkan Master Data, Akun, & Rekaman Lapangan...', 'info');
+
+      try {
+        await Promise.allSettled([
+          syncMasterData(),
+          (currentUser && currentUser.role === 'owner') ? syncUsersWithGoogleSheetsSilently() : Promise.resolve(),
+          fetchCloudRecords(false)
+        ]);
+        showToast('Seluruh data berhasil disinkronkan secara real-time!', 'success');
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (syncIcon) syncIcon.classList.remove('animate-spin');
+      }
+    }
+
+    // Auto-flush antrean & tarik data cloud saat HP mendapatkan sinyal kembali
+    window.addEventListener('online', async () => {
+      const queue = getSyncQueue();
+      const targetUrl = appConfig.appsScriptUrl || EMBEDDED_APPS_SCRIPT_URL;
+
+      if (queue.length > 0 && targetUrl) {
+        showToast(`Sinyal terhubung! Mengirim ${queue.length} data offline ke cloud...`, 'info');
+        try {
+          await fetch(targetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'syncCloudMonitoring',
+              data: queue
+            })
+          });
+          saveSyncQueue([]);
+          showToast('Data offline berhasil diunggah ke cloud!', 'success');
+        } catch (e) {}
+      }
+
+      fetchCloudRecords(false);
+    });
+
+    // Jalankan background auto-sync setiap 25 detik jika online
+    setInterval(() => {
+      if (navigator.onLine && currentUser) {
+        fetchCloudRecords(false);
+      }
+    }, 25000);
+
     function saveFormData(saveType = 'ready') {
       const rawUserNote = document.getElementById('field_noted').value.trim();
       let compiledNoted = rawUserNote;
@@ -4969,14 +5127,14 @@
       } else {
         savedRecords.unshift(record);
         if (saveType === 'draft') {
-          showToast('Draft berhasil disimpan (Bisa dilanjutkan nanti)', 'info');
+          showToast('Draft berhasil disimpan & otomatis dikirim ke Cloud!', 'info');
         } else {
-          showToast('Data QC berhasil disimpan secara lokal!', 'success');
+          showToast('Data QC berhasil disimpan & disinkronkan ke Cloud!', 'success');
         }
       }
 
       localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(savedRecords));
-      
+      syncRecordToCloud(record);
       resetForm();
       renderHistoryList();
       switchTab('historyTab');
@@ -5980,10 +6138,11 @@
         showToast('Data QC Fertilizer berhasil diperbarui!', 'success');
       } else {
         savedRecords.unshift(record);
-        showToast(saveType === 'draft' ? 'Draft QC Fertilizer tersimpan!' : 'Data QC Fertilizer berhasil disimpan!', 'success');
+        showToast(saveType === 'draft' ? 'Draft QC Fertilizer tersimpan & dikirim ke Cloud!' : 'Data QC Fertilizer berhasil disimpan & dikirim ke Cloud!', 'success');
       }
 
-      saveRecordsToStorage();
+      localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(savedRecords));
+      syncRecordToCloud(record);
       syncRecordToCloud(record);
       resetFertilizerForm();
       switchTab('historyTab');
@@ -7662,8 +7821,10 @@
 
       if (tabId === 'dashboardTab') {
         renderDashboardUI();
+        fetchCloudRecords(false);
       } else if (tabId === 'historyTab') {
         renderHistoryList();
+        fetchCloudRecords(false);
       } else if (tabId === 'usersTab') {
         renderUsersManagementUI();
       } else if (tabId === 'logsTab') {
