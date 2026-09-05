@@ -1,87 +1,1162 @@
-'use strict';
-const CONFIG_KEY='qc_v46_config', RECORD_KEY='qc_v46_records', QUEUE_KEY='qc_v46_queue';
-const DEFAULT_API='https://script.google.com/macros/s/AKfycbwjqnVwOBDQg3ptclpw_bCQO9kAcYUcHkxz4tdlNppcPYmMpCocPTbG8fgGVlp1muY/exec';
-const state={token:sessionStorage.getItem('qc_token')||'',user:JSON.parse(sessionStorage.getItem('qc_user')||'null'),records:read(RECORD_KEY,[]),master:{},formType:'spray'};
-const $=(s,p=document)=>p.querySelector(s), $$=(s,p=document)=>[...p.querySelectorAll(s)];
-function read(k,f){try{return JSON.parse(localStorage.getItem(k))??f}catch{return f}}
-function save(k,v){localStorage.setItem(k,JSON.stringify(v))}
-function config(){return {...{apiUrl:DEFAULT_API},...read(CONFIG_KEY,{})}}
-function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
-function toast(m,type=''){const e=$('#toast');e.textContent=m;e.className='toast show '+type;clearTimeout(toast.t);toast.t=setTimeout(()=>e.className='toast',3500)}
-function setStatus(form,m){$('.form-status',form).textContent=m||''}
-function role(){return state.user?.role||'pengunjung'}
-function canInput(t){return ['owner','asisten'].includes(role())||role()===`mandor_${t==='spray'?'spraying':'fertilizer'}`}
-function canDelete(){return ['owner','manager','admin','asisten'].includes(role())}
-async function api(action,data={},method='POST'){
-  const url=config().apiUrl;if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(url))throw Error('URL Apps Script belum benar.');
-  let res;if(method==='GET'){const q=new URLSearchParams({action,token:state.token,...data,_:Date.now()});res=await fetch(`${url}?${q}`,{redirect:'follow'});}else res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,token:state.token,...data}),redirect:'follow'});
-  if(!res.ok)throw Error(`Jaringan gagal (${res.status})`);const out=await res.json();if(!out.ok){if(out.error==='AUTH_EXPIRED'||out.error==='AUTH_REQUIRED')logout(false);throw Error(out.message||out.error||'Permintaan gagal');}return out;
+"use strict";
+const CONFIG_KEY = "qc_v46_config",
+  RECORD_KEY = "qc_v46_records",
+  QUEUE_KEY = "qc_v46_queue";
+const DEFAULT_API =
+  "https://script.google.com/macros/s/AKfycbwjqnVwOBDQg3ptclpw_bCQO9kAcYUcHkxz4tdlNppcPYmMpCocPTbG8fgGVlp1muY/exec";
+const state = {
+  token: sessionStorage.getItem("qc_token") || "",
+  user: JSON.parse(sessionStorage.getItem("qc_user") || "null"),
+  records: read(RECORD_KEY, []),
+  master: {},
+  formType: "spray",
+};
+const $ = (s, p = document) => p.querySelector(s),
+  $$ = (s, p = document) => [...p.querySelectorAll(s)];
+function read(k, f) {
+  try {
+    return JSON.parse(localStorage.getItem(k)) ?? f;
+  } catch {
+    return f;
+  }
+}
+function save(k, v) {
+  localStorage.setItem(k, JSON.stringify(v));
+}
+function config() {
+  return { ...{ apiUrl: DEFAULT_API }, ...read(CONFIG_KEY, {}) };
+}
+function esc(v) {
+  return String(v ?? "").replace(
+    /[&<>'"]/g,
+    (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[
+        c
+      ],
+  );
+}
+function toast(m, type = "") {
+  const e = $("#toast");
+  e.textContent = m;
+  e.className = "toast show " + type;
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => (e.className = "toast"), 3500);
+}
+function setStatus(form, m) {
+  $(".form-status", form).textContent = m || "";
+}
+function role() {
+  return state.user?.role || "pengunjung";
+}
+function canInput(t) {
+  return (
+    ["owner", "asisten"].includes(role()) ||
+    role() === `mandor_${t === "spray" ? "spraying" : "fertilizer"}`
+  );
+}
+function canDelete() {
+  return ["owner", "manager", "admin", "asisten"].includes(role());
+}
+async function api(action, data = {}, method = "POST") {
+  const url = config().apiUrl;
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(url))
+    throw Error("URL Apps Script belum benar.");
+  let res;
+  if (method === "GET") {
+    const q = new URLSearchParams({
+      action,
+      token: state.token,
+      ...data,
+      _: Date.now(),
+    });
+    res = await fetch(`${url}?${q}`, { redirect: "follow" });
+  } else
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action, token: state.token, ...data }),
+      redirect: "follow",
+    });
+  if (!res.ok) throw Error(`Jaringan gagal (${res.status})`);
+  const out = await res.json();
+  if (!out.ok) {
+    if (out.error === "AUTH_EXPIRED" || out.error === "AUTH_REQUIRED")
+      logout(false);
+    throw Error(out.message || out.error || "Permintaan gagal");
+  }
+  return out;
 }
 
-document.addEventListener('DOMContentLoaded',init);
-async function init(){bind();updateNetwork();window.addEventListener('online',()=>{updateNetwork();flushQueue()});window.addEventListener('offline',updateNetwork);if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});if(state.token&&state.user){showApp();try{const m=await api('me',{},'GET');state.user=m.user;persistSession();await loadMaster();await refreshCloud();}catch{}}else showAuth();}
-function bind(){
-  $$('[data-auth]').forEach(b=>b.onclick=()=>{$$('[data-auth]').forEach(x=>x.classList.toggle('active',x===b));$('#loginForm').classList.toggle('hidden',b.dataset.auth!=='login');$('#registerForm').classList.toggle('hidden',b.dataset.auth!=='register')});
-  $('#loginForm').onsubmit=login;$('#registerForm').onsubmit=register;$('#logoutBtn').onclick=()=>logout();$('#syncBtn').onclick=flushQueue;
-  $$('#mainNav [data-view]').forEach(b=>b.onclick=()=>openView(b.dataset.view));$$('[data-form]').forEach(b=>b.onclick=()=>renderForm(b.dataset.form));
-  $('#qcForm').onsubmit=submitForm;$('#resetForm').onclick=()=>resetForm();$('#refreshRecords').onclick=refreshCloud;$('#refreshDashboard').onclick=refreshCloud;$('#refreshUsers').onclick=loadUsers;$('#refreshLogs').onclick=loadLogs;
-  $('#searchPaddock').oninput=renderDashboard;$('#filterType').onchange=renderDashboard;$('#filterDate').onchange=renderDashboard;
-  $('#saveSettings').onclick=()=>{const v=$('#apiUrl').value.trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(v))return toast('URL Apps Script harus berakhiran /exec','error');save(CONFIG_KEY,{apiUrl:v});toast('URL disimpan','success')};
-  $('#changePassword').onclick=changePassword;
-  $('#calculate').onclick=calculate;
+document.addEventListener("DOMContentLoaded", init);
+async function init() {
+  bind();
+  updateNetwork();
+  window.addEventListener("online", () => {
+    updateNetwork();
+    flushQueue();
+  });
+  window.addEventListener("offline", updateNetwork);
+  if ("serviceWorker" in navigator)
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
+  if (state.token && state.user) {
+    showApp();
+    try {
+      const m = await api("me", {}, "GET");
+      state.user = m.user;
+      persistSession();
+      await loadMaster();
+      await refreshCloud();
+    } catch {}
+  } else showAuth();
 }
-function showAuth(){$('#authView').classList.remove('hidden');$('#appView').classList.add('hidden')}
-function showApp(){$('#authView').classList.add('hidden');$('#appView').classList.remove('hidden');$('#headerName').textContent=state.user.fullName;$('#roleBadge').textContent=role().replaceAll('_',' ');$$('.owner-only').forEach(e=>e.classList.toggle('hidden',role()!=='owner'));$$('.staff-only').forEach(e=>e.classList.toggle('hidden',!['owner','manager','admin','asisten'].includes(role())));const input=$('[data-view="form"]');input.classList.toggle('hidden',!canInput('spray')&&!canInput('fertilizer'));$('#apiUrl').value=config().apiUrl;renderForm(state.user.allowedForm==='fertilizer'?'fertilizer':'spray');renderAll()}
-function persistSession(){sessionStorage.setItem('qc_token',state.token);sessionStorage.setItem('qc_user',JSON.stringify(state.user))}
-async function login(e){e.preventDefault();const f=e.currentTarget,d=Object.fromEntries(new FormData(f));setStatus(f,'Memeriksa akun…');try{const out=await api('login',d);state.token=out.token;state.user=out.user;persistSession();f.reset();setStatus(f,'');showApp();await loadMaster();await refreshCloud();toast('Login berhasil','success')}catch(err){setStatus(f,err.message)}}
-async function register(e){e.preventDefault();const f=e.currentTarget,d=Object.fromEntries(new FormData(f));setStatus(f,'Mengirim pendaftaran…');try{const out=await api('register',d);f.reset();setStatus(f,out.message);toast(out.message,'success')}catch(err){setStatus(f,err.message)}}
-async function logout(call=true){if(call&&state.token)api('logout').catch(()=>{});state.token='';state.user=null;sessionStorage.removeItem('qc_token');sessionStorage.removeItem('qc_user');showAuth()}
-function updateNetwork(){$('#netBadge').textContent=navigator.onLine?'Online':'Offline';$('#netBadge').style.background=navigator.onLine?'#dcfce7':'#fee2e2'}
-function openView(v){$$('.view').forEach(x=>x.classList.toggle('hidden',x.id!==v+'View'));$$('#mainNav [data-view]').forEach(x=>x.classList.toggle('active',x.dataset.view===v));if(v==='users')loadUsers();if(v==='logs')loadLogs();if(v==='records')renderRecords();if(v==='dashboard')renderDashboard()}
+function bind() {
+  $$("[data-auth]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        $$("[data-auth]").forEach((x) => x.classList.toggle("active", x === b));
+        $("#loginForm").classList.toggle("hidden", b.dataset.auth !== "login");
+        $("#registerForm").classList.toggle(
+          "hidden",
+          b.dataset.auth !== "register",
+        );
+      }),
+  );
+  $("#loginForm").onsubmit = login;
+  $("#registerForm").onsubmit = register;
+  $("#logoutBtn").onclick = () => logout();
+  $("#syncBtn").onclick = flushQueue;
+  $$("#mainNav [data-view]").forEach(
+    (b) => (b.onclick = () => openView(b.dataset.view)),
+  );
+  $$("[data-form]").forEach(
+    (b) => (b.onclick = () => renderForm(b.dataset.form)),
+  );
+  $("#qcForm").onsubmit = submitForm;
+  $("#resetForm").onclick = () => resetForm();
+  $("#refreshRecords").onclick = refreshCloud;
+  $("#refreshDashboard").onclick = refreshCloud;
+  $("#refreshUsers").onclick = loadUsers;
+  $("#refreshLogs").onclick = loadLogs;
+  $("#searchPaddock").oninput = renderDashboard;
+  $("#filterType").onchange = renderDashboard;
+  $("#filterDate").onchange = () => { if ($("#filterDate").value !== "all") $("#filterExactDate").value = ""; renderDashboard(); };
+  $("#filterExactDate").onchange = () => { if ($("#filterExactDate").value) $("#filterDate").value = "all"; renderDashboard(); };
+  $("#clearDateFilter").onclick = () => { $("#filterDate").value = "all"; $("#filterExactDate").value = ""; renderDashboard(); };
+  $("#saveSettings").onclick = () => {
+    const v = $("#apiUrl").value.trim();
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(v))
+      return toast("URL Apps Script harus berakhiran /exec", "error");
+    save(CONFIG_KEY, { apiUrl: v });
+    toast("URL disimpan", "success");
+  };
+  $("#changePassword").onclick = changePassword;
+  $("#calculate").onclick = calculate;
+}
+function showAuth() {
+  $("#authView").classList.remove("hidden");
+  $("#appView").classList.add("hidden");
+}
+function showApp() {
+  $("#authView").classList.add("hidden");
+  $("#appView").classList.remove("hidden");
+  $("#headerName").textContent = state.user.fullName;
+  $("#roleBadge").textContent = role().replaceAll("_", " ");
+  $$(".owner-only").forEach((e) =>
+    e.classList.toggle("hidden", role() !== "owner"),
+  );
+  $$(".staff-only").forEach((e) =>
+    e.classList.toggle(
+      "hidden",
+      !["owner", "manager", "admin", "asisten"].includes(role()),
+    ),
+  );
+  const input = $('[data-view="form"]');
+  input.classList.toggle(
+    "hidden",
+    !canInput("spray") && !canInput("fertilizer"),
+  );
+  $("#apiUrl").value = config().apiUrl;
+  renderForm(state.user.allowedForm === "fertilizer" ? "fertilizer" : "spray");
+  renderAll();
+}
+function persistSession() {
+  sessionStorage.setItem("qc_token", state.token);
+  sessionStorage.setItem("qc_user", JSON.stringify(state.user));
+}
+async function login(e) {
+  e.preventDefault();
+  const f = e.currentTarget,
+    d = Object.fromEntries(new FormData(f));
+  setStatus(f, "Memeriksa akun…");
+  try {
+    const out = await api("login", d);
+    state.token = out.token;
+    state.user = out.user;
+    persistSession();
+    f.reset();
+    setStatus(f, "");
+    showApp();
+    await loadMaster();
+    await refreshCloud();
+    toast("Login berhasil", "success");
+  } catch (err) {
+    setStatus(f, err.message);
+  }
+}
+async function register(e) {
+  e.preventDefault();
+  const f = e.currentTarget,
+    d = Object.fromEntries(new FormData(f));
+  setStatus(f, "Mengirim pendaftaran…");
+  try {
+    const out = await api("register", d);
+    f.reset();
+    setStatus(f, out.message);
+    toast(out.message, "success");
+  } catch (err) {
+    setStatus(f, err.message);
+  }
+}
+async function logout(call = true) {
+  if (call && state.token) api("logout").catch(() => {});
+  state.token = "";
+  state.user = null;
+  sessionStorage.removeItem("qc_token");
+  sessionStorage.removeItem("qc_user");
+  showAuth();
+}
+function updateNetwork() {
+  $("#netBadge").textContent = navigator.onLine ? "Online" : "Offline";
+  $("#netBadge").style.background = navigator.onLine ? "#dcfce7" : "#fee2e2";
+}
+function openView(v) {
+  $$(".view").forEach((x) => x.classList.toggle("hidden", x.id !== v + "View"));
+  $$("#mainNav [data-view]").forEach((x) =>
+    x.classList.toggle("active", x.dataset.view === v),
+  );
+  if (v === "users") loadUsers();
+  if (v === "logs") loadLogs();
+  if (v === "records") renderRecords();
+  if (v === "dashboard") renderDashboard();
+}
 
-async function loadMaster(){try{state.master=(await api('masterData',{},'GET')).data;localStorage.setItem('qc_master',JSON.stringify(state.master))}catch{state.master=read('qc_master',{});if(!Object.keys(state.master).length)try{state.master=await(await fetch('./master_data.json')).json()}catch{}}renderForm(state.formType)}
-function options(values,selected=''){return ['<option value="">Pilih…</option>',...(values||[]).map(v=>`<option ${String(v)===String(selected)?'selected':''}>${esc(v)}</option>`)].join('')}
-function renderForm(type){if(!canInput(type)){type=canInput('spray')?'spray':'fertilizer';if(!canInput(type))return}state.formType=type;$$('[data-form]').forEach(b=>{b.classList.toggle('active',b.dataset.form===type);b.classList.toggle('hidden',!canInput(b.dataset.form))});const f=$('#qcForm');f.formType.value=type;$('#commonFields').innerHTML=$('#commonTemplate').innerHTML;f.date.value=new Date().toISOString().slice(0,10);f.name.innerHTML=options(state.master.names);f.nameOfAssistan.innerHTML=options(state.master.assistants);$('#specificFields').innerHTML=type==='spray'?sprayFields():fertFields();bindCommonButtons();bindDynamic();}
-function sprayFields(){return `<h3>Program & Paddock</h3><div class="field-grid"><fieldset class="span-3"><legend>Activity</legend><input name="activity" type="hidden" required><div id="activityButtons" class="choice-group"></div></fieldset><fieldset class="span-3"><legend>Deskripsi</legend><input name="deskripsi" type="hidden" required><div id="descriptionButtons" class="choice-group"><span class="muted">Pilih Activity</span></div></fieldset><fieldset class="span-3"><legend>Paddock — hanya Keterangan Spray</legend><input name="paddock" type="hidden" required><div id="paddockButtons" class="choice-group"><span class="muted">Pilih Deskripsi</span></div></fieldset><fieldset class="span-3"><legend>Variety</legend><input name="variety" type="hidden" required><div id="varietyButtons" class="choice-group"><span class="muted">Terisi otomatis dari Plan kolom H</span></div></fieldset><fieldset><legend>Type</legend><input name="type" type="hidden" required><div id="typeButtons" class="choice-group"></div></fieldset><fieldset><legend>Dropper</legend><input name="dropper" type="hidden" value="No"><div id="dropperButtons" class="choice-group"></div></fieldset><fieldset class="span-2"><legend>Nozzle</legend><input name="nozzle" type="hidden"><div id="nozzleButtons" class="choice-group"></div></fieldset><label>Droplet Size (µm)<input name="dropletSize" type="number" inputmode="decimal"></label><label>Height (m)<input name="height" type="number" step=".01" inputmode="decimal"></label><label>Row Spacing (m)<input name="rowSpacing" type="number" step=".01" inputmode="decimal"></label><label>Speed (km/jam)<input name="speed" type="number" step=".01" inputmode="decimal"></label></div><h3>Bahan Kimia Otomatis</h3><p class="muted">Material dan dosis diambil dari sheet Bahan berdasarkan Deskripsi. Estimasi = Dosis/Ha × Luas.</p><div id="materials"><p class="muted">Pilih Deskripsi untuk memuat bahan.</p></div><h3>Adjuvant</h3><div class="material-card"><label>Nama adjuvant<input name="adjuvant" list="adjuvantOptions"><datalist id="adjuvantOptions"></datalist></label><label>Dosis (mL/L air)<input name="adjuvantDosage" type="number" step=".01" inputmode="decimal"></label><label>Estimated Usage (L)<input name="estUsageAdjuvant" class="calculated" readonly></label><label>Actual Usage (L)<input name="actUsageAdjuvant" type="number" step=".01" inputmode="decimal"></label></div><h3>Carrier Air & Kondisi Lapangan</h3><div class="field-grid"><label>Water Rate (L/Ha)<input name="waterRate" type="number" step=".01" inputmode="decimal"></label><fieldset class="span-2"><legend>Water Quality</legend><input name="waterQuality" type="hidden"><div id="waterQualityButtons" class="choice-group"></div></fieldset><label>Actual Usage Air (L)<input name="actualUsage" type="number" step=".01" inputmode="decimal"></label><label>Wind Speed (km/jam)<input name="windSpeed" type="number" step=".01" inputmode="decimal"></label><label>Temperature (°C)<input name="temperature" type="number" step=".01" inputmode="decimal"></label><label>Humidity (NRC / %)<input name="humidity" type="number" step=".01" inputmode="decimal"></label><label>Delta T (°C)<input name="deltaT" type="number" step=".01" inputmode="decimal"></label><fieldset class="span-2"><legend>Weather Condition</legend><input name="weatherCondition" type="hidden"><div id="weatherButtons" class="choice-group"></div></fieldset></div><section class="time-summary" aria-live="polite"><div class="time-summary-head"><div><p class="eyebrow">REKAP WAKTU LAPANGAN</p><h3>Working & HOLD</h3></div><span class="badge working-badge">WORKING</span></div><p class="muted">Isi jam kerja utama di atas. Tambahkan setiap jeda HOLD di bawah; sistem mengurangi total HOLD secara otomatis.</p><div id="workSummary" class="work-summary"></div></section><section class="hold-section"><div class="hold-section-head"><div><p class="eyebrow hold-eyebrow">JEDA LAPANGAN</p><h3>HOLD berulang</h3></div><button type="button" id="addHold" class="hold-add">+ Tambah HOLD</button></div><div id="holds"></div><p class="muted hold-help">Contoh: 08:00–10:00 angin kencang, lalu 12:00–13:00 cuaca mendung.</p></section>`}
-function fertFields(){return `<h3>Detail Fertilizer</h3><div class="field-grid"><label>Type<input name="type" value="Fertilizer" readonly></label><label>Activity<input name="activity"></label><label>Jenis pupuk<input name="jenisPupuk" list="fertOptions"><datalist id="fertOptions">${(state.master.materials||[]).map(x=>`<option value="${esc(x.material)}">`).join('')}</datalist></label><label>Dosis (kg/Ha)<input name="dosis" type="number" step=".01"></label><label>Status hose<select name="statusHose"><option>Lancar</option><option>Menyumbat</option><option>Tidak Lancar</option></select></label></div><h3>Pengisian Pupuk</h3><div id="fills"></div><button type="button" id="addFill">+ Tambah Pengisian</button>`}
-function makeButtons(container,values,input,{multiple=false,selected=[] ,onChange=()=>{}}={}){const el=typeof container==='string'?$(container):container;if(!el)return;const chosen=new Set(Array.isArray(selected)?selected:String(selected||'').split(',').map(x=>x.trim()).filter(Boolean));el.innerHTML=(values||[]).filter(Boolean).map(v=>`<button type="button" data-value="${esc(v)}" class="${chosen.has(String(v))?'selected':''}">${esc(v)}</button>`).join('')||'<span class="muted">Tidak ada pilihan</span>';$$('button',el).forEach(b=>b.onclick=()=>{if(multiple)b.classList.toggle('selected');else $$('button',el).forEach(x=>x.classList.toggle('selected',x===b));const vals=$$('button.selected',el).map(x=>x.dataset.value);input.value=multiple?vals.join(', '):(vals[0]||'');onChange(vals)});input.value=multiple?[...chosen].join(', '):([...chosen][0]||'')}
-function nowTime(){return new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12:false})}
-function bindCommonButtons(){const f=$('#qcForm');makeButtons('#shiftButtons',state.master.shifts?.length?state.master.shifts:['1','2'],f.shift,{selected:['1']});makeButtons('#statusButtons',state.master.statuses?.length?state.master.statuses:['Working','Hold'],f.status,{selected:['Working'],onChange:()=>{const hold=f.status.value==='Hold';f.startTime.required=hold;f.endTime.required=hold}});$$('[data-now]').forEach(b=>b.onclick=()=>{f.elements[b.dataset.now].value=nowTime()});const chosenUnits=[];makeButtons('#unitButtons',Object.keys(state.master.unitMap||{}),f.unit,{multiple:true,selected:chosenUnits,onChange:units=>renderNoUnits(units)});}
-function renderNoUnits(units,selected=[]){const f=$('#qcForm'),pairs=[];(units||[]).forEach(unit=>(state.master.unitMap?.[unit]||[]).forEach(no=>pairs.push(no)));makeButtons('#noUnitButtons',[...new Set(pairs)],f.noUnit,{multiple:true,selected})}
-function bindDynamic(){const f=$('#qcForm');if(state.formType==='spray'){bindSprayProgram();makeButtons('#dropperButtons',state.master.dropper?.length?state.master.dropper:['Yes','No'],f.dropper,{selected:['No']});makeButtons('#nozzleButtons',state.master.nozzles||[],f.nozzle);makeButtons('#waterQualityButtons',state.master.waterQualities||[],f.waterQuality);makeButtons('#weatherButtons',state.master.weatherConditions||[],f.weatherCondition);$('#adjuvantOptions').innerHTML=[...new Set((state.master.materials||[]).filter(x=>/adjuvant/i.test(`${x.slot} ${x.unit} ${x.description}`)).map(x=>x.material))].map(x=>`<option value="${esc(x)}">`).join('');$('#addHold').onclick=()=>addHold();f.area.addEventListener('input',recalculateSpray);f.waterRate.addEventListener('input',recalculateSpray);f.adjuvantDosage.addEventListener('input',recalculateSpray);f.startTime.addEventListener('input',updateWorkSummary);f.endTime.addEventListener('input',updateWorkSummary);updateWorkSummary()}else{$('#addFill').onclick=()=>addFill();addFill()}}
-function sprayPlans(){return(state.master.plans||[]).filter(p=>String(p.category||p.keterangan||'').trim().toLowerCase()==='spray')}
-function unique(a){return[...new Set(a.filter(Boolean).map(String))]}
-function bindSprayProgram(){const f=$('#qcForm'),plans=sprayPlans(),activities=unique(plans.map(p=>p.activity));makeButtons('#activityButtons',activities,f.activity,{onChange:()=>{f.deskripsi.value=f.paddock.value=f.variety.value=f.type.value='';renderDescriptions()}});function renderDescriptions(){const rows=plans.filter(p=>p.activity===f.activity.value);makeButtons('#descriptionButtons',unique(rows.map(p=>p.description)),f.deskripsi,{onChange:()=>{f.paddock.value=f.variety.value='';const types=unique(rows.filter(p=>p.description===f.deskripsi.value).map(p=>p.type));makeButtons('#typeButtons',types,f.type,{selected:types.length===1?types:[],onChange:()=>{f.paddock.value=f.variety.value='';renderPaddocks()}});renderPaddocks();renderAutomaticMaterials()}})}function renderPaddocks(){const rows=plans.filter(p=>p.activity===f.activity.value&&p.description===f.deskripsi.value&&(!f.type.value||p.type===f.type.value));makeButtons('#paddockButtons',unique(rows.map(p=>p.paddock)),f.paddock,{onChange:()=>{const match=rows.filter(p=>p.paddock===f.paddock.value),vars=unique(match.map(p=>p.variety));makeButtons('#varietyButtons',vars,f.variety,{selected:vars.length===1?vars:[]});const areas=match.map(p=>Number(String(p.area||'').replace(',','.'))).filter(Number.isFinite);if(areas.length&&!f.area.value)f.area.value=Math.max(...areas);recalculateSpray()}})} }
-function renderAutomaticMaterials(){const f=$('#qcForm'),materials=(state.master.materials||[]).filter(x=>String(x.description).trim()===f.deskripsi.value&&/^Pesticide\s*[1-4]$/i.test(String(x.slot||'').trim())).sort((a,b)=>String(a.slot).localeCompare(String(b.slot)));$('#materials').innerHTML=materials.length?materials.map((x,i)=>`<div class="material-card auto-material" data-slot="${i+1}"><strong>${esc(x.slot)}<br>${esc(x.material)} <small>(${esc(x.unit||'')})</small></strong><label>Dosis/Ha<input data-k="dosage" value="${esc(String(x.dosage||'').replace(',','.').trim())}" class="calculated" readonly></label><label>Estimated Used<input data-k="estimated" class="calculated" readonly></label><label>Actual Used<input data-k="actual" type="number" step=".001" inputmode="decimal"></label><input data-k="material" type="hidden" value="${esc(x.material)}"><input data-k="kind" type="hidden" value="Pesticide"></div>`).join(''):'<p class="muted">Tidak ada bahan Pesticide 1–4 untuk Deskripsi ini di sheet Bahan.</p>';recalculateSpray()}
-function recalculateSpray(){const f=$('#qcForm'),area=Number(String(f.area?.value||0).replace(',','.'))||0,wr=Number(String(f.waterRate?.value||0).replace(',','.'))||0;$$('.auto-material').forEach(row=>{const dose=Number(row.querySelector('[data-k="dosage"]').value)||0;row.querySelector('[data-k="estimated"]').value=(dose*area).toFixed(2)});const adj=Number(String(f.adjuvantDosage?.value||0).replace(',','.'))||0;if(f.estUsageAdjuvant)f.estUsageAdjuvant.value=(adj*wr*area/1000).toFixed(2)}
-function timeToMinutes(v){const m=/^(\d{2}):(\d{2})$/.exec(String(v||''));return m?(+m[1]*60)+(+m[2]):NaN}
-function durationLabel(min){const h=Math.floor(min/60),m=min%60;return `${h}j ${String(m).padStart(2,'0')}m`}
-function workSummary(){const f=$('#qcForm'),start=timeToMinutes(f.startTime?.value),end=timeToMinutes(f.endTime?.value),issues=[],raw=rows('.hold-row');if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start)return {ready:false,issues:['Isi jam mulai dan jam selesai kerja terlebih dahulu.'],intervals:raw};const ranges=[];raw.forEach((h,i)=>{const a=timeToMinutes(h.start),b=timeToMinutes(h.end);if(!h.start&&!h.end)return;if(!Number.isFinite(a)||!Number.isFinite(b)||b<=a)issues.push(`HOLD ${i+1}: jam selesai harus setelah jam mulai.`);else if(a<start||b>end)issues.push(`HOLD ${i+1}: harus berada di dalam jam kerja.`);else ranges.push([a,b])});ranges.sort((a,b)=>a[0]-b[0]);const merged=[];ranges.forEach(r=>{const last=merged[merged.length-1];if(last&&r[0]<last[1])issues.push('Waktu HOLD tidak boleh saling bertumpuk.');else if(last&&r[0]===last[1])last[1]=r[1];else merged.push(r)});const total=merged.reduce((s,r)=>s+r[1]-r[0],0),working=end-start;return {ready:true,issues,intervals:raw,total,working,effective:working-total}}
-function updateWorkSummary(){const out=$('#workSummary');if(!out)return;const s=workSummary();if(!s.ready){out.innerHTML=`<div class="summary-empty">${esc(s.issues[0])}</div>`;return}out.innerHTML=`<div class="summary-card working-card"><span>Durasi Working</span><b>${durationLabel(s.working)}</b><small>${esc($('#qcForm').startTime.value)}–${esc($('#qcForm').endTime.value)}</small></div><div class="summary-operator">−</div><div class="summary-card hold-card"><span>Total HOLD</span><b>${durationLabel(s.total)}</b><small>${s.intervals.filter(x=>x.start&&x.end).length} interval</small></div><div class="summary-operator">=</div><div class="summary-card effective-card"><span>Kerja efektif</span><b>${durationLabel(s.effective)}</b><small>Working dikurangi HOLD</small></div>${s.issues.length?`<p class="summary-warning">${esc([...new Set(s.issues)].join(' '))}</p>`:''}`}
-function addHold(v={}){const d=document.createElement('article');d.className='hold-row';d.innerHTML=`<div class="hold-number">HOLD <span>${$$('.hold-row').length+1}</span></div><label>Mulai<div class="time-field"><input data-k="start" type="time" value="${esc(v.start||'')}"><button type="button" data-now-hold="start">Sekarang</button></div></label><label>Selesai<div class="time-field"><input data-k="end" type="time" value="${esc(v.end||'')}"><button type="button" data-now-hold="end">Sekarang</button></div></label><label>Alasan HOLD<input data-k="reason" placeholder="Contoh: angin kencang" value="${esc(v.reason||'')}"></label><label>Angin (km/jam)<input data-k="windSpeed" type="number" step=".1" value="${esc(v.windSpeed||'')}"></label><label>Catatan singkat<input data-k="note" value="${esc(v.note||'')}"></label><button type="button" class="remove-hold" aria-label="Hapus HOLD">×</button>`;$$('input',d).forEach(x=>x.addEventListener('input',updateWorkSummary));$$('[data-now-hold]',d).forEach(b=>b.onclick=()=>{d.querySelector(`[data-k="${b.dataset.nowHold}"]`).value=nowTime();updateWorkSummary()});d.querySelector('.remove-hold').onclick=()=>{d.remove();$$('.hold-number span').forEach((x,i)=>x.textContent=i+1);updateWorkSummary()};$('#holds').append(d);updateWorkSummary()}
-function addFill(v={}){const n=$$('.fill-row').length+1,d=document.createElement('div');d.className='fill-row';d.innerHTML=`<label>Ke-<input data-k="pengisianKe" type="number" value="${esc(v.pengisianKe||n)}"></label><label>Jumlah (kg)<input data-k="jumlah" type="number" step=".01" value="${esc(v.jumlah||'')}"></label><label>Hasil (Ha)<input data-k="hasilKerja" type="number" step=".01" value="${esc(v.hasilKerja||'')}"></label><label>Dosis aktual<input data-k="dosisAktual" type="number" step=".01" readonly></label><label>Pemerataan<input data-k="pemerataanPupuk" type="number" step=".01" value="${esc(v.pemerataanPupuk||'')}"></label><button type="button">×</button>`;const calc=()=>{const j=+d.querySelector('[data-k="jumlah"]').value,h=+d.querySelector('[data-k="hasilKerja"]').value;d.querySelector('[data-k="dosisAktual"]').value=h?(j/h).toFixed(2):''};d.querySelectorAll('input').forEach(x=>x.oninput=calc);d.querySelector('button').onclick=()=>d.remove();$('#fills').append(d);calc()}
-function applyPlan(paddock){const p=(state.master.plans||[]).find(x=>x.paddock===paddock),f=$('#qcForm');if(!p)return;if(f.area)f.area.value=p.area||'';if(f.variety)f.variety.value=p.variety||'';if(f.activity)f.activity.value=p.activity||'';if(f.deskripsi)f.deskripsi.value=p.description||'';if(f.type&&p.type)f.type.value=p.type}
-function rows(selector){return $$(selector).map(r=>Object.fromEntries($$('[data-k]',r).map(x=>[x.dataset.k,x.value])))}
-async function photoData(file){if(!file)return'';if(file.size>6e6)throw Error('Foto asli maksimal 6 MB.');const img=await createImageBitmap(file),scale=Math.min(1,1400/img.width),c=document.createElement('canvas');c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.72)}
-async function submitForm(e){e.preventDefault();const submit=e.submitter?.value||'draft',f=e.currentTarget;if(!f.reportValidity())return;if(state.formType==='spray'&&['activity','deskripsi','paddock','variety','type'].some(k=>!f.elements[k].value))return toast('Lengkapi pilihan Activity, Deskripsi, Paddock, Variety, dan Type.','error');const timing=state.formType==='spray'?workSummary():null;if(timing&&(!timing.ready||timing.issues.length))return toast(timing.issues[0]||'Periksa waktu Working dan HOLD.','error');try{const fd=new FormData(f),rec=Object.fromEntries(fd);delete rec.photo;rec.id=rec.id||`qc_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;rec.formType=state.formType;rec.saveType=submit;rec.inputtedBy=state.user.username;rec.createdAt=new Date().toISOString();rec.photoBase64=await photoData(f.photo.files[0]);if(state.formType==='spray'){const mats=rows('.auto-material');mats.slice(0,4).forEach((x,i)=>{rec[`pesticide${i+1}`]=x.material;rec[`dosage${i+1}`]=x.dosage;rec[`estUsagePesticide${i+1}`]=x.estimated;rec[`actUsagePesticide${i+1}`]=x.actual});rec.holdIntervals=timing.intervals;rec.workingDurationMinutes=timing.working;rec.holdTotalMinutes=timing.total;rec.effectiveWorkingMinutes=timing.effective}else rec.pengisianList=rows('.fill-row');upsertLocal(rec);await syncOrQueue('syncRecord',{record:rec});toast(navigator.onLine?'Data tersimpan dan tersinkron.':'Data aman di perangkat; menunggu jaringan.','success');resetForm()}catch(err){toast(err.message,'error')}}
-function upsertLocal(rec){const i=state.records.findIndex(x=>x.id===rec.id);if(i>=0)state.records[i]=rec;else state.records.unshift(rec);save(RECORD_KEY,state.records);renderAll()}
-async function syncOrQueue(action,payload){if(navigator.onLine){try{return await api(action,payload)}catch(err){if(/Sesi|izin|login|kata sandi/i.test(err.message))throw err}}const q=read(QUEUE_KEY,[]);q.push({id:crypto.randomUUID(),action,payload,at:Date.now()});save(QUEUE_KEY,q)}
-async function flushQueue(){if(!navigator.onLine)return toast('Perangkat sedang offline','error');const q=read(QUEUE_KEY,[]);if(!q.length)return refreshCloud();let ok=0,left=[];for(const item of q){try{await api(item.action,item.payload);ok++}catch{left.push(item)}}save(QUEUE_KEY,left);toast(`${ok} antrean tersinkron; ${left.length} tersisa`,left.length?'error':'success');await refreshCloud()}
-async function refreshCloud(){if(!state.token)return;try{const out=await api('records',{},'GET');for(const r of out.records)upsertLocal(r);renderAll()}catch(err){toast('Cloud belum dapat dimuat: '+err.message,'error')}}
-function renderAll(){renderDashboard();renderRecords()}
-function filtered(){const q=$('#searchPaddock')?.value.toLowerCase()||'',t=$('#filterType')?.value||'',d=$('#filterDate')?.value||'all',now=new Date();return state.records.filter(r=>{if(q&&!String(r.paddock).toLowerCase().includes(q))return false;if(t&&r.formType!==t)return false;if(d!=='all'){const dt=new Date(r.date+'T00:00:00');if(d==='today'&&r.date!==now.toISOString().slice(0,10))return false;if(d==='7'&&(now-dt)/864e5>7)return false}return true})}
-function renderDashboard(){if(!$('#metrics'))return;const a=filtered(),spray=a.filter(r=>r.formType==='spray'),fert=a.filter(r=>r.formType==='fertilizer'),area=x=>x.reduce((s,r)=>s+(+String(r.area||0).replace(',','.')||0),0),chem=k=>spray.filter(r=>String(r.type).toLowerCase()===k).reduce((s,r)=>s+[1,2,3,4].reduce((z,i)=>z+(+String(r[`actUsagePesticide${i}`]||0).replace(',','.')||0),0),0);const metrics=[['Laporan',a.length],['Luas Spray',area(spray).toFixed(2)+' Ha'],['Pupuk',fert.reduce((s,r)=>s+(r.pengisianList||[]).reduce((x,p)=>x+(+p.jumlah||0),0),0).toFixed(1)+' kg'],['Paddock',new Set(a.map(r=>r.paddock)).size],['Herbicide',area(spray.filter(r=>r.type==='Herbicide')).toFixed(2)+' Ha'],['Insecticide',area(spray.filter(r=>r.type==='Insecticide')).toFixed(2)+' Ha'],['Fungicide',area(spray.filter(r=>r.type==='Fungicide')).toFixed(2)+' Ha'],['Bahan aktual',(['herbicide','insecticide','fungicide'].reduce((s,k)=>s+chem(k),0)).toFixed(2)+' L']];$('#metrics').innerHTML=metrics.map(x=>`<div class="metric"><span>${x[0]}</span><b>${x[1]}</b></div>`).join('');$('#dashboardRecords').innerHTML=a.length?a.slice(0,30).map(r=>card(r,false)).join(''):'<p class="muted">Belum ada data sesuai filter.</p>'}
-function card(r,actions=true){return `<article class="record"><div class="record-head"><strong>${esc(r.paddock)}</strong><span class="badge">${esc(r.formType)}</span></div><p>${esc(r.date)} · Shift ${esc(r.shift)} · ${esc(r.name)}</p><p>${esc(r.activity||r.jenisPupuk||r.type||'-')} · ${esc(r.area||0)} Ha</p><p>Status: ${esc(r.saveType||'draft')}</p>${actions?`<div class="record-actions"><button onclick="editRecord('${esc(r.id)}')">Edit</button><button onclick="printRecord('${esc(r.id)}')">PDF</button><button onclick="jpgRecord('${esc(r.id)}')">JPG</button>${r.saveType!=='uploaded'&&canInput(r.formType)?`<button class="primary" onclick="uploadRecord('${esc(r.id)}')">Upload</button>`:''}${canDelete()?`<button class="danger" onclick="removeRecord('${esc(r.id)}')">Hapus</button>`:''}</div>`:''}</article>`}
-function renderRecords(){$('#recordsList').innerHTML=state.records.length?state.records.map(r=>card(r,true)).join(''):'<div class="panel muted">Belum ada data lokal atau cloud.</div>'}
-window.uploadRecord=async id=>{const r=state.records.find(x=>x.id===id);if(!r)return;try{await api('finalizeRecord',{record:r});r.saveType='uploaded';r.uploadedAt=new Date().toISOString();upsertLocal(r);toast('Upload resmi berhasil','success')}catch(e){toast(e.message,'error')}};
-window.removeRecord=async id=>{if(!confirm('Hapus data ini dari perangkat dan cloud?'))return;try{await api('deleteRecord',{recordId:id});state.records=state.records.filter(x=>x.id!==id&&!x.id.startsWith(id+'_'));save(RECORD_KEY,state.records);renderAll();toast('Data dihapus','success')}catch(e){toast(e.message,'error')}};
-function choose(container,value){const b=$$(container+' button').find(x=>x.dataset.value===String(value));if(b)b.click()}
-window.editRecord=id=>{const r=state.records.find(x=>x.id===id);if(!r)return;openView('form');renderForm(r.formType);const f=$('#qcForm');if(r.formType==='spray'){choose('#activityButtons',r.activity);choose('#descriptionButtons',r.deskripsi);choose('#typeButtons',r.type);choose('#paddockButtons',r.paddock);choose('#varietyButtons',r.variety);choose('#dropperButtons',r.dropper);choose('#nozzleButtons',r.nozzle);choose('#waterQualityButtons',r.waterQuality);choose('#weatherButtons',r.weatherCondition);String(r.unit||'').split(',').map(x=>x.trim()).filter(Boolean).forEach(x=>choose('#unitButtons',x));renderNoUnits(String(r.unit||'').split(',').map(x=>x.trim()).filter(Boolean),String(r.noUnit||'').split(',').map(x=>x.trim()).filter(Boolean));Object.entries(r).forEach(([k,v])=>{if(f.elements[k]&&typeof v!=='object'&&!['activity','deskripsi','type','paddock','variety','dropper','nozzle','waterQuality','weatherCondition','unit','noUnit'].includes(k))f.elements[k].value=v??''});$$('.auto-material').forEach((row,i)=>{const a=row.querySelector('[data-k="actual"]');if(a)a.value=r[`actUsagePesticide${i+1}`]||''});recalculateSpray();$('#holds').innerHTML='';(r.holdIntervals||[]).forEach(addHold)}else{Object.entries(r).forEach(([k,v])=>{if(f.elements[k]&&typeof v!=='object')f.elements[k].value=v??''});$('#fills').innerHTML='';(r.pengisianList||[]).forEach(addFill)}};
-window.printRecord=id=>{const r=state.records.find(x=>x.id===id);if(!r)return;const w=open('','_blank');w.document.write(`<title>Laporan QC ${esc(r.paddock)}</title><style>body{font:14px Arial;padding:28px;color:#172033}h1{margin:0}header{border-bottom:3px solid #166534;margin-bottom:20px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}dt{font-weight:bold}dd{margin:2px 0 10px}pre{white-space:pre-wrap} @page{size:A4;margin:14mm}</style><header><h1>PT. GLOBAL PAPUA ABADI</h1><p>DEPARTEMEN UPKEEP & MANURING — ${r.formType==='fertilizer'?'FERTILIZER':'SPRAYING'}</p></header><div class="grid">${Object.entries(r).filter(([k,v])=>!['photoBase64'].includes(k)&&typeof v!=='object').map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</div><h3>Rincian</h3><pre>${esc(JSON.stringify(r.holdIntervals||r.pengisianList||[],null,2))}</pre><p>Mandor Pelapor: ____________________ &nbsp; Asisten Pemeriksa: ____________________</p>`);w.document.close();setTimeout(()=>w.print(),300)};
-window.jpgRecord=id=>{const r=state.records.find(x=>x.id===id);if(!r)return;const c=document.createElement('canvas'),x=c.getContext('2d');c.width=1200;c.height=1600;x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.fillStyle='#166534';x.fillRect(0,0,c.width,170);x.fillStyle='#fff';x.font='bold 46px Arial';x.fillText('PT. GLOBAL PAPUA ABADI',70,75);x.font='28px Arial';x.fillText(`DEPARTEMEN UPKEEP & MANURING — ${r.formType==='fertilizer'?'FERTILIZER':'SPRAYING'}`,70,125);x.fillStyle='#172033';x.font='bold 34px Arial';x.fillText(`LAPORAN QC — ${r.paddock||'-'}`,70,235);x.font='25px Arial';let y=300;const lines=[['Tanggal',r.date],['Shift',r.shift],['Mandor',r.name],['Asisten',r.nameOfAssistan],['Status',r.status],['Kegiatan',r.activity||r.type],['Luas',`${r.area||0} Ha`],['Unit',`${r.unit||'-'} ${r.noUnit||''}`],['Catatan',r.noted||'-']];for(const [k,v] of lines){x.font='bold 25px Arial';x.fillText(k,70,y);x.font='25px Arial';x.fillText(String(v||'-').slice(0,70),360,y);y+=62}x.strokeStyle='#94a3b8';x.beginPath();x.moveTo(70,1390);x.lineTo(480,1390);x.moveTo(700,1390);x.lineTo(1110,1390);x.stroke();x.fillText('Mandor Pelapor',170,1440);x.fillText('Asisten Pemeriksa',790,1440);const a=document.createElement('a');a.download=`QC_${r.formType}_${r.paddock}_${r.date}.jpg`;a.href=c.toDataURL('image/jpeg',.92);a.click()};
-function resetForm(){renderForm(state.formType)}
-async function loadUsers(){try{const out=await api('users',{},'GET');$('#usersBody').innerHTML=out.users.map(u=>`<tr><td>${esc(u.fullName)}</td><td>${esc(u.username)}</td><td>${esc(u.status)}</td><td><select id="role_${esc(u.username)}"><option ${u.role==='mandor_spraying'?'selected':''} value="mandor_spraying">Mandor Spraying</option><option ${u.role==='mandor_fertilizer'?'selected':''} value="mandor_fertilizer">Mandor Fertilizer</option><option ${u.role==='asisten'?'selected':''} value="asisten">Asisten</option><option ${u.role==='admin'?'selected':''} value="admin">Admin</option><option ${u.role==='manager'?'selected':''} value="manager">Manager</option><option ${u.role==='pengunjung'?'selected':''} value="pengunjung">Pengunjung</option></select></td><td>${u.status==='PENDING'?`<button class="primary" onclick="approve('${esc(u.username)}')">Setujui</button> <button class="danger" onclick="rejectUser('${esc(u.username)}')">Tolak</button>`:'-'}</td></tr>`).join('')}catch(e){toast(e.message,'error')}}
-window.approve=async u=>{try{await api('approveUser',{username:u,role:$(`#role_${CSS.escape(u)}`).value});await loadUsers();toast('Akun disetujui','success')}catch(e){toast(e.message,'error')}};window.rejectUser=async u=>{if(!confirm('Tolak akun ini?'))return;try{await api('rejectUser',{username:u});await loadUsers()}catch(e){toast(e.message,'error')}};
-async function loadLogs(){try{const out=await api('logs',{},'GET');$('#logsBody').innerHTML=out.logs.map(x=>`<tr><td>${esc(new Date(x.Timestamp).toLocaleString('id-ID'))}</td><td>${esc(x.FullName||x.Username)}</td><td>${esc(x.ActionType)}</td><td>${esc(x.Description)}</td></tr>`).join('')}catch(e){toast(e.message,'error')}}
-async function changePassword(){try{await api('changePassword',{oldPassword:$('#oldPassword').value,newPassword:$('#newPassword').value});$('#oldPassword').value=$('#newPassword').value='';toast('Kata sandi diperbarui','success')}catch(e){toast(e.message,'error')}}
-function calculate(){const n=id=>+$('#'+id).value||0,m=$('#calcMode').value,area=n('calcArea'),dose=n('calcDose'),wr=n('calcWr'),tank=n('calcTank'),adj=n('calcAdj'),swath=n('calcSwath'),speed=n('calcSpeed'),nozzles=n('calcNozzles');let out='Lengkapi nilai yang diperlukan.';if(m==='material'&&area&&dose)out=`${(area*dose).toFixed(2)} L/kg bahan`;if(m==='water'&&area&&wr&&tank)out=`${(area*wr).toFixed(0)} L air · ${(area*wr/tank).toFixed(2)} tangki`;if(m==='tank'&&dose&&wr&&tank)out=`${(dose/wr*tank).toFixed(2)} L/kg per tangki`;if(m==='adjuvant'&&adj&&tank)out=`${(adj*tank/1000).toFixed(2)} L adjuvant per tangki`;if(m==='coverage'&&tank&&wr)out=`${(tank/wr).toFixed(2)} Ha per tangki`;if(m==='flow'&&wr&&swath&&speed){const total=wr*swath*speed/600;out=`${total.toFixed(2)} L/menit total${nozzles?` · ${(total/nozzles).toFixed(3)} L/menit/nozzle`:''}`}$('#calcResult b').textContent=out}
+async function loadMaster() {
+  try {
+    state.master = (await api("masterData", {}, "GET")).data;
+    localStorage.setItem("qc_master", JSON.stringify(state.master));
+  } catch {
+    state.master = read("qc_master", {});
+    if (!Object.keys(state.master).length)
+      try {
+        state.master = await (await fetch("./master_data.json")).json();
+      } catch {}
+  }
+  renderForm(state.formType);
+}
+function options(values, selected = "") {
+  return [
+    '<option value="">Pilih…</option>',
+    ...(values || []).map(
+      (v) =>
+        `<option ${String(v) === String(selected) ? "selected" : ""}>${esc(v)}</option>`,
+    ),
+  ].join("");
+}
+function renderForm(type) {
+  if (!canInput(type)) {
+    type = canInput("spray") ? "spray" : "fertilizer";
+    if (!canInput(type)) return;
+  }
+  state.formType = type;
+  $$("[data-form]").forEach((b) => {
+    b.classList.toggle("active", b.dataset.form === type);
+    b.classList.toggle("hidden", !canInput(b.dataset.form));
+  });
+  const f = $("#qcForm");
+  f.formType.value = type;
+  $("#commonFields").innerHTML = $("#commonTemplate").innerHTML;
+  f.date.value = new Date().toISOString().slice(0, 10);
+  f.name.innerHTML = options(state.master.names);
+  f.nameOfAssistan.innerHTML = options(state.master.assistants);
+  $("#specificFields").innerHTML =
+    type === "spray" ? sprayFields() : fertFields();
+  bindCommonButtons();
+  bindDynamic();
+  enhanceFormCards();
+  bindPhotoSources(f);
+}
+function sprayFields() {
+  return `<h3>Program & Paddock</h3><div class="field-grid"><fieldset class="span-3"><legend>Activity</legend><input name="activity" type="hidden" required><div id="activityButtons" class="choice-group"></div></fieldset><fieldset class="span-3"><legend>Deskripsi</legend><input name="deskripsi" type="hidden" required><div id="descriptionButtons" class="choice-group"><span class="muted">Pilih Activity</span></div></fieldset><fieldset class="span-3"><legend>Paddock — hanya Keterangan Spray</legend><input name="paddock" type="hidden" required><div id="paddockButtons" class="choice-group"><span class="muted">Pilih Deskripsi</span></div></fieldset><fieldset class="span-3"><legend>Variety</legend><input name="variety" type="hidden" required><div id="varietyButtons" class="choice-group"><span class="muted">Terisi otomatis dari Plan kolom H</span></div></fieldset><fieldset><legend>Type</legend><input name="type" type="hidden" required><div id="typeButtons" class="choice-group"></div></fieldset><fieldset><legend>Dropper</legend><input name="dropper" type="hidden" value="No"><div id="dropperButtons" class="choice-group"></div></fieldset><fieldset class="span-2"><legend>Nozzle</legend><input name="nozzle" type="hidden"><div id="nozzleButtons" class="choice-group"></div></fieldset><label>Droplet Size (µm)<input name="dropletSize" type="number" inputmode="decimal"></label><label>Height (m)<input name="height" type="number" step=".01" inputmode="decimal"></label><label>Row Spacing (m)<input name="rowSpacing" type="number" step=".01" inputmode="decimal"></label><label>Speed (km/jam)<input name="speed" type="number" step=".01" inputmode="decimal"></label></div><h3>Bahan Kimia Otomatis</h3><p class="muted">Material dan dosis diambil dari sheet Bahan berdasarkan Deskripsi. Estimasi = Dosis/Ha × Luas.</p><div id="materials"><p class="muted">Pilih Deskripsi untuk memuat bahan.</p></div><h3>Adjuvant</h3><div class="material-card"><label>Nama adjuvant<input name="adjuvant" list="adjuvantOptions"><datalist id="adjuvantOptions"></datalist></label><label>Dosis (mL/L air)<input name="adjuvantDosage" type="number" step=".01" inputmode="decimal"></label><label>Estimated Usage (L)<input name="estUsageAdjuvant" class="calculated" readonly></label><label>Actual Usage (L)<input name="actUsageAdjuvant" type="number" step=".01" inputmode="decimal"></label></div><h3>Carrier Air & Kondisi Lapangan</h3><div class="field-grid"><label>Water Rate (L/Ha)<input name="waterRate" type="number" step=".01" inputmode="decimal"></label><fieldset class="span-2"><legend>Water Quality</legend><input name="waterQuality" type="hidden"><div id="waterQualityButtons" class="choice-group"></div></fieldset><label>Actual Usage Air (L)<input name="actualUsage" type="number" step=".01" inputmode="decimal"></label><label>Wind Speed (km/jam)<input name="windSpeed" type="number" step=".01" inputmode="decimal"></label><label>Temperature (°C)<input name="temperature" type="number" step=".01" inputmode="decimal"></label><label>Humidity (NRC / %)<input name="humidity" type="number" step=".01" inputmode="decimal"></label><label>Delta T (°C)<input name="deltaT" type="number" step=".01" inputmode="decimal"></label><fieldset class="span-2"><legend>Weather Condition</legend><input name="weatherCondition" type="hidden"><div id="weatherButtons" class="choice-group"></div></fieldset></div><section class="time-summary" aria-live="polite"><div class="time-summary-head"><div><p class="eyebrow">REKAP WAKTU LAPANGAN</p><h3>Working & HOLD</h3></div><span class="badge working-badge">WORKING</span></div><p class="muted">Isi jam kerja utama di atas. Tambahkan setiap jeda HOLD di bawah; sistem mengurangi total HOLD secara otomatis.</p><div id="workSummary" class="work-summary"></div></section><section class="hold-section"><div class="hold-section-head"><div><p class="eyebrow hold-eyebrow">JEDA LAPANGAN</p><h3>HOLD berulang</h3></div><button type="button" id="addHold" class="hold-add">+ Tambah HOLD</button></div><div id="holds"></div><p class="muted hold-help">Contoh: 08:00–10:00 angin kencang, lalu 12:00–13:00 cuaca mendung.</p></section>`;
+}
+function fertFields() {
+  return `<h3>Detail Fertilizer</h3><div class="field-grid"><label>Type<input name="type" value="Fertilizer" readonly></label><label>Activity<input name="activity"></label><label>Jenis pupuk<input name="jenisPupuk" list="fertOptions"><datalist id="fertOptions">${(state.master.materials || []).map((x) => `<option value="${esc(x.material)}">`).join("")}</datalist></label><label>Dosis (kg/Ha)<input name="dosis" type="number" step=".01"></label><label>Status hose<select name="statusHose"><option>Lancar</option><option>Menyumbat</option><option>Tidak Lancar</option></select></label></div><h3>Pengisian Pupuk</h3><div id="fills"></div><button type="button" id="addFill">+ Tambah Pengisian</button>`;
+}
+function makeButtons(
+  container,
+  values,
+  input,
+  { multiple = false, selected = [], onChange = () => {} } = {},
+) {
+  const el = typeof container === "string" ? $(container) : container;
+  if (!el) return;
+  const chosen = new Set(
+    Array.isArray(selected)
+      ? selected
+      : String(selected || "")
+          .split(",")
+          .map((x) => x.trim())
+          .filter(Boolean),
+  );
+  el.innerHTML =
+    (values || [])
+      .filter(Boolean)
+      .map(
+        (v) =>
+          `<button type="button" data-value="${esc(v)}" class="${chosen.has(String(v)) ? "selected" : ""}">${esc(v)}</button>`,
+      )
+      .join("") || '<span class="muted">Tidak ada pilihan</span>';
+  $$("button", el).forEach(
+    (b) =>
+      (b.onclick = () => {
+        if (multiple) b.classList.toggle("selected");
+        else
+          $$("button", el).forEach((x) =>
+            x.classList.toggle("selected", x === b),
+          );
+        const vals = $$("button.selected", el).map((x) => x.dataset.value);
+        input.value = multiple ? vals.join(", ") : vals[0] || "";
+        onChange(vals);
+      }),
+  );
+  input.value = multiple ? [...chosen].join(", ") : [...chosen][0] || "";
+}
+function nowTime() {
+  return new Date().toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+function bindCommonButtons() {
+  const f = $("#qcForm");
+  makeButtons(
+    "#shiftButtons",
+    state.master.shifts?.length ? state.master.shifts : ["1", "2"],
+    f.shift,
+    { selected: ["1"] },
+  );
+  makeButtons(
+    "#statusButtons",
+    state.master.statuses?.length ? state.master.statuses : ["Working", "Hold"],
+    f.status,
+    {
+      selected: ["Working"],
+      onChange: () => {
+        const hold = f.status.value === "Hold";
+        f.startTime.required = hold;
+        f.endTime.required = hold;
+      },
+    },
+  );
+  $$("[data-now]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        f.elements[b.dataset.now].value = nowTime();
+      }),
+  );
+  const chosenUnits = [];
+  makeButtons("#unitButtons", Object.keys(state.master.unitMap || {}), f.unit, {
+    multiple: true,
+    selected: chosenUnits,
+    onChange: (units) => renderNoUnits(units),
+  });
+}
+function renderNoUnits(units, selected = []) {
+  const f = $("#qcForm"),
+    pairs = [];
+  (units || []).forEach((unit) =>
+    (state.master.unitMap?.[unit] || []).forEach((no) => pairs.push(no)),
+  );
+  makeButtons("#noUnitButtons", [...new Set(pairs)], f.noUnit, {
+    multiple: true,
+    selected,
+  });
+}
+function bindDynamic() {
+  const f = $("#qcForm");
+  if (state.formType === "spray") {
+    bindSprayProgram();
+    makeButtons(
+      "#dropperButtons",
+      state.master.dropper?.length ? state.master.dropper : ["Yes", "No"],
+      f.dropper,
+      { selected: ["No"] },
+    );
+    makeButtons("#nozzleButtons", state.master.nozzles || [], f.nozzle);
+    makeButtons(
+      "#waterQualityButtons",
+      state.master.waterQualities || [],
+      f.waterQuality,
+    );
+    makeButtons(
+      "#weatherButtons",
+      state.master.weatherConditions || [],
+      f.weatherCondition,
+    );
+    $("#adjuvantOptions").innerHTML = [
+      ...new Set(
+        (state.master.materials || [])
+          .filter((x) =>
+            /adjuvant/i.test(`${x.slot} ${x.unit} ${x.description}`),
+          )
+          .map((x) => x.material),
+      ),
+    ]
+      .map((x) => `<option value="${esc(x)}">`)
+      .join("");
+    $("#addHold").onclick = () => addHold();
+    f.area.addEventListener("input", recalculateSpray);
+    f.waterRate.addEventListener("input", recalculateSpray);
+    f.adjuvantDosage.addEventListener("input", recalculateSpray);
+    f.startTime.addEventListener("input", updateWorkSummary);
+    f.endTime.addEventListener("input", updateWorkSummary);
+    updateWorkSummary();
+  } else {
+    $("#addFill").onclick = () => addFill();
+    addFill();
+  }
+}
+function sprayPlans() {
+  return (state.master.plans || []).filter(
+    (p) =>
+      String(p.category || p.keterangan || "")
+        .trim()
+        .toLowerCase() === "spray",
+  );
+}
+function unique(a) {
+  return [...new Set(a.filter(Boolean).map(String))];
+}
+function bindSprayProgram() {
+  const f = $("#qcForm"),
+    plans = sprayPlans(),
+    activities = unique(plans.map((p) => p.activity));
+  makeButtons("#activityButtons", activities, f.activity, {
+    onChange: () => {
+      f.deskripsi.value = f.paddock.value = f.variety.value = f.type.value = "";
+      renderDescriptions();
+    },
+  });
+  function renderDescriptions() {
+    const rows = plans.filter((p) => p.activity === f.activity.value);
+    makeButtons(
+      "#descriptionButtons",
+      unique(rows.map((p) => p.description)),
+      f.deskripsi,
+      {
+        onChange: () => {
+          f.paddock.value = f.variety.value = "";
+          const types = unique(
+            rows
+              .filter((p) => p.description === f.deskripsi.value)
+              .map((p) => p.type),
+          );
+          makeButtons("#typeButtons", types, f.type, {
+            selected: types.length === 1 ? types : [],
+            onChange: () => {
+              f.paddock.value = f.variety.value = "";
+              renderPaddocks();
+            },
+          });
+          renderPaddocks();
+          renderAutomaticMaterials();
+        },
+      },
+    );
+  }
+  function renderPaddocks() {
+    const rows = plans.filter(
+      (p) =>
+        p.activity === f.activity.value &&
+        p.description === f.deskripsi.value &&
+        (!f.type.value || p.type === f.type.value),
+    );
+    makeButtons(
+      "#paddockButtons",
+      unique(rows.map((p) => p.paddock)),
+      f.paddock,
+      {
+        onChange: () => {
+          const match = rows.filter((p) => p.paddock === f.paddock.value),
+            vars = unique(match.map((p) => p.variety));
+          makeButtons("#varietyButtons", vars, f.variety, {
+            selected: vars.length === 1 ? vars : [],
+          });
+          const areas = match
+            .map((p) => Number(String(p.area || "").replace(",", ".")))
+            .filter(Number.isFinite);
+          if (areas.length && !f.area.value) f.area.value = Math.max(...areas);
+          recalculateSpray();
+        },
+      },
+    );
+  }
+}
+function renderAutomaticMaterials() {
+  const f = $("#qcForm"),
+    materials = (state.master.materials || [])
+      .filter(
+        (x) =>
+          String(x.description).trim() === f.deskripsi.value &&
+          /^Pesticide\s*[1-4]$/i.test(String(x.slot || "").trim()),
+      )
+      .sort((a, b) => String(a.slot).localeCompare(String(b.slot)));
+  $("#materials").innerHTML = materials.length
+    ? materials
+        .map(
+          (x, i) =>
+            `<div class="material-card auto-material" data-slot="${i + 1}"><strong>${esc(x.slot)}<br>${esc(x.material)} <small>(${esc(x.unit || "")})</small></strong><label>Dosis/Ha<input data-k="dosage" value="${esc(
+              String(x.dosage || "")
+                .replace(",", ".")
+                .trim(),
+            )}" class="calculated" readonly></label><label>Estimated Used<input data-k="estimated" class="calculated" readonly></label><label>Actual Used<input data-k="actual" type="number" step=".001" inputmode="decimal"></label><input data-k="material" type="hidden" value="${esc(x.material)}"><input data-k="kind" type="hidden" value="Pesticide"></div>`,
+        )
+        .join("")
+    : '<p class="muted">Tidak ada bahan Pesticide 1–4 untuk Deskripsi ini di sheet Bahan.</p>';
+  recalculateSpray();
+}
+function recalculateSpray() {
+  const f = $("#qcForm"),
+    area = Number(String(f.area?.value || 0).replace(",", ".")) || 0,
+    wr = Number(String(f.waterRate?.value || 0).replace(",", ".")) || 0;
+  $$(".auto-material").forEach((row) => {
+    const dose = Number(row.querySelector('[data-k="dosage"]').value) || 0;
+    row.querySelector('[data-k="estimated"]').value = (dose * area).toFixed(2);
+  });
+  const adj =
+    Number(String(f.adjuvantDosage?.value || 0).replace(",", ".")) || 0;
+  if (f.estUsageAdjuvant)
+    f.estUsageAdjuvant.value = ((adj * wr * area) / 1000).toFixed(2);
+}
+function timeToMinutes(v) {
+  const m = /^(\d{2}):(\d{2})$/.exec(String(v || ""));
+  return m ? +m[1] * 60 + +m[2] : NaN;
+}
+function durationLabel(min) {
+  const h = Math.floor(min / 60),
+    m = min % 60;
+  return `${h}j ${String(m).padStart(2, "0")}m`;
+}
+function workSummary() {
+  const f = $("#qcForm"),
+    start = timeToMinutes(f.startTime?.value),
+    end = timeToMinutes(f.endTime?.value),
+    issues = [],
+    raw = rows(".hold-row");
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start)
+    return {
+      ready: false,
+      issues: ["Isi jam mulai dan jam selesai kerja terlebih dahulu."],
+      intervals: raw,
+    };
+  const ranges = [];
+  raw.forEach((h, i) => {
+    const a = timeToMinutes(h.start),
+      b = timeToMinutes(h.end);
+    if (!h.start && !h.end) return;
+    if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a)
+      issues.push(`HOLD ${i + 1}: jam selesai harus setelah jam mulai.`);
+    else if (a < start || b > end)
+      issues.push(`HOLD ${i + 1}: harus berada di dalam jam kerja.`);
+    else ranges.push([a, b]);
+  });
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  ranges.forEach((r) => {
+    const last = merged[merged.length - 1];
+    if (last && r[0] < last[1])
+      issues.push("Waktu HOLD tidak boleh saling bertumpuk.");
+    else if (last && r[0] === last[1]) last[1] = r[1];
+    else merged.push(r);
+  });
+  const total = merged.reduce((s, r) => s + r[1] - r[0], 0),
+    working = end - start;
+  return {
+    ready: true,
+    issues,
+    intervals: raw,
+    total,
+    working,
+    effective: working - total,
+  };
+}
+function updateWorkSummary() {
+  const out = $("#workSummary");
+  if (!out) return;
+  const s = workSummary();
+  if (!s.ready) {
+    out.innerHTML = `<div class="summary-empty">${esc(s.issues[0])}</div>`;
+    return;
+  }
+  out.innerHTML = `<div class="summary-card working-card"><span>Durasi Working</span><b>${durationLabel(s.working)}</b><small>${esc($("#qcForm").startTime.value)}–${esc($("#qcForm").endTime.value)}</small></div><div class="summary-operator">−</div><div class="summary-card hold-card"><span>Total HOLD</span><b>${durationLabel(s.total)}</b><small>${s.intervals.filter((x) => x.start && x.end).length} interval</small></div><div class="summary-operator">=</div><div class="summary-card effective-card"><span>Kerja efektif</span><b>${durationLabel(s.effective)}</b><small>Working dikurangi HOLD</small></div>${s.issues.length ? `<p class="summary-warning">${esc([...new Set(s.issues)].join(" "))}</p>` : ""}`;
+}
+function addHold(v = {}) {
+  const d = document.createElement("article");
+  d.className = "hold-row";
+  d.innerHTML = `<div class="hold-number">HOLD <span>${$$(".hold-row").length + 1}</span></div><label>Mulai<div class="time-field"><input data-k="start" type="time" value="${esc(v.start || "")}"><button type="button" data-now-hold="start">Sekarang</button></div></label><label>Selesai<div class="time-field"><input data-k="end" type="time" value="${esc(v.end || "")}"><button type="button" data-now-hold="end">Sekarang</button></div></label><label>Alasan HOLD<input data-k="reason" placeholder="Contoh: angin kencang" value="${esc(v.reason || "")}"></label><label>Angin (km/jam)<input data-k="windSpeed" type="number" step=".1" value="${esc(v.windSpeed || "")}"></label><label>Catatan singkat<input data-k="note" value="${esc(v.note || "")}"></label><div class="hold-photo"><label class="photo-source">🖼️ Galeri<input type="file" accept="image/*" data-photo="gallery"></label><label class="photo-source">📸 Kamera<input type="file" accept="image/*" capture="environment" data-photo="camera"></label><div class="photo-preview" data-preview>Foto HOLD belum dipilih</div></div><button type="button" class="remove-hold" aria-label="Hapus HOLD">×</button>`;
+  $$("input", d).forEach((x) => x.addEventListener("input", updateWorkSummary));
+  $$("[data-now-hold]", d).forEach(
+    (b) =>
+      (b.onclick = () => {
+        d.querySelector(`[data-k="${b.dataset.nowHold}"]`).value = nowTime();
+        updateWorkSummary();
+      }),
+  );
+  d.querySelector(".remove-hold").onclick = () => {
+    d.remove();
+    $$(".hold-number span").forEach((x, i) => (x.textContent = i + 1));
+    updateWorkSummary();
+  };
+  bindPhotoSources(d);
+  $("#holds").append(d);
+  updateWorkSummary();
+}
+function addFill(v = {}) {
+  const n = $$(".fill-row").length + 1,
+    d = document.createElement("div");
+  d.className = "fill-row";
+  d.innerHTML = `<label>Ke-<input data-k="pengisianKe" type="number" value="${esc(v.pengisianKe || n)}"></label><label>Jumlah (kg)<input data-k="jumlah" type="number" step=".01" value="${esc(v.jumlah || "")}"></label><label>Hasil (Ha)<input data-k="hasilKerja" type="number" step=".01" value="${esc(v.hasilKerja || "")}"></label><label>Dosis aktual<input data-k="dosisAktual" type="number" step=".01" readonly></label><label>Pemerataan<input data-k="pemerataanPupuk" type="number" step=".01" value="${esc(v.pemerataanPupuk || "")}"></label><button type="button">×</button>`;
+  const calc = () => {
+    const j = +d.querySelector('[data-k="jumlah"]').value,
+      h = +d.querySelector('[data-k="hasilKerja"]').value;
+    d.querySelector('[data-k="dosisAktual"]').value = h
+      ? (j / h).toFixed(2)
+      : "";
+  };
+  d.querySelectorAll("input").forEach((x) => (x.oninput = calc));
+  d.querySelector("button").onclick = () => d.remove();
+  $("#fills").append(d);
+  calc();
+}
+function applyPlan(paddock) {
+  const p = (state.master.plans || []).find((x) => x.paddock === paddock),
+    f = $("#qcForm");
+  if (!p) return;
+  if (f.area) f.area.value = p.area || "";
+  if (f.variety) f.variety.value = p.variety || "";
+  if (f.activity) f.activity.value = p.activity || "";
+  if (f.deskripsi) f.deskripsi.value = p.description || "";
+  if (f.type && p.type) f.type.value = p.type;
+}
+function rows(selector) {
+  return $$(selector).map((r) =>
+    Object.fromEntries($$("[data-k]", r).map((x) => [x.dataset.k, x.value])),
+  );
+}
+function bindPhotoSources(root) {
+  $$('[data-photo]', root).forEach((input) => input.addEventListener('change', () => {
+    const file = input.files[0], preview = $('[data-preview]', root);
+    if (!file || !preview) return;
+    const url = URL.createObjectURL(file);
+    preview.innerHTML = `<img src="${url}" alt="Pratinjau foto"><span>${esc(file.name)}</span>`;
+  }));
+}
+function selectedPhoto(root) {
+  return $('[data-photo="camera"]', root)?.files[0] || $('[data-photo="gallery"]', root)?.files[0];
+}
+function enhanceFormCards() {
+  $$('#qcForm > .panel').forEach((card, i) => {
+    if (card.querySelector('.card-toggle')) return;
+    card.classList.add('collapsible-card');
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'card-toggle'; button.setAttribute('aria-expanded', 'true');
+    button.innerHTML = '<span>⌃</span> Gulung'; button.title = 'Gulung atau buka card';
+    button.onclick = () => { const closed = card.classList.toggle('collapsed'); button.setAttribute('aria-expanded', String(!closed)); button.innerHTML = closed ? '<span>⌄</span> Buka' : '<span>⌃</span> Gulung'; };
+    card.prepend(button);
+    if (i === 0 && !card.querySelector('h3')) { const title = document.createElement('h3'); title.className = 'card-title'; title.textContent = '🧭 Data kerja utama'; card.prepend(title); }
+  });
+}
+async function photoData(file) {
+  if (!file) return "";
+  if (file.size > 6e6) throw Error("Foto asli maksimal 6 MB.");
+  const img = await createImageBitmap(file),
+    scale = Math.min(1, 1400 / img.width),
+    c = document.createElement("canvas");
+  c.width = Math.round(img.width * scale);
+  c.height = Math.round(img.height * scale);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.72);
+}
+async function submitForm(e) {
+  e.preventDefault();
+  const submit = e.submitter?.value || "draft",
+    f = e.currentTarget;
+  if (!f.reportValidity()) return;
+  if (
+    state.formType === "spray" &&
+    ["activity", "deskripsi", "paddock", "variety", "type"].some(
+      (k) => !f.elements[k].value,
+    )
+  )
+    return toast(
+      "Lengkapi pilihan Activity, Deskripsi, Paddock, Variety, dan Type.",
+      "error",
+    );
+  const timing = state.formType === "spray" ? workSummary() : null;
+  if (timing && (!timing.ready || timing.issues.length))
+    return toast(
+      timing.issues[0] || "Periksa waktu Working dan HOLD.",
+      "error",
+    );
+  try {
+    const fd = new FormData(f),
+      rec = Object.fromEntries(fd);
+    delete rec.photo; delete rec.photoGallery; delete rec.photoCamera;
+    rec.id =
+      rec.id || `qc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    rec.formType = state.formType;
+    rec.saveType = submit;
+    rec.inputtedBy = state.user.username;
+    rec.createdAt = new Date().toISOString();
+    rec.photoBase64 = await photoData(selectedPhoto(f));
+    if (state.formType === "spray") {
+      const mats = rows(".auto-material");
+      mats.slice(0, 4).forEach((x, i) => {
+        rec[`pesticide${i + 1}`] = x.material;
+        rec[`dosage${i + 1}`] = x.dosage;
+        rec[`estUsagePesticide${i + 1}`] = x.estimated;
+        rec[`actUsagePesticide${i + 1}`] = x.actual;
+      });
+      rec.holdIntervals = await Promise.all($$(".hold-row").map(async (row) => ({ ...Object.fromEntries($$("[data-k]", row).map((x) => [x.dataset.k, x.value])), photoBase64: await photoData(selectedPhoto(row)) })));
+      rec.workingDurationMinutes = timing.working;
+      rec.holdTotalMinutes = timing.total;
+      rec.effectiveWorkingMinutes = timing.effective;
+    } else rec.pengisianList = rows(".fill-row");
+    upsertLocal(rec);
+    await syncOrQueue("syncRecord", { record: rec });
+    toast(
+      navigator.onLine
+        ? "Data tersimpan dan tersinkron."
+        : "Data aman di perangkat; menunggu jaringan.",
+      "success",
+    );
+    resetForm();
+  } catch (err) {
+    toast(err.message, "error");
+  }
+}
+function upsertLocal(rec) {
+  const i = state.records.findIndex((x) => x.id === rec.id);
+  if (i >= 0) {
+    const local = state.records[i];
+    if (!rec.photoBase64 && local.photoBase64) rec.photoBase64 = local.photoBase64;
+    if (rec.holdIntervals && local.holdIntervals) rec.holdIntervals.forEach((h, n) => { if (!h.photoBase64 && local.holdIntervals[n]?.photoBase64) h.photoBase64 = local.holdIntervals[n].photoBase64; });
+    state.records[i] = rec;
+  }
+  else state.records.unshift(rec);
+  save(RECORD_KEY, state.records);
+  renderAll();
+}
+async function syncOrQueue(action, payload) {
+  if (navigator.onLine) {
+    try {
+      return await api(action, payload);
+    } catch (err) {
+      if (/Sesi|izin|login|kata sandi/i.test(err.message)) throw err;
+    }
+  }
+  const q = read(QUEUE_KEY, []);
+  q.push({ id: crypto.randomUUID(), action, payload, at: Date.now() });
+  save(QUEUE_KEY, q);
+}
+async function flushQueue() {
+  if (!navigator.onLine) return toast("Perangkat sedang offline", "error");
+  const q = read(QUEUE_KEY, []);
+  if (!q.length) return refreshCloud();
+  let ok = 0,
+    left = [];
+  for (const item of q) {
+    try {
+      await api(item.action, item.payload);
+      ok++;
+    } catch {
+      left.push(item);
+    }
+  }
+  save(QUEUE_KEY, left);
+  toast(
+    `${ok} antrean tersinkron; ${left.length} tersisa`,
+    left.length ? "error" : "success",
+  );
+  await refreshCloud();
+}
+async function refreshCloud() {
+  if (!state.token) return;
+  try {
+    const out = await api("records", {}, "GET");
+    for (const r of out.records) upsertLocal(r);
+    renderAll();
+  } catch (err) {
+    toast("Cloud belum dapat dimuat: " + err.message, "error");
+  }
+}
+function renderAll() {
+  renderDashboard();
+  renderRecords();
+}
+function filtered() {
+  const q = $("#searchPaddock")?.value.toLowerCase() || "",
+    t = $("#filterType")?.value || "",
+    d = $("#filterDate")?.value || "all",
+    exact = $("#filterExactDate")?.value || "",
+    now = new Date();
+  return state.records.filter((r) => {
+    if (q && !String(r.paddock).toLowerCase().includes(q)) return false;
+    if (t && r.formType !== t) return false;
+    if (exact && r.date !== exact) return false;
+    if (d !== "all") {
+      const dt = new Date(r.date + "T00:00:00");
+      if (d === "today" && r.date !== now.toISOString().slice(0, 10))
+        return false;
+      if (d === "7" && (now - dt) / 864e5 > 7) return false;
+    }
+    return true;
+  });
+}
+function renderDashboard() {
+  if (!$("#metrics")) return;
+  const a = filtered(),
+    spray = a.filter((r) => r.formType === "spray"),
+    fert = a.filter((r) => r.formType === "fertilizer"),
+    area = (x) =>
+      x.reduce((s, r) => s + (+String(r.area || 0).replace(",", ".") || 0), 0),
+    chem = (k) =>
+      spray
+        .filter((r) => String(r.type).toLowerCase() === k)
+        .reduce(
+          (s, r) =>
+            s +
+            [1, 2, 3, 4].reduce(
+              (z, i) =>
+                z +
+                (+String(r[`actUsagePesticide${i}`] || 0).replace(",", ".") ||
+                  0),
+              0,
+            ),
+          0,
+        );
+  const metrics = [
+    ["Laporan", a.length],
+    ["Luas Spray", area(spray).toFixed(2) + " Ha"],
+    [
+      "Pupuk",
+      fert
+        .reduce(
+          (s, r) =>
+            s +
+            (r.pengisianList || []).reduce((x, p) => x + (+p.jumlah || 0), 0),
+          0,
+        )
+        .toFixed(1) + " kg",
+    ],
+    ["Paddock", new Set(a.map((r) => r.paddock)).size],
+    [
+      "Herbicide",
+      area(spray.filter((r) => r.type === "Herbicide")).toFixed(2) + " Ha",
+    ],
+    [
+      "Insecticide",
+      area(spray.filter((r) => r.type === "Insecticide")).toFixed(2) + " Ha",
+    ],
+    [
+      "Fungicide",
+      area(spray.filter((r) => r.type === "Fungicide")).toFixed(2) + " Ha",
+    ],
+    [
+      "Bahan aktual",
+      ["herbicide", "insecticide", "fungicide"]
+        .reduce((s, k) => s + chem(k), 0)
+        .toFixed(2) + " L",
+    ],
+  ];
+  $("#metrics").innerHTML = metrics
+    .map((x) => `<div class="metric"><span>${x[0]}</span><b>${x[1]}</b></div>`)
+    .join("");
+  $("#dashboardRecords").innerHTML = a.length
+    ? a
+        .slice(0, 30)
+        .map((r) => card(r, false))
+        .join("")
+    : '<p class="muted">Belum ada data sesuai filter.</p>';
+}
+function card(r, actions = true) {
+  return `<article class="record"><div class="record-head"><strong>${esc(r.paddock)}</strong><span class="badge">${esc(r.formType)}</span></div><p>${esc(r.date)} · Shift ${esc(r.shift)} · ${esc(r.name)}</p><p>${esc(r.activity || r.jenisPupuk || r.type || "-")} · ${esc(r.area || 0)} Ha</p><p>Status: ${esc(r.saveType || "draft")}</p>${actions ? `<div class="record-actions"><button onclick="editRecord('${esc(r.id)}')">Edit</button><button onclick="printRecord('${esc(r.id)}')">PDF</button><button onclick="jpgRecord('${esc(r.id)}')">JPG</button>${r.saveType !== "uploaded" && canInput(r.formType) ? `<button class="primary" onclick="uploadRecord('${esc(r.id)}')">Upload</button>` : ""}${canDelete() ? `<button class="danger" onclick="removeRecord('${esc(r.id)}')">Hapus</button>` : ""}</div>` : ""}</article>`;
+}
+function renderRecords() {
+  $("#recordsList").innerHTML = state.records.length
+    ? state.records.map((r) => card(r, true)).join("")
+    : '<div class="panel muted">Belum ada data lokal atau cloud.</div>';
+}
+window.uploadRecord = async (id) => {
+  const r = state.records.find((x) => x.id === id);
+  if (!r) return;
+  try {
+    await api("finalizeRecord", { record: r });
+    r.saveType = "uploaded";
+    r.uploadedAt = new Date().toISOString();
+    upsertLocal(r);
+    toast("Upload resmi berhasil", "success");
+  } catch (e) {
+    toast(e.message, "error");
+  }
+};
+window.removeRecord = async (id) => {
+  if (!confirm("Hapus data ini dari perangkat dan cloud?")) return;
+  try {
+    await api("deleteRecord", { recordId: id });
+    state.records = state.records.filter(
+      (x) => x.id !== id && !x.id.startsWith(id + "_"),
+    );
+    save(RECORD_KEY, state.records);
+    renderAll();
+    toast("Data dihapus", "success");
+  } catch (e) {
+    toast(e.message, "error");
+  }
+};
+function choose(container, value) {
+  const b = $$(container + " button").find(
+    (x) => x.dataset.value === String(value),
+  );
+  if (b) b.click();
+}
+window.editRecord = (id) => {
+  const r = state.records.find((x) => x.id === id);
+  if (!r) return;
+  openView("form");
+  renderForm(r.formType);
+  const f = $("#qcForm");
+  if (r.formType === "spray") {
+    choose("#activityButtons", r.activity);
+    choose("#descriptionButtons", r.deskripsi);
+    choose("#typeButtons", r.type);
+    choose("#paddockButtons", r.paddock);
+    choose("#varietyButtons", r.variety);
+    choose("#dropperButtons", r.dropper);
+    choose("#nozzleButtons", r.nozzle);
+    choose("#waterQualityButtons", r.waterQuality);
+    choose("#weatherButtons", r.weatherCondition);
+    String(r.unit || "")
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .forEach((x) => choose("#unitButtons", x));
+    renderNoUnits(
+      String(r.unit || "")
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean),
+      String(r.noUnit || "")
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean),
+    );
+    Object.entries(r).forEach(([k, v]) => {
+      if (
+        f.elements[k] &&
+        typeof v !== "object" &&
+        ![
+          "activity",
+          "deskripsi",
+          "type",
+          "paddock",
+          "variety",
+          "dropper",
+          "nozzle",
+          "waterQuality",
+          "weatherCondition",
+          "unit",
+          "noUnit",
+        ].includes(k)
+      )
+        f.elements[k].value = v ?? "";
+    });
+    $$(".auto-material").forEach((row, i) => {
+      const a = row.querySelector('[data-k="actual"]');
+      if (a) a.value = r[`actUsagePesticide${i + 1}`] || "";
+    });
+    recalculateSpray();
+    $("#holds").innerHTML = "";
+    (r.holdIntervals || []).forEach(addHold);
+  } else {
+    Object.entries(r).forEach(([k, v]) => {
+      if (f.elements[k] && typeof v !== "object") f.elements[k].value = v ?? "";
+    });
+    $("#fills").innerHTML = "";
+    (r.pengisianList || []).forEach(addFill);
+  }
+};
+window.printRecord = (id) => {
+  const r = state.records.find((x) => x.id === id);
+  if (!r) return;
+  const w = open("", "_blank");
+  w.document.write(
+    `<title>Laporan QC ${esc(r.paddock)}</title><style>body{font:14px Arial;padding:28px;color:#172033}h1{margin:0}header{border-bottom:3px solid #166534;margin-bottom:20px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}dt{font-weight:bold}dd{margin:2px 0 10px}pre{white-space:pre-wrap} @page{size:A4;margin:14mm}</style><header><h1>PT. GLOBAL PAPUA ABADI</h1><p>DEPARTEMEN UPKEEP & MANURING — ${r.formType === "fertilizer" ? "FERTILIZER" : "SPRAYING"}</p></header><div class="grid">${Object.entries(
+      r,
+    )
+      .filter(([k, v]) => !["photoBase64"].includes(k) && typeof v !== "object")
+      .map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`)
+      .join(
+        "",
+      )}</div><h3>Rincian</h3><pre>${esc(JSON.stringify(r.holdIntervals || r.pengisianList || [], null, 2))}</pre><p>Mandor Pelapor: ____________________ &nbsp; Asisten Pemeriksa: ____________________</p>`,
+  );
+  w.document.close();
+  setTimeout(() => w.print(), 300);
+};
+window.jpgRecord = (id) => {
+  const r = state.records.find((x) => x.id === id);
+  if (!r) return;
+  const c = document.createElement("canvas"),
+    x = c.getContext("2d");
+  c.width = 1200;
+  c.height = 1600;
+  x.fillStyle = "#fff";
+  x.fillRect(0, 0, c.width, c.height);
+  x.fillStyle = "#166534";
+  x.fillRect(0, 0, c.width, 170);
+  x.fillStyle = "#fff";
+  x.font = "bold 46px Arial";
+  x.fillText("PT. GLOBAL PAPUA ABADI", 70, 75);
+  x.font = "28px Arial";
+  x.fillText(
+    `DEPARTEMEN UPKEEP & MANURING — ${r.formType === "fertilizer" ? "FERTILIZER" : "SPRAYING"}`,
+    70,
+    125,
+  );
+  x.fillStyle = "#172033";
+  x.font = "bold 34px Arial";
+  x.fillText(`LAPORAN QC — ${r.paddock || "-"}`, 70, 235);
+  x.font = "25px Arial";
+  let y = 300;
+  const lines = [
+    ["Tanggal", r.date],
+    ["Shift", r.shift],
+    ["Mandor", r.name],
+    ["Asisten", r.nameOfAssistan],
+    ["Status", r.status],
+    ["Kegiatan", r.activity || r.type],
+    ["Luas", `${r.area || 0} Ha`],
+    ["Unit", `${r.unit || "-"} ${r.noUnit || ""}`],
+    ["Catatan", r.noted || "-"],
+  ];
+  for (const [k, v] of lines) {
+    x.font = "bold 25px Arial";
+    x.fillText(k, 70, y);
+    x.font = "25px Arial";
+    x.fillText(String(v || "-").slice(0, 70), 360, y);
+    y += 62;
+  }
+  x.strokeStyle = "#94a3b8";
+  x.beginPath();
+  x.moveTo(70, 1390);
+  x.lineTo(480, 1390);
+  x.moveTo(700, 1390);
+  x.lineTo(1110, 1390);
+  x.stroke();
+  x.fillText("Mandor Pelapor", 170, 1440);
+  x.fillText("Asisten Pemeriksa", 790, 1440);
+  const a = document.createElement("a");
+  a.download = `QC_${r.formType}_${r.paddock}_${r.date}.jpg`;
+  a.href = c.toDataURL("image/jpeg", 0.92);
+  a.click();
+};
+function resetForm() {
+  renderForm(state.formType);
+}
+async function loadUsers() {
+  try {
+    const out = await api("users", {}, "GET");
+    $("#usersBody").innerHTML = out.users
+      .map(
+        (u) =>
+          `<tr><td>${esc(u.fullName)}</td><td>${esc(u.username)}</td><td>${esc(u.status)}</td><td><select id="role_${esc(u.username)}"><option ${u.role === "mandor_spraying" ? "selected" : ""} value="mandor_spraying">Mandor Spraying</option><option ${u.role === "mandor_fertilizer" ? "selected" : ""} value="mandor_fertilizer">Mandor Fertilizer</option><option ${u.role === "asisten" ? "selected" : ""} value="asisten">Asisten</option><option ${u.role === "admin" ? "selected" : ""} value="admin">Admin</option><option ${u.role === "manager" ? "selected" : ""} value="manager">Manager</option><option ${u.role === "pengunjung" ? "selected" : ""} value="pengunjung">Pengunjung</option></select></td><td>${u.status === "PENDING" ? `<button class="primary" onclick="approve('${esc(u.username)}')">Setujui</button> <button class="danger" onclick="rejectUser('${esc(u.username)}')">Tolak</button>` : "-"}</td></tr>`,
+      )
+      .join("");
+  } catch (e) {
+    toast(e.message, "error");
+  }
+}
+window.approve = async (u) => {
+  try {
+    await api("approveUser", {
+      username: u,
+      role: $(`#role_${CSS.escape(u)}`).value,
+    });
+    await loadUsers();
+    toast("Akun disetujui", "success");
+  } catch (e) {
+    toast(e.message, "error");
+  }
+};
+window.rejectUser = async (u) => {
+  if (!confirm("Tolak akun ini?")) return;
+  try {
+    await api("rejectUser", { username: u });
+    await loadUsers();
+  } catch (e) {
+    toast(e.message, "error");
+  }
+};
+async function loadLogs() {
+  try {
+    const out = await api("logs", {}, "GET");
+    $("#logsBody").innerHTML = out.logs
+      .map(
+        (x) =>
+          `<tr><td>${esc(new Date(x.Timestamp).toLocaleString("id-ID"))}</td><td>${esc(x.FullName || x.Username)}</td><td>${esc(x.ActionType)}</td><td>${esc(x.Description)}</td></tr>`,
+      )
+      .join("");
+  } catch (e) {
+    toast(e.message, "error");
+  }
+}
+async function changePassword() {
+  try {
+    await api("changePassword", {
+      oldPassword: $("#oldPassword").value,
+      newPassword: $("#newPassword").value,
+    });
+    $("#oldPassword").value = $("#newPassword").value = "";
+    toast("Kata sandi diperbarui", "success");
+  } catch (e) {
+    toast(e.message, "error");
+  }
+}
+function calculate() {
+  const n = (id) => +$("#" + id).value || 0,
+    m = $("#calcMode").value,
+    area = n("calcArea"),
+    dose = n("calcDose"),
+    wr = n("calcWr"),
+    tank = n("calcTank"),
+    adj = n("calcAdj"),
+    swath = n("calcSwath"),
+    speed = n("calcSpeed"),
+    nozzles = n("calcNozzles");
+  let out = "Lengkapi nilai yang diperlukan.";
+  if (m === "material" && area && dose)
+    out = `${(area * dose).toFixed(2)} L/kg bahan`;
+  if (m === "water" && area && wr && tank)
+    out = `${(area * wr).toFixed(0)} L air · ${((area * wr) / tank).toFixed(2)} tangki`;
+  if (m === "tank" && dose && wr && tank)
+    out = `${((dose / wr) * tank).toFixed(2)} L/kg per tangki`;
+  if (m === "adjuvant" && adj && tank)
+    out = `${((adj * tank) / 1000).toFixed(2)} L adjuvant per tangki`;
+  if (m === "coverage" && tank && wr)
+    out = `${(tank / wr).toFixed(2)} Ha per tangki`;
+  if (m === "flow" && wr && swath && speed) {
+    const total = (wr * swath * speed) / 600;
+    out = `${total.toFixed(2)} L/menit total${nozzles ? ` · ${(total / nozzles).toFixed(3)} L/menit/nozzle` : ""}`;
+  }
+  $("#calcResult b").textContent = out;
+}

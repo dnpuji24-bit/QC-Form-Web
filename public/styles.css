@@ -407,6 +407,30 @@ td {
 .hold-number { align-self: center; padding: 0.38rem 0.55rem; border-radius: 999px; background: #fed7aa; color: #9a3412; font-weight: 900; font-size: 0.72rem; white-space: nowrap; }
 .remove-hold { align-self: center; color: #b91c1c; background: #fff; border-color: #fecaca; }
 .hold-help { margin: 0.7rem 0 0; }
+.photo-notes-card { background: linear-gradient(135deg, #fff, #f8fbff); }
+.photo-source { min-height: 88px; padding: 0.75rem; border: 1px dashed #93c5fd; border-radius: 12px; background: #eff6ff; color: #1e40af; cursor: pointer; }
+.photo-source input { margin-top: 0.3rem; padding: 0; border: 0; background: transparent; }
+.photo-preview { min-height: 88px; display: grid; place-items: center; gap: 0.35rem; padding: 0.45rem; overflow: hidden; border: 1px solid #dbe3ec; border-radius: 12px; color: #64748b; font-size: 0.75rem; text-align: center; background: #fff; }
+.photo-preview img { width: 100%; height: 74px; object-fit: cover; border-radius: 8px; }
+.hold-photo { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.45rem; grid-column: span 3; }
+.hold-photo .photo-source, .hold-photo .photo-preview { min-height: 70px; font-size: 0.7rem; }
+.hold-photo .photo-preview img { height: 56px; }
+.collapsible-card { position: relative; overflow: hidden; transition: box-shadow 0.2s, background 0.2s; }
+.collapsible-card:hover { box-shadow: 0 10px 30px #0f172a12; }
+.card-toggle { position: absolute; top: 0.7rem; right: 0.7rem; z-index: 2; padding: 0.38rem 0.6rem; border-radius: 999px; color: #166534; background: #f0fdf4; border-color: #bbf7d0; font-size: 0.72rem; }
+.card-title { padding-right: 5rem; }
+.collapsible-card.collapsed { min-height: 58px; padding-bottom: 0.8rem; }
+.collapsible-card.collapsed > :not(.card-toggle):not(.card-title) { display: none; }
+.dashboard-panel { background: linear-gradient(155deg, #ffffff 30%, #f0fdf4); }
+.filters { align-items: end; }
+.filter-field { gap: 0.25rem; padding: 0.55rem 0.65rem; border-radius: 12px; background: #fff; border: 1px solid #dbe3ec; color: #475569; font-size: 0.7rem; }
+.filter-field input, .filter-field select { padding: 0.45rem; border: 0; border-bottom: 1px solid #cbd5e1; border-radius: 0; }
+.filter-field input:focus, .filter-field select:focus { outline: 0; border-color: #15803d; }
+#clearDateFilter { min-height: 44px; color: #475569; }
+.metric { position: relative; overflow: hidden; background: linear-gradient(135deg, #fff, #f8fafc); }
+.metric::after { content: ""; position: absolute; width: 54px; height: 54px; right: -15px; top: -17px; border-radius: 50%; background: #dcfce7; }
+.metric:nth-child(3n + 2)::after { background: #dbeafe; }
+.metric:nth-child(3n)::after { background: #ffedd5; }
 hr {
   border: 0;
   border-top: 1px solid var(--line);
@@ -430,6 +454,7 @@ hr {
   .work-summary { grid-template-columns: 1fr 1fr; }
   .summary-operator { display: none; }
   .hold-number { grid-column: 1 / -1; }
+  .hold-photo { grid-column: 1 / -1; }
   .header-actions #syncBtn {
     display: none;
   }
@@ -468,6 +493,7 @@ hr {
   .choice-group button {
     flex: 1 1 auto;
   }
+  .hold-photo { grid-template-columns: 1fr; }
 }
 @media print {
   header,
