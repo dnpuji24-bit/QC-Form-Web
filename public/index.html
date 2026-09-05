@@ -2063,29 +2063,35 @@
 
       <div class="space-y-3 text-xs">
         <div>
-          <label class="block text-slate-500 font-bold mb-0.5">Nama Lengkap:</label>
-          <p id="accessModal_name" class="font-extrabold text-slate-900 text-sm">-</p>
+          <label class="block text-slate-700 font-bold mb-1">Nama Lengkap Sesuai ID:</label>
+          <input type="text" id="accessModal_name" placeholder="Nama lengkap pengguna..." class="w-full p-2.5 text-xs rounded-xl border border-slate-300 font-bold text-slate-900 focus:ring-2 focus:ring-amber-600 outline-none">
         </div>
         <div>
-          <label class="block text-slate-500 font-bold mb-0.5">Username:</label>
-          <p id="accessModal_username" class="font-mono text-slate-700 font-semibold">-</p>
+          <label class="block text-slate-700 font-bold mb-1">Username / ID Pengguna:</label>
+          <input type="text" id="accessModal_username" placeholder="Username login..." class="w-full p-2.5 text-xs rounded-xl border border-slate-300 font-mono text-slate-700 font-semibold focus:ring-2 focus:ring-amber-600 outline-none">
+        </div>
+        <div>
+          <label class="block text-slate-700 font-bold mb-1">Alamat Email:</label>
+          <input type="email" id="accessModal_email" placeholder="Email aktif pengguna..." class="w-full p-2.5 text-xs rounded-xl border border-slate-300 font-mono text-slate-700 focus:ring-2 focus:ring-amber-600 outline-none">
         </div>
         <div>
           <label class="block text-slate-700 font-bold mb-1">Peran (Role Akses):</label>
-          <select id="accessModal_role" class="w-full p-2 text-xs rounded-xl border border-slate-300 bg-white font-bold text-slate-800 focus:ring-2 focus:ring-amber-600 outline-none">
-            <option value="owner">Owner (Hak Akses Penuh)</option>
-            <option value="manager">Manager (Monitoring Penuh & Edit/Hapus)</option>
-            <option value="admin">Admin (Pengawasan Data & Edit/Hapus)</option>
-            <option value="team">Team (Mandor & Asisten: Input & Edit)</option>
+          <select id="accessModal_role" class="w-full p-2.5 text-xs rounded-xl border border-slate-300 bg-white font-bold text-slate-800 focus:ring-2 focus:ring-amber-600 outline-none">
+            <option value="mandor_spray">Mandor Spraying (Hanya Form Semprot: Tambah & Edit)</option>
+            <option value="mandor_fertilizer">Mandor Fertilizer (Hanya Form Pupuk: Tambah & Edit)</option>
+            <option value="asisten">Asisten Lapangan (Semprot & Pupuk: Tambah, Edit, HAPUS)</option>
+            <option value="admin">Admin Staff (Pengawasan Data: Lihat, Edit, HAPUS)</option>
+            <option value="manager">Manager (Monitoring Penuh: Lihat, Edit, HAPUS)</option>
             <option value="viewer">Viewer (Pengunjung: Hanya Melihat)</option>
+            <option value="owner">Owner (Pemilik Sistem: Hak Akses Penuh)</option>
           </select>
         </div>
         <div>
           <label class="block text-slate-700 font-bold mb-1">Status Akun:</label>
-          <select id="accessModal_status" class="w-full p-2 text-xs rounded-xl border border-slate-300 bg-white font-bold text-slate-800 focus:ring-2 focus:ring-amber-600 outline-none">
-            <option value="APPROVED">APPROVED (Aktif)</option>
-            <option value="DISABLED">DISABLED (Nonaktif)</option>
-            <option value="PENDING">PENDING (Menunggu)</option>
+          <select id="accessModal_status" class="w-full p-2.5 text-xs rounded-xl border border-slate-300 bg-white font-bold text-slate-800 focus:ring-2 focus:ring-amber-600 outline-none">
+            <option value="APPROVED">APPROVED (Aktif & Disetujui)</option>
+            <option value="PENDING">PENDING (Menunggu Persetujuan)</option>
+            <option value="DISABLED">DISABLED (Dinonaktifkan Sementara)</option>
             <option value="REJECTED">REJECTED (Ditolak)</option>
           </select>
         </div>
@@ -2197,6 +2203,23 @@
     let currentUser = null;
 
     // Matriks Hak Akses Peran (Role-Based Access Control)
+    
+    // =========================================================================
+    // HELPER NORMALISASI PERAN (MANDOR SPRAY, MANDOR FERTILIZER, ASISTEN, DLL)
+    // =========================================================================
+    function getNormalizedRole(r) {
+      if (!r) return 'pengunjung';
+      const str = String(r).toLowerCase().replace(/[\s-_]/g, '');
+      if (str.includes('owner') || str.includes('pemilik')) return 'owner';
+      if (str.includes('manager') || str.includes('manajer')) return 'manager';
+      if (str.includes('admin')) return 'admin';
+      if (str.includes('asisten') || str.includes('assistant')) return 'asisten';
+      if (str.includes('fertilizer') || str.includes('pupuk')) return 'mandor_fertilizer';
+      if (str.includes('spray') || str.includes('semprot')) return 'mandor_spray';
+      if (str.includes('mandor') || str.includes('team')) return 'mandor_spray';
+      return 'pengunjung';
+    }
+
     const ROLE_PERMISSIONS = {
       owner: {
         can_input: true,
@@ -2498,6 +2521,7 @@
 
       applyRolePermissions();
       renderDashboardUI();
+      syncRecordsFromCloud();
       // Langsung diarahkan menuju halaman Dashboard (Rule 7)
       switchTab('dashboardTab');
     }
@@ -2730,8 +2754,8 @@
     function applyRolePermissions() {
       if (!currentUser) return;
 
-      const role = currentUser.role || 'pengunjung';
-      const perms = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.pengunjung;
+      const normRole = getNormalizedRole(currentUser.role);
+      const perms = ROLE_PERMISSIONS[normRole] || ROLE_PERMISSIONS.pengunjung;
 
       // 1. Update Header Info
       const nameEl = document.getElementById('headerUserName');
@@ -2752,7 +2776,7 @@
         sBadge.className = `text-[10px] font-black uppercase px-2 py-0.5 rounded ${perms.badgeClass}`;
       }
 
-      // 2. Tab Input & Form Switcher Berdasarkan Kemandoran (Rule 1 & 5)
+      // 2. Tab Input & Form Switcher Berdasarkan Kemandoran (Aturan 1 & 5)
       const tabInput = document.getElementById('tabBtn-inputTab');
       if (tabInput) {
         if (perms.can_input) tabInput.classList.remove('hidden');
@@ -2761,25 +2785,39 @@
 
       const btnSpray = document.getElementById('btnFormTypeSpray');
       const btnFert = document.getElementById('btnFormTypeFertilizer');
+      const cSpray = document.getElementById('containerFormSpray');
+      const cFert = document.getElementById('containerFormFertilizer');
 
-      if (perms.allowed_form === 'spray') {
-        switchFormType('spray');
-        if (btnFert) btnFert.classList.add('hidden');
-        if (btnSpray) {
-          btnSpray.classList.remove('hidden');
-          btnSpray.className = 'w-full py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-sm bg-emerald-700 text-white cursor-default';
-        }
-      } else if (perms.allowed_form === 'fertilizer') {
+      if (perms.allowed_form === 'fertilizer') {
+        // MANDOR FERTILIZER: HANYA FORM PUPUK
         switchFormType('fertilizer');
         if (btnSpray) btnSpray.classList.add('hidden');
         if (btnFert) {
           btnFert.classList.remove('hidden');
           btnFert.className = 'w-full py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-sm bg-amber-600 text-white cursor-default';
         }
+        if (cSpray) cSpray.classList.add('hidden');
+        if (cFert) cFert.classList.remove('hidden');
+      } else if (perms.allowed_form === 'spray') {
+        // MANDOR SPRAYING: HANYA FORM SEMPROT
+        switchFormType('spray');
+        if (btnFert) btnFert.classList.add('hidden');
+        if (btnSpray) {
+          btnSpray.classList.remove('hidden');
+          btnSpray.className = 'w-full py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-sm bg-emerald-700 text-white cursor-default';
+        }
+        if (cFert) cFert.classList.add('hidden');
+        if (cSpray) cSpray.classList.remove('hidden');
       } else {
-        // Asisten & Owner bebas memilih form
-        if (btnSpray) btnSpray.classList.remove('hidden');
-        if (btnFert) btnFert.classList.remove('hidden');
+        // Asisten & Owner bebas memilih kedua form
+        if (btnSpray) {
+          btnSpray.classList.remove('hidden');
+          btnSpray.className = 'flex-1 py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition shadow-sm bg-emerald-700 text-white cursor-pointer';
+        }
+        if (btnFert) {
+          btnFert.classList.remove('hidden');
+          btnFert.className = 'flex-1 py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition bg-slate-100 text-slate-700 hover:bg-slate-200 cursor-pointer';
+        }
       }
 
       // 3. Sub-Menu Khusus Owner di Tab Pengaturan (Rule 9)
@@ -2787,13 +2825,13 @@
       const ownerBanner = document.getElementById('ownerPendingNotificationBanner');
       const navBadge = document.getElementById('navOwnerPendingBadge');
 
-      const isOwner = (role === 'owner');
+      const isOwner = (normRole === 'owner');
       if (ownerCard) {
         if (isOwner) ownerCard.classList.remove('hidden');
         else ownerCard.classList.add('hidden');
       }
 
-      // Hitung akun yang menunggu persetujuan (Rule 5)
+      // Hitung akun yang menunggu persetujuan
       const usersDB = getUsersDB();
       const pendingCount = usersDB.filter(u => u.status === 'PENDING').length;
 
@@ -2819,13 +2857,13 @@
       // Render ulang daftar riwayat & dashboard
       renderHistoryList();
       renderDashboardUI();
+      syncRecordsFromCloud();
       renderUsersManagementUI();
 
-      if (currentUser && currentUser.role === 'owner' && navigator.onLine && appConfig.appsScriptUrl) {
+      if (isOwner && navigator.onLine && appConfig.appsScriptUrl) {
         syncUsersWithGoogleSheetsSilently();
       }
     }
-
     function openOwnerUserManagement() {
       switchTab('settingsTab');
       const subView = document.getElementById('ownerUserManagementSubView');
@@ -3498,44 +3536,96 @@
 
     function openUserAccessModal(username) {
       const usersDB = getUsersDB();
-      const user = usersDB.find(u => u.username === username);
+      const user = usersDB.find(u => (u.username && u.username.toLowerCase() === username.toLowerCase()) || (u.email && u.email.toLowerCase() === username.toLowerCase()));
       if (!user) return;
 
-      selectedUserForAccess = username;
-      document.getElementById('accessModal_name').textContent = user.fullName;
-      document.getElementById('accessModal_username').textContent = '@' + user.username;
-      document.getElementById('accessModal_role').value = user.role || 'team';
-      document.getElementById('accessModal_status').value = user.status || 'APPROVED';
+      selectedUserForAccess = user.username;
+      const elName = document.getElementById('accessModal_name');
+      const elUser = document.getElementById('accessModal_username');
+      const elEmail = document.getElementById('accessModal_email');
+      const elRole = document.getElementById('accessModal_role');
+      const elStatus = document.getElementById('accessModal_status');
 
-      document.getElementById('userAccessModal').classList.remove('hidden');
+      if (elName) elName.value = user.fullName || '';
+      if (elUser) elUser.value = user.username || '';
+      if (elEmail) elEmail.value = user.email || '';
+      if (elRole) elRole.value = getNormalizedRole(user.role);
+      if (elStatus) elStatus.value = user.status || 'APPROVED';
+
+      const modal = document.getElementById('userAccessModal');
+      if (modal) modal.classList.remove('hidden');
     }
 
     function closeUserAccessModal() {
+      const modal = document.getElementById('userAccessModal');
+      if (modal) modal.classList.add('hidden');
       selectedUserForAccess = null;
-      document.getElementById('userAccessModal').classList.add('hidden');
     }
 
-    function saveUserAccessChanges() {
+    async function saveUserAccessChanges() {
       if (!selectedUserForAccess) return;
+      const newFullName = (document.getElementById('accessModal_name').value || '').trim();
+      const newUsername = (document.getElementById('accessModal_username').value || '').trim().toLowerCase();
+      const newEmail = (document.getElementById('accessModal_email').value || '').trim().toLowerCase();
       const role = document.getElementById('accessModal_role').value;
       const status = document.getElementById('accessModal_status').value;
 
+      if (!newFullName || !newUsername) {
+        showToast('Nama lengkap dan username tidak boleh kosong!', 'error');
+        return;
+      }
+
       const usersDB = getUsersDB();
-      const user = usersDB.find(u => u.username === selectedUserForAccess);
+      const user = usersDB.find(u => u.username === selectedUserForAccess || (u.email && u.email.toLowerCase() === selectedUserForAccess.toLowerCase()));
       if (user) {
+        const oldUsername = user.username;
+        user.fullName = newFullName;
+        user.username = newUsername;
+        if (newEmail) user.email = newEmail;
         user.role = role;
         user.status = status;
         user.modifiedAt = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-        user.modifiedBy = (currentUser && currentUser.username) || 'Owner';
+        user.modifiedBy = (currentUser && currentUser.fullName) || 'Owner';
         saveUsersDB(usersDB);
 
-        logSystemActivity('UPDATE_ACCESS', `Owner memperbarui hak akses user @${user.username} -> Role: ${role}, Status: ${status}`);
-        showToast(`Hak akses @${user.username} berhasil disimpan!`, 'success');
+        // Jika mengedit akun sendiri yang sedang login
+        if (currentUser && (currentUser.username === oldUsername || currentUser.email === oldUsername)) {
+          currentUser.fullName = newFullName;
+          currentUser.username = newUsername;
+          if (newEmail) currentUser.email = newEmail;
+          currentUser.role = role;
+          localStorage.setItem(STORAGE_KEY_AUTH_USER, JSON.stringify(currentUser));
+          applyRolePermissions();
+        }
+
+        logSystemActivity('UPDATE_USER_PROFILE', `Owner memperbarui akun @${oldUsername} -> Nama: ${newFullName}, User: ${newUsername}, Role: ${role}, Status: ${status}`);
+        showToast(`Profil & hak akses akun ${newFullName} berhasil diperbarui!`, 'success');
+
+        // Sinkronkan ke Google Spreadsheet sheet Users
+        const targetGasUrl = appConfig.appsScriptUrl || EMBEDDED_APPS_SCRIPT_URL;
+        if (navigator.onLine && targetGasUrl) {
+          try {
+            fetch(targetGasUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify({
+                action: 'updateUserFullProfile',
+                oldUsername: oldUsername,
+                newFullName: newFullName,
+                newUsername: newUsername,
+                newEmail: newEmail,
+                newRole: role,
+                newStatus: status,
+                adminUsername: (currentUser && (currentUser.email || currentUser.username)) || 'dnpuji24@gmail.com'
+              })
+            }).catch(err => console.error('Update profile sync error:', err));
+          } catch (e) {}
+        }
+
         renderUsersManagementUI();
       }
       closeUserAccessModal();
     }
-
     // =========================================================================
     // MODUL CHANGE HISTORY (SESUAI GAMBAR 4)
     // =========================================================================
@@ -3670,6 +3760,7 @@
             localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(savedRecords));
             renderHistoryList();
             renderDashboardUI();
+      syncRecordsFromCloud();
             if (showToastMsg) showToast('Data terbaru dari mandor berhasil ditarik!', 'success');
           } else if (showToastMsg) {
             showToast('Data sudah yang terbaru.', 'info');
@@ -3786,6 +3877,7 @@
       resetForm();
       renderHistoryList();
       renderDashboardUI();
+      syncRecordsFromCloud();
       fetchCloudRecords();
       setInterval(fetchCloudRecords, 30000); // Polling otomatis tiap 30 detik untuk monitoring live
       fetchCloudRecords(false);
@@ -4986,6 +5078,66 @@
     }
 
     // 1. Kirim input / draft mandor langsung ke Cloud Database
+    
+    // =========================================================================
+    // SINKRONISASI REALTIME CLOUD RECORDS (AGAR OWNER BISA MELIHAT DRAFT MANDOR)
+    // =========================================================================
+    async function syncRecordsFromCloud() {
+      const targetUrl = appConfig.appsScriptUrl || EMBEDDED_APPS_SCRIPT_URL;
+      if (!targetUrl || !navigator.onLine) return;
+
+      try {
+        const res = await fetch(`${targetUrl}?action=getCloudMonitoring&t=${Date.now()}`);
+        const result = await res.json();
+        if (result.status === 'success' && result.monitoring && Array.isArray(result.monitoring)) {
+          let changed = false;
+          result.monitoring.forEach(cm => {
+            const existingIdx = savedRecords.findIndex(r => r.id === cm.id);
+            if (existingIdx !== -1) {
+              if (savedRecords[existingIdx].saveType !== cm.saveType || savedRecords[existingIdx].status !== cm.status) {
+                savedRecords[existingIdx].saveType = cm.saveType;
+                savedRecords[existingIdx].status = cm.status;
+                savedRecords[existingIdx].uploadStatus = cm.saveType === 'uploaded' ? 'uploaded' : 'pending';
+                changed = true;
+              }
+            } else {
+              // Rekaman baru dari mandor lain (Alberto, Jumri, dll.)
+              const newRec = {
+                id: cm.id,
+                formType: cm.formType || 'spray',
+                date: cm.date || '',
+                shift: cm.shift || '',
+                name: cm.name || '',
+                nameOfAssistan: cm.nameOfAssistan || '',
+                paddock: cm.paddock || '',
+                status: cm.status || 'Working',
+                saveType: cm.saveType || 'ready',
+                uploadStatus: cm.saveType === 'uploaded' ? 'uploaded' : 'pending',
+                deskripsi: cm.details || '',
+                details: cm.details || '',
+                photoDriveUrl: cm.photoLink || '',
+                area: cm.details.includes('Area:') ? (cm.details.match(/Area:\s*([0-9.,]+)/) || ['','0'])[1] : 0,
+                jumlah: cm.details.includes('Jml:') ? (cm.details.match(/Jml:\s*([0-9.,]+)/) || ['','0'])[1] : 0,
+                isFromCloud: true,
+                timestamp: cm.lastUpdated || new Date().toISOString()
+              };
+              savedRecords.unshift(newRec);
+              changed = true;
+            }
+          });
+
+          if (changed) {
+            localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(savedRecords));
+            renderHistoryList();
+            renderDashboardUI();
+      syncRecordsFromCloud();
+          }
+        }
+      } catch (err) {
+        console.error('Error in syncRecordsFromCloud:', err);
+      }
+    }
+
     async function syncRecordToCloud(rec) {
       const targetUrl = appConfig.appsScriptUrl || EMBEDDED_APPS_SCRIPT_URL;
       if (!targetUrl) return;
@@ -5061,6 +5213,7 @@
           localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(savedRecords));
           renderHistoryList();
           renderDashboardUI();
+      syncRecordsFromCloud();
           if (showToastFeedback) {
             showToast('Sinkronisasi data cloud berhasil!', 'success');
           }
@@ -5680,12 +5833,17 @@
     let fertPhotoBase64 = null;
 
     function switchFormType(type) {
-      activeFormType = type;
-      const btnSpray = document.getElementById('btnFormTypeSpray');
-      const btnFert = document.getElementById('btnFormTypeFertilizer');
-      const cSpray = document.getElementById('containerFormSpray');
-      const cFert = document.getElementById('containerFormFertilizer');
+      const normRole = getNormalizedRole(currentUser ? currentUser.role : '');
+      const perms = ROLE_PERMISSIONS[normRole] || ROLE_PERMISSIONS.pengunjung;
 
+      if (perms.allowed_form === 'fertilizer' && type === 'spray') {
+        showToast('Akses Dibatasi: Anda adalah Mandor Fertilizer, hanya dapat mengisi form pemupukan!', 'warning');
+        return;
+      }
+      if (perms.allowed_form === 'spray' && type === 'fertilizer') {
+        showToast('Akses Dibatasi: Anda adalah Mandor Spraying, hanya dapat mengisi form semprot!', 'warning');
+        return;
+      }
       if (type === 'spray') {
         btnSpray.className = 'flex-1 py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition shadow-sm bg-emerald-700 text-white';
         btnFert.className = 'flex-1 py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition bg-slate-100 text-slate-700 hover:bg-slate-200';
@@ -8016,6 +8174,7 @@
 
       if (tabId === 'dashboardTab') {
         renderDashboardUI();
+      syncRecordsFromCloud();
         fetchCloudRecords(false);
       } else if (tabId === 'historyTab') {
         renderHistoryList();
