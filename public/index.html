@@ -107,19 +107,15 @@
           <div>
             <label class="block text-xs font-bold text-slate-700 mb-1">Kata Sandi (Password)</label>
             <div class="relative">
-              <input type="password" id="login_password" required placeholder="Masukkan password..." class="w-full text-xs p-2.5 pl-8 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-600 outline-none font-medium">
+              <input type="password" id="login_password" required placeholder="Masukkan password..." class="w-full text-xs p-2.5 pl-8 pr-10 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-600 outline-none font-medium">
               <i class="fa-solid fa-lock absolute left-2.5 top-3 text-slate-400 text-xs"></i>
+              <button type="button" onclick="togglePasswordVisibility('login_password', this)" class="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-700 p-0.5 focus:outline-none" title="Lihat/Sembunyikan Kata Sandi">
+                <i class="fa-solid fa-eye text-xs"></i>
+              </button>
             </div>
           </div>
 
-          <!-- Quick Login Button for Owner -->
-          <button type="button" onclick="quickFillOwnerLogin()" class="w-full p-2.5 bg-amber-50 hover:bg-amber-100 rounded-xl border border-amber-300 text-[11px] text-amber-900 font-bold flex items-center justify-between transition active:scale-98">
-            <span class="flex items-center space-x-1.5">
-              <i class="fa-solid fa-crown text-amber-600"></i>
-              <span>Login sebagai Owner (dnpuji24@gmail.com)</span>
-            </span>
-            <i class="fa-solid fa-arrow-right text-amber-600 text-xs"></i>
-          </button>
+
 
           <button type="submit" id="btnLoginSubmit" class="w-full py-3 bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-800 hover:to-teal-800 text-white rounded-xl font-extrabold text-xs shadow-lg active:scale-95 transition flex items-center justify-center space-x-2">
             <i class="fa-solid fa-right-to-bracket"></i>
@@ -163,11 +159,21 @@
           <div class="grid grid-cols-2 gap-2">
             <div>
               <label class="block text-xs font-bold text-slate-700 mb-1">Password <span class="text-red-500">*</span></label>
-              <input type="password" id="reg_password" required placeholder="Min 4 karakter" class="w-full text-xs p-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-600 outline-none">
+              <div class="relative">
+                <input type="password" id="reg_password" required placeholder="Min 4 karakter" class="w-full text-xs p-2 pr-8 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-600 outline-none">
+                <button type="button" onclick="togglePasswordVisibility('reg_password', this)" class="absolute right-2 top-2 text-slate-400 hover:text-slate-700" title="Lihat/Sembunyikan">
+                  <i class="fa-solid fa-eye text-xs"></i>
+                </button>
+              </div>
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 mb-1">Ulangi Password <span class="text-red-500">*</span></label>
-              <input type="password" id="reg_passwordConfirm" required placeholder="Ketik ulang password" class="w-full text-xs p-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-600 outline-none">
+              <div class="relative">
+                <input type="password" id="reg_passwordConfirm" required placeholder="Ketik ulang password" class="w-full text-xs p-2 pr-8 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-600 outline-none">
+                <button type="button" onclick="togglePasswordVisibility('reg_passwordConfirm', this)" class="absolute right-2 top-2 text-slate-400 hover:text-slate-700" title="Lihat/Sembunyikan">
+                  <i class="fa-solid fa-eye text-xs"></i>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1549,38 +1555,113 @@
     </section>
 
     <!-- ==================== TAB 3: RIWAYAT & UPLOAD ==================== -->
+        <!-- ==================== TAB 3: DATA & UPLOAD (DENGAN FILTER STATUS, REKAP MANDOR BELUM UPLOAD & DRAFT) ==================== -->
     <section id="historyTab" class="tab-content hidden space-y-4">
       
+      <!-- Top 3 Metrics Summary Cards -->
       <div class="grid grid-cols-3 gap-2.5">
         <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-sm text-center">
           <span class="text-[11px] text-slate-500 block font-medium">Total Tersimpan</span>
-          <span class="text-lg font-bold text-slate-800" id="statTotal">0</span>
+          <span class="text-lg sm:text-xl font-black text-slate-800 font-mono" id="statTotal">0</span>
         </div>
         <div class="bg-amber-50 rounded-xl p-3 border border-amber-200 shadow-sm text-center">
           <span class="text-[11px] text-amber-700 block font-medium">Pending Upload</span>
-          <span class="text-lg font-bold text-amber-800" id="statPending">0</span>
+          <span class="text-lg sm:text-xl font-black text-amber-800 font-mono" id="statPending">0</span>
         </div>
         <div class="bg-blue-50 rounded-xl p-3 border border-blue-200 shadow-sm text-center">
           <span class="text-[11px] text-blue-700 block font-medium">Sudah Diupload</span>
-          <span class="text-lg font-bold text-blue-800" id="statUploaded">0</span>
+          <span class="text-lg sm:text-xl font-black text-blue-800 font-mono" id="statUploaded">0</span>
         </div>
       </div>
 
-      <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-2">
-        <div class="flex items-center space-x-2">
-          <span class="text-xs font-bold text-slate-700">Filter Tanggal:</span>
-          <input type="date" id="historyFilterDate" onchange="renderHistoryList()" class="p-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg">
-          <button onclick="document.getElementById('historyFilterDate').value=''; renderHistoryList();" class="text-xs text-slate-500 hover:text-slate-700 underline">Semua</button>
+      <!-- FILTER PENGAWASAN MANDOR, STATUS UPLOAD & TANGGAL (REQUEST 3) -->
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+        <div class="flex items-center justify-between border-b pb-2 flex-wrap gap-2">
+          <div class="flex items-center space-x-2">
+            <i class="fa-solid fa-filter text-emerald-600 text-sm"></i>
+            <h3 class="font-extrabold text-xs sm:text-sm text-slate-800">Filter Pengawasan & Pencarian Data Mandor</h3>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button type="button" onclick="syncLiveRecordsFromCloud(true)" class="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center space-x-1">
+              <i class="fa-solid fa-cloud-arrow-down"></i>
+              <span>Tarik Data Cloud</span>
+            </button>
+            <button type="button" onclick="resetHistoryFilters()" class="text-xs text-emerald-700 hover:text-emerald-800 font-bold">
+              Reset Filter
+            </button>
+          </div>
         </div>
-        <button onclick="uploadAllPending()" id="btnUploadAll" class="py-2 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow active:scale-95 transition flex items-center space-x-1.5">
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+          <!-- Filter Status Data (Draft vs Siap Upload vs Terupload) -->
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">Status Pengerjaan & Upload:</label>
+            <select id="historyFilterStatus" onchange="renderHistoryList()" class="w-full p-2 text-xs rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-600 outline-none bg-white font-semibold">
+              <option value="all">Semua Status Data</option>
+              <option value="not_uploaded">⚠️ SEMUA BELUM UPLOAD (Draft + Pending)</option>
+              <option value="draft">📝 Sedang Disimpan DRAFT (Mandor Belum Selesai)</option>
+              <option value="pending">⏳ SIAP UPLOAD (Mandor Selesai / Siap Kirim)</option>
+              <option value="uploaded">☁️ SUDAH TERUPLOAD ke Spreadsheet</option>
+            </select>
+          </div>
+
+          <!-- Filter Mandor Pelaksana -->
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">Mandor Pelaksana:</label>
+            <select id="historyFilterMandor" onchange="renderHistoryList()" class="w-full p-2 text-xs rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-600 outline-none bg-white font-semibold">
+              <option value="all">Semua Mandor</option>
+            </select>
+          </div>
+
+          <!-- Filter Tanggal Kegiatan -->
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">Tanggal Kegiatan:</label>
+            <div class="flex space-x-1">
+              <input type="date" id="historyFilterDate" onchange="renderHistoryList()" class="w-full p-2 text-xs rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-600 outline-none font-medium">
+              <button type="button" onclick="setHistoryDatePreset('all')" class="py-1 px-2.5 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg whitespace-nowrap">Semua</button>
+              <button type="button" onclick="setHistoryDatePreset('today')" class="py-1 px-2.5 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg whitespace-nowrap">Hari Ini</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- KARTU REKAPITULASI STATUS MANDOR (SIAPA SUDAH/BELUM UPLOAD & TANGGALNYA - REQUEST 3) -->
+      <div id="historyMandorRecapCard" class="bg-white rounded-2xl p-4 border border-amber-200/80 shadow-sm space-y-2.5">
+        <div class="flex items-center justify-between border-b border-amber-100 pb-2 flex-wrap gap-2">
+          <div class="flex items-center space-x-2">
+            <span class="w-6 h-6 rounded-lg bg-amber-500 text-white flex items-center justify-center text-xs">
+              <i class="fa-solid fa-clipboard-user"></i>
+            </span>
+            <h4 class="font-extrabold text-xs sm:text-sm text-slate-900">Rekapitulasi Mandor Belum Upload & Status Draft</h4>
+          </div>
+          <span class="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded font-bold">
+            Pantauan Lapangan Real-Time
+          </span>
+        </div>
+
+        <!-- Wadah Rekap Tiap Mandor -->
+        <div id="historyMandorRecapList" class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Action Bar: Tombol Upload Semua -->
+      <div class="flex items-center justify-between px-1">
+        <span class="text-xs font-bold text-slate-600">Daftar Rekaman Sesuai Filter (<span id="historyFilteredCountText">0</span> Data):</span>
+        <button onclick="uploadAllPendingRecords()" id="btnUploadAll" class="py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-sm active:scale-95 transition flex items-center space-x-1.5">
           <i class="fa-solid fa-cloud-arrow-up"></i>
           <span>Upload Semua Pending</span>
         </button>
       </div>
 
-      <div id="historyContainer" class="space-y-4"></div>
+      <!-- Feed Daftar Kartu Pekerjaan -->
+      <div id="historyContainer" class="space-y-4">
+        <!-- Kartu-kartu QC dirender dinamis oleh JS -->
+      </div>
 
     </section>
+
+    
 
 
     <!-- ==================== TAB 3: PENGATURAN & SINKRONISASI ==================== -->
@@ -2061,15 +2142,15 @@
       <form onsubmit="handleSaveNewPassword(event)" class="space-y-3 text-xs">
         <div>
           <label class="block text-slate-600 font-bold mb-1">Kata Sandi Saat Ini <span class="text-red-500">*</span></label>
-          <input type="password" id="cp_oldPassword" required placeholder="Masukkan password lama..." class="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-600 outline-none font-medium">
+          <div class="relative"><input type="password" id="cp_oldPassword" required placeholder="Masukkan password lama..." class="w-full p-2.5 pr-8 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-600 outline-none font-medium"><button type="button" onclick="togglePasswordVisibility('cp_oldPassword', this)" class="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-700"><i class="fa-solid fa-eye text-xs"></i></button></div>
         </div>
         <div>
           <label class="block text-slate-600 font-bold mb-1">Kata Sandi Baru <span class="text-red-500">*</span></label>
-          <input type="password" id="cp_newPassword" required placeholder="Minimal 4 karakter..." class="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-600 outline-none font-medium">
+          <div class="relative"><input type="password" id="cp_newPassword" required placeholder="Minimal 4 karakter..." class="w-full p-2.5 pr-8 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-600 outline-none font-medium"><button type="button" onclick="togglePasswordVisibility('cp_newPassword', this)" class="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-700"><i class="fa-solid fa-eye text-xs"></i></button></div>
         </div>
         <div>
           <label class="block text-slate-600 font-bold mb-1">Ulangi Kata Sandi Baru <span class="text-red-500">*</span></label>
-          <input type="password" id="cp_confirmPassword" required placeholder="Ketik ulang password baru..." class="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-600 outline-none font-medium">
+          <div class="relative"><input type="password" id="cp_confirmPassword" required placeholder="Ketik ulang password baru..." class="w-full p-2.5 pr-8 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-600 outline-none font-medium"><button type="button" onclick="togglePasswordVisibility('cp_confirmPassword', this)" class="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-700"><i class="fa-solid fa-eye text-xs"></i></button></div>
         </div>
 
         <div class="flex justify-end space-x-2 pt-2 border-t border-slate-100">
@@ -3566,6 +3647,68 @@
     }
 
     
+    
+    // =========================================================================
+    // SYNC REALTIME INPUTAN MANDOR DARI CLOUD KE PERANGKAT LAIN
+    // =========================================================================
+    async function syncLiveRecordsFromCloud(showToastMsg = false) {
+      const targetUrl = appConfig.appsScriptUrl || EMBEDDED_APPS_SCRIPT_URL;
+      if (!targetUrl || !navigator.onLine) return;
+
+      try {
+        const res = await fetch(`${targetUrl}?action=getCloudMonitoring&t=${Date.now()}`);
+        const json = await res.json();
+        if (json.status === 'success' && Array.isArray(json.monitoring)) {
+          let hasChange = false;
+
+          json.monitoring.forEach(m => {
+            let fullRec = null;
+            if (m.recordJSON) {
+              try { fullRec = JSON.parse(m.recordJSON); } catch (e) {}
+            }
+            if (!fullRec) {
+              fullRec = {
+                id: m.id,
+                formType: m.formType || 'spray',
+                date: m.date,
+                shift: m.shift,
+                name: m.name,
+                nameOfAssistan: m.nameOfAssistan,
+                paddock: m.paddock,
+                status: m.status,
+                uploadStatus: m.saveType === 'uploaded' ? 'uploaded' : (m.saveType === 'draft' ? 'draft' : 'pending'),
+                saveType: m.saveType,
+                details: m.details,
+                photoDriveUrl: m.photoLink
+              };
+            }
+
+            const existingIdx = savedRecords.findIndex(r => r.id === fullRec.id);
+            if (existingIdx !== -1) {
+              if (fullRec.uploadStatus === 'uploaded' && savedRecords[existingIdx].uploadStatus !== 'uploaded') {
+                savedRecords[existingIdx].uploadStatus = 'uploaded';
+                hasChange = true;
+              }
+            } else {
+              savedRecords.unshift(fullRec);
+              hasChange = true;
+            }
+          });
+
+          if (hasChange) {
+            localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(savedRecords));
+            renderHistoryList();
+            renderDashboardUI();
+            if (showToastMsg) showToast('Data terbaru dari mandor berhasil ditarik!', 'success');
+          } else if (showToastMsg) {
+            showToast('Data sudah yang terbaru.', 'info');
+          }
+        }
+      } catch (err) {
+        console.error('syncLiveRecordsFromCloud error:', err);
+      }
+    }
+
     async function syncUsersWithGoogleSheetsSilently() {
       try {
         const targetGasUrl = appConfig.appsScriptUrl || 'https://script.google.com/macros/s/AKfycbwjqnVwOBDQg3ptclpw_bCQO9kAcYUcHkxz4tdlNppcPYmMpCocPTbG8fgGVlp1muY/exec'; const res = await fetch(`${targetGasUrl}?action=getUsers&t=${Date.now()}`);
@@ -3672,6 +3815,8 @@
       resetForm();
       renderHistoryList();
       renderDashboardUI();
+      fetchCloudRecords();
+      setInterval(fetchCloudRecords, 30000); // Polling otomatis tiap 30 detik untuk monitoring live
       fetchCloudRecords(false);
     }
 
