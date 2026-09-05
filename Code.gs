@@ -182,9 +182,16 @@ function upsertCloud_(rec,user) {
 }
 
 function writeSpray_(rec) {
-  var rows=[rec]; (rec.holdIntervals||[]).forEach(function(h,i){var x=JSON.parse(JSON.stringify(rec));x.id=rec.id+'_hold_'+(i+1);x.status='Hold';x.startTime=h.start;x.endTime=h.end;x.area=0;x.windSpeed=h.windSpeed;x.temperature=h.temperature;x.humidity=h.humidity;x.deltaT=h.deltaT;x.weatherCondition=h.weather;x.noted='[HOLD '+(i+1)+'] '+(h.reason||'Jeda Lapangan')+(h.note?' - '+h.note:'');x.photoBase64=h.photoBase64||'';rows.push(x);});
+  var working=JSON.parse(JSON.stringify(rec));working.status='Working';working.noted=workingNote_(rec);var rows=[working]; (rec.holdIntervals||[]).forEach(function(h,i){var x=JSON.parse(JSON.stringify(rec));x.id=rec.id+'_hold_'+(i+1);x.status='Hold';x.startTime=h.start;x.endTime=h.end;x.area=0;x.windSpeed=h.windSpeed;x.temperature=h.temperature;x.humidity=h.humidity;x.deltaT=h.deltaT;x.weatherCondition=h.weather;x.noted='[HOLD '+(i+1)+'] '+(h.reason||'Jeda Lapangan')+(h.note?' - '+h.note:'');x.photoBase64=h.photoBase64||'';rows.push(x);});
   var sh=getSheet_(QC.SHEETS.SPRAY),headerRow=detectSprayHeaderRow_(sh); ensureSheet_(SpreadsheetApp.getActiveSpreadsheet(),QC.SHEETS.SPRAY,QC.SPRAY_HEADERS,headerRow);
   rows.forEach(function(r){var photo=savePhoto_(r),v=[r.date,r.startTime,r.endTime,r.shift,r.status||'Working',r.name,r.nameOfAssistan,r.paddock,r.variety,num_(r.area),r.unit,r.noUnit,r.dropper,num_(r.dropletSize),r.nozzle,num_(r.height),num_(r.rowSpacing),num_(r.speed),r.type,r.activity,r.deskripsi,r.pesticide1,num_(r.dosage1),r.pesticide2,num_(r.dosage2),r.pesticide3,num_(r.dosage3),r.pesticide4,num_(r.dosage4),r.adjuvant,num_(r.adjuvantDosage),num_(r.estUsagePesticide1),num_(r.estUsagePesticide2),num_(r.estUsagePesticide3),num_(r.estUsagePesticide4),num_(r.estUsageAdjuvant),num_(r.actUsagePesticide1),num_(r.actUsagePesticide2),num_(r.actUsagePesticide3),num_(r.actUsagePesticide4),num_(r.actUsageAdjuvant),num_(r.waterRate),r.waterQuality,num_(r.actualUsage),num_(r.windSpeed),num_(r.temperature),num_(r.humidity),num_(r.deltaT),r.weatherCondition,r.noted,photo||r.photoDriveUrl||'',r.id];upsertRow_(sh,v,52,r.id,headerRow+1);}); return rows.length;
+}
+
+function workingNote_(rec) {
+  var effective=Number(rec.effectiveWorkingMinutes||0),hold=Number(rec.holdTotalMinutes||0);
+  if(!effective && !hold) return rec.noted||'';
+  function label_(m){return Math.floor(m/60)+'j '+('0'+(m%60)).slice(-2)+'m';}
+  return '[WORKING efektif '+label_(effective)+' | HOLD '+label_(hold)+']'+(rec.noted?' '+rec.noted:'');
 }
 
 function writeFertilizer_(rec) {
