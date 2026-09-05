@@ -1,6 +1,18 @@
-# QC Form Web v46
+# QC Form Web v47
 
 PWA input Quality Control untuk kegiatan **Spraying** dan **Fertilizer** PT. Global Papua Abadi. Spreadsheet `Application QC Form` tetap menjadi sumber data operasional. Frontend berada hanya di `public/`; file `index.html` di root sekadar mengarahkan GitHub Pages ke aplikasi yang sama.
+
+## Input Spray v47
+
+- Shift, Status, Activity, Deskripsi, Paddock, Variety, Type, Dropper, Nozzle, Water Quality, dan Weather Condition menggunakan tombol sentuh.
+- Jam mulai/selesai dapat diisi manual atau tombol **Saat ini**.
+- Paddock Spray hanya berasal dari baris `Plan!P = Spray`.
+- Unit dan No. Unit mendukung multiple selection berdasarkan pasangan `Data!E:F`.
+- Variety mengikuti kombinasi Paddock + Activity + Deskripsi di `Plan`; jika lebih dari satu, pengguna memilih melalui tombol.
+- Material Pesticide 1–4 dan dosis diisi otomatis dari `Bahan!A:E` berdasarkan Deskripsi.
+- Estimated Usage pestisida = Dosis/Ha × Luas aktual.
+- Estimated Usage adjuvant = Dosis mL/L × Water Rate × Luas ÷ 1.000.
+- Semua 52 kolom output mengikuti header baris 2 sheet `Form QC Spray`.
 
 ## Perbaikan utama v46
 
