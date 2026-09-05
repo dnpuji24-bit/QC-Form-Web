@@ -462,7 +462,7 @@
     <section id="inputTab" class="tab-content hidden space-y-4">
 
       <!-- FORM MODE SWITCHER (SPRAY VS FERTILIZER) -->
-      <div class="bg-white p-2 rounded-xl shadow-sm border border-slate-200 flex space-x-2">
+      <div id="formModeSwitcherBar" class="bg-white p-2 rounded-xl shadow-sm border border-slate-200 flex space-x-2">
         <button type="button" onclick="switchFormType('spray')" id="btnFormTypeSpray" class="flex-1 py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition shadow-sm bg-emerald-700 text-white">
           <i class="fa-solid fa-spray-can"></i>
           <span>QC Spraying (Semprot)</span>
@@ -1673,7 +1673,7 @@
       </div>
 
       <!-- CARD 2: MENU KHUSUS OWNER (SUB-MENU USERS & HISTORY - RULE 9) -->
-      <div id="ownerExclusiveCard" class="bg-white rounded-xl shadow-sm border border-amber-300 p-4 space-y-4">
+      <div id="ownerExclusiveCard" class="bg-white rounded-xl shadow-sm border border-amber-300 p-4 space-y-4 hidden">
         <div class="flex items-center justify-between border-b border-amber-200 pb-2">
           <div class="flex items-center space-x-2">
             <span class="w-6 h-6 rounded-lg bg-amber-600 text-white flex items-center justify-center text-xs">
@@ -2105,6 +2105,41 @@
   </div>
 
   
+  
+  <!-- ==================== MODAL EDIT / AJUKAN UBAH NAMA (MASALAH 1) ==================== -->
+  <div id="editNameModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden flex items-center justify-center p-3">
+    <div class="bg-white rounded-2xl max-w-sm w-full shadow-2xl p-5 border border-slate-200 space-y-4 animate-fade-in">
+      <div class="flex items-center justify-between border-b pb-2">
+        <h3 class="font-extrabold text-sm text-slate-800 flex items-center space-x-1.5">
+          <i class="fa-solid fa-user-pen text-emerald-600"></i>
+          <span>Ubah Nama Lengkap Akun</span>
+        </h3>
+        <button type="button" onclick="closeEditNameModal()" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <form onsubmit="handleSaveNameChange(event)" class="space-y-3 text-xs">
+        <div>
+          <label class="block text-slate-500 font-bold mb-1">Nama Saat Ini</label>
+          <input type="text" id="en_currentName" readonly class="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-100 text-slate-600 font-bold outline-none cursor-not-allowed">
+        </div>
+        <div>
+          <label class="block text-slate-700 font-bold mb-1">Nama Lengkap Baru Sesuai ID <span class="text-red-500">*</span></label>
+          <input type="text" id="en_newName" required placeholder="Contoh: Jumri Subagyo" class="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-600 outline-none font-bold text-slate-900">
+        </div>
+
+        <div id="en_ownerNote" class="p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 leading-relaxed">
+          <i class="fa-solid fa-circle-info mr-1 text-amber-700"></i>
+          <strong>Persetujuan Owner:</strong> Perubahan nama akun mandor memerlukan verifikasi dan persetujuan langsung dari Owner (Puji Hartono) demi validitas laporan kebun.
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+          <button type="button" onclick="closeEditNameModal()" class="py-2 px-3 bg-slate-200 hover:bg-slate-300 rounded-xl font-bold text-slate-700">Batal</button>
+          <button type="submit" id="btnSubmitNameChange" class="py-2 px-4 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold shadow-sm">Kirim Pengajuan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- MODAL GANTI PASSWORD -->
   <div id="changePasswordModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden flex items-center justify-center p-3">
     <div class="bg-white rounded-2xl max-w-sm w-full shadow-2xl p-5 border border-slate-200 space-y-4 animate-fade-in">
@@ -2396,6 +2431,179 @@
     // =========================================================================
     // FITUR GANTI PASSWORD (SESUAI ATURAN OWNER & PENGGUNA)
     // =========================================================================
+    
+    // =========================================================================
+    // FITUR UBAH NAMA LENGKAP & PERSETUJUAN OWNER (MASALAH 1)
+    // =========================================================================
+    function openEditNameModal() {
+      if (!currentUser) return;
+      const modal = document.getElementById('editNameModal');
+      if (!modal) return;
+
+      document.getElementById('en_currentName').value = currentUser.fullName || currentUser.username || '';
+      document.getElementById('en_newName').value = currentUser.pendingNewName || '';
+
+      const normRole = getNormalizedRole(currentUser.role);
+      const isOwner = (normRole === 'owner');
+      const noteEl = document.getElementById('en_ownerNote');
+      const submitBtn = document.getElementById('btnSubmitNameChange');
+
+      if (isOwner) {
+        if (noteEl) noteEl.innerHTML = '<i class="fa-solid fa-crown mr-1 text-amber-700"></i><strong>Akun Owner:</strong> Perubahan nama Anda akan langsung diterapkan seketika tanpa perlu persetujuan.';
+        if (submitBtn) submitBtn.textContent = 'Simpan Nama Baru';
+      } else {
+        if (noteEl) noteEl.innerHTML = '<i class="fa-solid fa-circle-info mr-1 text-amber-700"></i><strong>Persetujuan Owner:</strong> Perubahan nama mandor memerlukan verifikasi dan persetujuan langsung dari Owner (Puji Hartono) demi validitas laporan kebun.';
+        if (submitBtn) submitBtn.textContent = 'Kirim Pengajuan ke Owner';
+      }
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeEditNameModal() {
+      const modal = document.getElementById('editNameModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    async function handleSaveNameChange(e) {
+      e.preventDefault();
+      if (!currentUser) return;
+
+      const newName = document.getElementById('en_newName').value.trim();
+      if (!newName || newName.length < 2) {
+        showToast('Nama lengkap baru harus diisi dengan benar!', 'error');
+        return;
+      }
+
+      const normRole = getNormalizedRole(currentUser.role);
+      const isOwner = (normRole === 'owner');
+
+      const usersDB = getUsersDB();
+      const user = usersDB.find(u => 
+        (u.username && u.username.toLowerCase() === currentUser.username.toLowerCase()) || 
+        (u.email && u.email.toLowerCase() === (currentUser.email || '').toLowerCase())
+      );
+
+      if (isOwner) {
+        // Owner langsung terupdate seketika
+        currentUser.fullName = newName;
+        if (user) {
+          user.fullName = newName;
+          saveUsersDB(usersDB);
+        }
+        localStorage.setItem(STORAGE_KEY_AUTH_USER, JSON.stringify(currentUser));
+        logSystemActivity('CHANGE_NAME', `Owner mengubah nama menjadi: ${newName}.`);
+        showToast('Nama lengkap Owner berhasil diperbarui!', 'success');
+      } else {
+        // Mandor / User mengajukan ke Owner (Pending Approval)
+        currentUser.pendingNewName = newName;
+        if (user) {
+          user.pendingNewName = newName;
+          user.nameChangeRequestedAt = new Date().toISOString();
+          saveUsersDB(usersDB);
+        }
+        localStorage.setItem(STORAGE_KEY_AUTH_USER, JSON.stringify(currentUser));
+        logSystemActivity('REQUEST_NAME_CHANGE', `Pengguna @${currentUser.username} (${currentUser.fullName}) mengajukan perubahan nama menjadi: ${newName}.`);
+        showToast('Pengajuan nama baru berhasil dikirim! Menunggu persetujuan dari Owner.', 'info');
+      }
+
+      closeEditNameModal();
+      applyRolePermissions();
+
+      // Sinkronkan ke Google Spreadsheet jika online
+      const targetUrl = appConfig.appsScriptUrl || EMBEDDED_APPS_SCRIPT_URL;
+      if (navigator.onLine && targetUrl) {
+        try {
+          fetch(targetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: isOwner ? 'updateUserRoleAndStatus' : 'requestNameChange',
+              username: currentUser.username,
+              targetUsername: currentUser.email || currentUser.username,
+              newName: newName,
+              isOwnerDirect: isOwner,
+              deviceInfo: navigator.userAgent.includes('Mobile') ? 'HP Mandor' : 'Desktop'
+            })
+          });
+        } catch (err) {}
+      }
+    }
+
+    async function approveNameChange(username) {
+      const usersDB = getUsersDB();
+      const user = usersDB.find(u => 
+        (u.username && u.username.toLowerCase() === username.toLowerCase()) || 
+        (u.email && u.email.toLowerCase() === username.toLowerCase())
+      );
+
+      if (!user || !user.pendingNewName) return;
+
+      const oldName = user.fullName;
+      const approvedName = user.pendingNewName;
+      user.fullName = approvedName;
+      delete user.pendingNewName;
+      user.modifiedAt = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      user.modifiedBy = (currentUser && currentUser.fullName) || 'Owner';
+      saveUsersDB(usersDB);
+
+      logSystemActivity('APPROVE_NAME', `Owner menyetujui perubahan nama @${username} dari "${oldName}" menjadi "${approvedName}".`);
+      showToast(`Nama @${username} berhasil disetujui menjadi "${approvedName}"!`, 'success');
+
+      const targetUrl = appConfig.appsScriptUrl || EMBEDDED_APPS_SCRIPT_URL;
+      if (navigator.onLine && targetUrl) {
+        try {
+          fetch(targetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'approveNameChange',
+              targetUsername: user.email || user.username,
+              newName: approvedName,
+              adminUsername: (currentUser && (currentUser.email || currentUser.username)) || 'dnpuji24@gmail.com'
+            })
+          });
+        } catch (e) {}
+      }
+
+      renderUsersManagementUI();
+      applyRolePermissions();
+    }
+
+    async function rejectNameChange(username) {
+      if (!confirm(`Apakah Anda yakin ingin menolak pengajuan perubahan nama untuk @${username}?`)) return;
+
+      const usersDB = getUsersDB();
+      const user = usersDB.find(u => 
+        (u.username && u.username.toLowerCase() === username.toLowerCase()) || 
+        (u.email && u.email.toLowerCase() === username.toLowerCase())
+      );
+
+      if (!user) return;
+      delete user.pendingNewName;
+      saveUsersDB(usersDB);
+
+      logSystemActivity('REJECT_NAME', `Owner menolak pengajuan perubahan nama @${username}.`);
+      showToast(`Pengajuan perubahan nama @${username} telah ditolak.`, 'info');
+
+      const targetUrl = appConfig.appsScriptUrl || EMBEDDED_APPS_SCRIPT_URL;
+      if (navigator.onLine && targetUrl) {
+        try {
+          fetch(targetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'rejectNameChange',
+              targetUsername: user.email || user.username,
+              adminUsername: (currentUser && (currentUser.email || currentUser.username)) || 'dnpuji24@gmail.com'
+            })
+          });
+        } catch (e) {}
+      }
+
+      renderUsersManagementUI();
+      applyRolePermissions();
+    }
+
     function openChangePasswordModal() {
       if (!currentUser) return;
       const modal = document.getElementById('changePasswordModal');
@@ -2776,6 +2984,21 @@
         sBadge.className = `text-[10px] font-black uppercase px-2 py-0.5 rounded ${perms.badgeClass}`;
       }
 
+      // Notifikasi jika ada pengajuan ubah nama yang sedang pending
+      const pNameAlert = document.getElementById('pendingNameChangeAlert');
+      const pNameVal = document.getElementById('pendingNameValue');
+      if (pNameAlert && pNameVal) {
+        if (currentUser.pendingNewName) {
+          pNameVal.textContent = currentUser.pendingNewName;
+          pNameAlert.classList.remove('hidden');
+        } else {
+          pNameAlert.classList.add('hidden');
+        }
+      }
+
+      // Enforce form locking (Masalah 2)
+      enforceMandorFormDisplay();
+
       // 2. Tab Input & Form Switcher Berdasarkan Kemandoran (Aturan 1 & 5)
       const tabInput = document.getElementById('tabBtn-inputTab');
       if (tabInput) {
@@ -2820,15 +3043,20 @@
         }
       }
 
-      // 3. Sub-Menu Khusus Owner di Tab Pengaturan (Rule 9)
+      // 3. Sub-Menu Khusus Owner di Tab Pengaturan (HANYA UNTUK OWNER - MASALAH 3)
       const ownerCard = document.getElementById('ownerExclusiveCard');
       const ownerBanner = document.getElementById('ownerPendingNotificationBanner');
       const navBadge = document.getElementById('navOwnerPendingBadge');
 
-      const isOwner = (normRole === 'owner');
+      const isOwner = Boolean(currentUser && (normRole === 'owner' || (currentUser.email && currentUser.email.toLowerCase() === 'dnpuji24@gmail.com') || (currentUser.username && currentUser.username.toLowerCase() === 'dnpuji24')));
       if (ownerCard) {
-        if (isOwner) ownerCard.classList.remove('hidden');
-        else ownerCard.classList.add('hidden');
+        if (isOwner) {
+          ownerCard.classList.remove('hidden');
+          ownerCard.classList.add('block');
+        } else {
+          ownerCard.classList.add('hidden');
+          ownerCard.classList.remove('block');
+        }
       }
 
       // Hitung akun yang menunggu persetujuan
@@ -3439,45 +3667,77 @@
         }
       }
 
-      // 3. Pending Approvals Table (Rule 5 & 6)
+      // 3. Pending Approvals Table (Akun Baru & Pengajuan Ubah Nama - Masalah 1)
+      const nameChangeRequests = usersDB.filter(u => u.pendingNewName && u.status !== 'PENDING');
+      const allPendingItems = [...pendingList.map(u => ({ type: 'NEW_USER', user: u })), ...nameChangeRequests.map(u => ({ type: 'NAME_CHANGE', user: u }))];
+
       const pendingBody = document.getElementById('pendingApprovalsTableBody');
       if (pendingBody) {
-        if (pendingList.length === 0) {
+        if (allPendingItems.length === 0) {
           pendingBody.innerHTML = `
             <tr>
               <td colspan="5" class="py-6 text-center text-slate-400 italic bg-white">
                 <i class="fa-solid fa-inbox text-xl mb-1 block text-slate-300"></i>
-                Tidak ada pendaftaran menunggu
+                Tidak ada pendaftaran atau pengajuan menunggu
               </td>
             </tr>
           `;
         } else {
-          pendingBody.innerHTML = pendingList.map((u, i) => `
-            <tr class="hover:bg-amber-50/50 transition bg-white">
-              <td class="p-2.5 text-center font-bold text-slate-500">${i + 1}</td>
-              <td class="p-2.5 font-bold text-slate-900">${u.fullName || '-'}</td>
-              <td class="p-2.5 font-mono text-slate-600 text-[11px]">${u.email || u.username || '-'}</td>
-              <td class="p-2.5 text-slate-500">${u.createdAt ? formatDateDisplay(u.createdAt.split('T')[0]) : '-'}</td>
-              <td class="p-2.5 text-center">
-                <div class="flex items-center justify-center space-x-1.5 flex-wrap gap-y-1">
-                  <select id="approveRoleSelect_${u.username}" class="p-1 text-xs rounded border border-slate-300 bg-white font-bold text-slate-800">
-                    <option value="mandor_spray" ${u.role === 'mandor_spray' ? 'selected' : ''}>Mandor Spraying</option>
-                    <option value="mandor_fertilizer" ${u.role === 'mandor_fertilizer' ? 'selected' : ''}>Mandor Fertilizer</option>
-                    <option value="asisten" ${u.role === 'asisten' ? 'selected' : ''}>Asisten Lapangan</option>
-                    <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin Staff</option>
-                    <option value="manager" ${u.role === 'manager' ? 'selected' : ''}>Manager</option>
-                    <option value="pengunjung" ${u.role === 'pengunjung' ? 'selected' : ''}>Pengunjung</option>
-                  </select>
-                  <button type="button" onclick="approveUser('${u.username}')" class="py-1 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-xs shadow-2xs active:scale-95 transition">
-                    Setujui
-                  </button>
-                  <button type="button" onclick="rejectUser('${u.username}')" class="py-1 px-2.5 bg-red-100 hover:bg-red-200 text-red-700 rounded font-bold text-xs active:scale-95 transition">
-                    Tolak
-                  </button>
-                </div>
-              </td>
-            </tr>
-          `).join('');
+          pendingBody.innerHTML = allPendingItems.map((item, i) => {
+            const u = item.user;
+            if (item.type === 'NAME_CHANGE') {
+              return `
+                <tr class="hover:bg-amber-50/70 transition bg-amber-50/20 border-l-4 border-l-amber-500">
+                  <td class="p-2.5 text-center font-bold text-slate-500">${i + 1}</td>
+                  <td class="p-2.5">
+                    <span class="line-through text-slate-400 font-normal mr-1">${u.fullName}</span>
+                    <i class="fa-solid fa-arrow-right text-[10px] text-amber-600 mr-1"></i>
+                    <span class="font-extrabold text-emerald-800">${u.pendingNewName}</span>
+                    <span class="ml-1 text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-black uppercase">Ubah Nama</span>
+                  </td>
+                  <td class="p-2.5 font-mono text-slate-600 text-[11px]">${u.email || u.username || '-'}</td>
+                  <td class="p-2.5 text-slate-500">${u.nameChangeRequestedAt ? formatDateDisplay(u.nameChangeRequestedAt.split('T')[0]) : 'Baru saja'}</td>
+                  <td class="p-2.5 text-center">
+                    <div class="flex items-center justify-center space-x-1.5">
+                      <button type="button" onclick="approveNameChange('${u.username}')" class="py-1 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-xs shadow-2xs active:scale-95 transition">
+                        Setujui Nama
+                      </button>
+                      <button type="button" onclick="rejectNameChange('${u.username}')" class="py-1 px-2.5 bg-red-100 hover:bg-red-200 text-red-700 rounded font-bold text-xs active:scale-95 transition">
+                        Tolak
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              `;
+            } else {
+              return `
+                <tr class="hover:bg-amber-50/50 transition bg-white">
+                  <td class="p-2.5 text-center font-bold text-slate-500">${i + 1}</td>
+                  <td class="p-2.5 font-bold text-slate-900">${u.fullName || '-'}</td>
+                  <td class="p-2.5 font-mono text-slate-600 text-[11px]">${u.email || u.username || '-'}</td>
+                  <td class="p-2.5 text-slate-500">${u.createdAt ? formatDateDisplay(u.createdAt.split('T')[0]) : '-'}</td>
+                  <td class="p-2.5 text-center">
+                    <div class="flex items-center justify-center space-x-1.5 flex-wrap gap-y-1">
+                      <select id="approveRoleSelect_${u.username}" class="p-1 text-xs rounded border border-slate-300 bg-white font-bold text-slate-800">
+                        <option value="mandor_spray" ${u.role === 'mandor_spray' ? 'selected' : ''}>Mandor Spraying</option>
+                        <option value="mandor_fertilizer" ${u.role === 'mandor_fertilizer' ? 'selected' : ''}>Mandor Fertilizer</option>
+                        <option value="asisten" ${u.role === 'asisten' ? 'selected' : ''}>Asisten Lapangan</option>
+                        <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin Staff</option>
+                        <option value="manager" ${u.role === 'manager' ? 'selected' : ''}>Manager</option>
+                        <option value="pengunjung" ${u.role === 'pengunjung' ? 'selected' : ''}>Pengunjung</option>
+                      </select>
+                      <button type="button" onclick="approveUser('${u.username}')" class="py-1 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-xs shadow-2xs active:scale-95 transition">
+                        Setujui
+                      </button>
+                      <button type="button" onclick="rejectUser('${u.username}')" class="py-1 px-2.5 bg-red-100 hover:bg-red-200 text-red-700 rounded font-bold text-xs active:scale-95 transition">
+                        Tolak
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              `;
+            }
+          }).join('');
         }
       }
 
@@ -5832,6 +6092,50 @@
     let editingFertilizerRecordId = null;
     let fertPhotoBase64 = null;
 
+    
+    // =========================================================================
+    // PENGUNCIAN FORM INPUT SESUAI KEMANDORAN (MASALAH 2)
+    // =========================================================================
+    function enforceMandorFormDisplay() {
+      if (!currentUser) return;
+      const normRole = getNormalizedRole(currentUser.role);
+      const perms = ROLE_PERMISSIONS[normRole] || ROLE_PERMISSIONS.pengunjung;
+
+      const switcherBar = document.getElementById('formModeSwitcherBar');
+      const btnSpray = document.getElementById('btnFormTypeSpray');
+      const btnFert = document.getElementById('btnFormTypeFertilizer');
+      const cSpray = document.getElementById('containerFormSpray');
+      const cFert = document.getElementById('containerFormFertilizer');
+
+      if (perms.allowed_form === 'fertilizer') {
+        // MANDOR FERTILIZER: Sembunyikan switcher & form spray total, hanya tampilkan form fertilizer!
+        if (switcherBar) {
+          switcherBar.classList.add('hidden');
+          switcherBar.classList.remove('flex');
+        }
+        if (cSpray) cSpray.classList.add('hidden');
+        if (cFert) cFert.classList.remove('hidden');
+        switchFormType('fertilizer');
+      } else if (perms.allowed_form === 'spray') {
+        // MANDOR SPRAYING: Sembunyikan switcher & form fertilizer total, hanya tampilkan form spray!
+        if (switcherBar) {
+          switcherBar.classList.add('hidden');
+          switcherBar.classList.remove('flex');
+        }
+        if (cFert) cFert.classList.add('hidden');
+        if (cSpray) cSpray.classList.remove('hidden');
+        switchFormType('spray');
+      } else {
+        // Asisten & Owner bebas memilih kedua form
+        if (switcherBar) {
+          switcherBar.classList.remove('hidden');
+          switcherBar.classList.add('flex');
+        }
+        if (btnSpray) btnSpray.classList.remove('hidden');
+        if (btnFert) btnFert.classList.remove('hidden');
+      }
+    }
+
     function switchFormType(type) {
       const normRole = getNormalizedRole(currentUser ? currentUser.role : '');
       const perms = ROLE_PERMISSIONS[normRole] || ROLE_PERMISSIONS.pengunjung;
@@ -8160,7 +8464,27 @@
         activeSection.classList.add('block');
       }
 
-      // Update styling tombol tab secara dinamis untuk SEMUA tab (menghilangkan garis bawah putih dari tab nonaktif)
+      // Kunci tampilan form input sesuai peran saat tab input dibuka (Masalah 2)
+      if (tabId === 'inputTab') {
+        enforceMandorFormDisplay();
+      }
+
+      // Pastikan Card Menu Khusus Owner HANYA muncul untuk Owner saat buka Pengaturan (Masalah 3)
+      if (tabId === 'settingsTab') {
+        const ownerCard = document.getElementById('ownerExclusiveCard');
+        const normRole = getNormalizedRole(currentUser ? currentUser.role : '');
+        const isOwner = Boolean(currentUser && (normRole === 'owner' || (currentUser.email && currentUser.email.toLowerCase() === 'dnpuji24@gmail.com') || (currentUser.username && currentUser.username.toLowerCase() === 'dnpuji24')));
+        if (ownerCard) {
+          if (isOwner) {
+            ownerCard.classList.remove('hidden');
+            ownerCard.classList.add('block');
+          } else {
+            ownerCard.classList.add('hidden');
+            ownerCard.classList.remove('block');
+          }
+        }
+      }
+
       allTabs.forEach(t => {
         const btn = document.getElementById('tabBtn-' + t);
         if (btn) {
