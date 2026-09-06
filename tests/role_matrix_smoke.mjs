@@ -1,12 +1,11 @@
 const API = process.env.SMOKE_API_URL || 'https://script.google.com/macros/s/AKfycbwjqnVwOBDQg3ptclpw_bCQO9kAcYUcHkxz4tdlNppcPYmMpCocPTbG8fgGVlp1muY/exec'
-const password = process.env.ROLE_TEST_PASSWORD || ''
 const ownerUser = process.env.SMOKE_OWNER_USERNAME || ''
 const ownerPass = process.env.SMOKE_OWNER_PASSWORD || ''
 const assert = (c,m)=>{if(!c)throw new Error(m)}
 async function post(action,token='',data={}){const r=await fetch(API,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,token,...data})});assert(r.ok,`${action} HTTP ${r.status}`);return r.json()}
 async function get(action,token=''){const u=new URL(API);u.searchParams.set('action',action);if(token)u.searchParams.set('token',token);u.searchParams.set('_',Date.now());const r=await fetch(u,{redirect:'follow'});assert(r.ok,`${action} HTTP ${r.status}`);return r.json()}
 const deny=(r,label)=>assert(r.ok===false&&r.error==='AUTH_FORBIDDEN',`${label} expected AUTH_FORBIDDEN: ${JSON.stringify(r)}`)
-assert(password&&ownerUser&&ownerPass,'role smoke credentials missing')
+assert(ownerUser&&ownerPass,'role smoke Owner credentials missing')
 const owner=await post('login','',{username:ownerUser,password:ownerPass,deviceInfo:'role-matrix-smoke'});assert(owner.ok&&owner.token,'owner login failed');const ownerToken=owner.token
 const date=new Date().toISOString().slice(0,10),nonce=Date.now(),created=[]
 const foreignId=`SMOKE_ROLE_FOREIGN_${nonce}`
@@ -17,6 +16,7 @@ const roles=[
 ]
 try{
  for(const [role,username,logsOk,sprayOk,fertOk,deleteOk,ownOnly] of roles){
+  const password=`${username}!A9`
   const li=await post('login','',{username,password,deviceInfo:'role-matrix-smoke'});assert(li.ok&&li.token&&li.user.role===role,`${role} login/role failed`);const t=li.token
   deny(await get('users',t),`${role} users`);const lg=await get('logs',t);logsOk?assert(lg.ok,`${role} logs should pass`):deny(lg,`${role} logs`)
   const sid=`SMOKE_ROLE_S_${role}_${nonce}`,sres=await post('syncRecord',t,{record:{id:sid,formType:'spray',date,shift:'SMOKE',status:'Working',name:`Smoke ${role}`,paddock:`SMOKE-${role}-S`,area:.01,activity:'Smoke Test',saveType:'draft'}});if(sprayOk){assert(sres.ok,`${role} spray should pass`);created.push(sid)}else deny(sres,`${role} spray`)
