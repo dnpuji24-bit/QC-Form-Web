@@ -8,12 +8,17 @@ app = (root/'src'/'App.tsx').read_text(encoding='utf-8')
 sw = (root/'public'/'react'/'sw.js').read_text(encoding='utf-8')
 styles = (root/'src'/'theme.css').read_text(encoding='utf-8')
 field_ui = (root/'src'/'field-ui.css').read_text(encoding='utf-8')
+drafts = (root/'src'/'draftStore.ts').read_text(encoding='utf-8')
+compact_offline = ''.join(offline.split())
+compact_network = ''.join(network.split())
 compact_app = ''.join(app.split())
 
-for token in ["QueueAction = 'syncRecord' | 'finalizeRecord'", "if (!navigator.onLine)", "discardQueuedRecord(record.id)", "export async function flushQueue(token: string)", "/sesi|login|izin|password|kata sandi|auth/i"]:
-    assert token in offline, f'Missing offline hardening token: {token}'
-for token in ['online', 'offline', 'queueCount()', 'flushQueue(token)', 'qc:queue-flushed']:
-    assert token in network, f'Missing network recovery token: {token}'
+for token in ["exporttypeQueueAction='syncRecord'|'finalizeRecord'", "if(!navigator.onLine)", "exportasyncfunctionflushQueue(token:string)", "/sesi|login|izin|password|katasandi|auth/i", "indexedDB.open(DB_NAME,VERSION)"]:
+    assert token in compact_offline, f'Missing offline hardening token: {token}'
+for token in ['online','offline','queueCount()','flushQueue(token)','qc:queue-flushed']:
+    assert token in compact_network, f'Missing network recovery token: {token}'
+for token in ['indexedDB.open', 'saveDraft', 'loadDraft', 'clearDraft']:
+    assert token in drafts, f'Missing resumable form draft token: {token}'
 assert '<NetworkStatus />' in main
 assert "navigator.serviceWorker.register('/react/sw.js', { scope: '/react/' })" in main
 assert "url.pathname.startsWith('/react/')" in sw
@@ -25,4 +30,4 @@ for token in ['--brand:', '.dashboard-hero', '.progress-track', '.unit-card', '.
     assert token in styles, f'Missing professional UI theme token: {token}'
 for token in ['.unit-tab-rail', '.spray-hold-section', '.downtime-section', '.report-photo']:
     assert token in field_ui, f'Missing field workflow UI token: {token}'
-print('React hardening check: offline queue, auth/finalize guards, PWA scope, unit tabs, HOLD workflow, and modern UI verified.')
+print('React hardening check: IndexedDB queue, resumable drafts, auth/finalize guards, PWA scope, unit tabs, HOLD workflow, and modern UI verified.')
