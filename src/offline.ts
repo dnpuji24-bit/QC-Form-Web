@@ -1,15 +1,21 @@
 import { qcApi } from './api'
+import { openLocalDb, QUEUE_STORE } from './localDb'
 import type { QcRecord } from './types'
 
-const DB_NAME='qc_react_local_v2'
-const STORE='queue'
-const VERSION=2
 export type QueueAction='syncRecord'|'finalizeRecord'
 type QueueItem={id:string;action:QueueAction;record:QcRecord;createdAt:number}
 
-function openDb():Promise<IDBDatabase>{return new Promise((resolve,reject)=>{const request=indexedDB.open(DB_NAME,VERSION);request.onupgradeneeded=()=>{const db=request.result;if(!db.objectStoreNames.contains('drafts'))db.createObjectStore('drafts',{keyPath:'key'});if(!db.objectStoreNames.contains(STORE))db.createObjectStore(STORE,{keyPath:'id'})};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error||new Error('Penyimpanan offline tidak tersedia.'))})}
-async function allItems():Promise<QueueItem[]>{const db=await openDb();try{return await new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readonly'),r=tx.objectStore(STORE).getAll();r.onsuccess=()=>resolve((r.result||[]) as QueueItem[]);r.onerror=()=>reject(r.error)})}finally{db.close()}}
-async function replaceItems(items:QueueItem[]):Promise<void>{const db=await openDb();try{await new Promise<void>((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite'),store=tx.objectStore(STORE);store.clear();items.forEach(item=>store.put(item));tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error)})}finally{db.close()}}
+async function allItems():Promise<QueueItem[]>{
+  const db=await openLocalDb()
+  try{return await new Promise((resolve,reject)=>{const tx=db.transaction(QUEUE_STORE,'readonly'),r=tx.objectStore(QUEUE_STORE).getAll();r.onsuccess=()=>resolve((r.result||[]) as QueueItem[]);r.onerror=()=>reject(r.error)})}
+  finally{db.close()}
+}
+
+async function replaceItems(items:QueueItem[]):Promise<void>{
+  const db=await openLocalDb()
+  try{await new Promise<void>((resolve,reject)=>{const tx=db.transaction(QUEUE_STORE,'readwrite'),store=tx.objectStore(QUEUE_STORE);store.clear();items.forEach(item=>store.put(item));tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error)})}
+  finally{db.close()}
+}
 
 export async function queueCount(){return(await allItems()).length}
 export async function discardQueuedRecord(recordId:string){await replaceItems((await allItems()).filter(item=>item.record.id!==recordId))}
