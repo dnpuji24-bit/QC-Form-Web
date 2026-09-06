@@ -29,7 +29,8 @@ export default function OperationalDashboard({ records, master, loading, onRefre
     }, 0)
     const paddocks = new Set(filtered.map((r) => r.paddock).filter(Boolean)).size
     const units = new Set(fert.map((r) => String(r.noUnit || '')).filter(Boolean)).size
-    return { spray: spray.length, fert: fert.length, uploaded: uploaded.length, pending: pending.length, sprayArea, fertArea, fertKg, paddocks, units }
+    const uploadProgress = filtered.length ? Math.round(uploaded.length / filtered.length * 100) : 0
+    return { spray: spray.length, fert: fert.length, uploaded: uploaded.length, pending: pending.length, sprayArea, fertArea, fertKg, paddocks, units, uploadProgress }
   }, [filtered])
 
   const activityRows = useMemo(() => {
@@ -54,15 +55,19 @@ export default function OperationalDashboard({ records, master, loading, onRefre
   }, [master])
 
   return <section>
-    <div className="section-head"><div><div className="eyebrow">OPERASIONAL</div><h2>Dashboard QC</h2></div><button className="secondary" onClick={onRefresh} disabled={loading}>{loading?'Memuat…':'Refresh'}</button></div>
+    <div className="dashboard-hero">
+      <div><div className="eyebrow">QUALITY CONTROL • OPERASIONAL</div><h2>Dashboard QC</h2><p>Pantau progres pekerjaan, data lapangan, dan status upload dalam satu tampilan.</p></div>
+      <div className="hero-meta"><span className="hero-chip">{stats.paddocks} paddock aktif</span><span className="hero-chip">{stats.uploadProgress}% uploaded</span><span className="hero-chip">{filtered.length} record</span></div>
+    </div>
+    <div className="section-head"><div><div className="eyebrow">FILTER DATA</div><h2>Ringkasan Operasional</h2></div><button className="secondary" onClick={onRefresh} disabled={loading}>{loading?'Memuat…':'Refresh data'}</button></div>
     <div className="filters"><input placeholder="Cari paddock, unit, activity, mandor…" value={query} onChange={(e)=>setQuery(e.target.value)} /><select value={type} onChange={(e)=>setType(e.target.value as typeof type)}><option value="all">Semua form</option><option value="spray">Spraying</option><option value="fertilizer">Fertilizer</option></select></div>
     <div className="stats-grid">
       <Stat label="Total record" value={filtered.length} /><Stat label="Uploaded" value={stats.uploaded} /><Stat label="Draft / queue" value={stats.pending} /><Stat label="Paddock aktif" value={stats.paddocks} />
       <Stat label="Spray area" value={`${stats.sprayArea.toLocaleString('id-ID')} Ha`} /><Stat label="Fertilizer area" value={`${stats.fertArea.toLocaleString('id-ID')} Ha`} /><Stat label="Pupuk tercatat" value={`${stats.fertKg.toLocaleString('id-ID')} Kg`} /><Stat label="Unit fertilizer" value={stats.units} />
     </div>
     <div className="dashboard-grid">
-      <div className="panel"><h3>Rekap per Activity</h3><div className="table-wrap"><table><thead><tr><th>Activity</th><th>Record</th><th>Area</th><th>Uploaded</th><th>Progress</th></tr></thead><tbody>{activityRows.map(([name,row]) => <tr key={name}><td>{name}</td><td>{row.records}</td><td>{row.area.toLocaleString('id-ID')} Ha</td><td>{row.uploaded}</td><td>{row.records ? Math.round(row.uploaded/row.records*100) : 0}%</td></tr>)}{!activityRows.length && <tr><td colSpan={5} className="empty">Belum ada data.</td></tr>}</tbody></table></div></div>
-      <div className="panel"><h3>Ringkasan Data</h3><div className="metric-list"><div><span>Record Spraying</span><strong>{stats.spray}</strong></div><div><span>Record Fertilizer</span><strong>{stats.fert}</strong></div><div><span>Baris Plan tersedia</span><strong>{planSummary.rows}</strong></div><div><span>Total luas pada Plan</span><strong>{planSummary.plannedArea.toLocaleString('id-ID')} Ha</strong></div></div><p className="muted">Luas Plan hanya ditampilkan sebagai referensi dashboard; tidak mengisi Luas Aktual pada Form Spraying.</p></div>
+      <div className="panel"><div className="section-head"><div><div className="eyebrow">PROGRESS</div><h3>Rekap per Activity</h3></div><span className={`status-pill ${stats.pending ? 'warning' : 'success'}`}>{stats.pending ? `${stats.pending} belum uploaded` : 'Semua uploaded'}</span></div><div className="table-wrap"><table><thead><tr><th>Activity</th><th>Record</th><th>Area</th><th>Uploaded</th><th>Progress</th></tr></thead><tbody>{activityRows.map(([name,row]) => { const progress=row.records?Math.round(row.uploaded/row.records*100):0; return <tr key={name}><td><strong>{name}</strong></td><td>{row.records}</td><td>{row.area.toLocaleString('id-ID')} Ha</td><td>{row.uploaded}</td><td className="progress-cell"><strong>{progress}%</strong><div className="progress-track"><div className="progress-fill" style={{width:`${progress}%`}} /></div></td></tr> })}{!activityRows.length && <tr><td colSpan={5} className="empty">Belum ada data.</td></tr>}</tbody></table></div></div>
+      <div className="panel"><div className="eyebrow">DATA SOURCE</div><h3>Ringkasan Data</h3><div className="metric-list"><div><span>Record Spraying</span><strong>{stats.spray}</strong></div><div><span>Record Fertilizer</span><strong>{stats.fert}</strong></div><div><span>Baris Plan tersedia</span><strong>{planSummary.rows}</strong></div><div><span>Total luas pada Plan</span><strong>{planSummary.plannedArea.toLocaleString('id-ID')} Ha</strong></div></div><p className="muted">Luas Plan hanya menjadi referensi dashboard dan tidak pernah mengisi Luas Aktual pada Form Spraying.</p></div>
     </div>
   </section>
 }
