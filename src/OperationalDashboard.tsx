@@ -1,12 +1,20 @@
 import { useMemo, useState } from 'react'
 import type { MasterData, QcRecord } from './types'
 
-type Props = { records: QcRecord[]; master: MasterData; loading: boolean; onRefresh: () => void }
+type RecordPreset = { type?: 'all'|'spray'|'fertilizer'; query?: string; saveType?: string }
+type Props = { records: QcRecord[]; master: MasterData; loading: boolean; onRefresh: () => void; onOpenRecords?: (preset: RecordPreset) => void }
 const num = (v: unknown) => Number(String(v ?? '').replace(',','.')) || 0
 
-export default function OperationalDashboard({ records, master, loading, onRefresh }: Props) {
+function recordArea(r: QcRecord) {
+  if (r.formType === 'spray') return num(r.area || r.resultArea)
+  const fills = Array.isArray(r.pengisianList) ? r.pengisianList as Array<Record<string,unknown>> : []
+  return fills.length ? fills.reduce((a,f) => a + num(f.hasilKerja),0) : num(r.hasilKerja)
+}
+
+export default function OperationalDashboard({ records, loading, onRefresh, onOpenRecords }: Props) {
   const [type, setType] = useState<'all'|'spray'|'fertilizer'>('all')
   const [query, setQuery] = useState('')
+  const paddockOptions = useMemo(() => [...new Set(records.map((r) => String(r.paddock || '').trim()).filter(Boolean))].sort(), [records])
   const filtered = useMemo(() => records.filter((r) => {
     if (type !== 'all' && r.formType !== type) return false
     const hay = `${r.date} ${r.paddock} ${String(r.noUnit || '')} ${String(r.activity || '')} ${String(r.name || '')}`.toLowerCase()
@@ -18,19 +26,14 @@ export default function OperationalDashboard({ records, master, loading, onRefre
     const fert = filtered.filter((r) => r.formType === 'fertilizer')
     const uploaded = filtered.filter((r) => r.saveType === 'uploaded')
     const pending = filtered.filter((r) => r.saveType !== 'uploaded')
-    const sprayArea = spray.reduce((s,r) => s + num(r.area || r.resultArea), 0)
-    const fertArea = fert.reduce((s,r) => {
-      const fills = Array.isArray(r.pengisianList) ? r.pengisianList as Array<Record<string,unknown>> : []
-      return s + (fills.length ? fills.reduce((a,f) => a + num(f.hasilKerja),0) : num(r.hasilKerja))
-    }, 0)
+    const sprayArea = spray.reduce((s,r) => s + recordArea(r), 0)
+    const fertArea = fert.reduce((s,r) => s + recordArea(r), 0)
     const fertKg = fert.reduce((s,r) => {
       const fills = Array.isArray(r.pengisianList) ? r.pengisianList as Array<Record<string,unknown>> : []
       return s + (fills.length ? fills.reduce((a,f) => a + num(f.jumlah),0) : num(r.jumlah))
     }, 0)
-    const paddocks = new Set(filtered.map((r) => r.paddock).filter(Boolean)).size
     const units = new Set(fert.map((r) => String(r.noUnit || '')).filter(Boolean)).size
-    const uploadProgress = filtered.length ? Math.round(uploaded.length / filtered.length * 100) : 0
-    return { spray: spray.length, fert: fert.length, uploaded: uploaded.length, pending: pending.length, sprayArea, fertArea, fertKg, paddocks, units, uploadProgress }
+    return { spray: spray.length, fert: fert.length, uploaded: uploaded.length, pending: pending.length, sprayArea, fertArea, totalArea: sprayArea + fertArea, fertKg, units }
   }, [filtered])
 
   const activityRows = useMemo(() => {
@@ -38,38 +41,34 @@ export default function OperationalDashboard({ records, master, loading, onRefre
     filtered.forEach((r) => {
       const key = String(r.activity || r.type || 'Tanpa Activity')
       const prev = map.get(key) || {records:0,area:0,uploaded:0}
-      let area = r.formType === 'spray' ? num(r.area || r.resultArea) : 0
-      if (r.formType === 'fertilizer') {
-        const fills = Array.isArray(r.pengisianList) ? r.pengisianList as Array<Record<string,unknown>> : []
-        area = fills.length ? fills.reduce((a,f) => a + num(f.hasilKerja),0) : num(r.hasilKerja)
-      }
-      map.set(key,{records:prev.records+1,area:prev.area+area,uploaded:prev.uploaded+(r.saveType==='uploaded'?1:0)})
+      map.set(key,{records:prev.records+1,area:prev.area+recordArea(r),uploaded:prev.uploaded+(r.saveType==='uploaded'?1:0)})
     })
     return [...map.entries()].sort((a,b) => b[1].area-a[1].area)
   }, [filtered])
 
-  const planSummary = useMemo(() => {
-    const plans = (master.plans || master.plan || [])
-    const plannedArea = plans.reduce((s,p) => s + num(p.area || p.luas_target),0)
-    return { rows: plans.length, plannedArea }
-  }, [master])
-
+  const open = (preset: RecordPreset) => onOpenRecords?.(preset)
   return <section>
-    <div className="dashboard-hero">
-      <div><div className="eyebrow">QUALITY CONTROL • OPERASIONAL</div><h2>Dashboard QC</h2><p>Pantau progres pekerjaan, data lapangan, dan status upload dalam satu tampilan.</p></div>
-      <div className="hero-meta"><span className="hero-chip">{stats.paddocks} paddock aktif</span><span className="hero-chip">{stats.uploadProgress}% uploaded</span><span className="hero-chip">{filtered.length} record</span></div>
+    <div className="dashboard-hero compact-hero">
+      <div><div className="eyebrow">QUALITY CONTROL</div><h2>Dashboard QC</h2><p>Ringkasan pekerjaan yang sudah diinput dan status pelaporannya.</p></div>
     </div>
-    <div className="section-head"><div><div className="eyebrow">FILTER DATA</div><h2>Ringkasan Operasional</h2></div><button className="secondary" onClick={onRefresh} disabled={loading}>{loading?'Memuat…':'Refresh data'}</button></div>
-    <div className="filters"><input placeholder="Cari paddock, unit, activity, mandor…" value={query} onChange={(e)=>setQuery(e.target.value)} /><select value={type} onChange={(e)=>setType(e.target.value as typeof type)}><option value="all">Semua form</option><option value="spray">Spraying</option><option value="fertilizer">Fertilizer</option></select></div>
-    <div className="stats-grid">
-      <Stat label="Total record" value={filtered.length} /><Stat label="Uploaded" value={stats.uploaded} /><Stat label="Draft / queue" value={stats.pending} /><Stat label="Paddock aktif" value={stats.paddocks} />
-      <Stat label="Spray area" value={`${stats.sprayArea.toLocaleString('id-ID')} Ha`} /><Stat label="Fertilizer area" value={`${stats.fertArea.toLocaleString('id-ID')} Ha`} /><Stat label="Pupuk tercatat" value={`${stats.fertKg.toLocaleString('id-ID')} Kg`} /><Stat label="Unit fertilizer" value={stats.units} />
+    <div className="section-head"><div><div className="eyebrow">FILTER DATA</div><h2>Ringkasan Pekerjaan</h2></div><button className="secondary" onClick={onRefresh} disabled={loading}>{loading?'Memuat…':'Refresh data'}</button></div>
+    <div className="filters dashboard-filters"><div><input list="worked-paddocks" placeholder="Cari / pilih paddock yang sudah dikerjakan…" value={query} onChange={(e)=>setQuery(e.target.value)} /><datalist id="worked-paddocks">{paddockOptions.map((x)=><option value={x} key={x}/>)}</datalist></div><select value={type} onChange={(e)=>setType(e.target.value as typeof type)}><option value="all">Semua form</option><option value="spray">Spraying</option><option value="fertilizer">Fertilizer</option></select></div>
+    <div className="stats-grid dashboard-stats">
+      <Stat label="Total record" value={filtered.length} onClick={()=>open({type,query})} hint="Lihat semua data" />
+      <Stat label="Uploaded" value={stats.uploaded} onClick={()=>open({type,query,saveType:'uploaded'})} hint="Lihat yang sudah upload" />
+      <Stat label="Draft / queue" value={stats.pending} onClick={()=>open({type,query,saveType:'pending'})} hint="Lihat yang belum upload" />
+      <Stat label="Total area dikerjakan" value={`${stats.totalArea.toLocaleString('id-ID')} Ha`} onClick={()=>open({type,query})} hint="Akumulasi hasil input" />
+      <Stat label="Spray area" value={`${stats.sprayArea.toLocaleString('id-ID')} Ha`} onClick={()=>open({type:'spray',query})} hint={`${stats.spray} record`} />
+      <Stat label="Fertilizer area" value={`${stats.fertArea.toLocaleString('id-ID')} Ha`} onClick={()=>open({type:'fertilizer',query})} hint={`${stats.fert} record`} />
+      <Stat label="Pupuk tercatat" value={`${stats.fertKg.toLocaleString('id-ID')} Kg`} onClick={()=>open({type:'fertilizer',query})} hint="Dari pengisian fertilizer" />
+      <Stat label="Unit fertilizer" value={stats.units} onClick={()=>open({type:'fertilizer',query})} hint="Unit unik yang tercatat" />
     </div>
-    <div className="dashboard-grid">
-      <div className="panel"><div className="section-head"><div><div className="eyebrow">PROGRESS</div><h3>Rekap per Activity</h3></div><span className={`status-pill ${stats.pending ? 'warning' : 'success'}`}>{stats.pending ? `${stats.pending} belum uploaded` : 'Semua uploaded'}</span></div><div className="table-wrap"><table><thead><tr><th>Activity</th><th>Record</th><th>Area</th><th>Uploaded</th><th>Progress</th></tr></thead><tbody>{activityRows.map(([name,row]) => { const progress=row.records?Math.round(row.uploaded/row.records*100):0; return <tr key={name}><td><strong>{name}</strong></td><td>{row.records}</td><td>{row.area.toLocaleString('id-ID')} Ha</td><td>{row.uploaded}</td><td className="progress-cell"><strong>{progress}%</strong><div className="progress-track"><div className="progress-fill" style={{width:`${progress}%`}} /></div></td></tr> })}{!activityRows.length && <tr><td colSpan={5} className="empty">Belum ada data.</td></tr>}</tbody></table></div></div>
-      <div className="panel"><div className="eyebrow">DATA SOURCE</div><h3>Ringkasan Data</h3><div className="metric-list"><div><span>Record Spraying</span><strong>{stats.spray}</strong></div><div><span>Record Fertilizer</span><strong>{stats.fert}</strong></div><div><span>Baris Plan tersedia</span><strong>{planSummary.rows}</strong></div><div><span>Total luas pada Plan</span><strong>{planSummary.plannedArea.toLocaleString('id-ID')} Ha</strong></div></div><p className="muted">Luas Plan hanya menjadi referensi dashboard dan tidak pernah mengisi Luas Aktual pada Form Spraying.</p></div>
+    <div className="panel activity-panel"><div className="section-head"><div><div className="eyebrow">HASIL PER ACTIVITY</div><h3>Luas yang Sudah Dikerjakan</h3></div><span className={`status-pill ${stats.pending ? 'warning' : 'success'}`}>{stats.pending ? `${stats.pending} belum uploaded` : 'Semua uploaded'}</span></div>
+      <div className="activity-card-list">{activityRows.map(([name,row]) => { const progress=row.records?Math.round(row.uploaded/row.records*100):0; return <button type="button" className="activity-card" key={name} onClick={()=>open({type,query:name})}><span><strong>{name}</strong><small>{row.records} record • {row.uploaded} uploaded</small></span><span className="activity-area">{row.area.toLocaleString('id-ID')} Ha<small>{progress}% uploaded</small></span></button> })}{!activityRows.length && <div className="empty">Belum ada data.</div>}</div>
     </div>
   </section>
 }
 
-function Stat({ label, value }: { label:string; value:number|string }) { return <div className="stat"><span>{label}</span><strong>{value}</strong></div> }
+function Stat({ label, value, hint, onClick }: { label:string; value:number|string; hint?:string; onClick?:()=>void }) {
+  return <button type="button" className="stat stat-button" onClick={onClick}><span>{label}</span><strong>{value}</strong>{hint && <small>{hint}</small>}</button>
+}
