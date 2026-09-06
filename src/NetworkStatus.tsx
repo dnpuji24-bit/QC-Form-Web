@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { flushQueue, queueCount } from './offline'
 
-type Props = { token: string; onSynced?: () => void }
+const TOKEN_KEY = 'qc_token'
 
-export default function NetworkStatus({ token, onSynced }: Props) {
+export default function NetworkStatus() {
   const [online, setOnline] = useState(() => navigator.onLine)
   const [queued, setQueued] = useState(() => queueCount())
   const [syncing, setSyncing] = useState(false)
@@ -14,13 +14,14 @@ export default function NetworkStatus({ token, onSynced }: Props) {
     const goOffline = () => { setOnline(false); refreshQueue() }
     const goOnline = async () => {
       setOnline(true)
+      const token = sessionStorage.getItem(TOKEN_KEY) || ''
       if (!token || syncing) return refreshQueue()
       setSyncing(true)
       try {
         const result = await flushQueue(token)
         if (!mounted) return
         setQueued(result.left)
-        if (result.sent > 0) onSynced?.()
+        if (result.sent > 0) window.dispatchEvent(new CustomEvent('qc:queue-flushed', { detail: result }))
       } catch {
         refreshQueue()
       } finally {
@@ -29,7 +30,10 @@ export default function NetworkStatus({ token, onSynced }: Props) {
     }
     window.addEventListener('online', goOnline)
     window.addEventListener('offline', goOffline)
-    const timer = window.setInterval(refreshQueue, 3000)
+    const timer = window.setInterval(() => {
+      refreshQueue()
+      if (navigator.onLine && queueCount() > 0 && !syncing) void goOnline()
+    }, 4000)
     if (navigator.onLine && queueCount() > 0) void goOnline()
     return () => {
       mounted = false
@@ -37,9 +41,9 @@ export default function NetworkStatus({ token, onSynced }: Props) {
       window.removeEventListener('offline', goOffline)
       window.clearInterval(timer)
     }
-  }, [token])
+  }, [])
 
-  return <div className={`network-status ${online ? 'is-online' : 'is-offline'}`} title={online ? 'Koneksi tersedia' : 'Mode offline aktif'}>
+  return <div className={`network-status-floating ${online ? 'is-online' : 'is-offline'}`} title={online ? 'Koneksi tersedia' : 'Mode offline aktif'}>
     <span className="network-dot" />
     <span>{syncing ? 'Sinkronisasi…' : online ? 'Online' : 'Offline'}</span>
     {queued > 0 && <strong>{queued} antrean</strong>}
