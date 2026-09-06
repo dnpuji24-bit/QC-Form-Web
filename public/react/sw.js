@@ -1,4 +1,4 @@
-const CACHE = 'qc-react-v1'
+const CACHE = 'qc-react-v2'
 const APP_SHELL = ['/react/', '/react/manifest.webmanifest']
 
 self.addEventListener('install', (event) => {
