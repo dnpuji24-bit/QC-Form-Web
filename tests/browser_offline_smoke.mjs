@@ -78,12 +78,12 @@ let browser
 try {
   console.log('Browser smoke: navigator offline -> local queue -> online replay')
   dev = start('npm', ['run', 'dev', '--', '--host', '127.0.0.1', '--port', '5173'])
-  await waitHttp('http://127.0.0.1:5173/offline-harness.html')
+  await waitHttp('http://127.0.0.1:5173/react/offline-harness.html')
 
   browser = await chromium.launch({ executablePath, headless: true })
   const context = await browser.newContext()
   const page = await context.newPage()
-  await page.goto('http://127.0.0.1:5173/offline-harness.html', { waitUntil: 'networkidle' })
+  await page.goto('http://127.0.0.1:5173/react/offline-harness.html', { waitUntil: 'networkidle' })
   await page.waitForFunction(() => window.__qcOfflineReady === true)
   await page.evaluate((id) => window.__qcOffline.discardQueuedRecord(id), recordId)
 
@@ -122,7 +122,10 @@ try {
   await pwaPage.goto('http://127.0.0.1:4173/react/', { waitUntil: 'networkidle' })
   await pwaPage.evaluate(async () => {
     if (!('serviceWorker' in navigator)) throw new Error('serviceWorker unsupported')
-    await navigator.serviceWorker.ready
+    await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('service worker ready timeout')), 8000)),
+    ])
   })
   await pwaPage.waitForTimeout(500)
   await pwaContext.setOffline(true)
@@ -141,3 +144,6 @@ try {
 }
 
 console.log('Browser offline/PWA smoke completed successfully.')
+// npm can leave Vite child processes alive after SIGTERM. All assertions and cleanup
+// are complete at this point, so explicitly terminate the smoke runner successfully.
+process.exit(0)
