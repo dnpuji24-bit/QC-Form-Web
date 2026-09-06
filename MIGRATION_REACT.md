@@ -1,86 +1,97 @@
 # Migrasi React + TypeScript + Vite
 
-Cabang `migrate/react-typescript-vite` adalah jalur migrasi aman dari frontend lama di `public/`.
+Migrasi dilakukan bertahap agar aplikasi operasional lama tetap aman.
 
-## Prinsip
-- Frontend lama tetap di `/`; React berjalan paralel di `/react/`.
-- Google Spreadsheet tetap menjadi sumber data operasional.
-- Form QC Spray tetap 52 kolom dan Form QC Fertilizer tetap 23 kolom.
-- Otorisasi final selalu di backend Apps Script.
+## Prinsip utama
 
-## Sudah dimigrasikan
-- React + TypeScript + Vite.
-- Auth/session/login/register/logout.
-- API client bertipe.
-- PWA React scope `/react/` + offline queue/auto-sync.
-- Monitoring Data QC, edit/delete sesuai role, finalize/upload.
+- `Code.gs` dan struktur Spreadsheet tetap menjadi backend/sumber data operasional.
+- Endpoint Apps Script, token sesi, role, Record ID, dan format data tidak diubah oleh migrasi frontend.
+- Aplikasi lama tetap berada di `/`.
+- Build React ditempatkan di `/react/` untuk pengujian paralel sebelum cutover.
 
-### Form Spraying
-- Luas Aktual manual; luas Plan tidak mengisi/reset form.
-- Activity → Deskripsi → Type → Paddock → Variety.
-- Unit/No Unit multi-select.
-- Pesticide 1–4, estimated usage otomatis, actual usage.
-- Adjuvant estimated usage otomatis.
-- HOLD, Working/Effective Working, foto utama/foto HOLD.
-- Edit draft, upload/finalize, offline queue.
-- Regression checker 52 kolom.
+## Status migrasi
 
-### Form Fertilizer
-- Daily Session unit-centric dengan banyak Unit Card.
-- `sessionId` mengelompokkan banyak unit tanpa mengubah Record ID per unit.
-- Edit seluruh session bersama dan upload seluruh unit dalam session.
-- Per Pengisian: Dosis Target, Hose, Jenis Pupuk, Jumlah, Hasil Kerja, Dosis Aktual otomatis, Meratakan Pupuk.
-- Duplicate Unit Card dan Tambah Pengisian cepat.
-- Downtime/Issue tersimpan dalam JSON dan diringkas ke Catatan saat final upload.
-- Foto QC, offline queue, backward-compatible backend `writeFertilizer_` v46.1.
-- Tombol Foto Laporan disiapkan untuk OCR masa depan.
-- Regression checker 23 kolom + session grouping.
+### Spraying
 
-### Users & Approval
-- Menu Users hanya tampil untuk `owner`.
-- Daftar pending/approved user.
-- Owner dapat memilih role lalu Approve/Reject.
-- Menggunakan endpoint backend `users`, `approveUser`, dan `rejectUser` yang sudah ada.
-- Backend tetap membatasi endpoint Users/approval hanya untuk Owner.
+Sudah tersedia di React:
+- field umum dan dependency Activity → Deskripsi → Type → Paddock → Variety
+- luas aktual manual
+- Unit / No. Unit
+- Dropper, Nozzle, Droplet Size, Height, Row Spacing, Speed
+- Pesticide 1–4 otomatis dari master material
+- Estimated / Actual Usage
+- Adjuvant dan perhitungan estimated usage
+- Water Rate / Water Quality / Actual Usage
+- kondisi cuaca
+- HOLD berulang + validasi waktu
+- foto QC utama dan foto HOLD
+- draft/offline queue + auto sync
+- edit draft
+- finalize/upload
+- role guard dan delete sesuai model backend
+- regression check terhadap 52 kolom backend
 
-### Activity Logs
-- Menu Activity Logs tampil untuk `owner`, `manager`, `admin`, dan `asisten`.
-- Menampilkan Timestamp, User, Role, ActionType, Description, dan IP/Device.
-- Search/filter teks pada audit trail.
-- Menggunakan endpoint backend `logs` yang sudah ada.
+### Fertilizer
 
-### Dashboard Operasional
-- Filter Semua/Spraying/Fertilizer dan pencarian paddock/unit/activity/mandor.
-- KPI Total record, Uploaded, Draft/Queue, Paddock aktif.
-- KPI Spray Area, Fertilizer Area, Pupuk tercatat, Unit Fertilizer.
-- Rekap per Activity: jumlah record, area, uploaded, progress upload.
-- Ringkasan jumlah baris Plan dan total luas Plan hanya sebagai referensi; tidak memengaruhi Luas Aktual Form Spray.
-- Dashboard tersedia untuk seluruh user yang berhasil login; visibilitas data tetap mengikuti hasil endpoint `records` dari backend.
+Sudah tersedia di React:
+- Daily Session berbasis `sessionId`
+- multi Unit Card
+- pengisian per unit
+- dosis aktual otomatis
+- downtime
+- foto
+- edit session
+- upload seluruh session
+- regression check struktur 23 kolom backend
 
-### Navigasi berdasarkan role
-- Owner: Dashboard, Spray, Fertilizer, Data QC, Users, Activity Logs, Pengaturan.
-- Asisten: Dashboard, Spray, Fertilizer, Data QC, Activity Logs, Pengaturan.
-- Manager/Admin: Dashboard, Data QC, Activity Logs, Pengaturan.
-- Mandor Spraying: Dashboard, Input Spraying, Data QC, Pengaturan.
-- Mandor Fertilizer: Dashboard, Input Fertilizer, Data QC, Pengaturan.
-- Pengunjung: Dashboard, Data QC, Pengaturan.
+### Administrasi dan monitoring
 
-## Regression checks
+- Dashboard operasional dengan KPI, filter, rekap Activity, area Spray/Fertilizer, pupuk, unit, progress upload, dan Plan sebagai referensi.
+- Users & Approval untuk Owner.
+- Activity Logs untuk Owner/Manager/Admin/Asisten.
+- indikator online/offline dan jumlah antrean lokal.
+
+## UI / UX
+
+Theme modern profesional disimpan terpisah di `src/theme.css` agar perubahan visual tidak mengganggu logika form. UI mencakup header/nav sticky, hierarchy yang lebih jelas, card/table/form yang bersih, Unit Card Fertilizer, dashboard hero, progress bar, status upload, focus state, dan responsive layout untuk desktop/mobile.
+
+## CI dan regression checks
+
+GitHub Actions `.github/workflows/react-ci.yml` menjalankan:
+
 ```bash
-python3 tests/spray_react_mapping_check.py
-python3 tests/fertilizer_react_mapping_check.py
-python3 tests/admin_dashboard_react_check.py
+python tests/*_check.py
+npm run typecheck
+npm run build
+node tests/runtime_smoke.mjs
 ```
 
-## Masih wajib sebelum cutover
-- `npm install`
-- `npm run typecheck`
-- `npm run build`
-- Runtime/regression test dengan backend Apps Script aktual.
-- Uji role Owner/Manager/Admin/Asisten/Mandor Spraying/Mandor Fertilizer/Pengunjung.
-- Uji offline → reconnect → sync serta upload foto di perangkat lapangan.
-- Setelah seluruh parity lolos, baru pertimbangkan mengganti `/` dengan React.
+CI terbaru sudah lolos regression checks, TypeScript typecheck, dan Vite production build.
 
-Tahap fitur utama React sekarang mencakup Spraying, Fertilizer, Users/Approval, Activity Logs, dan Dashboard operasional. Fokus berikutnya adalah verifikasi build/runtime dan hardening sebelum cutover produksi.
+## Runtime smoke test Apps Script
 
-> Jangan merge/cutover ke produksi sebelum build dan runtime test berhasil. Backend Apps Script tetap menjadi sumber otorisasi dan Spreadsheet tetap menjadi sumber data utama.
+Smoke test nyata ke deployment Apps Script ditambahkan melalui `tests/runtime_smoke.mjs`.
+
+Hasil public smoke terbaru:
+- `health`: PASS
+- `masterData`: PASS
+- invalid session/token rejection: PASS
+- deployment aktif melaporkan **API v46.0.0**
+
+Catatan penting: `Code.gs` pada branch migrasi saat ini adalah **v46.1.0**, sehingga deployment Apps Script aktif belum sama dengan kode backend terbaru di repository. Sebelum full authenticated smoke test / cutover, backend sebaiknya dideploy sebagai versi baru dengan URL `/exec` yang sama lalu `health` diverifikasi melaporkan versi yang sesuai.
+
+Authenticated Owner smoke test bersifat read-only dan otomatis berjalan jika repository Actions Secrets berikut tersedia:
+- `SMOKE_OWNER_USERNAME`
+- `SMOKE_OWNER_PASSWORD`
+
+Test tersebut memeriksa login Owner, `me`, `records`, `users`, `logs`, dan logout. Credential tidak disimpan di source code dan tidak dicetak ke log.
+
+## Sebelum merge / cutover
+
+1. Deploy `Code.gs` terbaru ke deployment Apps Script yang sama dan verifikasi versi `health`.
+2. Jalankan authenticated Owner smoke test.
+3. Lakukan smoke test write/finalize dengan data uji terkontrol untuk Spraying dan Fertilizer, termasuk foto Drive dan offline → online.
+4. Uji role non-Owner agar permission backend sesuai.
+5. Setelah seluruh runtime test lulus, baru pertimbangkan mengubah PR dari Draft dan melakukan cutover.
+
+PR migrasi tetap Draft sampai langkah runtime di atas selesai.
