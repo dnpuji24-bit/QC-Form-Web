@@ -30,40 +30,43 @@ Cabang `migrate/react-typescript-vite` dibuat sebagai jalur migrasi aman dari fr
 
 Sudah dipindahkan ke `src/SprayForm.tsx`:
 
-- Common field: tanggal, shift, status, start/end time, mandor, asisten, unit multi-select, No. Unit multi-select, luas aktual.
+- Common field: tanggal, shift, status, start/end time, mandor, asisten, unit multi-select, No. Unit multi-select, **Luas Aktual manual**.
+- Nilai luas dari sheet Plan tidak digunakan untuk mengisi atau mereset Luas Aktual.
 - Dependency program: Activity → Deskripsi → Type → Paddock → Variety.
-- Luas target otomatis dari Plan saat Paddock dipilih.
 - Dropper, Nozzle, Droplet Size, Height, Row Spacing, Speed.
 - Pesticide 1–4 otomatis berdasarkan Deskripsi dari master Bahan.
-- Estimated Usage pestisida = dosis/Ha × luas aktual.
+- Estimated Usage pestisida otomatis = dosis/Ha × Luas Aktual.
 - Actual Usage pestisida.
-- Adjuvant, dosis mL/L, Estimated Usage adjuvant, Actual Usage adjuvant.
+- Adjuvant, dosis mL/L, Estimated Usage adjuvant otomatis = dosis × water rate × luas ÷ 1.000, Actual Usage adjuvant.
 - Water Rate, Water Quality, Actual Usage Air, Wind Speed, Temperature, Humidity, Delta T, Weather Condition.
 - HOLD berulang dan validasi interval terhadap jam Working.
 - Kalkulasi Working, total HOLD, dan Effective Working.
+- Foto QC utama dan foto per HOLD, dikompresi sebelum dikirim ke backend.
 - Catatan.
-- Payload tetap memakai nama key lama (`pesticide1..4`, `dosage1..4`, `estUsagePesticide1..4`, `actUsagePesticide1..4`, `holdIntervals`, dan seterusnya).
+- Payload tetap memakai nama key lama (`pesticide1..4`, `dosage1..4`, `estUsagePesticide1..4`, `actUsagePesticide1..4`, `holdIntervals`, `photoBase64`, dan seterusnya).
 - Penyimpanan menggunakan endpoint `syncRecord` yang sama dengan frontend lama.
+- Offline queue React di `src/offline.ts`; record disimpan ke antrean saat jaringan putus dan otomatis dicoba kembali saat online.
+- Finalize/upload dari halaman Data QC memakai endpoint `finalizeRecord`; bila offline, upload juga masuk antrean.
 - Menu Input Spraying hanya tampil untuk `owner`, `asisten`, dan `mandor_spraying`; otorisasi final tetap divalidasi backend.
+- Regression checker `tests/spray_react_mapping_check.py` memastikan 52 kolom, formula estimated usage, area manual, foto, dan offline path tetap terpetakan.
 
 ## Belum dipindahkan sebelum frontend React boleh menggantikan versi lama
 
-- Upload foto QC utama dan foto per HOLD.
-- Draft lokal, offline queue, dan sinkronisasi otomatis.
-- Finalize/upload record dari halaman Data QC.
 - Edit/delete record dengan semua pembatasan role di UI.
 - Form Fertilizer lengkap termasuk multiple pengisian.
 - PWA/service worker versi React.
 - Halaman Users/approval.
 - Activity Logs.
 - Dashboard operasional setara versi lama.
-- Pengujian regresi penuh mapping 52 kolom Spray dan 23 kolom Fertilizer.
+- Pengujian regresi 23 kolom Fertilizer.
+- Pengujian build/runtime nyata (`npm run typecheck`, `npm run build`) sebelum cutover.
 
 ## Menjalankan lokal
 
 ```bash
 npm install
 npm run typecheck
+python3 tests/spray_react_mapping_check.py
 npm run build
 npm run dev
 ```
