@@ -1,0 +1,46 @@
+name: React migration checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [migrate/react-typescript-vite]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Regression checks
+        run: |
+          for test in tests/*_check.py; do
+            echo "Running $test"
+            python "$test"
+          done
+
+      - name: TypeScript typecheck
+        run: npm run typecheck
+
+      - name: Vite production build
+        run: npm run build
