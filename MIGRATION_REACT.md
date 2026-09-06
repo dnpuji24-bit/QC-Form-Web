@@ -63,13 +63,9 @@ Sudah dipindahkan ke `src/SprayForm.tsx`:
 
 ```bash
 npm install
-npm run dev
-```
-
-Build React paralel:
-
-```bash
+npm run typecheck
 npm run build
+npm run dev
 ```
 
 Hasil build berada di `public/react/`. Setelah itu Firebase Hosting dapat dideploy seperti biasa:
