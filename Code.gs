@@ -1,5 +1,5 @@
 /**
- * QC Form Web API v46.1.1
+ * QC Form Web API v46.1.2
  * Deploy as a Web App from the Apps Script project bound to "Application QC Form".
  * Execute as: Me. Access: Anyone.
  *
@@ -9,7 +9,7 @@
  * - Permissions are enforced here; the browser UI is not trusted.
  */
 var QC = {
-  VERSION: '46.1.1',
+  VERSION: '46.1.2',
   SESSION_SECONDS: 21600,
   SHEETS: {
     USERS: 'Users', LOGS: 'Activity_Logs', CLOUD: 'Cloud_Monitoring',
@@ -134,8 +134,20 @@ function finalizeRecord_(user, rec) {
   rec=validateRecord_(rec); if(!canInput_(user,rec.formType)) throw new Error('AUTH_FORBIDDEN');
   rec.inputtedBy=user.username; rec.inputtedByName=user.fullName; rec.saveType='uploaded'; rec.uploadedAt=new Date().toISOString();
   preparePhotoLinks_(rec);
-  var result = rec.formType==='fertilizer' ? writeFertilizer_(rec) : writeSpray_(rec);
-  upsertCloud_(rec,user); log_(null,user,'UPLOAD_'+rec.formType.toUpperCase(),'Upload '+rec.paddock,rec.deviceInfo);
+  var lock=LockService.getScriptLock(); lock.waitLock(20000);
+  var result=0;
+  try {
+    if(rec.formType==='fertilizer') {
+      deleteById_(getSheet_(QC.SHEETS.FERT),rec.id,23,2);
+      result=writeFertilizer_(rec);
+    } else {
+      var spraySheet=getSheet_(QC.SHEETS.SPRAY);
+      deleteById_(spraySheet,rec.id,52,detectSprayHeaderRow_(spraySheet)+1);
+      result=writeSpray_(rec);
+    }
+    upsertCloud_(rec,user);
+  } finally { lock.releaseLock(); }
+  log_(null,user,'UPLOAD_'+rec.formType.toUpperCase(),'Upload/koreksi '+rec.paddock,rec.deviceInfo);
   return {ok:true,recordId:rec.id,rows:result,photoDriveUrl:rec.photoDriveUrl||''};
 }
 
@@ -176,7 +188,6 @@ function upsertCloud_(rec,user) {
   setBy_(values,map,'LastUpdated',new Date());setBy_(values,map,'RecordID',rec.id);setBy_(values,map,'FormType',rec.formType);setBy_(values,map,'Date',rec.date);setBy_(values,map,'Shift',rec.shift);setBy_(values,map,'Mandor',rec.name);setBy_(values,map,'Assistan',rec.nameOfAssistan);setBy_(values,map,'Paddock',rec.paddock);setBy_(values,map,'Status',rec.status);setBy_(values,map,'SaveType',rec.saveType||'draft');setBy_(values,map,'SummaryDetails',(rec.activity||rec.type||'')+' | '+(rec.area||0)+' Ha');setBy_(values,map,'RecordJSON',JSON.stringify(stored));setBy_(values,map,'PhotoLink',rec.photoDriveUrl||'');setBy_(values,map,'UpdatedBy',user.username);
   if(row) sh.getRange(row,1,1,values.length).setValues([values]); else sh.appendRow(values);
 }
-
 function writeSpray_(rec) {
   var working=JSON.parse(JSON.stringify(rec));working.status='Working';working.noted=workingNote_(rec);working.photoBase64='';var rows=[working]; (rec.holdIntervals||[]).forEach(function(h,i){var x=JSON.parse(JSON.stringify(rec));x.id=rec.id+'_hold_'+(i+1);x.status='Hold';x.startTime=h.start;x.endTime=h.end;x.area=0;x.windSpeed=h.windSpeed;x.temperature=h.temperature;x.humidity=h.humidity;x.deltaT=h.deltaT;x.weatherCondition=h.weather;x.noted='[HOLD '+(i+1)+'] '+(h.reason||'Jeda Lapangan')+(h.note?' - '+h.note:'');x.photoBase64='';x.photoDriveUrl=h.photoDriveUrl||'';rows.push(x);});
   var sh=getSheet_(QC.SHEETS.SPRAY),headerRow=detectSprayHeaderRow_(sh); ensureSheet_(SpreadsheetApp.getActiveSpreadsheet(),QC.SHEETS.SPRAY,QC.SPRAY_HEADERS,headerRow);
