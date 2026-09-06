@@ -1,7 +1,7 @@
 {
   "name": "qc-form-web",
   "private": true,
-  "version": "48.0.0",
+  "version": "48.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,7 +14,9 @@
     "vite": "latest",
     "typescript": "latest",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "html2canvas": "latest",
+    "jspdf": "latest"
   },
   "devDependencies": {
     "@types/react": "latest",
