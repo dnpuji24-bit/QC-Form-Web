@@ -72,13 +72,13 @@ CI terbaru sudah lolos regression checks, TypeScript typecheck, dan Vite product
 
 Smoke test nyata ke deployment Apps Script ditambahkan melalui `tests/runtime_smoke.mjs`.
 
-Hasil public smoke terbaru:
+Hasil public smoke sebelumnya:
 - `health`: PASS
 - `masterData`: PASS
 - invalid session/token rejection: PASS
-- deployment aktif melaporkan **API v46.0.0**
+- deployment aktif sebelumnya melaporkan **API v46.0.0**
 
-Catatan penting: `Code.gs` pada branch migrasi saat ini adalah **v46.1.0**, sehingga deployment Apps Script aktif belum sama dengan kode backend terbaru di repository. Sebelum full authenticated smoke test / cutover, backend sebaiknya dideploy sebagai versi baru dengan URL `/exec` yang sama lalu `health` diverifikasi melaporkan versi yang sesuai.
+Pada 2026-09-06 backend kemudian dideploy ulang oleh Owner dengan `Code.gs` v46.1.0 pada deployment `/exec` yang sama dan repository secrets `SMOKE_OWNER_USERNAME` serta `SMOKE_OWNER_PASSWORD` sudah dikonfigurasi. Commit ini digunakan untuk memicu authenticated runtime smoke test baru dan memverifikasi versi backend aktif.
 
 Authenticated Owner smoke test bersifat read-only dan otomatis berjalan jika repository Actions Secrets berikut tersedia:
 - `SMOKE_OWNER_USERNAME`
@@ -88,7 +88,7 @@ Test tersebut memeriksa login Owner, `me`, `records`, `users`, `logs`, dan logou
 
 ## Sebelum merge / cutover
 
-1. Deploy `Code.gs` terbaru ke deployment Apps Script yang sama dan verifikasi versi `health`.
+1. Verifikasi `health` deployment aktif melaporkan `v46.1.0`.
 2. Jalankan authenticated Owner smoke test.
 3. Lakukan smoke test write/finalize dengan data uji terkontrol untuk Spraying dan Fertilizer, termasuk foto Drive dan offline → online.
 4. Uji role non-Owner agar permission backend sesuai.
