@@ -76,7 +76,7 @@ let dev
 let preview
 let browser
 try {
-  console.log('Browser smoke: navigator offline -> local queue -> online replay')
+  console.log('Browser smoke: navigator offline -> IndexedDB queue -> online replay')
   dev = start('npm', ['run', 'dev', '--', '--host', '127.0.0.1', '--port', '5173'])
   await waitHttp('http://127.0.0.1:5173/react/offline-harness.html')
 
@@ -91,16 +91,16 @@ try {
   assert(await page.evaluate(() => navigator.onLine === false), 'navigator.onLine did not become false')
   const queued = await page.evaluate(async ({ token, record }) => {
     const result = await window.__qcOffline.sendOrQueue(token, 'syncRecord', record)
-    return { ...result, count: window.__qcOffline.queueCount() }
+    return { ...result, count: await window.__qcOffline.queueCount() }
   }, { token, record })
   assert(queued.queued === true && queued.count === 1, `offline record was not queued: ${JSON.stringify(queued)}`)
-  console.log('  ✓ offline record queued in browser localStorage')
+  console.log('  ✓ offline record queued in browser IndexedDB')
 
   await context.setOffline(false)
   await page.waitForFunction(() => navigator.onLine === true)
   const flushed = await page.evaluate(async (token) => {
     const result = await window.__qcOffline.flushQueue(token)
-    return { ...result, count: window.__qcOffline.queueCount() }
+    return { ...result, count: await window.__qcOffline.queueCount() }
   }, token)
   assert(flushed.sent === 1 && flushed.left === 0 && flushed.count === 0, `queue replay failed: ${JSON.stringify(flushed)}`)
   const records = await apiGet('records', token)
@@ -144,6 +144,4 @@ try {
 }
 
 console.log('Browser offline/PWA smoke completed successfully.')
-// npm can leave Vite child processes alive after SIGTERM. All assertions and cleanup
-// are complete at this point, so explicitly terminate the smoke runner successfully.
 process.exit(0)
