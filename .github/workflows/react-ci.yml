@@ -64,6 +64,10 @@ jobs:
         if: github.event_name == 'push'
         run: npm install --no-save --no-audit --no-fund playwright-core
 
+      - name: Patch browser harness path for Vite base
+        if: github.event_name == 'push'
+        run: sed -i "s#http://127.0.0.1:5173/offline-harness.html#http://127.0.0.1:5173/react/offline-harness.html#g" tests/browser_offline_smoke.mjs
+
       - name: Browser offline and PWA smoke
         if: github.event_name == 'push'
         env:
