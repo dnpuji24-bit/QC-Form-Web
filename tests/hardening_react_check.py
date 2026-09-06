@@ -8,7 +8,7 @@ app = (root/'src'/'App.tsx').read_text(encoding='utf-8')
 sw = (root/'public'/'react'/'sw.js').read_text(encoding='utf-8')
 styles = (root/'src'/'theme.css').read_text(encoding='utf-8')
 
-for token in ["QueueAction = 'syncRecord' | 'finalizeRecord'", "if (!navigator.onLine)", "discardQueuedRecord(record.id)", "flushQueue(token)", "/sesi|login|izin|password|kata sandi|auth/i"]:
+for token in ["QueueAction = 'syncRecord' | 'finalizeRecord'", "if (!navigator.onLine)", "discardQueuedRecord(record.id)", "export async function flushQueue(token: string)", "/sesi|login|izin|password|kata sandi|auth/i"]:
     assert token in offline, f'Missing offline hardening token: {token}'
 
 for token in ['online', 'offline', 'queueCount()', 'flushQueue(token)', 'qc:queue-flushed']:
