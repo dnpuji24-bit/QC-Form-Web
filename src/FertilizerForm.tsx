@@ -194,7 +194,7 @@ export default function FertilizerForm({ token, user, master, initialRecords = [
 
   return <section>
     <div className="section-head"><div><div className="eyebrow">FERTILIZER DAILY SESSION</div><h2>{editing ? 'Edit Daily Session Fertilizer' : 'Input Fertilizer per Unit'}</h2><p className="muted">Session: {sessionId}</p></div><span className="badge">Unit-centric</span></div>
-    {editing && <div className="alert">Mode edit: {initialRecords.length} Unit Card dibuka sebagai satu Daily Session. Record ID tiap unit tetap dipertahankan.</div>}
+    {editing && <div className="alert">Mode edit: {initialRecords.length} Unit Card dibuka sebagai satu Daily Session. Record ID tiap unit tetap dipertahankan. Unit yang sudah tersimpan dihapus melalui Data QC, bukan hanya dikeluarkan dari card.</div>}
     <div className="panel session-bar">
       <label>Tanggal<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
       <label>Shift<select value={shift} onChange={(e) => setShift(e.target.value)}>{(master.shifts?.length ? master.shifts : ['1','2']).map((x) => <option key={x}>{x}</option>)}</select></label>
@@ -211,7 +211,7 @@ export default function FertilizerForm({ token, user, master, initialRecords = [
       const cardKg = card.fillings.reduce((sum, f) => sum + num(f.jumlah), 0)
       const cardHa = card.fillings.reduce((sum, f) => sum + num(f.hasilKerja), 0)
       return <article className="unit-card" key={card.id}>
-        <div className="unit-card-head"><div><div className="eyebrow">UNIT CARD {index + 1}</div><h3>{card.noUnit || 'Unit belum dipilih'}</h3><p>{card.paddock || 'Paddock -'} • {card.activity || 'Activity -'}{card.recordId ? ' • Draft tersimpan' : ''}</p></div><div className="row-actions"><button type="button" onClick={() => duplicateCard(card)}>Duplikat</button>{cards.length > 1 && <button type="button" className="danger" onClick={() => setCards((old) => old.filter((x) => x.id !== card.id))}>Hapus Card</button>}</div></div>
+        <div className="unit-card-head"><div><div className="eyebrow">UNIT CARD {index + 1}</div><h3>{card.noUnit || 'Unit belum dipilih'}</h3><p>{card.paddock || 'Paddock -'} • {card.activity || 'Activity -'}{card.recordId ? ' • Draft tersimpan' : ''}</p></div><div className="row-actions"><button type="button" onClick={() => duplicateCard(card)}>Duplikat</button>{cards.length > 1 && !card.recordId && <button type="button" className="danger" onClick={() => setCards((old) => old.filter((x) => x.id !== card.id))}>Hapus Card</button>}</div></div>
         <div className="form-grid">
           <label>Jenis Unit<select value={card.unit} onChange={(e) => patchCard(card.id, { unit: e.target.value, noUnit: '' })}><option value="">Pilih…</option>{unitTypes.map((x) => <option key={x}>{x}</option>)}</select></label>
           <label>No. Unit<select value={card.noUnit} onChange={(e) => patchCard(card.id, { noUnit: e.target.value })}><option value="">Pilih…</option>{numbers.map((x) => <option key={x}>{x}</option>)}</select></label>
