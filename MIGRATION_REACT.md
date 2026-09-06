@@ -26,19 +26,38 @@ Cabang `migrate/react-typescript-vite` dibuat sebagai jalur migrasi aman dari fr
 - Build Vite diarahkan ke `public/react/` dengan base path `/react/`.
 - Firebase Hosting tetap menyajikan `public/`, sehingga frontend lama di `/` tidak terganggu.
 
+### Form Spraying React
+
+Sudah dipindahkan ke `src/SprayForm.tsx`:
+
+- Common field: tanggal, shift, status, start/end time, mandor, asisten, unit multi-select, No. Unit multi-select, luas aktual.
+- Dependency program: Activity → Deskripsi → Type → Paddock → Variety.
+- Luas target otomatis dari Plan saat Paddock dipilih.
+- Dropper, Nozzle, Droplet Size, Height, Row Spacing, Speed.
+- Pesticide 1–4 otomatis berdasarkan Deskripsi dari master Bahan.
+- Estimated Usage pestisida = dosis/Ha × luas aktual.
+- Actual Usage pestisida.
+- Adjuvant, dosis mL/L, Estimated Usage adjuvant, Actual Usage adjuvant.
+- Water Rate, Water Quality, Actual Usage Air, Wind Speed, Temperature, Humidity, Delta T, Weather Condition.
+- HOLD berulang dan validasi interval terhadap jam Working.
+- Kalkulasi Working, total HOLD, dan Effective Working.
+- Catatan.
+- Payload tetap memakai nama key lama (`pesticide1..4`, `dosage1..4`, `estUsagePesticide1..4`, `actUsagePesticide1..4`, `holdIntervals`, dan seterusnya).
+- Penyimpanan menggunakan endpoint `syncRecord` yang sama dengan frontend lama.
+- Menu Input Spraying hanya tampil untuk `owner`, `asisten`, dan `mandor_spraying`; otorisasi final tetap divalidasi backend.
+
 ## Belum dipindahkan sebelum frontend React boleh menggantikan versi lama
 
-- Form Spraying lengkap beserta seluruh dependency Activity → Deskripsi → Paddock → Variety.
-- Form Fertilizer lengkap termasuk multiple pengisian.
-- Perhitungan bahan, adjuvant, water rate, dan estimated/actual usage.
-- Upload foto QC.
+- Upload foto QC utama dan foto per HOLD.
 - Draft lokal, offline queue, dan sinkronisasi otomatis.
+- Finalize/upload record dari halaman Data QC.
+- Edit/delete record dengan semua pembatasan role di UI.
+- Form Fertilizer lengkap termasuk multiple pengisian.
 - PWA/service worker versi React.
 - Halaman Users/approval.
 - Activity Logs.
-- Edit/delete record dengan semua pembatasan role di UI.
 - Dashboard operasional setara versi lama.
-- Pengujian regresi seluruh 52 kolom Spray dan 23 kolom Fertilizer.
+- Pengujian regresi penuh mapping 52 kolom Spray dan 23 kolom Fertilizer.
 
 ## Menjalankan lokal
 
