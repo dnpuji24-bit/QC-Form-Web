@@ -12,7 +12,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -51,3 +51,21 @@ jobs:
           SMOKE_OWNER_USERNAME: ${{ secrets.SMOKE_OWNER_USERNAME }}
           SMOKE_OWNER_PASSWORD: ${{ secrets.SMOKE_OWNER_PASSWORD }}
         run: node tests/runtime_smoke.mjs
+
+      - name: Photo and role runtime smoke
+        if: github.event_name == 'push'
+        env:
+          SMOKE_OWNER_USERNAME: ${{ secrets.SMOKE_OWNER_USERNAME }}
+          SMOKE_OWNER_PASSWORD: ${{ secrets.SMOKE_OWNER_PASSWORD }}
+        run: node tests/photo_role_smoke.mjs
+
+      - name: Install browser smoke dependency
+        if: github.event_name == 'push'
+        run: npm install --no-save --no-audit --no-fund playwright-core
+
+      - name: Browser offline and PWA smoke
+        if: github.event_name == 'push'
+        env:
+          SMOKE_OWNER_USERNAME: ${{ secrets.SMOKE_OWNER_USERNAME }}
+          SMOKE_OWNER_PASSWORD: ${{ secrets.SMOKE_OWNER_PASSWORD }}
+        run: node tests/browser_offline_smoke.mjs
