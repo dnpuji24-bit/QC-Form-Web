@@ -16,11 +16,8 @@ Cabang `migrate/react-typescript-vite` dibuat sebagai jalur migrasi aman dari fr
 - Toolchain React + TypeScript + Vite.
 - Client API Apps Script bertipe (`src/api.ts`).
 - Model data dasar (`src/types.ts`).
-- Login dan registrasi.
-- Validasi sesi melalui endpoint `me`.
-- Logout.
-- Dashboard ringkas.
-- Monitoring record dari endpoint `records`.
+- Login, registrasi, validasi sesi, logout.
+- Dashboard ringkas dan monitoring record.
 - Filter jenis dan pencarian record.
 - Pengaturan URL deployment Apps Script.
 - Build Vite diarahkan ke `public/react/` dengan base path `/react/`.
@@ -28,33 +25,35 @@ Cabang `migrate/react-typescript-vite` dibuat sebagai jalur migrasi aman dari fr
 
 ### Form Spraying React
 
-Sudah dipindahkan ke `src/SprayForm.tsx`:
-
-- Common field: tanggal, shift, status, start/end time, mandor, asisten, unit multi-select, No. Unit multi-select, **Luas Aktual manual**.
-- Nilai luas dari sheet Plan tidak digunakan untuk mengisi atau mereset Luas Aktual.
-- Dependency program: Activity → Deskripsi → Type → Paddock → Variety.
-- Dropper, Nozzle, Droplet Size, Height, Row Spacing, Speed.
-- Pesticide 1–4 otomatis berdasarkan Deskripsi dari master Bahan.
+- Common field lengkap dengan **Luas Aktual manual**; luas Plan tidak mengisi atau mereset field ini.
+- Activity → Deskripsi → Type → Paddock → Variety.
+- Unit/No. Unit multi-select, Dropper, Nozzle, Droplet Size, Height, Row Spacing, Speed.
+- Pesticide 1–4 otomatis berdasarkan Deskripsi.
 - Estimated Usage pestisida otomatis = dosis/Ha × Luas Aktual.
-- Actual Usage pestisida.
-- Adjuvant, dosis mL/L, Estimated Usage adjuvant otomatis = dosis × water rate × luas ÷ 1.000, Actual Usage adjuvant.
-- Water Rate, Water Quality, Actual Usage Air, Wind Speed, Temperature, Humidity, Delta T, Weather Condition.
-- HOLD berulang dan validasi interval terhadap jam Working.
-- Kalkulasi Working, total HOLD, dan Effective Working.
-- Foto QC utama dan foto per HOLD, dikompresi sebelum dikirim ke backend.
-- Catatan.
-- Payload tetap memakai nama key lama (`pesticide1..4`, `dosage1..4`, `estUsagePesticide1..4`, `actUsagePesticide1..4`, `holdIntervals`, `photoBase64`, dan seterusnya).
-- Penyimpanan menggunakan endpoint `syncRecord` yang sama dengan frontend lama.
-- Offline queue React di `src/offline.ts`; record disimpan ke antrean saat jaringan putus dan otomatis dicoba kembali saat online.
-- Finalize/upload dari halaman Data QC memakai endpoint `finalizeRecord`; bila offline, upload juga masuk antrean.
-- Menu Input Spraying hanya tampil untuk `owner`, `asisten`, dan `mandor_spraying`; otorisasi final tetap divalidasi backend.
-- Regression checker `tests/spray_react_mapping_check.py` memastikan 52 kolom, formula estimated usage, area manual, foto, dan offline path tetap terpetakan.
+- Estimated Usage adjuvant otomatis = dosis mL/L × Water Rate × Luas Aktual ÷ 1.000.
+- Actual Usage pestisida/adjuvant, Water Rate/Quality, kondisi cuaca.
+- HOLD berulang, validasi interval, Working/HOLD/Effective Working.
+- Foto QC utama dan foto per HOLD dengan kompresi sebelum dikirim ke backend Drive.
+- Offline queue + auto-sync.
+- Finalize/upload melalui endpoint `finalizeRecord`.
+- Edit draft Spraying mempertahankan Record ID yang sama dan foto lama jika foto baru tidak dipilih.
+- Mandor Spraying hanya dapat mengedit draft miliknya sendiri; Owner/Asisten dapat mengedit draft Spraying yang dapat mereka akses.
+- Record `uploaded` tidak dibuka untuk edit langsung.
+- Delete mengikuti role backend: Owner/Manager/Admin/Asisten. Delete hanya saat online dan membersihkan antrean offline stale agar record tidak muncul kembali.
+- Regression checker `tests/spray_react_mapping_check.py` untuk mapping 52 kolom dan jalur utama Spraying.
+
+### PWA / Offline React
+
+- Manifest: `public/react/manifest.webmanifest`.
+- Service worker: `public/react/sw.js` dengan scope hanya `/react/` agar tidak mengganggu aplikasi lama.
+- Shell dan asset React yang pernah dimuat dicache untuk pembukaan offline berikutnya.
+- Data form tetap memakai `src/offline.ts`; perubahan disimpan dalam antrean ketika jaringan terputus dan dikirim lagi saat online.
+- Finalize menghapus antrean draft stale untuk Record ID yang sama.
+- Delete membersihkan seluruh antrean untuk Record ID yang dihapus.
 
 ## Belum dipindahkan sebelum frontend React boleh menggantikan versi lama
 
-- Edit/delete record dengan semua pembatasan role di UI.
 - Form Fertilizer lengkap termasuk multiple pengisian.
-- PWA/service worker versi React.
 - Halaman Users/approval.
 - Activity Logs.
 - Dashboard operasional setara versi lama.
