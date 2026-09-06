@@ -77,8 +77,11 @@ export default function SprayForm({ token, user, master, onSaved }: Props) {
   const candidatePlans = useMemo(() => plans.filter((p) => String(p.activity) === form.activity && String(p.description || p.deskripsi) === form.deskripsi && (!form.type || String(p.type) === form.type)), [plans, form.activity, form.deskripsi, form.type])
   const paddocks = useMemo(() => unique(candidatePlans.map((p) => p.paddock)), [candidatePlans])
   const varieties = useMemo(() => unique(candidatePlans.filter((p) => String(p.paddock) === form.paddock).map((p) => p.variety)), [candidatePlans, form.paddock])
-  const materials = useMemo(() => ((master.materials || []) as MaterialMaster[]).filter((x) => String(x.description || '').trim() === form.deskripsi && /^Pesticide\s*[1-4]$/i.test(String(x.slot || '').trim())).sort((a, b) => String(a.slot).localeCompare(String(b.slot))).slice(0, 4), [master.materials, form.deskripsi])
-  const adjuvants = useMemo(() => unique(((master.materials || []) as MaterialMaster[]).filter((x) => /adjuvant/i.test(`${x.slot || ''} ${x.unit || ''} ${x.description || ''}`)).map((x) => x.material)), [master.materials])
+  const materials = useMemo(() => ((master.materials || []) as MaterialMaster[])
+    .filter((x) => String(x.description || '').trim() === form.deskripsi && /^Pesticide\s*[1-4]$/i.test(String(x.slot || '').trim()))
+    .sort((a, b) => String(a.slot).localeCompare(String(b.slot))).slice(0, 4), [master.materials, form.deskripsi])
+  const adjuvants = useMemo(() => unique(((master.materials || []) as MaterialMaster[])
+    .filter((x) => /adjuvant/i.test(`${x.slot || ''} ${x.unit || ''} ${x.description || ''}`)).map((x) => x.material)), [master.materials])
 
   const units = Object.keys(master.unitMap || {})
   const unitNumbers = unique(form.unit.split(',').map((x) => x.trim()).filter(Boolean).flatMap((unit) => master.unitMap?.[unit] || []))
@@ -102,16 +105,19 @@ export default function SprayForm({ token, user, master, onSaved }: Props) {
   }, [form.startTime, form.endTime, holds])
 
   function set(key: keyof SprayState, value: string) { setForm((old) => ({ ...old, [key]: value })) }
-  function chooseActivity(value: string) { setForm((old) => ({ ...old, activity: value, deskripsi: '', paddock: '', variety: '', type: '', area: '' })); setActualMaterials({}) }
+  function chooseActivity(value: string) {
+    setForm((old) => ({ ...old, activity: value, deskripsi: '', paddock: '', variety: '', type: '' }))
+    setActualMaterials({})
+  }
   function chooseDescription(value: string) {
     const matchingTypes = unique(plans.filter((p) => String(p.activity) === form.activity && String(p.description || p.deskripsi) === value).map((p) => p.type))
-    setForm((old) => ({ ...old, deskripsi: value, paddock: '', variety: '', type: matchingTypes.length === 1 ? matchingTypes[0] : '', area: '' })); setActualMaterials({})
+    setForm((old) => ({ ...old, deskripsi: value, paddock: '', variety: '', type: matchingTypes.length === 1 ? matchingTypes[0] : '' }))
+    setActualMaterials({})
   }
   function choosePaddock(value: string) {
     const match = candidatePlans.filter((p) => String(p.paddock) === value)
     const vars = unique(match.map((p) => p.variety))
-    const areas = match.map((p) => n(p.area ?? p.luas_target)).filter((x) => x > 0)
-    setForm((old) => ({ ...old, paddock: value, variety: vars.length === 1 ? vars[0] : '', area: areas.length ? String(Math.max(...areas)) : old.area }))
+    setForm((old) => ({ ...old, paddock: value, variety: vars.length === 1 ? vars[0] : '' }))
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -160,14 +166,14 @@ export default function SprayForm({ token, user, master, onSaved }: Props) {
         <label>Asisten<select value={form.nameOfAssistan} onChange={(e) => set('nameOfAssistan', e.target.value)}><option value="">Pilih…</option>{(master.assistants || []).map((x) => <option key={x}>{x}</option>)}</select></label>
         <fieldset className="span-2"><legend>Unit — bisa lebih dari satu</legend><Choice values={units} value={form.unit} multiple onChange={(v) => { set('unit', v); set('noUnit', '') }} /></fieldset>
         <fieldset className="span-2"><legend>No. Unit</legend><Choice values={unitNumbers} value={form.noUnit} multiple onChange={(v) => set('noUnit', v)} /></fieldset>
-        <label>Luas aktual (Ha)<input type="number" step=".01" min="0" value={form.area} onChange={(e) => set('area', e.target.value)} required /></label>
+        <label>Luas aktual (Ha)<input type="number" step=".01" min="0" value={form.area} onChange={(e) => set('area', e.target.value)} required /><small className="muted">Diisi manual sesuai luas pekerjaan aktual. Luas pada sheet Plan tidak dipakai untuk mengisi field ini.</small></label>
       </div>
 
       <div className="panel stack">
         <h3>Program & Paddock</h3>
         <fieldset><legend>Activity</legend><Choice values={activities} value={form.activity} onChange={chooseActivity} /></fieldset>
         <fieldset><legend>Deskripsi</legend><Choice values={descriptions} value={form.deskripsi} onChange={chooseDescription} /></fieldset>
-        <fieldset><legend>Type</legend><Choice values={types} value={form.type} onChange={(v) => setForm((old) => ({ ...old, type: v, paddock: '', variety: '', area: '' }))} /></fieldset>
+        <fieldset><legend>Type</legend><Choice values={types} value={form.type} onChange={(v) => setForm((old) => ({ ...old, type: v, paddock: '', variety: '' }))} /></fieldset>
         <fieldset><legend>Paddock</legend><Choice values={paddocks} value={form.paddock} onChange={choosePaddock} /></fieldset>
         <fieldset><legend>Variety</legend><Choice values={varieties} value={form.variety} onChange={(v) => set('variety', v)} /></fieldset>
         <div className="form-grid">
@@ -180,14 +186,14 @@ export default function SprayForm({ token, user, master, onSaved }: Props) {
         </div>
       </div>
 
-      <div className="panel stack"><h3>Bahan Kimia Otomatis</h3><p className="muted">Material dan dosis mengikuti Deskripsi. Estimated Usage = dosis/Ha × luas aktual.</p>
-        <div className="material-grid">{materials.length ? materials.map((item, i) => <article className="material-card" key={`${item.slot}-${i}`}><strong>{item.slot}<br />{item.material} <small>({item.unit || '-'})</small></strong><label>Dosis/Ha<input readOnly value={String(item.dosage || '')} /></label><label>Estimated Used<input readOnly value={(n(item.dosage) * n(form.area)).toFixed(2)} /></label><label>Actual Used<input type="number" step=".001" value={actualMaterials[i] || ''} onChange={(e) => setActualMaterials((old) => ({ ...old, [i]: e.target.value }))} /></label></article>) : <p className="muted">Pilih Deskripsi untuk memuat Pesticide 1–4.</p>}</div>
+      <div className="panel stack"><h3>Bahan Kimia Otomatis</h3><p className="muted">Estimated Usage dihitung otomatis: Dosis/Ha × Luas aktual.</p>
+        <div className="material-grid">{materials.length ? materials.map((item, i) => <article className="material-card" key={`${item.slot}-${i}`}><strong>{item.slot}<br />{item.material} <small>({item.unit || '-'})</small></strong><label>Dosis/Ha<input readOnly value={String(item.dosage || '')} /></label><label>Estimated Usage<input readOnly value={(n(item.dosage) * n(form.area)).toFixed(2)} /></label><label>Actual Used<input type="number" step=".001" value={actualMaterials[i] || ''} onChange={(e) => setActualMaterials((old) => ({ ...old, [i]: e.target.value }))} /></label></article>) : <p className="muted">Pilih Deskripsi untuk memuat Pesticide 1–4.</p>}</div>
       </div>
 
       <div className="panel stack"><h3>Adjuvant & Kondisi Lapangan</h3><div className="form-grid">
         <label>Nama adjuvant<input list="adjuvants" value={form.adjuvant} onChange={(e) => set('adjuvant', e.target.value)} /><datalist id="adjuvants">{adjuvants.map((x) => <option value={x} key={x} />)}</datalist></label>
         <label>Dosis Adjuvant (mL/L)<input type="number" step=".01" value={form.adjuvantDosage} onChange={(e) => set('adjuvantDosage', e.target.value)} /></label>
-        <label>Estimated Adjuvant (L)<input readOnly value={estimatedAdjuvant} /></label>
+        <label>Estimated Adjuvant (L)<input readOnly value={estimatedAdjuvant} /><small className="muted">Otomatis: dosis mL/L × water rate × luas aktual ÷ 1.000.</small></label>
         <label>Actual Adjuvant (L)<input type="number" step=".01" value={form.actUsageAdjuvant} onChange={(e) => set('actUsageAdjuvant', e.target.value)} /></label>
         <label>Water Rate (L/Ha)<input type="number" step=".01" value={form.waterRate} onChange={(e) => set('waterRate', e.target.value)} /></label>
         <fieldset className="span-2"><legend>Water Quality</legend><Choice values={master.waterQualities || []} value={form.waterQuality} onChange={(v) => set('waterQuality', v)} /></fieldset>
