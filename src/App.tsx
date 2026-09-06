@@ -3,9 +3,11 @@ import { getApiUrl, qcApi, setApiUrl } from './api'
 import { discardQueuedRecord, sendOrQueue } from './offline'
 import SprayForm from './SprayForm'
 import FertilizerForm from './FertilizerForm'
+import OperationalDashboard from './OperationalDashboard'
+import { ActivityLogs, UsersApproval } from './AdminPages'
 import type { MasterData, QcRecord, User } from './types'
 
-type View = 'dashboard' | 'spray' | 'fertilizer' | 'records' | 'settings'
+type View = 'dashboard' | 'spray' | 'fertilizer' | 'records' | 'users' | 'logs' | 'settings'
 const TOKEN_KEY = 'qc_token'
 const USER_KEY = 'qc_user'
 const MASTER_KEY = 'qc_master_react'
@@ -15,6 +17,7 @@ function readMaster(): MasterData { try { return JSON.parse(localStorage.getItem
 function canSpray(user: User) { return ['owner', 'asisten', 'mandor_spraying'].includes(user.role) }
 function canFertilizer(user: User) { return ['owner', 'asisten', 'mandor_fertilizer'].includes(user.role) }
 function canDelete(user: User) { return ['owner', 'manager', 'admin', 'asisten'].includes(user.role) }
+function canLogs(user: User) { return ['owner', 'manager', 'admin', 'asisten'].includes(user.role) }
 function canEditSpray(user: User, record: QcRecord) {
   if (!canSpray(user) || record.formType !== 'spray' || record.saveType === 'uploaded') return false
   return user.role !== 'mandor_spraying' || record.inputtedBy === user.username
@@ -112,15 +115,10 @@ export default function App() {
   }
 
   async function finalize(record: QcRecord) {
-    const targets = record.formType === 'fertilizer'
-      ? records.filter((item) => sameFertilizerSession(record, item) && canFinalize(user!, item))
-      : [record]
+    const targets = record.formType === 'fertilizer' ? records.filter((item) => sameFertilizerSession(record, item) && canFinalize(user!, item)) : [record]
     if (!targets.length) return
     setBusy(true); setMessage('')
-    let queued = 0
-    let completed = 0
-    let failed = 0
-    let lastError = ''
+    let queued = 0, completed = 0, failed = 0, lastError = ''
     for (const target of targets) {
       try {
         const result = await sendOrQueue(token, 'finalizeRecord', { ...target, saveType: 'ready' })
@@ -129,8 +127,7 @@ export default function App() {
         setRecords((old) => old.map((item) => item.id === target.id ? next : item))
         completed += 1
       } catch (error) {
-        failed += 1
-        lastError = error instanceof Error ? error.message : 'Upload unit gagal'
+        failed += 1; lastError = error instanceof Error ? error.message : 'Upload unit gagal'
         if (/sesi|login|izin|auth/i.test(lastError)) break
       }
     }
@@ -139,9 +136,7 @@ export default function App() {
       if (queued) parts.push(`${queued} menunggu jaringan`)
       if (failed) parts.push(`${failed} gagal${lastError ? `: ${lastError}` : ''}`)
       setMessage(parts.join('; ') + '.')
-    } else {
-      setMessage(failed ? lastError : queued ? 'Upload masuk antrean dan akan dikirim saat online.' : 'Data berhasil di-upload ke Form QC Spray.')
-    }
+    } else setMessage(failed ? lastError : queued ? 'Upload masuk antrean dan akan dikirim saat online.' : 'Data berhasil di-upload ke Form QC Spray.')
     setBusy(false)
   }
 
@@ -164,8 +159,25 @@ export default function App() {
   if (!token || !user) return <AuthScreen onLogin={saveSession} />
   return <div className="app-shell">
     <header className="topbar"><div><div className="eyebrow">QUALITY CONTROL</div><h1>QC Form Web</h1></div><div className="user-box"><div><strong>{user.fullName}</strong><span>{user.role.replaceAll('_', ' ')}</span></div><button className="ghost" onClick={() => void logout()}>Keluar</button></div></header>
-    <nav className="tabs" aria-label="Navigasi utama"><button className={view === 'dashboard' ? 'active' : ''} onClick={() => setView('dashboard')}>Dashboard</button>{canSpray(user) && <button className={view === 'spray' ? 'active' : ''} onClick={() => { setEditingRecord(null); setEditingFertilizerRecords([]); setView('spray') }}>Input Spraying</button>}{canFertilizer(user) && <button className={view === 'fertilizer' ? 'active' : ''} onClick={() => { setEditingFertilizerRecords([]); setEditingRecord(null); setView('fertilizer') }}>Input Fertilizer</button>}<button className={view === 'records' ? 'active' : ''} onClick={() => setView('records')}>Data QC</button><button className={view === 'settings' ? 'active' : ''} onClick={() => setView('settings')}>Pengaturan</button></nav>
-    <main className="content">{message && <div className="alert">{message}</div>}{view === 'dashboard' && <Dashboard records={records} loading={busy} onRefresh={() => void Promise.all([refreshRecords(), refreshMaster()])} />}{view === 'spray' && canSpray(user) && <SprayForm key={editingRecord?.id || 'new'} token={token} user={user} master={master} initialRecord={editingRecord || undefined} onCancelEdit={() => { setEditingRecord(null); setView('records') }} onSaved={handleSpraySaved} />}{view === 'fertilizer' && canFertilizer(user) && <FertilizerForm key={String(editingFertilizerRecords[0]?.sessionId || editingFertilizerRecords[0]?.id || 'new-fert')} token={token} user={user} master={master} initialRecords={editingFertilizerRecords} onCancelEdit={() => { setEditingFertilizerRecords([]); setView('records') }} onSaved={handleFertilizerSaved} />}{view === 'records' && <Records records={records} user={user} loading={busy} onRefresh={() => void refreshRecords()} onEdit={startEdit} onDelete={(r) => void remove(r)} onFinalize={(r) => void finalize(r)} />}{view === 'settings' && <Settings />}</main>
+    <nav className="tabs" aria-label="Navigasi utama">
+      <button className={view === 'dashboard' ? 'active' : ''} onClick={() => setView('dashboard')}>Dashboard</button>
+      {canSpray(user) && <button className={view === 'spray' ? 'active' : ''} onClick={() => { setEditingRecord(null); setEditingFertilizerRecords([]); setView('spray') }}>Input Spraying</button>}
+      {canFertilizer(user) && <button className={view === 'fertilizer' ? 'active' : ''} onClick={() => { setEditingFertilizerRecords([]); setEditingRecord(null); setView('fertilizer') }}>Input Fertilizer</button>}
+      <button className={view === 'records' ? 'active' : ''} onClick={() => setView('records')}>Data QC</button>
+      {user.role === 'owner' && <button className={view === 'users' ? 'active' : ''} onClick={() => setView('users')}>Users</button>}
+      {canLogs(user) && <button className={view === 'logs' ? 'active' : ''} onClick={() => setView('logs')}>Activity Logs</button>}
+      <button className={view === 'settings' ? 'active' : ''} onClick={() => setView('settings')}>Pengaturan</button>
+    </nav>
+    <main className="content">
+      {message && <div className="alert">{message}</div>}
+      {view === 'dashboard' && <OperationalDashboard records={records} master={master} loading={busy} onRefresh={() => void Promise.all([refreshRecords(), refreshMaster()])} />}
+      {view === 'spray' && canSpray(user) && <SprayForm key={editingRecord?.id || 'new'} token={token} user={user} master={master} initialRecord={editingRecord || undefined} onCancelEdit={() => { setEditingRecord(null); setView('records') }} onSaved={handleSpraySaved} />}
+      {view === 'fertilizer' && canFertilizer(user) && <FertilizerForm key={String(editingFertilizerRecords[0]?.sessionId || editingFertilizerRecords[0]?.id || 'new-fert')} token={token} user={user} master={master} initialRecords={editingFertilizerRecords} onCancelEdit={() => { setEditingFertilizerRecords([]); setView('records') }} onSaved={handleFertilizerSaved} />}
+      {view === 'records' && <Records records={records} user={user} loading={busy} onRefresh={() => void refreshRecords()} onEdit={startEdit} onDelete={(r) => void remove(r)} onFinalize={(r) => void finalize(r)} />}
+      {view === 'users' && user.role === 'owner' && <UsersApproval token={token} />}
+      {view === 'logs' && canLogs(user) && <ActivityLogs token={token} />}
+      {view === 'settings' && <Settings />}
+    </main>
   </div>
 }
 
@@ -175,12 +187,6 @@ function AuthScreen({ onLogin }: { onLogin: (token: string, user: User) => void 
   async function register(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const form = event.currentTarget; const data = Object.fromEntries(new FormData(form)); setBusy(true); setMessage(''); try { const result = await qcApi.register(data); setMessage(result.message || 'Pendaftaran terkirim.'); form.reset(); setMode('login') } catch (error) { setMessage(error instanceof Error ? error.message : 'Pendaftaran gagal') } finally { setBusy(false) } }
   return <main className="auth-page"><section className="auth-card"><div className="brand-mark">QC</div><div className="eyebrow">PT. GLOBAL PAPUA ABADI</div><h1>QC Form Web</h1><p className="muted">Frontend React + TypeScript. Backend Google Apps Script dan data Spreadsheet tetap digunakan.</p><div className="segmented"><button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Masuk</button><button className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>Daftar</button></div>{message && <div className="alert">{message}</div>}{mode === 'login' ? <form className="form-stack" onSubmit={(event) => void login(event)}><label>Username atau email<input name="username" autoComplete="username" required /></label><label>Kata sandi<input name="password" type="password" autoComplete="current-password" minLength={4} required /></label><button className="primary" disabled={busy}>{busy ? 'Memeriksa…' : 'Masuk'}</button></form> : <form className="form-stack" onSubmit={(event) => void register(event)}><label>Nama lengkap<input name="fullName" minLength={3} required /></label><label>Username<input name="username" minLength={3} required /></label><label>Email<input name="email" type="email" required /></label><label>Role<select name="role" defaultValue="mandor_spraying"><option value="mandor_spraying">Mandor Spraying</option><option value="mandor_fertilizer">Mandor Fertilizer</option><option value="asisten">Asisten</option><option value="pengunjung">Pengunjung</option></select></label><label>Kata sandi<input name="password" type="password" minLength={8} required /></label><button className="primary" disabled={busy}>{busy ? 'Mengirim…' : 'Kirim pendaftaran'}</button></form>}</section></main>
 }
-
-function Dashboard({ records, loading, onRefresh }: { records: QcRecord[]; loading: boolean; onRefresh: () => void }) {
-  const summary = useMemo(() => ({ spray: records.filter((r) => r.formType === 'spray').length, fertilizer: records.filter((r) => r.formType === 'fertilizer').length, draft: records.filter((r) => r.saveType !== 'uploaded').length, uploaded: records.filter((r) => r.saveType === 'uploaded').length }), [records])
-  return <section><div className="section-head"><div><div className="eyebrow">RINGKASAN</div><h2>Dashboard QC</h2></div><button className="secondary" onClick={onRefresh} disabled={loading}>{loading ? 'Memuat…' : 'Refresh'}</button></div><div className="stats-grid"><Stat label="Total record" value={records.length} /><Stat label="Spraying" value={summary.spray} /><Stat label="Fertilizer" value={summary.fertilizer} /><Stat label="Draft / sync" value={summary.draft} /><Stat label="Uploaded" value={summary.uploaded} /></div></section>
-}
-function Stat({ label, value }: { label: string; value: number }) { return <div className="stat"><span>{label}</span><strong>{value}</strong></div> }
 
 function Records({ records, user, loading, onRefresh, onFinalize, onEdit, onDelete }: { records: QcRecord[]; user: User; loading: boolean; onRefresh: () => void; onFinalize: (record: QcRecord) => void; onEdit: (record: QcRecord) => void; onDelete: (record: QcRecord) => void }) {
   const [query, setQuery] = useState(''); const [type, setType] = useState<'all' | 'spray' | 'fertilizer'>('all')
