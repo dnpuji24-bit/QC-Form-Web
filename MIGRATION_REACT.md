@@ -86,6 +86,8 @@ Authenticated Owner smoke test bersifat read-only dan otomatis berjalan jika rep
 
 Test tersebut memeriksa login Owner, `me`, `records`, `users`, `logs`, dan logout. Credential tidak disimpan di source code dan tidak dicetak ke log.
 
+Repository secrets Owner diperbarui kembali untuk retry authenticated smoke test. Nilai credential tidak disimpan di repository.
+
 ## Sebelum merge / cutover
 
 1. Verifikasi `health` deployment aktif melaporkan `v46.1.0`.
