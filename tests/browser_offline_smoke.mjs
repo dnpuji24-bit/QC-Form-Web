@@ -78,21 +78,20 @@ let browser
 try {
   console.log('Browser smoke: navigator offline -> local queue -> online replay')
   dev = start('npm', ['run', 'dev', '--', '--host', '127.0.0.1', '--port', '5173'])
-  await waitHttp('http://127.0.0.1:5173/react/')
+  await waitHttp('http://127.0.0.1:5173/offline-harness.html')
 
   browser = await chromium.launch({ executablePath, headless: true })
   const context = await browser.newContext()
   const page = await context.newPage()
-  await page.goto('http://127.0.0.1:5173/react/', { waitUntil: 'domcontentloaded' })
-  await page.evaluate(async () => { const mod = await import('/src/offline.ts'); mod.discardQueuedRecord('ALL_DOES_NOT_EXIST') })
+  await page.goto('http://127.0.0.1:5173/offline-harness.html', { waitUntil: 'networkidle' })
+  await page.waitForFunction(() => window.__qcOfflineReady === true)
+  await page.evaluate((id) => window.__qcOffline.discardQueuedRecord(id), recordId)
 
   await context.setOffline(true)
-  const isOffline = await page.evaluate(() => navigator.onLine === false)
-  assert(isOffline, 'navigator.onLine did not become false')
+  assert(await page.evaluate(() => navigator.onLine === false), 'navigator.onLine did not become false')
   const queued = await page.evaluate(async ({ token, record }) => {
-    const mod = await import('/src/offline.ts')
-    const result = await mod.sendOrQueue(token, 'syncRecord', record)
-    return { ...result, count: mod.queueCount() }
+    const result = await window.__qcOffline.sendOrQueue(token, 'syncRecord', record)
+    return { ...result, count: window.__qcOffline.queueCount() }
   }, { token, record })
   assert(queued.queued === true && queued.count === 1, `offline record was not queued: ${JSON.stringify(queued)}`)
   console.log('  ✓ offline record queued in browser localStorage')
@@ -100,9 +99,8 @@ try {
   await context.setOffline(false)
   await page.waitForFunction(() => navigator.onLine === true)
   const flushed = await page.evaluate(async (token) => {
-    const mod = await import('/src/offline.ts')
-    const result = await mod.flushQueue(token)
-    return { ...result, count: mod.queueCount() }
+    const result = await window.__qcOffline.flushQueue(token)
+    return { ...result, count: window.__qcOffline.queueCount() }
   }, token)
   assert(flushed.sent === 1 && flushed.left === 0 && flushed.count === 0, `queue replay failed: ${JSON.stringify(flushed)}`)
   const records = await apiGet('records', token)
