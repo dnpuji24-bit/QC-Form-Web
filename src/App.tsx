@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { getApiUrl, qcApi, setApiUrl } from './api'
-import { sendOrQueue } from './offline'
+import { discardQueuedRecord, sendOrQueue } from './offline'
 import SprayForm from './SprayForm'
 import type { MasterData, QcRecord, User } from './types'
 
@@ -93,6 +93,7 @@ export default function App() {
     setBusy(true); setMessage('')
     try {
       await qcApi.deleteRecord(token, record.id)
+      discardQueuedRecord(record.id)
       setRecords((old) => old.filter((item) => item.id !== record.id))
       if (editingRecord?.id === record.id) setEditingRecord(null)
       setMessage('Record berhasil dihapus.')
