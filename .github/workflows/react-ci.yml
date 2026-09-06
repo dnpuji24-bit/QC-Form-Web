@@ -44,3 +44,9 @@ jobs:
 
       - name: Vite production build
         run: npm run build
+
+      - name: Apps Script runtime smoke
+        env:
+          SMOKE_OWNER_USERNAME: ${{ secrets.SMOKE_OWNER_USERNAME }}
+          SMOKE_OWNER_PASSWORD: ${{ secrets.SMOKE_OWNER_PASSWORD }}
+        run: node tests/runtime_smoke.mjs
