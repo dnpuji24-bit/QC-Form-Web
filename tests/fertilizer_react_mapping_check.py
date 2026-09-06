@@ -18,8 +18,10 @@ required_form_tokens = [
     "dosisAktual",
     "pemerataanPupuk",
     "downtimeList",
-    "sendOrQueue(token, 'syncRecord'",
-    "num(f.jumlah) / num(f.hasilKerja)",
+    "uploaded?'finalizeRecord':'syncRecord'",
+    "num(f.jumlah)/num(f.hasilKerja)",
+    "Simpan Koreksi Uploaded",
+    "PhotoPicker",
 ]
 for token in required_form_tokens:
     assert token in form, f'Missing Fertilizer form token: {token}'
@@ -31,7 +33,8 @@ required_app_tokens = [
     "sameFertilizerSession",
     "editingFertilizerRecords",
     "Edit Session",
-    "Upload ${size} Unit",
+    "pendingSessionSize",
+    "Koreksi",
 ]
 for token in required_app_tokens:
     assert token in app, f'Missing Fertilizer session UI token: {token}'
@@ -47,8 +50,9 @@ required_backend_tokens = [
     "p.statusHose||rec.statusHose",
     "p.pengisianKe||rec.pengisianKe||i+1",
     "num_(p.pemerataanPupuk||rec.pemerataanPupuk)",
+    "deleteById_(getSheet_(QC.SHEETS.FERT),rec.id,23,2)",
 ]
 for token in required_backend_tokens:
-    assert token in backend, f'Missing backend per-filling mapping: {token}'
+    assert token in backend, f'Missing backend per-filling/correction mapping: {token}'
 
-print('Fertilizer React mapping/session check: OK')
+print('Fertilizer React mapping/session/uploaded-correction check: OK')
