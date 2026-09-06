@@ -5,6 +5,7 @@ import NetworkStatus from './NetworkStatus'
 import './styles.css'
 import './theme.css'
 import './network.css'
+import './field-ui.css'
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
