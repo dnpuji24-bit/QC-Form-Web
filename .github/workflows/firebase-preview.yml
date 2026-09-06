@@ -2,6 +2,17 @@ name: Firebase Hosting Preview
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - migrate/react-typescript-vite
+    paths:
+      - '.github/workflows/firebase-preview.yml'
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'firebase.json'
+      - 'vite.config.ts'
+      - 'tsconfig*.json'
 
 permissions:
   contents: read
@@ -51,5 +62,5 @@ jobs:
 
       - name: Show preview URL
         run: |
-          echo "Preview URL: ${{ steps.firebase_preview.outputs.details_url }}"
+          echo "Preview details: ${{ steps.firebase_preview.outputs.details_url }}"
           echo "Hosting URL: ${{ steps.firebase_preview.outputs.url }}"
