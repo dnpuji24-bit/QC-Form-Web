@@ -1,5 +1,5 @@
 /**
- * QC Form Web API v46
+ * QC Form Web API v46.1
  * Deploy as a Web App from the Apps Script project bound to "Application QC Form".
  * Execute as: Me. Access: Anyone.
  *
@@ -9,7 +9,7 @@
  * - Permissions are enforced here; the browser UI is not trusted.
  */
 var QC = {
-  VERSION: '46.0.0',
+  VERSION: '46.1.0',
   SESSION_SECONDS: 21600,
   SHEETS: {
     USERS: 'Users', LOGS: 'Activity_Logs', CLOUD: 'Cloud_Monitoring',
@@ -196,7 +196,13 @@ function workingNote_(rec) {
 
 function writeFertilizer_(rec) {
   var fills=(rec.pengisianList&&rec.pengisianList.length)?rec.pengisianList:[{}],sh=getSheet_(QC.SHEETS.FERT);ensureSheet_(SpreadsheetApp.getActiveSpreadsheet(),QC.SHEETS.FERT,QC.FERT_HEADERS,1);
-  fills.forEach(function(p,i){var id=rec.id+(fills.length>1?'_p'+(i+1):''),hasil=num_(p.hasilKerja||rec.hasilKerja),jumlah=num_(p.jumlah||rec.jumlah),actual=num_(p.dosisAktual||rec.dosisAktual);if((actual===''||actual===0)&&hasil>0)actual=Math.round(jumlah/hasil*100)/100;var photo=savePhoto_(rec),v=[rec.date,rec.shift,rec.name,rec.nameOfAssistan,rec.status||'Working',rec.status==='Hold'?rec.startTime:'',rec.status==='Hold'?rec.endTime:'',rec.paddock,rec.unit,rec.noUnit,rec.type||'Fertilizer',rec.activity,rec.jenisPupuk||rec.material,num_(rec.dosis),rec.statusHose,p.pengisianKe||rec.pengisianKe||i+1,jumlah,hasil,actual,num_(p.pemerataanPupuk||rec.pemerataanPupuk),rec.catatan||rec.noted,photo||rec.photoDriveUrl||'',id];upsertRow_(sh,v,23,id,2);});return fills.length;
+  fills.forEach(function(p,i){
+    var id=rec.id+(fills.length>1?'_p'+(i+1):''),hasil=num_(p.hasilKerja||rec.hasilKerja),jumlah=num_(p.jumlah||rec.jumlah),actual=num_(p.dosisAktual||rec.dosisAktual);
+    if((actual===''||actual===0)&&hasil>0)actual=Math.round(jumlah/hasil*100)/100;
+    var photo=savePhoto_(rec),jenis=p.jenisPupuk||rec.jenisPupuk||rec.material,dosis=num_(p.dosis||rec.dosis),hose=p.statusHose||rec.statusHose;
+    var v=[rec.date,rec.shift,rec.name,rec.nameOfAssistan,rec.status||'Working',rec.status==='Hold'?rec.startTime:'',rec.status==='Hold'?rec.endTime:'',rec.paddock,rec.unit,rec.noUnit,rec.type||'Fertilizer',rec.activity,jenis,dosis,hose,p.pengisianKe||rec.pengisianKe||i+1,jumlah,hasil,actual,num_(p.pemerataanPupuk||rec.pemerataanPupuk),rec.catatan||rec.noted,photo||rec.photoDriveUrl||'',id];
+    upsertRow_(sh,v,23,id,2);
+  });return fills.length;
 }
 
 function getMasterData_() {
