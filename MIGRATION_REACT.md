@@ -72,4 +72,6 @@ python3 tests/admin_dashboard_react_check.py
 - Uji offline → reconnect → sync serta upload foto di perangkat lapangan.
 - Setelah seluruh parity lolos, baru pertimbangkan mengganti `/` dengan React.
 
+Tahap fitur utama React sekarang mencakup Spraying, Fertilizer, Users/Approval, Activity Logs, dan Dashboard operasional. Fokus berikutnya adalah verifikasi build/runtime dan hardening sebelum cutover produksi.
+
 > Jangan merge/cutover ke produksi sebelum build dan runtime test berhasil. Backend Apps Script tetap menjadi sumber otorisasi dan Spreadsheet tetap menjadi sumber data utama.
