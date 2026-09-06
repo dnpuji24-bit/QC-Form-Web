@@ -40,6 +40,7 @@ jobs:
           echo "React build output verified."
 
       - name: Deploy Firebase Hosting preview
+        id: firebase_preview
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
@@ -47,3 +48,8 @@ jobs:
           projectId: form-qc-unm
           channelId: react-test
           expires: 7d
+
+      - name: Show preview URL
+        run: |
+          echo "Preview URL: ${{ steps.firebase_preview.outputs.details_url }}"
+          echo "Hosting URL: ${{ steps.firebase_preview.outputs.url }}"
