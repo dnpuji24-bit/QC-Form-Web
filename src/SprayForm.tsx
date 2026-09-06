@@ -1,14 +1,8 @@
-import { FormEvent, useMemo, useState } from 'react'
-import { qcApi } from './api'
+import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { flushQueue, sendOrQueue } from './offline'
 import type { HoldInterval, MasterData, MaterialMaster, PlanMaster, QcRecord, User } from './types'
 
-type Props = {
-  token: string
-  user: User
-  master: MasterData
-  onSaved: (record: QcRecord) => void
-}
-
+type Props = { token: string; user: User; master: MasterData; onSaved: (record: QcRecord) => void }
 type SprayState = Record<string, string> & {
   date: string; shift: string; status: string; startTime: string; endTime: string
   name: string; nameOfAssistan: string; unit: string; noUnit: string; area: string
@@ -18,6 +12,8 @@ type SprayState = Record<string, string> & {
   waterQuality: string; actualUsage: string; windSpeed: string; temperature: string; humidity: string
   deltaT: string; weatherCondition: string; noted: string
 }
+
+type HoldDraft = HoldInterval & { file?: File }
 
 const today = () => new Date().toISOString().slice(0, 10)
 const nowTime = () => new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
@@ -58,17 +54,48 @@ function minutes(value: string) {
   const match = /^(\d{2}):(\d{2})$/.exec(value)
   return match ? Number(match[1]) * 60 + Number(match[2]) : NaN
 }
+function durationLabel(value: number) { return `${Math.floor(value / 60)}j ${String(value % 60).padStart(2, '0')}m` }
 
-function durationLabel(value: number) {
-  return `${Math.floor(value / 60)}j ${String(value % 60).padStart(2, '0')}m`
+async function photoData(file?: File): Promise<string> {
+  if (!file) return ''
+  if (file.size > 6_000_000) throw new Error('Foto asli maksimal 6 MB.')
+  const bitmap = await createImageBitmap(file)
+  const scale = Math.min(1, 1400 / bitmap.width)
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(bitmap.width * scale)
+  canvas.height = Math.round(bitmap.height * scale)
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('Foto tidak dapat diproses.')
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  let quality = 0.72
+  let result = canvas.toDataURL('image/jpeg', quality)
+  while (result.length > 2_400_000 && quality > 0.42) {
+    quality -= 0.08
+    result = canvas.toDataURL('image/jpeg', quality)
+  }
+  if (result.length > 2_700_000) throw new Error('Foto masih terlalu besar setelah kompresi. Pilih foto lain.')
+  return result
 }
 
 export default function SprayForm({ token, user, master, onSaved }: Props) {
   const [form, setForm] = useState<SprayState>(() => initialState(user))
-  const [holds, setHolds] = useState<HoldInterval[]>([])
+  const [holds, setHolds] = useState<HoldDraft[]>([])
   const [actualMaterials, setActualMaterials] = useState<Record<number, string>>({})
+  const [mainPhoto, setMainPhoto] = useState<File | undefined>()
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    const sync = async () => {
+      try {
+        const result = await flushQueue(token)
+        if (result.sent) setMessage(`${result.sent} data antrean berhasil disinkronkan.`)
+      } catch (error) { setMessage(error instanceof Error ? error.message : 'Sinkronisasi antrean gagal') }
+    }
+    window.addEventListener('online', sync)
+    if (navigator.onLine) void sync()
+    return () => window.removeEventListener('online', sync)
+  }, [token])
 
   const plans = useMemo(() => normalizePlans(master), [master])
   const activities = useMemo(() => unique(plans.map((p) => p.activity)), [plans])
@@ -105,18 +132,13 @@ export default function SprayForm({ token, user, master, onSaved }: Props) {
   }, [form.startTime, form.endTime, holds])
 
   function set(key: keyof SprayState, value: string) { setForm((old) => ({ ...old, [key]: value })) }
-  function chooseActivity(value: string) {
-    setForm((old) => ({ ...old, activity: value, deskripsi: '', paddock: '', variety: '', type: '' }))
-    setActualMaterials({})
-  }
+  function chooseActivity(value: string) { setForm((old) => ({ ...old, activity: value, deskripsi: '', paddock: '', variety: '', type: '' })); setActualMaterials({}) }
   function chooseDescription(value: string) {
     const matchingTypes = unique(plans.filter((p) => String(p.activity) === form.activity && String(p.description || p.deskripsi) === value).map((p) => p.type))
-    setForm((old) => ({ ...old, deskripsi: value, paddock: '', variety: '', type: matchingTypes.length === 1 ? matchingTypes[0] : '' }))
-    setActualMaterials({})
+    setForm((old) => ({ ...old, deskripsi: value, paddock: '', variety: '', type: matchingTypes.length === 1 ? matchingTypes[0] : '' })); setActualMaterials({})
   }
   function choosePaddock(value: string) {
-    const match = candidatePlans.filter((p) => String(p.paddock) === value)
-    const vars = unique(match.map((p) => p.variety))
+    const vars = unique(candidatePlans.filter((p) => String(p.paddock) === value).map((p) => p.variety))
     setForm((old) => ({ ...old, paddock: value, variety: vars.length === 1 ? vars[0] : '' }))
   }
 
@@ -129,13 +151,13 @@ export default function SprayForm({ token, user, master, onSaved }: Props) {
     if (!timing.ready) return setMessage(timing.error)
     setBusy(true); setMessage('')
     try {
+      const holdIntervals: HoldInterval[] = await Promise.all(holds.map(async ({ file, ...hold }) => ({ ...hold, photoBase64: await photoData(file) })))
       const record: QcRecord = {
         ...form,
         id: `qc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         formType: 'spray', saveType, inputtedBy: user.username, createdAt: new Date().toISOString(),
-        estUsageAdjuvant: estimatedAdjuvant,
-        holdIntervals: holds,
-        workingDurationMinutes: timing.working, holdTotalMinutes: timing.total, effectiveWorkingMinutes: timing.effective,
+        photoBase64: await photoData(mainPhoto), estUsageAdjuvant: estimatedAdjuvant,
+        holdIntervals, workingDurationMinutes: timing.working, holdTotalMinutes: timing.total, effectiveWorkingMinutes: timing.effective,
       }
       for (let i = 0; i < 4; i++) {
         const item = materials[i]
@@ -144,10 +166,10 @@ export default function SprayForm({ token, user, master, onSaved }: Props) {
         record[`estUsagePesticide${i + 1}`] = item ? (n(item.dosage) * n(form.area)).toFixed(2) : ''
         record[`actUsagePesticide${i + 1}`] = actualMaterials[i] || ''
       }
-      await qcApi.syncRecord(token, record)
+      const result = await sendOrQueue(token, 'syncRecord', record)
       onSaved(record)
-      setForm(initialState(user)); setHolds([]); setActualMaterials({})
-      setMessage('Data Spraying tersimpan dan tersinkron.')
+      setForm(initialState(user)); setHolds([]); setActualMaterials({}); setMainPhoto(undefined)
+      setMessage(result.queued ? 'Data aman di perangkat dan menunggu jaringan.' : 'Data Spraying tersimpan dan tersinkron.')
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Gagal menyimpan data Spraying') }
     finally { setBusy(false) }
   }
@@ -166,11 +188,10 @@ export default function SprayForm({ token, user, master, onSaved }: Props) {
         <label>Asisten<select value={form.nameOfAssistan} onChange={(e) => set('nameOfAssistan', e.target.value)}><option value="">Pilih…</option>{(master.assistants || []).map((x) => <option key={x}>{x}</option>)}</select></label>
         <fieldset className="span-2"><legend>Unit — bisa lebih dari satu</legend><Choice values={units} value={form.unit} multiple onChange={(v) => { set('unit', v); set('noUnit', '') }} /></fieldset>
         <fieldset className="span-2"><legend>No. Unit</legend><Choice values={unitNumbers} value={form.noUnit} multiple onChange={(v) => set('noUnit', v)} /></fieldset>
-        <label>Luas aktual (Ha)<input type="number" step=".01" min="0" value={form.area} onChange={(e) => set('area', e.target.value)} required /><small className="muted">Diisi manual sesuai luas pekerjaan aktual. Luas pada sheet Plan tidak dipakai untuk mengisi field ini.</small></label>
+        <label>Luas aktual (Ha)<input type="number" step=".01" min="0" value={form.area} onChange={(e) => set('area', e.target.value)} required /><small className="muted">Diisi manual. Luas Plan tidak mengubah nilai ini.</small></label>
       </div>
 
-      <div className="panel stack">
-        <h3>Program & Paddock</h3>
+      <div className="panel stack"><h3>Program & Paddock</h3>
         <fieldset><legend>Activity</legend><Choice values={activities} value={form.activity} onChange={chooseActivity} /></fieldset>
         <fieldset><legend>Deskripsi</legend><Choice values={descriptions} value={form.deskripsi} onChange={chooseDescription} /></fieldset>
         <fieldset><legend>Type</legend><Choice values={types} value={form.type} onChange={(v) => setForm((old) => ({ ...old, type: v, paddock: '', variety: '' }))} /></fieldset>
@@ -186,14 +207,14 @@ export default function SprayForm({ token, user, master, onSaved }: Props) {
         </div>
       </div>
 
-      <div className="panel stack"><h3>Bahan Kimia Otomatis</h3><p className="muted">Estimated Usage dihitung otomatis: Dosis/Ha × Luas aktual.</p>
+      <div className="panel stack"><h3>Bahan Kimia Otomatis</h3><p className="muted">Estimated Usage = Dosis/Ha × Luas aktual.</p>
         <div className="material-grid">{materials.length ? materials.map((item, i) => <article className="material-card" key={`${item.slot}-${i}`}><strong>{item.slot}<br />{item.material} <small>({item.unit || '-'})</small></strong><label>Dosis/Ha<input readOnly value={String(item.dosage || '')} /></label><label>Estimated Usage<input readOnly value={(n(item.dosage) * n(form.area)).toFixed(2)} /></label><label>Actual Used<input type="number" step=".001" value={actualMaterials[i] || ''} onChange={(e) => setActualMaterials((old) => ({ ...old, [i]: e.target.value }))} /></label></article>) : <p className="muted">Pilih Deskripsi untuk memuat Pesticide 1–4.</p>}</div>
       </div>
 
       <div className="panel stack"><h3>Adjuvant & Kondisi Lapangan</h3><div className="form-grid">
         <label>Nama adjuvant<input list="adjuvants" value={form.adjuvant} onChange={(e) => set('adjuvant', e.target.value)} /><datalist id="adjuvants">{adjuvants.map((x) => <option value={x} key={x} />)}</datalist></label>
         <label>Dosis Adjuvant (mL/L)<input type="number" step=".01" value={form.adjuvantDosage} onChange={(e) => set('adjuvantDosage', e.target.value)} /></label>
-        <label>Estimated Adjuvant (L)<input readOnly value={estimatedAdjuvant} /><small className="muted">Otomatis: dosis mL/L × water rate × luas aktual ÷ 1.000.</small></label>
+        <label>Estimated Adjuvant (L)<input readOnly value={estimatedAdjuvant} /></label>
         <label>Actual Adjuvant (L)<input type="number" step=".01" value={form.actUsageAdjuvant} onChange={(e) => set('actUsageAdjuvant', e.target.value)} /></label>
         <label>Water Rate (L/Ha)<input type="number" step=".01" value={form.waterRate} onChange={(e) => set('waterRate', e.target.value)} /></label>
         <fieldset className="span-2"><legend>Water Quality</legend><Choice values={master.waterQualities || []} value={form.waterQuality} onChange={(v) => set('waterQuality', v)} /></fieldset>
@@ -207,11 +228,11 @@ export default function SprayForm({ token, user, master, onSaved }: Props) {
 
       <div className="panel stack"><div className="section-head"><div><div className="eyebrow">REKAP WAKTU</div><h3>Working & HOLD</h3></div><button type="button" onClick={() => setHolds((old) => [...old, { start: '', end: '', reason: '', windSpeed: '', note: '' }])}>+ Tambah HOLD</button></div>
         {timing.ready ? <div className="stats-grid"><Stat label="Working" value={durationLabel(timing.working)} /><Stat label="HOLD" value={durationLabel(timing.total)} /><Stat label="Efektif" value={durationLabel(timing.effective)} /></div> : <div className="alert">{timing.error}</div>}
-        {holds.map((hold, i) => <div className="hold-row-react" key={i}><strong>HOLD {i + 1}</strong><input type="time" value={hold.start} onChange={(e) => setHolds((old) => old.map((h, x) => x === i ? { ...h, start: e.target.value } : h))} /><input type="time" value={hold.end} onChange={(e) => setHolds((old) => old.map((h, x) => x === i ? { ...h, end: e.target.value } : h))} /><input placeholder="Alasan HOLD" value={hold.reason} onChange={(e) => setHolds((old) => old.map((h, x) => x === i ? { ...h, reason: e.target.value } : h))} /><input type="number" step=".1" placeholder="Angin km/jam" value={hold.windSpeed} onChange={(e) => setHolds((old) => old.map((h, x) => x === i ? { ...h, windSpeed: e.target.value } : h))} /><button type="button" className="danger" onClick={() => setHolds((old) => old.filter((_, x) => x !== i))}>×</button></div>)}
+        {holds.map((hold, i) => <div className="hold-row-react" key={i}><strong>HOLD {i + 1}</strong><input type="time" value={hold.start} onChange={(e) => setHolds((old) => old.map((h, x) => x === i ? { ...h, start: e.target.value } : h))} /><input type="time" value={hold.end} onChange={(e) => setHolds((old) => old.map((h, x) => x === i ? { ...h, end: e.target.value } : h))} /><input placeholder="Alasan HOLD" value={hold.reason} onChange={(e) => setHolds((old) => old.map((h, x) => x === i ? { ...h, reason: e.target.value } : h))} /><input type="number" step=".1" placeholder="Angin km/jam" value={hold.windSpeed} onChange={(e) => setHolds((old) => old.map((h, x) => x === i ? { ...h, windSpeed: e.target.value } : h))} /><input type="file" accept="image/*" capture="environment" onChange={(e) => setHolds((old) => old.map((h, x) => x === i ? { ...h, file: e.target.files?.[0] } : h))} /><button type="button" className="danger" onClick={() => setHolds((old) => old.filter((_, x) => x !== i))}>×</button></div>)}
       </div>
 
-      <div className="panel"><label>Catatan<textarea rows={3} value={form.noted} onChange={(e) => set('noted', e.target.value)} /></label></div>
-      <div className="form-actions"><button type="button" onClick={() => { setForm(initialState(user)); setHolds([]); setActualMaterials({}); setMessage('') }}>Bersihkan</button><button type="submit" name="saveType" value="draft" disabled={busy}>Simpan Draft</button><button className="primary" type="submit" name="saveType" value="ready" disabled={busy}>{busy ? 'Menyimpan…' : 'Simpan Data QC'}</button></div>
+      <div className="panel stack"><h3>Foto & Catatan</h3><label>Foto QC<input type="file" accept="image/*" capture="environment" onChange={(e) => setMainPhoto(e.target.files?.[0])} /></label>{mainPhoto && <span className="muted">Dipilih: {mainPhoto.name}</span>}<label>Catatan<textarea rows={3} value={form.noted} onChange={(e) => set('noted', e.target.value)} /></label></div>
+      <div className="form-actions"><button type="button" onClick={() => { setForm(initialState(user)); setHolds([]); setActualMaterials({}); setMainPhoto(undefined); setMessage('') }}>Bersihkan</button><button type="submit" name="saveType" value="draft" disabled={busy}>Simpan Draft</button><button className="primary" type="submit" name="saveType" value="ready" disabled={busy}>{busy ? 'Menyimpan…' : 'Simpan Data QC'}</button></div>
     </form>
   </section>
 }
