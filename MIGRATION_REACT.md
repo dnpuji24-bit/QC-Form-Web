@@ -55,6 +55,15 @@ Cabang `migrate/react-typescript-vite` adalah jalur migrasi aman dari frontend l
 - KPI Spray Area, Fertilizer Area, Pupuk tercatat, Unit Fertilizer.
 - Rekap per Activity: jumlah record, area, uploaded, progress upload.
 - Ringkasan jumlah baris Plan dan total luas Plan hanya sebagai referensi; tidak memengaruhi Luas Aktual Form Spray.
+- Dashboard tersedia untuk seluruh user yang berhasil login; visibilitas data tetap mengikuti hasil endpoint `records` dari backend.
+
+### Navigasi berdasarkan role
+- Owner: Dashboard, Spray, Fertilizer, Data QC, Users, Activity Logs, Pengaturan.
+- Asisten: Dashboard, Spray, Fertilizer, Data QC, Activity Logs, Pengaturan.
+- Manager/Admin: Dashboard, Data QC, Activity Logs, Pengaturan.
+- Mandor Spraying: Dashboard, Input Spraying, Data QC, Pengaturan.
+- Mandor Fertilizer: Dashboard, Input Fertilizer, Data QC, Pengaturan.
+- Pengunjung: Dashboard, Data QC, Pengaturan.
 
 ## Regression checks
 ```bash
