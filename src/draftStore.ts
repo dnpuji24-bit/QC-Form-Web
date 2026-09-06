@@ -22,7 +22,7 @@ export async function loadDraft<T>(key:string):Promise<T|null>{
     return row?.value??null
   }catch(error){
     console.error('[QC autosave] loadDraft gagal',error)
-    throw error
+    return null
   }
 }
 
@@ -30,13 +30,10 @@ export function saveDraft<T>(key:string,value:T):Promise<void>{
   const previous=pendingWrites.get(key)||Promise.resolve()
   const next=previous.catch(()=>undefined).then(async()=>{
     await withStore<IDBValidKey>('readwrite',store=>store.put({key,value,updatedAt:Date.now()} satisfies DraftEnvelope<T>))
-  })
+  }).catch(error=>{console.error('[QC autosave] saveDraft gagal',error)})
   pendingWrites.set(key,next)
   void next.finally(()=>{if(pendingWrites.get(key)===next)pendingWrites.delete(key)})
-  return next.catch(error=>{
-    console.error('[QC autosave] saveDraft gagal',error)
-    throw error
-  })
+  return next
 }
 
 export async function flushDraftWrite(key:string):Promise<void>{
@@ -49,6 +46,5 @@ export async function clearDraft(key:string):Promise<void>{
     await withStore<undefined>('readwrite',store=>store.delete(key) as IDBRequest<undefined>)
   }catch(error){
     console.error('[QC autosave] clearDraft gagal',error)
-    throw error
   }
 }
