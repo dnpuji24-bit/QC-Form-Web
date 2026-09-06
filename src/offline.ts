@@ -2,54 +2,31 @@ import { qcApi } from './api'
 import type { QcRecord } from './types'
 
 const QUEUE_KEY = 'qc_react_queue_v1'
-
 export type QueueAction = 'syncRecord' | 'finalizeRecord'
-
-type QueueItem = {
-  id: string
-  action: QueueAction
-  record: QcRecord
-  createdAt: number
-}
+type QueueItem = { id: string; action: QueueAction; record: QcRecord; createdAt: number }
 
 function readQueue(): QueueItem[] {
-  try {
-    return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]') as QueueItem[]
-  } catch {
-    return []
-  }
+  try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]') as QueueItem[] } catch { return [] }
 }
-
-function writeQueue(items: QueueItem[]) {
-  localStorage.setItem(QUEUE_KEY, JSON.stringify(items))
-}
-
-export function queueCount() {
-  return readQueue().length
-}
+function writeQueue(items: QueueItem[]) { localStorage.setItem(QUEUE_KEY, JSON.stringify(items)) }
+export function queueCount() { return readQueue().length }
+export function discardQueuedRecord(recordId: string) { writeQueue(readQueue().filter((item) => item.record.id !== recordId)) }
 
 export function enqueue(action: QueueAction, record: QcRecord) {
-  const items = readQueue()
-  const duplicate = items.findIndex((item) => item.action === action && item.record.id === record.id)
-  const next: QueueItem = {
-    id: crypto.randomUUID(),
-    action,
-    record,
-    createdAt: Date.now(),
-  }
-  if (duplicate >= 0) items[duplicate] = next
-  else items.push(next)
+  let items = readQueue()
+  if (action === 'finalizeRecord') items = items.filter((item) => item.record.id !== record.id)
+  else items = items.filter((item) => !(item.action === action && item.record.id === record.id))
+  items.push({ id: crypto.randomUUID(), action, record, createdAt: Date.now() })
   writeQueue(items)
 }
 
 export async function sendOrQueue(token: string, action: QueueAction, record: QcRecord) {
-  if (!navigator.onLine) {
-    enqueue(action, record)
-    return { queued: true }
-  }
+  if (!navigator.onLine) { enqueue(action, record); return { queued: true } }
   try {
     if (action === 'finalizeRecord') await qcApi.finalizeRecord(token, record)
     else await qcApi.syncRecord(token, record)
+    if (action === 'finalizeRecord') discardQueuedRecord(record.id)
+    else writeQueue(readQueue().filter((item) => !(item.action === action && item.record.id === record.id)))
     return { queued: false }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -61,8 +38,7 @@ export async function sendOrQueue(token: string, action: QueueAction, record: Qc
 
 export async function flushQueue(token: string) {
   if (!navigator.onLine) return { sent: 0, left: queueCount() }
-  const items = readQueue()
-  const left: QueueItem[] = []
+  const items = readQueue(), left: QueueItem[] = []
   let sent = 0
   for (const item of items) {
     try {
