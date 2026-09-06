@@ -25,6 +25,7 @@ export interface HoldInterval {
   windSpeed: string
   note: string
   photoBase64?: string
+  photoDriveUrl?: string
 }
 
 export interface PlanMaster {
