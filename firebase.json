@@ -1,1 +1,15 @@
-{"hosting":{"public":"public","ignore":["firebase.json","**/.*","**/node_modules/**"],"rewrites":[{"source":"/react/**","destination":"/react/index.html"}],"headers":[{"source":"/sw.js","headers":[{"key":"Cache-Control","value":"no-cache"}]},{"source":"**/*.@(js|css)","headers":[{"key":"Cache-Control","value":"public,max-age=3600"}]}]}}
+{
+  "hosting": {
+    "public": "public",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [{"source": "/react/**", "destination": "/react/index.html"}],
+    "headers": [
+      {"source": "/react/sw.js", "headers": [{"key": "Cache-Control", "value": "no-cache"}]},
+      {"source": "**/*.@(js|css)", "headers": [{"key": "Cache-Control", "value": "public,max-age=3600"}]}
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}
