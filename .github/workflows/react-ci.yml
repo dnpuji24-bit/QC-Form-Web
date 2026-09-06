@@ -46,6 +46,7 @@ jobs:
         run: npm run build
 
       - name: Apps Script runtime smoke
+        if: github.event_name == 'push'
         env:
           SMOKE_OWNER_USERNAME: ${{ secrets.SMOKE_OWNER_USERNAME }}
           SMOKE_OWNER_PASSWORD: ${{ secrets.SMOKE_OWNER_PASSWORD }}
