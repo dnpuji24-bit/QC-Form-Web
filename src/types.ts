@@ -18,6 +18,36 @@ export interface User {
   allowedForm?: FormType | 'all' | string
 }
 
+export interface HoldInterval {
+  start: string
+  end: string
+  reason: string
+  windSpeed: string
+  note: string
+  photoBase64?: string
+}
+
+export interface PlanMaster {
+  paddock?: string
+  variety?: string
+  area?: string | number
+  luas_target?: string | number
+  activity?: string
+  type?: string
+  description?: string
+  deskripsi?: string
+  category?: string
+  keterangan?: string
+}
+
+export interface MaterialMaster {
+  description?: string
+  slot?: string
+  material?: string
+  dosage?: string | number
+  unit?: string
+}
+
 export interface QcRecord {
   id: string
   formType: FormType
@@ -32,12 +62,27 @@ export interface QcRecord {
   resultArea?: number | string
   inputtedBy?: string
   updatedAt?: string
+  createdAt?: string
+  holdIntervals?: HoldInterval[]
+  workingDurationMinutes?: number
+  holdTotalMinutes?: number
+  effectiveWorkingMinutes?: number
   [key: string]: unknown
 }
 
 export interface MasterData {
   names?: string[]
   assistants?: string[]
+  statuses?: string[]
+  shifts?: string[]
+  unitMap?: Record<string, string[]>
+  dropper?: string[]
+  nozzles?: string[]
+  waterQualities?: string[]
+  weatherConditions?: string[]
+  plans?: PlanMaster[]
+  plan?: PlanMaster[]
+  materials?: MaterialMaster[]
   paddocks?: string[]
   activities?: string[]
   descriptions?: string[]
