@@ -16,9 +16,10 @@ for token in ['users:', 'approveUser:', 'rejectUser:', 'logs:']:
 for token in ['Users & Approval', 'Menunggu Persetujuan', 'Activity Logs', 'AUDIT TRAIL']:
     assert token in admin, f'Missing admin UI: {token}'
 
-for token in ['Dashboard QC', 'Rekap per Activity', 'Spray area', 'Fertilizer area', 'Pupuk tercatat', 'Total luas pada Plan']:
-    assert token in dash, f'Missing dashboard metric: {token}'
+for token in ['Dashboard QC', 'Luas yang Sudah Dikerjakan', 'Spray area', 'Fertilizer area', 'Pupuk tercatat', 'Total area dikerjakan', 'worked-paddocks', 'onOpenRecords']:
+    assert token in dash, f'Missing dashboard metric or navigation: {token}'
 
+assert 'Total luas pada Plan' not in dash, 'Legacy Plan-area dashboard row must stay removed'
 assert "requireRole_(session,['owner'])" in backend
 assert "requireRole_(session,['owner','manager','admin','asisten'])" in backend
 print('Admin, logs, and operational dashboard React check: OK')
