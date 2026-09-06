@@ -8,7 +8,8 @@ Cabang `migrate/react-typescript-vite` dibuat sebagai jalur migrasi aman dari fr
 - Google Spreadsheet tetap menjadi sumber data operasional.
 - Endpoint Apps Script lama tetap digunakan.
 - Format token sesi, role, Record ID, dan record lama tidak diubah.
-- Frontend produksi di `main` tetap utuh sampai migrasi selesai dan diuji.
+- Frontend lama tetap tersedia di `/` selama masa migrasi.
+- Frontend React dibangun paralel di `/react/` untuk pengujian sebelum cutover.
 
 ## Sudah dimigrasikan
 
@@ -22,16 +23,17 @@ Cabang `migrate/react-typescript-vite` dibuat sebagai jalur migrasi aman dari fr
 - Monitoring record dari endpoint `records`.
 - Filter jenis dan pencarian record.
 - Pengaturan URL deployment Apps Script.
-- Firebase Hosting diarahkan ke output Vite `dist/` pada cabang migrasi.
+- Build Vite diarahkan ke `public/react/` dengan base path `/react/`.
+- Firebase Hosting tetap menyajikan `public/`, sehingga frontend lama di `/` tidak terganggu.
 
-## Belum dipindahkan sebelum cabang boleh digabung ke `main`
+## Belum dipindahkan sebelum frontend React boleh menggantikan versi lama
 
 - Form Spraying lengkap beserta seluruh dependency Activity → Deskripsi → Paddock → Variety.
 - Form Fertilizer lengkap termasuk multiple pengisian.
 - Perhitungan bahan, adjuvant, water rate, dan estimated/actual usage.
 - Upload foto QC.
 - Draft lokal, offline queue, dan sinkronisasi otomatis.
-- PWA/service worker versi Vite.
+- PWA/service worker versi React.
 - Halaman Users/approval.
 - Activity Logs.
 - Edit/delete record dengan semua pembatasan role di UI.
@@ -45,11 +47,18 @@ npm install
 npm run dev
 ```
 
-Build produksi:
+Build React paralel:
 
 ```bash
 npm run build
+```
+
+Hasil build berada di `public/react/`. Setelah itu Firebase Hosting dapat dideploy seperti biasa:
+
+```bash
 firebase deploy --only hosting
 ```
 
-> Jangan deploy cabang migrasi ke hosting produksi sebelum seluruh item parity di atas selesai diuji. Backend server tetap menjadi sumber otorisasi; pembatasan UI React bukan pengganti validasi role di `Code.gs`.
+URL lama tetap `/`, sedangkan build React tersedia di `/react/`.
+
+> Jangan menjadikan `/react/` sebagai frontend utama sebelum seluruh item parity di atas selesai diuji. Backend server tetap menjadi sumber otorisasi; pembatasan UI React bukan pengganti validasi role di `Code.gs`.
