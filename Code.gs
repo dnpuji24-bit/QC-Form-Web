@@ -1,5 +1,5 @@
 /**
- * QC Form Web API v46.1
+ * QC Form Web API v46.1.1
  * Deploy as a Web App from the Apps Script project bound to "Application QC Form".
  * Execute as: Me. Access: Anyone.
  *
@@ -9,7 +9,7 @@
  * - Permissions are enforced here; the browser UI is not trusted.
  */
 var QC = {
-  VERSION: '46.1.0',
+  VERSION: '46.1.1',
   SESSION_SECONDS: 21600,
   SHEETS: {
     USERS: 'Users', LOGS: 'Activity_Logs', CLOUD: 'Cloud_Monitoring',
@@ -66,13 +66,8 @@ function setupSystem() {
   ensureSheet_(ss, QC.SHEETS.CLOUD, QC.CLOUD_HEADERS, 1);
   ensureSheet_(ss, QC.SHEETS.SPRAY, QC.SPRAY_HEADERS, detectSprayHeaderRow_(ss.getSheetByName(QC.SHEETS.SPRAY)));
   ensureSheet_(ss, QC.SHEETS.FERT, QC.FERT_HEADERS, 1);
-  var props = PropertiesService.getScriptProperties();
-  if (!props.getProperty('PHOTO_FOLDER_ID')) {
-    var it = DriveApp.getFoldersByName('QC Form Photos');
-    var folder = it.hasNext() ? it.next() : DriveApp.createFolder('QC Form Photos');
-    props.setProperty('PHOTO_FOLDER_ID', folder.getId());
-  }
-  return 'QC Form API v' + QC.VERSION + ' siap.';
+  var folder = getPhotoFolder_();
+  return 'QC Form API v' + QC.VERSION + ' siap. Folder foto: ' + folder.getName();
 }
 
 function login_(req) {
@@ -116,7 +111,6 @@ function register_(req) {
   sh.appendRow(row); log_(null,{username:username,fullName:fullName,role:requested},'REGISTER','Pendaftaran akun baru',req.deviceInfo);
   return {ok:true,message:'Pendaftaran terkirim dan menunggu persetujuan Owner.'};
 }
-
 function requireSession_(token) {
   token = String(token || ''); if (!token) throw new Error('AUTH_REQUIRED');
   var cache = CacheService.getScriptCache(), raw = cache.get('session:' + token);
@@ -131,16 +125,18 @@ function canDelete_(u) { return ['owner','manager','admin','asisten'].indexOf(no
 function syncRecord_(user, rec) {
   rec = validateRecord_(rec); if (!canInput_(user,rec.formType)) throw new Error('AUTH_FORBIDDEN');
   rec.inputtedBy=user.username; rec.inputtedByName=user.fullName; rec.updatedAt=new Date().toISOString();
+  preparePhotoLinks_(rec);
   upsertCloud_(rec,user); log_(null,user,'SYNC_DRAFT','Sinkronisasi '+rec.formType+' '+rec.paddock,rec.deviceInfo);
-  return {ok:true,recordId:rec.id,updatedAt:rec.updatedAt};
+  return {ok:true,recordId:rec.id,updatedAt:rec.updatedAt,photoDriveUrl:rec.photoDriveUrl||''};
 }
 
 function finalizeRecord_(user, rec) {
   rec=validateRecord_(rec); if(!canInput_(user,rec.formType)) throw new Error('AUTH_FORBIDDEN');
   rec.inputtedBy=user.username; rec.inputtedByName=user.fullName; rec.saveType='uploaded'; rec.uploadedAt=new Date().toISOString();
+  preparePhotoLinks_(rec);
   var result = rec.formType==='fertilizer' ? writeFertilizer_(rec) : writeSpray_(rec);
   upsertCloud_(rec,user); log_(null,user,'UPLOAD_'+rec.formType.toUpperCase(),'Upload '+rec.paddock,rec.deviceInfo);
-  return {ok:true,recordId:rec.id,rows:result};
+  return {ok:true,recordId:rec.id,rows:result,photoDriveUrl:rec.photoDriveUrl||''};
 }
 
 function deleteRecord_(user,id) {
@@ -175,16 +171,16 @@ function listLogs_() { var sh=getSheet_(QC.SHEETS.LOGS),map=headerMap_(sh,1),row
 function listCloud_(user) { var sh=getSheet_(QC.SHEETS.CLOUD),map=headerMap_(sh,1),rows=dataRows_(sh,2),out=[]; rows.forEach(function(r){var o=rowObject_(r,map),rec={};try{rec=JSON.parse(o.RecordJSON||o.PhotoLink||'{}');}catch(e){} if(!rec.id) rec={id:o.RecordID,formType:o.FormType,date:o.Date,shift:o.Shift,name:o.Mandor,nameOfAssistan:o.Assistan,paddock:o.Paddock,status:o.Status,saveType:o.SaveType}; if(normalizeRole_(user.role).indexOf('mandor_')===0 && rec.inputtedBy!==user.username) return; out.push(rec);}); return out; }
 
 function upsertCloud_(rec,user) {
-  var sh=getSheet_(QC.SHEETS.CLOUD),map=headerMap_(sh,1),row=findRow_(sh,map.RecordID,rec.id,2),photo=savePhoto_(rec);
-  rec.photoBase64=''; (rec.holdIntervals||[]).forEach(function(h){h.photoBase64='';}); var values=blankRow_(sh.getLastColumn());
-  setBy_(values,map,'LastUpdated',new Date());setBy_(values,map,'RecordID',rec.id);setBy_(values,map,'FormType',rec.formType);setBy_(values,map,'Date',rec.date);setBy_(values,map,'Shift',rec.shift);setBy_(values,map,'Mandor',rec.name);setBy_(values,map,'Assistan',rec.nameOfAssistan);setBy_(values,map,'Paddock',rec.paddock);setBy_(values,map,'Status',rec.status);setBy_(values,map,'SaveType',rec.saveType||'draft');setBy_(values,map,'SummaryDetails',(rec.activity||rec.type||'')+' | '+(rec.area||0)+' Ha');setBy_(values,map,'RecordJSON',JSON.stringify(rec));setBy_(values,map,'PhotoLink',photo||rec.photoDriveUrl||'');setBy_(values,map,'UpdatedBy',user.username);
+  var sh=getSheet_(QC.SHEETS.CLOUD),map=headerMap_(sh,1),row=findRow_(sh,map.RecordID,rec.id,2),stored=JSON.parse(JSON.stringify(rec));
+  stored.photoBase64=''; (stored.holdIntervals||[]).forEach(function(h){h.photoBase64='';}); var values=blankRow_(sh.getLastColumn());
+  setBy_(values,map,'LastUpdated',new Date());setBy_(values,map,'RecordID',rec.id);setBy_(values,map,'FormType',rec.formType);setBy_(values,map,'Date',rec.date);setBy_(values,map,'Shift',rec.shift);setBy_(values,map,'Mandor',rec.name);setBy_(values,map,'Assistan',rec.nameOfAssistan);setBy_(values,map,'Paddock',rec.paddock);setBy_(values,map,'Status',rec.status);setBy_(values,map,'SaveType',rec.saveType||'draft');setBy_(values,map,'SummaryDetails',(rec.activity||rec.type||'')+' | '+(rec.area||0)+' Ha');setBy_(values,map,'RecordJSON',JSON.stringify(stored));setBy_(values,map,'PhotoLink',rec.photoDriveUrl||'');setBy_(values,map,'UpdatedBy',user.username);
   if(row) sh.getRange(row,1,1,values.length).setValues([values]); else sh.appendRow(values);
 }
 
 function writeSpray_(rec) {
-  var working=JSON.parse(JSON.stringify(rec));working.status='Working';working.noted=workingNote_(rec);var rows=[working]; (rec.holdIntervals||[]).forEach(function(h,i){var x=JSON.parse(JSON.stringify(rec));x.id=rec.id+'_hold_'+(i+1);x.status='Hold';x.startTime=h.start;x.endTime=h.end;x.area=0;x.windSpeed=h.windSpeed;x.temperature=h.temperature;x.humidity=h.humidity;x.deltaT=h.deltaT;x.weatherCondition=h.weather;x.noted='[HOLD '+(i+1)+'] '+(h.reason||'Jeda Lapangan')+(h.note?' - '+h.note:'');x.photoBase64=h.photoBase64||'';rows.push(x);});
+  var working=JSON.parse(JSON.stringify(rec));working.status='Working';working.noted=workingNote_(rec);working.photoBase64='';var rows=[working]; (rec.holdIntervals||[]).forEach(function(h,i){var x=JSON.parse(JSON.stringify(rec));x.id=rec.id+'_hold_'+(i+1);x.status='Hold';x.startTime=h.start;x.endTime=h.end;x.area=0;x.windSpeed=h.windSpeed;x.temperature=h.temperature;x.humidity=h.humidity;x.deltaT=h.deltaT;x.weatherCondition=h.weather;x.noted='[HOLD '+(i+1)+'] '+(h.reason||'Jeda Lapangan')+(h.note?' - '+h.note:'');x.photoBase64='';x.photoDriveUrl=h.photoDriveUrl||'';rows.push(x);});
   var sh=getSheet_(QC.SHEETS.SPRAY),headerRow=detectSprayHeaderRow_(sh); ensureSheet_(SpreadsheetApp.getActiveSpreadsheet(),QC.SHEETS.SPRAY,QC.SPRAY_HEADERS,headerRow);
-  rows.forEach(function(r){var photo=savePhoto_(r),v=[r.date,r.startTime,r.endTime,r.shift,r.status||'Working',r.name,r.nameOfAssistan,r.paddock,r.variety,num_(r.area),r.unit,r.noUnit,r.dropper,num_(r.dropletSize),r.nozzle,num_(r.height),num_(r.rowSpacing),num_(r.speed),r.type,r.activity,r.deskripsi,r.pesticide1,num_(r.dosage1),r.pesticide2,num_(r.dosage2),r.pesticide3,num_(r.dosage3),r.pesticide4,num_(r.dosage4),r.adjuvant,num_(r.adjuvantDosage),num_(r.estUsagePesticide1),num_(r.estUsagePesticide2),num_(r.estUsagePesticide3),num_(r.estUsagePesticide4),num_(r.estUsageAdjuvant),num_(r.actUsagePesticide1),num_(r.actUsagePesticide2),num_(r.actUsagePesticide3),num_(r.actUsagePesticide4),num_(r.actUsageAdjuvant),num_(r.waterRate),r.waterQuality,num_(r.actualUsage),num_(r.windSpeed),num_(r.temperature),num_(r.humidity),num_(r.deltaT),r.weatherCondition,r.noted,photo||r.photoDriveUrl||'',r.id];upsertRow_(sh,v,52,r.id,headerRow+1);}); return rows.length;
+  rows.forEach(function(r){var v=[r.date,r.startTime,r.endTime,r.shift,r.status||'Working',r.name,r.nameOfAssistan,r.paddock,r.variety,num_(r.area),r.unit,r.noUnit,r.dropper,num_(r.dropletSize),r.nozzle,num_(r.height),num_(r.rowSpacing),num_(r.speed),r.type,r.activity,r.deskripsi,r.pesticide1,num_(r.dosage1),r.pesticide2,num_(r.dosage2),r.pesticide3,num_(r.dosage3),r.pesticide4,num_(r.dosage4),r.adjuvant,num_(r.adjuvantDosage),num_(r.estUsagePesticide1),num_(r.estUsagePesticide2),num_(r.estUsagePesticide3),num_(r.estUsagePesticide4),num_(r.estUsageAdjuvant),num_(r.actUsagePesticide1),num_(r.actUsagePesticide2),num_(r.actUsagePesticide3),num_(r.actUsagePesticide4),num_(r.actUsageAdjuvant),num_(r.waterRate),r.waterQuality,num_(r.actualUsage),num_(r.windSpeed),num_(r.temperature),num_(r.humidity),num_(r.deltaT),r.weatherCondition,r.noted,r.photoDriveUrl||'',r.id];upsertRow_(sh,v,52,r.id,headerRow+1);}); return rows.length;
 }
 
 function workingNote_(rec) {
@@ -199,8 +195,8 @@ function writeFertilizer_(rec) {
   fills.forEach(function(p,i){
     var id=rec.id+(fills.length>1?'_p'+(i+1):''),hasil=num_(p.hasilKerja||rec.hasilKerja),jumlah=num_(p.jumlah||rec.jumlah),actual=num_(p.dosisAktual||rec.dosisAktual);
     if((actual===''||actual===0)&&hasil>0)actual=Math.round(jumlah/hasil*100)/100;
-    var photo=savePhoto_(rec),jenis=p.jenisPupuk||rec.jenisPupuk||rec.material,dosis=num_(p.dosis||rec.dosis),hose=p.statusHose||rec.statusHose;
-    var v=[rec.date,rec.shift,rec.name,rec.nameOfAssistan,rec.status||'Working',rec.status==='Hold'?rec.startTime:'',rec.status==='Hold'?rec.endTime:'',rec.paddock,rec.unit,rec.noUnit,rec.type||'Fertilizer',rec.activity,jenis,dosis,hose,p.pengisianKe||rec.pengisianKe||i+1,jumlah,hasil,actual,num_(p.pemerataanPupuk||rec.pemerataanPupuk),rec.catatan||rec.noted,photo||rec.photoDriveUrl||'',id];
+    var jenis=p.jenisPupuk||rec.jenisPupuk||rec.material,dosis=num_(p.dosis||rec.dosis),hose=p.statusHose||rec.statusHose;
+    var v=[rec.date,rec.shift,rec.name,rec.nameOfAssistan,rec.status||'Working',rec.status==='Hold'?rec.startTime:'',rec.status==='Hold'?rec.endTime:'',rec.paddock,rec.unit,rec.noUnit,rec.type||'Fertilizer',rec.activity,jenis,dosis,hose,p.pengisianKe||rec.pengisianKe||i+1,jumlah,hasil,actual,num_(p.pemerataanPupuk||rec.pemerataanPupuk),rec.catatan||rec.noted,rec.photoDriveUrl||'',id];
     upsertRow_(sh,v,23,id,2);
   });return fills.length;
 }
@@ -235,7 +231,9 @@ function rateLimit_(key,max,seconds){var c=CacheService.getScriptCache(),k='rate
 function findRow_(sh,col,val,start){if(!col)return 0;var n=sh.getLastRow()-start+1;if(n<=0)return 0;var a=sh.getRange(start,col,n,1).getDisplayValues();for(var i=0;i<a.length;i++)if(String(a[i][0])===String(val))return i+start;return 0;}
 function upsertRow_(sh,values,idCol,id,start){var row=findRow_(sh,idCol,id,start);if(row)sh.getRange(row,1,1,values.length).setValues([values]);else sh.appendRow(values);}
 function deleteById_(sh,id,col,start){var rows=[];for(var r=start;r<=sh.getLastRow();r++){var v=String(sh.getRange(r,col).getDisplayValue());if(v===id||v.indexOf(id+'_')===0)rows.push(r);}for(var i=rows.length-1;i>=0;i--)sh.deleteRow(rows[i]);}
-function savePhoto_(rec){var b=String(rec.photoBase64||'');if(b.length<100)return'';var m=b.match(/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/);if(!m)throw new Error('Format foto tidak didukung.');var bytes=Utilities.base64Decode(m[2]);if(bytes.length>2000000)throw new Error('Foto maksimal 2 MB.');var ext=m[1]==='image/png'?'.png':m[1]==='image/webp'?'.webp':'.jpg',folder=DriveApp.getFolderById(PropertiesService.getScriptProperties().getProperty('PHOTO_FOLDER_ID')),name='QC_'+rec.formType+'_'+clean_(rec.paddock,40).replace(/[^a-z0-9_-]/gi,'_')+'_'+Date.now()+ext;return folder.createFile(Utilities.newBlob(bytes,m[1],name)).getUrl();}
+function getPhotoFolder_(){var props=PropertiesService.getScriptProperties(),id=clean_(props.getProperty('PHOTO_FOLDER_ID'),200),folder=null;if(id){try{folder=DriveApp.getFolderById(id);folder.getName();}catch(e){console.warn('PHOTO_FOLDER_ID tidak valid/terakses: '+id+' | '+e);folder=null;}}if(!folder){var it=DriveApp.getFoldersByName('QC Form Photos');folder=it.hasNext()?it.next():DriveApp.createFolder('QC Form Photos');props.setProperty('PHOTO_FOLDER_ID',folder.getId());}return folder;}
+function savePhoto_(rec,label){var b=String(rec.photoBase64||'');if(b.length<100)return rec.photoDriveUrl||'';var m=b.match(/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/);if(!m)throw new Error('Format foto tidak didukung.');var bytes=Utilities.base64Decode(m[2]);if(bytes.length>2000000)throw new Error('Foto maksimal 2 MB.');var ext=m[1]==='image/png'?'.png':m[1]==='image/webp'?'.webp':'.jpg',folder=getPhotoFolder_(),kind=clean_(label||rec.photoLabel||rec.formType||'QC',30).replace(/[^a-z0-9_-]/gi,'_'),name='QC_'+kind+'_'+clean_(rec.paddock,40).replace(/[^a-z0-9_-]/gi,'_')+'_'+Date.now()+ext,file=folder.createFile(Utilities.newBlob(bytes,m[1],name));try{file.setSharing(DriveApp.Access.ANYONE_WITH_LINK,DriveApp.Permission.VIEW);}catch(e){console.warn('Foto tersimpan tetapi sharing link tidak dapat diubah: '+e);}return file.getUrl();}
+function preparePhotoLinks_(rec){if(rec.photoBase64&&!rec.photoDriveUrl)rec.photoDriveUrl=savePhoto_(rec,rec.formType);(rec.holdIntervals||[]).forEach(function(h,i){if(h.photoBase64&&!h.photoDriveUrl){var x={photoBase64:h.photoBase64,formType:rec.formType,paddock:rec.paddock};h.photoDriveUrl=savePhoto_(x,'HOLD_'+(i+1));}});return rec;}
 function log_(ss,u,type,desc,device){try{var sh=(ss||SpreadsheetApp.getActiveSpreadsheet()).getSheetByName(QC.SHEETS.LOGS);if(sh)sh.appendRow([new Date(),u.username||'',u.fullName||'',u.role||'',type,desc,clean_(device,150)]);}catch(e){console.error(e);}}
 function clean_(v,n){return String(v===undefined||v===null?'':v).trim().slice(0,n||500);}
 function num_(v){if(v===undefined||v===null||v==='')return'';if(typeof v==='number')return v;var n=Number(String(v).replace(',','.'));return isFinite(n)?n:'';}
