@@ -9,6 +9,9 @@ app = (root / 'src' / 'App.tsx').read_text(encoding='utf-8')
 required_form_tokens = [
     "FERTILIZER DAILY SESSION",
     "UNIT CARD",
+    "sessionId",
+    "initialRecords",
+    "recordId",
     "pengisianKe",
     "jenisPupuk",
     "statusHose",
@@ -21,9 +24,17 @@ required_form_tokens = [
 for token in required_form_tokens:
     assert token in form, f'Missing Fertilizer form token: {token}'
 
-assert "type View = 'dashboard' | 'spray' | 'fertilizer'" in app
-assert "mandor_fertilizer" in app
-assert "<FertilizerForm" in app
+required_app_tokens = [
+    "type View = 'dashboard' | 'spray' | 'fertilizer'",
+    "mandor_fertilizer",
+    "<FertilizerForm",
+    "sameFertilizerSession",
+    "editingFertilizerRecords",
+    "Edit Session",
+    "Upload ${size} Unit",
+]
+for token in required_app_tokens:
+    assert token in app, f'Missing Fertilizer session UI token: {token}'
 
 match = re.search(r"FERT_HEADERS:\s*\[(.*?)\],\n\s*USER_HEADERS", backend, re.S)
 assert match, 'FERT_HEADERS not found'
@@ -40,4 +51,4 @@ required_backend_tokens = [
 for token in required_backend_tokens:
     assert token in backend, f'Missing backend per-filling mapping: {token}'
 
-print('Fertilizer React mapping check: OK')
+print('Fertilizer React mapping/session check: OK')
