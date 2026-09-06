@@ -117,22 +117,32 @@ export default function App() {
       : [record]
     if (!targets.length) return
     setBusy(true); setMessage('')
-    try {
-      let queued = 0
-      const updated = new Map<string, QcRecord>()
-      for (const target of targets) {
+    let queued = 0
+    let completed = 0
+    let failed = 0
+    let lastError = ''
+    for (const target of targets) {
+      try {
         const result = await sendOrQueue(token, 'finalizeRecord', { ...target, saveType: 'ready' })
         if (result.queued) queued += 1
-        updated.set(target.id, { ...target, saveType: result.queued ? 'upload_queued' : 'uploaded' })
+        const next: QcRecord = { ...target, saveType: result.queued ? 'upload_queued' : 'uploaded' }
+        setRecords((old) => old.map((item) => item.id === target.id ? next : item))
+        completed += 1
+      } catch (error) {
+        failed += 1
+        lastError = error instanceof Error ? error.message : 'Upload unit gagal'
+        if (/sesi|login|izin|auth/i.test(lastError)) break
       }
-      setRecords((old) => old.map((item) => updated.get(item.id) || item))
-      if (record.formType === 'fertilizer') {
-        setMessage(queued ? `${targets.length} unit diproses; ${queued} unit menunggu jaringan untuk upload.` : `${targets.length} unit dalam Daily Session berhasil di-upload ke Form QC Fertilizer.`)
-      } else {
-        setMessage(queued ? 'Upload masuk antrean dan akan dikirim saat online.' : 'Data berhasil di-upload ke Form QC Spray.')
-      }
-    } catch (error) { setMessage(error instanceof Error ? error.message : 'Upload gagal') }
-    finally { setBusy(false) }
+    }
+    if (record.formType === 'fertilizer') {
+      const parts = [`${completed} dari ${targets.length} unit diproses`]
+      if (queued) parts.push(`${queued} menunggu jaringan`)
+      if (failed) parts.push(`${failed} gagal${lastError ? `: ${lastError}` : ''}`)
+      setMessage(parts.join('; ') + '.')
+    } else {
+      setMessage(failed ? lastError : queued ? 'Upload masuk antrean dan akan dikirim saat online.' : 'Data berhasil di-upload ke Form QC Spray.')
+    }
+    setBusy(false)
   }
 
   async function remove(record: QcRecord) {
