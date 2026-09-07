@@ -1,5 +1,5 @@
 import { collection, getDocs } from 'firebase/firestore'
-import type { ApiResponse, MasterData, QcRecord, User } from './types'
+import type { AccountChangeRequest, ApiResponse, MasterData, QcRecord, User } from './types'
 import { firebaseAuth, firestoreDb } from './firebase'
 import { mirrorRecordToFirestore, removeRecordFromFirestore } from './firestoreStore'
 
@@ -72,5 +72,9 @@ export const qcApi = {
   users: (token: string) => api<User[]>('users', token, {}, 'GET'),
   approveUser: (token: string, username: string, role: string) => api('approveUser', token, { username, role }),
   rejectUser: (token: string, username: string, role: string) => api('rejectUser', token, { username, role }),
+  updateUserRole: (token: string, username: string, role: string) => api('updateUserRole', token, { username, role }),
+  requestAccountChange: (token: string, payload: { currentPassword: string; newUsername?: string; newPassword?: string }) => api('accountChangeRequest', token, payload),
+  accountChangeRequests: (token: string) => api<AccountChangeRequest[]>('accountChangeRequests', token, {}, 'GET'),
+  decideAccountChange: (token: string, requestId: string, decision: 'approve' | 'reject') => api('decideAccountChange', token, { requestId, decision }),
   logs: (token: string) => api<Record<string, unknown>[]>('logs', token, {}, 'GET'),
 }
