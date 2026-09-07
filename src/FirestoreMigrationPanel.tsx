@@ -1,13 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { onAuthStateChanged, type Auth, type User as FirebaseUser } from 'firebase/auth'
 import { qcApi } from './api'
 import { firebaseAuth, firestoreDb } from './firebase'
-import { getFirebaseBridgeStatus } from './firebaseAuthBridge'
+import { getFirebaseBridgeStatus, signInFirebaseBridge } from './firebaseAuthBridge'
 import type { QcRecord } from './types'
 
 type Props={token:string}
-
 type OwnerProfile={active?:boolean;role?:string;username?:string}
 
 function cleanRecord(record:QcRecord){
@@ -35,7 +34,7 @@ async function ownerContext(){
   if(!current){
     const bridge=getFirebaseBridgeStatus()
     if(bridge.error)throw new Error(`Firebase Auth belum login. ${bridge.error}`)
-    throw new Error('Firebase Auth belum login. Keluar lalu login ulang menggunakan akun Owner yang sama.')
+    throw new Error('Firebase Auth belum login. Gunakan Hubungkan Firebase di panel ini.')
   }
   const profile=await getDoc(doc(db,'users',current.uid))
   if(!profile.exists())throw new Error('Profil users/{UID} tidak ditemukan di Firestore.')
@@ -51,7 +50,38 @@ async function loadRecords(token:string){
 }
 
 export default function FirestoreMigrationPanel({token}:Props){
-  const[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[count,setCount]=useState<number|null>(null)
+  const[busy,setBusy]=useState(false)
+  const[message,setMessage]=useState('')
+  const[count,setCount]=useState<number|null>(null)
+  const[email,setEmail]=useState('')
+  const[password,setPassword]=useState('')
+  const[bridgeStatus,setBridgeStatus]=useState(()=>getFirebaseBridgeStatus())
+
+  useEffect(()=>{
+    let active=true
+    void qcApi.me(token).then(result=>{
+      if(active&&result.user?.email)setEmail(String(result.user.email))
+    }).catch(()=>{})
+    return()=>{active=false}
+  },[token])
+
+  async function connectFirebase(){
+    setBusy(true);setMessage('')
+    try{
+      if(!email.trim())throw new Error('Isi email Owner Firebase terlebih dahulu.')
+      if(!password)throw new Error('Isi password Firebase terlebih dahulu.')
+      const ok=await signInFirebaseBridge(email,password)
+      setPassword('')
+      const status=getFirebaseBridgeStatus();setBridgeStatus(status)
+      if(!ok)throw new Error(status.error||'Firebase Auth gagal login.')
+      const{current}=await ownerContext()
+      setMessage(`Firebase Auth terhubung. UID ${current.uid.slice(0,8)}…`)
+    }catch(error){
+      setPassword('')
+      setBridgeStatus(getFirebaseBridgeStatus())
+      setMessage(error instanceof Error?error.message:'Firebase Auth gagal login.')
+    }finally{setBusy(false)}
+  }
 
   async function verify(){
     setBusy(true);setMessage('')
@@ -59,8 +89,9 @@ export default function FirestoreMigrationPanel({token}:Props){
       const{current}=await ownerContext()
       const records=await loadRecords(token)
       setCount(records.length)
+      setBridgeStatus(getFirebaseBridgeStatus())
       setMessage(`Firestore terhubung. UID ${current.uid.slice(0,8)}… • role owner • ${records.length} record dari Apps Script siap dimigrasikan.`)
-    }catch(error){setMessage(error instanceof Error?error.message:'Verifikasi Firestore gagal.')}finally{setBusy(false)}
+    }catch(error){setBridgeStatus(getFirebaseBridgeStatus());setMessage(error instanceof Error?error.message:'Verifikasi Firestore gagal.')}finally{setBusy(false)}
   }
 
   async function migrate(){
@@ -96,6 +127,13 @@ export default function FirestoreMigrationPanel({token}:Props){
   return <section className="panel form-stack">
     <div><div className="eyebrow">FIRESTORE HYBRID</div><h3>Migrasi Data QC</h3></div>
     <p className="muted">Tahap ini menyalin Data QC dari Apps Script/Spreadsheet ke Firestore. Foto Base64 tidak disalin; URL Google Drive tetap dipertahankan. Spreadsheet tidak dihapus atau dimodifikasi.</p>
+    <div className="panel form-stack">
+      <strong>Hubungkan Firebase Owner</strong>
+      <p className="muted">Gunakan akun yang dibuat di Firebase Authentication. Password hanya dipakai untuk proses login ini dan tidak disimpan.</p>
+      <label>Email Firebase<input type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email" placeholder="owner@email.com"/></label>
+      <label>Password Firebase<input type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete="current-password"/></label>
+      <div className="row-actions"><button type="button" disabled={busy} onClick={()=>void connectFirebase()}>Hubungkan Firebase</button><span className="badge">Auth: {firebaseAuth?.currentUser?'signed-in':bridgeStatus.status}</span></div>
+    </div>
     <div className="row-actions"><button type="button" disabled={busy} onClick={()=>void verify()}>Verifikasi Firestore</button><button type="button" className="primary" disabled={busy} onClick={()=>void migrate()}>{busy?'Memproses…':count===null?'Import Data QC':`Import ${count} Record`}</button></div>
     {message&&<div className="alert">{message}</div>}
   </section>
