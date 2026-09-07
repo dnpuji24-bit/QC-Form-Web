@@ -4,6 +4,7 @@ import { openLocalDb, QUEUE_STORE } from './localDb'
 import type { QcRecord } from './types'
 
 export type QueueAction='syncRecord'|'finalizeRecord'
+export type SaveTransportResult={queued:boolean;firestoreFirst:boolean;spreadsheetPending:boolean}
 type QueueItem={id:string;action:QueueAction;record:QcRecord;createdAt:number}
 
 async function allItems():Promise<QueueItem[]>{
@@ -28,17 +29,32 @@ export async function discardQueuedRecord(recordId:string){await replaceItems((a
 export async function enqueue(action:QueueAction,record:QcRecord){let items=await allItems();if(action==='finalizeRecord')items=items.filter(item=>item.record.id!==record.id);else items=items.filter(item=>!(item.action===action&&item.record.id===record.id));items.push({id:crypto.randomUUID(),action,record,createdAt:Date.now()});await replaceItems(items)}
 
 export async function sendOrQueue(token:string,action:QueueAction,record:QcRecord){
-  if(!navigator.onLine){await enqueue(action,record);return{queued:true}}
+  if(!navigator.onLine){await enqueue(action,record);return{queued:true,firestoreFirst:false,spreadsheetPending:true}}
   try{
     if(action==='finalizeRecord')await qcApi.finalizeRecord(token,record);else await qcApi.syncRecord(token,record)
     await mirrorAfterServerSave(action,record)
     const items=await allItems();await replaceItems(action==='finalizeRecord'?items.filter(item=>item.record.id!==record.id):items.filter(item=>!(item.action===action&&item.record.id===record.id)))
-    return{queued:false}
+    return{queued:false,firestoreFirst:false,spreadsheetPending:false}
   }catch(error){
     const message=error instanceof Error?error.message:String(error)
     if(/sesi|login|izin|password|kata sandi|auth/i.test(message))throw error
     await enqueue(action,record)
-    return{queued:true}
+    return{queued:true,firestoreFirst:false,spreadsheetPending:true}
+  }
+}
+
+export async function saveDraftFirestoreFirst(token:string,record:QcRecord):Promise<SaveTransportResult>{
+  if(!navigator.onLine)return sendOrQueue(token,'syncRecord',record)
+  try{
+    const mirrored=await mirrorRecordToFirestore(record)
+    if(!mirrored)return sendOrQueue(token,'syncRecord',record)
+    // Queue the Spreadsheet sync before reporting success so a tab close cannot lose the server handoff.
+    await enqueue('syncRecord',record)
+    void flushQueue(token).catch(error=>console.info('Sinkronisasi Spreadsheet akan dicoba ulang dari antrean.',error))
+    return{queued:false,firestoreFirst:true,spreadsheetPending:true}
+  }catch(error){
+    console.info('Firestore-first tidak tersedia; memakai jalur Apps Script yang aman.',error)
+    return sendOrQueue(token,'syncRecord',record)
   }
 }
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { sendOrQueue } from './offline'
+import { saveDraftFirestoreFirst, sendOrQueue } from './offline'
 import { clearDraft, loadDraft, saveDraft } from './draftStore'
 import PhotoPicker from './PhotoPicker'
 import type { HoldInterval, MasterData, MaterialMaster, PlanMaster, QcRecord, User } from './types'
@@ -56,18 +56,18 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
     if(saveType==='draft'&&!serverCards.length){setMessage('Draft Fertilizer tersimpan di perangkat. Isi Tanggal, Mandor, dan Paddock agar Draft juga muncul di Data QC.');return}
     setBusy(true);setMessage('')
     try{
-      const records:QcRecord[]=[],savedIds=new Map<string,{recordId:string;saveType:string}>();let queued=0
+      const records:QcRecord[]=[],savedIds=new Map<string,{recordId:string;saveType:string}>();let queued=0,firestoreFirstCount=0
       for(const card of serverCards){
         const downtimeText=card.downtime.filter(d=>d.issue||d.start||d.end||d.note).map(d=>`${d.issue||'Issue'} ${d.start||'-'}-${d.end||'-'}${d.note?`: ${d.note}`:''}`).join(' | '),catatan=[card.catatan.trim(),downtimeText?`[UNIT BERHENTI] ${downtimeText}`:''].filter(Boolean).join(' | '),pengisianList=card.fillings.map(f=>({pengisianKe:f.pengisianKe,dosis:num(f.dosis),statusHose:f.statusHose,jenisPupuk:f.jenisPupuk,jumlah:num(f.jumlah),hasilKerja:num(f.hasilKerja),dosisAktual:num(f.hasilKerja)>0?Math.round(num(f.jumlah)/num(f.hasilKerja)*100)/100:0,pemerataanPupuk:f.pemerataanPupuk})),first=pengisianList[0],uploaded=card.saveType==='uploaded',holdIntervals:HoldInterval[]=await Promise.all(card.downtime.map(async d=>({start:d.start,end:d.end,reason:d.issue,windSpeed:'',note:d.note,photoBase64:d.file?await photoData(d.file):'',photoDriveUrl:d.photoDriveUrl||''}))),downtimeList=card.downtime.map(({file,...d})=>d),recordId=card.recordId||`fert_${Date.now()}_${Math.random().toString(36).slice(2,7)}`
         const record:QcRecord={id:recordId,sessionId,formType:'fertilizer',date,shift,name:mandor,nameOfAssistan:assistant,status:'Working',paddock:card.paddock,unit:card.unit,noUnit:card.noUnit,type:card.type||'Fertilizer',activity:card.activity,jenisPupuk:first?.jenisPupuk||'',dosis:first?.dosis||0,statusHose:first?.statusHose||'',pengisianList,downtimeList,holdIntervals,catatan,noted:catatan,photoBase64:await photoData(card.photo),photoDriveUrl:card.photoDriveUrl||'',saveType:uploaded?'uploaded':saveType,inputtedBy:user.username,createdAt:card.createdAt||new Date().toISOString()}
-        const result=await sendOrQueue(token,uploaded?'finalizeRecord':'syncRecord',record);if(result.queued)queued++
-        const nextSaveType=result.queued?(uploaded?'upload_queued':record.saveType):record.saveType
+        const result=saveType==='draft'&&!uploaded?await saveDraftFirestoreFirst(token,record):await sendOrQueue(token,uploaded?'finalizeRecord':'syncRecord',record);if(result.queued)queued++;if(result.firestoreFirst)firestoreFirstCount++
+        const nextSaveType=result.queued?(uploaded?'upload_queued':saveType==='draft'?'draft_queued':record.saveType):record.saveType
         records.push({...record,saveType:nextSaveType});savedIds.set(card.id,{recordId,saveType:String(nextSaveType)})
       }
       onSaved(records)
       if(saveType==='draft'&&!editingUploaded){
         if(!editing){const nextCards=cards.map(c=>{const saved=savedIds.get(c.id);return saved?{...c,recordId:saved.recordId,saveType:saved.saveType}:c});setCards(nextCards);await saveDraft(draftKey,{sessionId,date,shift,mandor,assistant,cards:nextCards,activeCardId})}
-        setMessage(queued?`${records.length} unit tersimpan aman; ${queued} menunggu sinkronisasi.`:`Draft ${records.length} unit tersimpan; form tetap dipertahankan.`)
+        setMessage(queued?`${records.length} unit tersimpan aman; ${queued} menunggu sinkronisasi.`:firestoreFirstCount===records.length?`Draft ${records.length} unit tersimpan di Firestore; Data QC diperbarui realtime. Sinkronisasi Spreadsheet berjalan di belakang.`:`Draft ${records.length} unit tersimpan; form tetap dipertahankan.`)
         return
       }
       await clearDraft(draftKey)
