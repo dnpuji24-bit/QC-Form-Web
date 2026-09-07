@@ -3,11 +3,13 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import NetworkStatus from './NetworkStatus'
 import SaveStatusPopup from './SaveStatusPopup'
+import UiEnhancers from './UiEnhancers'
 import './styles.css'
 import './theme.css'
 import './network.css'
 import './field-ui.css'
 import './save-status.css'
+import './ui-enhancers.css'
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -20,5 +22,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <App />
     <NetworkStatus />
     <SaveStatusPopup />
+    <UiEnhancers />
   </React.StrictMode>,
 )
