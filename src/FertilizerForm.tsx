@@ -47,11 +47,33 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
   function removeCard(card:UnitCard){const remaining=cards.filter(c=>c.id!==card.id);setCards(remaining);setActiveCardId(remaining[Math.max(0,activeIndex-1)]?.id||remaining[0]?.id||'')}
   function addDowntime(cardId:string){setCards(old=>old.map(c=>c.id===cardId?{...c,downtime:[...c.downtime,{id:uid(),issue:'',start:'',end:'',note:''}]}:c))}
   function patchDowntime(cardId:string,downtimeId:string,patch:Partial<Downtime>){setCards(old=>old.map(c=>c.id===cardId?{...c,downtime:c.downtime.map(d=>d.id===downtimeId?{...d,...patch}:d)}:c))}
-  function validateReady(activeCards:UnitCard[]){if(!date||!mandor)return'Tanggal dan Mandor wajib diisi.';if(!activeCards.length)return'Isi minimal satu Unit Card sebelum disimpan.';const seen=new Set<string>();for(let i=0;i<activeCards.length;i++){const c=activeCards[i];if(!c.paddock||!c.unit||!c.noUnit||!c.activity)return`Unit ${i+1}: lengkapi Paddock, Unit, No. Unit, dan Activity.`;const key=`${c.unit}|${c.noUnit}`.toLowerCase();if(seen.has(key))return`Unit ${i+1}: ${c.noUnit} sudah digunakan pada unit lain.`;seen.add(key);if(!c.fillings.length)return`Unit ${i+1}: minimal satu pengisian.`;for(const f of c.fillings){if(!f.jenisPupuk||num(f.dosis)<=0)return`Unit ${c.noUnit} Pengisian ${f.pengisianKe}: Jenis Pupuk dan Dosis Target wajib diisi.`;if(num(f.jumlah)<=0||num(f.hasilKerja)<=0)return`Unit ${c.noUnit} Pengisian ${f.pengisianKe}: Jumlah pupuk dan Hasil Kerja wajib lebih dari 0.`}}return''}
+  function validateReady(activeCards:UnitCard[]){
+    if(!date||!mandor)return{message:'Tanggal dan Mandor wajib diisi.',cardId:activeCards[0]?.id||''}
+    if(!activeCards.length)return{message:'Isi minimal satu Unit Card sebelum disimpan.',cardId:''}
+    const seen=new Set<string>()
+    for(let i=0;i<activeCards.length;i++){
+      const c=activeCards[i]
+      if(!c.paddock||!c.unit||!c.noUnit||!c.activity)return{message:`Unit ${i+1}: lengkapi Paddock, Unit, No. Unit, dan Activity.`,cardId:c.id}
+      const key=`${c.unit}|${c.noUnit}`.toLowerCase()
+      if(seen.has(key))return{message:`Unit ${i+1}: ${c.noUnit} sudah digunakan pada unit lain.`,cardId:c.id}
+      seen.add(key)
+      if(!c.fillings.length)return{message:`Unit ${i+1}: minimal satu pengisian.`,cardId:c.id}
+      for(const f of c.fillings){
+        if(!f.jenisPupuk||num(f.dosis)<=0)return{message:`Unit ${c.noUnit||i+1} Pengisian ${f.pengisianKe}: Jenis Pupuk dan Dosis Target wajib diisi.`,cardId:c.id}
+        if(num(f.jumlah)<=0||num(f.hasilKerja)<=0)return{message:`Unit ${c.noUnit||i+1} Pengisian ${f.pengisianKe}: Jumlah pupuk dan Hasil Kerja wajib lebih dari 0 sebelum status Ready.`,cardId:c.id}
+      }
+    }
+    return null
+  }
+  function showReadyProblem(problem:{message:string;cardId:string}){
+    if(problem.cardId)setActiveCardId(problem.cardId)
+    setMessage(problem.message)
+    window.setTimeout(()=>document.querySelector('.active-unit-card')?.scrollIntoView({behavior:'smooth',block:'start'}),60)
+  }
   async function saveAll(saveType:'draft'|'ready'){
     const activeCards=cards.filter(hasCardInput),localDraft:FertDraft={sessionId,date,shift,mandor,assistant,cards,activeCardId}
     if(saveType==='draft'&&!editing)await saveDraft(draftKey,localDraft)
-    if(saveType==='ready'){const problem=validateReady(activeCards);if(problem)return setMessage(problem)}
+    if(saveType==='ready'){const problem=validateReady(activeCards);if(problem){showReadyProblem(problem);return}}
     const serverCards=saveType==='draft'?activeCards.filter(c=>Boolean(date&&mandor&&c.paddock)):activeCards
     if(saveType==='draft'&&!serverCards.length){setMessage('Draft Fertilizer tersimpan di perangkat. Isi Tanggal, Mandor, dan Paddock agar Draft juga muncul di Data QC.');return}
     setBusy(true);setMessage('')
@@ -59,7 +81,7 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
       const records:QcRecord[]=[],savedIds=new Map<string,{recordId:string;saveType:string}>();let queued=0,firestoreFirstCount=0
       for(const card of serverCards){
         const downtimeText=card.downtime.filter(d=>d.issue||d.start||d.end||d.note).map(d=>`${d.issue||'Issue'} ${d.start||'-'}-${d.end||'-'}${d.note?`: ${d.note}`:''}`).join(' | '),catatan=[card.catatan.trim(),downtimeText?`[UNIT BERHENTI] ${downtimeText}`:''].filter(Boolean).join(' | '),pengisianList=card.fillings.map(f=>({pengisianKe:f.pengisianKe,dosis:num(f.dosis),statusHose:f.statusHose,jenisPupuk:f.jenisPupuk,jumlah:num(f.jumlah),hasilKerja:num(f.hasilKerja),dosisAktual:num(f.hasilKerja)>0?Math.round(num(f.jumlah)/num(f.hasilKerja)*100)/100:0,pemerataanPupuk:f.pemerataanPupuk})),first=pengisianList[0],uploaded=card.saveType==='uploaded',holdIntervals:HoldInterval[]=await Promise.all(card.downtime.map(async d=>({start:d.start,end:d.end,reason:d.issue,windSpeed:'',note:d.note,photoBase64:d.file?await photoData(d.file):'',photoDriveUrl:d.photoDriveUrl||''}))),downtimeList=card.downtime.map(({file,...d})=>d),recordId=card.recordId||`fert_${Date.now()}_${Math.random().toString(36).slice(2,7)}`
-        const record:QcRecord={id:recordId,sessionId,formType:'fertilizer',date,shift,name:mandor,nameOfAssistan:assistant,status:'Working',paddock:card.paddock,unit:card.unit,noUnit:card.noUnit,type:card.type||'Fertilizer',activity:card.activity,jenisPupuk:first?.jenisPupuk||'',dosis:first?.dosis||0,statusHose:first?.statusHose||'',pengisianList,downtimeList,holdIntervals,catatan,noted:catatan,photoBase64:await photoData(card.photo),photoDriveUrl:card.photoDriveUrl||'',saveType:uploaded?'uploaded':saveType,inputtedBy:user.username,createdAt:card.createdAt||new Date().toISOString()}
+        const record:QcRecord={id:recordId,sessionId,formType:'fertilizer',date,shift,name:mandor,nameOfAssistan:assistant,status:'Working',paddock:card.paddock,unit:card.unit,noUnit:card.noUnit,type:card.type||'Fertilizer',activity:card.activity,jenisPupuk:first?.jenisPupuk||'',dosis:first?.dosis||0,statusHose:first?.statusHose||'',pengisianList,downtimeList,holdIntervals,catatan,noted:catatan,photoBase64:await photoData(card.photo),photoDriveUrl:card.photoDriveUrl||'',saveType:uploaded?'uploaded':saveType,inputtedBy:user.username,createdAt:card.createdAt||new Date().toISOString(),clientRevision:crypto.randomUUID()}
         const result=saveType==='draft'&&!uploaded?await saveDraftFirestoreFirst(token,record):await sendOrQueue(token,uploaded?'finalizeRecord':'syncRecord',record);if(result.queued)queued++;if(result.firestoreFirst)firestoreFirstCount++
         const nextSaveType=result.queued?(uploaded?'upload_queued':saveType==='draft'?'draft_queued':record.saveType):record.saveType
         records.push({...record,saveType:nextSaveType});savedIds.set(card.id,{recordId,saveType:String(nextSaveType)})
