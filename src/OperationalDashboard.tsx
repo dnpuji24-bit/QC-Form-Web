@@ -1,4 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { onAuthStateChanged } from 'firebase/auth'
+import { firebaseAuth, firestoreDb } from './firebase'
 import type { MasterData, QcRecord } from './types'
 
 type RecordPreset = { type?: 'all'|'spray'|'fertilizer'; query?: string; saveType?: string }
@@ -14,6 +16,11 @@ function recordArea(r: QcRecord) {
 export default function OperationalDashboard({ records, loading, onRefresh, onOpenRecords }: Props) {
   const [type, setType] = useState<'all'|'spray'|'fertilizer'>('all')
   const [query, setQuery] = useState('')
+  const [realtimeActive,setRealtimeActive] = useState(Boolean(firebaseAuth?.currentUser && firestoreDb))
+  useEffect(()=>{
+    if(!firebaseAuth||!firestoreDb){setRealtimeActive(false);return}
+    return onAuthStateChanged(firebaseAuth,current=>setRealtimeActive(Boolean(current)))
+  },[])
   const paddockOptions = useMemo(() => [...new Set(records.map((r) => String(r.paddock || '').trim()).filter(Boolean))].sort(), [records])
   const filtered = useMemo(() => records.filter((r) => {
     if (type !== 'all' && r.formType !== type) return false
@@ -49,9 +56,10 @@ export default function OperationalDashboard({ records, loading, onRefresh, onOp
   const open = (preset: RecordPreset) => onOpenRecords?.(preset)
   return <section>
     <div className="dashboard-hero compact-hero">
-      <div><div className="eyebrow">QUALITY CONTROL</div><h2>Dashboard QC</h2><p>Ringkasan pekerjaan yang sudah diinput dan status pelaporannya.</p></div>
+      <div><div className="eyebrow">QUALITY CONTROL</div><h2>Dashboard QC</h2><p>{realtimeActive?'Ringkasan berubah otomatis saat Draft, Edit, atau Upload berubah di Firestore.':'Ringkasan pekerjaan yang sudah diinput dan status pelaporannya.'}</p></div>
     </div>
-    <div className="section-head"><div><div className="eyebrow">FILTER DATA</div><h2>Ringkasan Pekerjaan</h2></div><button className="secondary" onClick={onRefresh} disabled={loading}>{loading?'Memuat…':'Refresh data'}</button></div>
+    <div className="section-head"><div><div className="eyebrow">FILTER DATA</div><h2>Ringkasan Pekerjaan</h2></div>{realtimeActive?<span className="status-pill success">● Firestore realtime aktif</span>:<button className="secondary" onClick={onRefresh} disabled={loading}>{loading?'Memuat…':'Refresh data'}</button>}</div>
+    {realtimeActive&&<div className="alert">Dashboard mengikuti Firestore secara realtime. Tidak perlu menekan Refresh setelah Simpan Draft atau Edit.</div>}
     <div className="filters dashboard-filters"><div><input list="worked-paddocks" placeholder="Cari / pilih paddock yang sudah dikerjakan…" value={query} onChange={(e)=>setQuery(e.target.value)} /><datalist id="worked-paddocks">{paddockOptions.map((x)=><option value={x} key={x}/>)}</datalist></div><select value={type} onChange={(e)=>setType(e.target.value as typeof type)}><option value="all">Semua form</option><option value="spray">Spraying</option><option value="fertilizer">Fertilizer</option></select></div>
     <div className="stats-grid dashboard-stats">
       <Stat label="Total record" value={filtered.length} onClick={()=>open({type,query})} hint="Lihat semua data" />
