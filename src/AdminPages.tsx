@@ -65,6 +65,26 @@ export function UsersApproval({ token }: UsersProps) {
     finally { setBusy(false) }
   }
 
+  async function deleteUser(user: User) {
+    if (user.role === 'owner') {
+      setMessage('Akun dengan role Owner tidak dapat dihapus dari web.')
+      return
+    }
+    const confirmation = window.prompt(`Hapus akun ${user.fullName} (@${user.username})?\n\nData QC historis, foto, dan laporan tidak ikut dihapus.\nKetik username "${user.username}" untuk konfirmasi.`)
+    if (confirmation === null) return
+    if (confirmation.trim().toLowerCase() !== user.username.toLowerCase()) {
+      setMessage('Penghapusan dibatalkan karena username konfirmasi tidak cocok.')
+      return
+    }
+    setBusy(true); setMessage('')
+    try {
+      const result = await qcApi.deleteUser(token, user.username)
+      setMessage(result.message || `Akun @${user.username} berhasil dihapus. Data QC historis tetap dipertahankan.`)
+      await load()
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Penghapusan akun gagal') }
+    finally { setBusy(false) }
+  }
+
   async function decideAccount(request: AccountChangeRequest, decision: 'approve' | 'reject') {
     const verb = decision === 'approve' ? 'menyetujui' : 'menolak'
     if (!window.confirm(`Yakin ${verb} perubahan akun @${request.username}?`)) return
@@ -87,7 +107,7 @@ export function UsersApproval({ token }: UsersProps) {
     <FirestoreMigrationPanel token={token}/>
     <div className="panel"><h3>Permintaan Perubahan Akun</h3><p className="muted">Password baru tidak pernah ditampilkan. Owner hanya menyetujui atau menolak perubahan yang sudah diverifikasi dengan password lama user.</p>{!accountFeaturesReady&&<div className="alert">Menunggu backend Apps Script v46.2.0. Fitur ini sengaja dinonaktifkan sementara agar menu Users tetap dapat digunakan.</div>}<div className="table-wrap"><table><thead><tr><th>User</th><th>Permintaan</th><th>Username Baru</th><th>Password</th><th>Waktu</th><th>Aksi</th></tr></thead><tbody>{pendingChanges.map((r) => <tr key={r.requestId}><td>{r.fullName || r.username}<br/><small>@{r.username}</small></td><td>{(r.requestType || 'credentials').replaceAll('_',' ')}</td><td>{r.newUsername || 'Tidak diubah'}</td><td>{r.passwordRequested ? 'Akan diganti' : 'Tidak diubah'}</td><td>{formatLogTime(r.timestamp)}</td><td><div className="row-actions"><button className="primary" disabled={busy||!accountFeaturesReady} onClick={() => void decideAccount(r,'approve')}>Approve</button><button className="danger" disabled={busy||!accountFeaturesReady} onClick={() => void decideAccount(r,'reject')}>Reject</button></div></td></tr>)}{!pendingChanges.length && <tr><td colSpan={6} className="empty">Tidak ada permintaan perubahan akun.</td></tr>}</tbody></table></div></div>
     <div className="panel"><h3>Menunggu Persetujuan User Baru</h3><div className="table-wrap"><table><thead><tr><th>Nama</th><th>Username</th><th>Email</th><th>Role</th><th>Aksi</th></tr></thead><tbody>{pending.map((u) => <tr key={u.username}><td>{u.fullName}</td><td>{u.username}</td><td>{u.email || '-'}</td><td><select value={roleDraft[u.username] || u.role} onChange={(e) => setRoleDraft((old) => ({...old,[u.username]:e.target.value}))}>{ROLES.map((r) => <option key={r} value={r}>{r.replaceAll('_',' ')}</option>)}</select></td><td><div className="row-actions"><button className="primary" disabled={busy} onClick={() => void decide(u,'approve')}>Approve</button><button className="danger" disabled={busy} onClick={() => void decide(u,'reject')}>Reject</button></div></td></tr>)}{!pending.length && <tr><td colSpan={5} className="empty">Tidak ada user pending.</td></tr>}</tbody></table></div></div>
-    <div className="panel"><h3>Pengguna Terdaftar & Edit Role</h3><div className="table-wrap"><table><thead><tr><th>Nama</th><th>Username</th><th>Role</th><th>Status</th><th>Form</th><th>Aksi</th></tr></thead><tbody>{users.map((u) => <tr key={u.username}><td>{u.fullName}</td><td>{u.username}</td><td><select value={roleDraft[u.username] || u.role} disabled={!accountFeaturesReady} onChange={(e) => setRoleDraft((old) => ({...old,[u.username]:e.target.value}))}>{ROLES.map((r) => <option key={r} value={r}>{r.replaceAll('_',' ')}</option>)}</select></td><td>{u.status || '-'}</td><td>{u.allowedForm || '-'}</td><td><button disabled={busy || !accountFeaturesReady || (roleDraft[u.username] || u.role) === u.role} onClick={() => void saveRole(u)}>Simpan Role</button></td></tr>)}</tbody></table></div><p className="muted">Role baru berlaku pada sesi berikutnya. User yang sedang login perlu logout lalu login kembali.</p></div>
+    <div className="panel"><h3>Pengguna Terdaftar & Edit Role</h3><div className="table-wrap"><table><thead><tr><th>Nama</th><th>Username</th><th>Role</th><th>Status</th><th>Form</th><th>Aksi</th></tr></thead><tbody>{users.map((u) => <tr key={u.username}><td>{u.fullName}</td><td>{u.username}</td><td><select value={roleDraft[u.username] || u.role} disabled={!accountFeaturesReady} onChange={(e) => setRoleDraft((old) => ({...old,[u.username]:e.target.value}))}>{ROLES.map((r) => <option key={r} value={r}>{r.replaceAll('_',' ')}</option>)}</select></td><td>{u.status || '-'}</td><td>{u.allowedForm || '-'}</td><td><div className="row-actions"><button disabled={busy || !accountFeaturesReady || (roleDraft[u.username] || u.role) === u.role} onClick={() => void saveRole(u)}>Simpan Role</button><button className="danger" disabled={busy || !accountFeaturesReady || u.role === 'owner'} title={u.role === 'owner' ? 'Akun Owner dilindungi dari penghapusan.' : 'Hapus akun login; data QC historis tetap disimpan.'} onClick={() => void deleteUser(u)}>Hapus Akun</button></div></td></tr>)}</tbody></table></div><p className="muted">Role baru berlaku pada sesi berikutnya. Hapus Akun hanya menghapus akses login pengguna; data QC historis, foto, dan laporan tetap dipertahankan.</p></div>
   </section>
 }
 
