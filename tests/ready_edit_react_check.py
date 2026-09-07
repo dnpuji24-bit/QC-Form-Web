@@ -10,3 +10,6 @@ assert "clientRevision:crypto.randomUUID()" in spray
 assert "mergeRealtimeRecords" in app
 assert "record.saveType!=='ready'" in app
 print("Ready edit + optimistic realtime check: OK")
+
+assert "const map=new Map<string,QcRecord>()" in app
+assert "map.set(record.id,record)" in app
