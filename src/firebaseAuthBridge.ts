@@ -31,12 +31,16 @@ export async function signInFirebaseBridge(email:string,password:string):Promise
   }
   sessionStorage.setItem(STATUS_KEY,'pending')
   sessionStorage.removeItem(ERROR_KEY)
+  const targetEmail=email.trim().toLowerCase()
   try{
-    await signInWithEmailAndPassword(firebaseAuth,email.trim().toLowerCase(),password)
+    const existingEmail=String(firebaseAuth.currentUser?.email||'').trim().toLowerCase()
+    if(firebaseAuth.currentUser&&existingEmail!==targetEmail)await signOut(firebaseAuth)
+    await signInWithEmailAndPassword(firebaseAuth,targetEmail,password)
     sessionStorage.setItem(STATUS_KEY,'signed-in')
     sessionStorage.removeItem(ERROR_KEY)
     return true
   }catch(error){
+    try{if(firebaseAuth.currentUser)await signOut(firebaseAuth)}catch{}
     const detail=describeAuthError(error)
     sessionStorage.setItem(STATUS_KEY,'failed')
     sessionStorage.setItem(ERROR_KEY,detail)
