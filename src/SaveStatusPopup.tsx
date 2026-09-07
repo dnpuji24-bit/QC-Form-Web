@@ -3,12 +3,13 @@ import { useEffect, useRef, useState } from 'react'
 type PopupKind = 'success' | 'queued' | 'error'
 type PopupAction = 'draft' | 'save' | 'upload'
 type FormName = 'Spraying' | 'Fertilizer'
-type PopupState = { kind: PopupKind; action: PopupAction; form: FormName; message: string }
+type PopupState = { kind: PopupKind; action: PopupAction; form: FormName; message: string; edited?: boolean }
 
 const SAVE_BUTTON = /(simpan|draft|siapkan\s*upload|siap\s*upload|perbarui)/i
 const UPLOAD_BUTTON = /^upload(?:\s|$)/i
 const SPRAY_HEADING = /spray|spraying/i
 const FERT_HEADING = /fertiliz|fertiliser|pupuk/i
+const EDIT_HEADING = /edit|koreksi/i
 
 function formFromText(text: string): FormName | null {
   if (SPRAY_HEADING.test(text)) return 'Spraying'
@@ -50,7 +51,19 @@ function classify(message: string): PopupKind | null {
   return null
 }
 
-function popupTitle(action: PopupAction, kind: PopupKind): string {
+function popupTitle(action: PopupAction, kind: PopupKind, edited = false): string {
+  if (edited) {
+    if (action === 'draft') {
+      if (kind === 'success') return 'Perubahan Draft Berhasil Disimpan'
+      if (kind === 'queued') return 'Perubahan Draft Aman, Menunggu Sinkronisasi'
+      return 'Perubahan Draft Gagal Disimpan'
+    }
+    if (action === 'save') {
+      if (kind === 'success') return 'Hasil Edit Berhasil Disimpan'
+      if (kind === 'queued') return 'Hasil Edit Aman, Menunggu Sinkronisasi'
+      return 'Hasil Edit Gagal Disimpan'
+    }
+  }
   if (action === 'draft') {
     if (kind === 'success') return 'Draft Berhasil Disimpan'
     if (kind === 'queued') return 'Draft Aman, Menunggu Sinkronisasi'
@@ -66,10 +79,23 @@ function popupTitle(action: PopupAction, kind: PopupKind): string {
   return 'Data Gagal Tersimpan'
 }
 
-function popupLabel(action: PopupAction, form: FormName): string {
+function popupLabel(action: PopupAction, form: FormName, edited = false): string {
+  if (edited && action === 'draft') return `FORM ${form.toUpperCase()} • EDIT • SIMPAN DRAFT`
+  if (edited && action === 'save') return `FORM ${form.toUpperCase()} • SIMPAN HASIL EDIT`
   if (action === 'draft') return `FORM ${form.toUpperCase()} • SIMPAN DRAFT`
   if (action === 'upload') return `DATA QC • UPLOAD ${form.toUpperCase()}`
   return `FORM ${form.toUpperCase()} • SIMPAN DATA QC`
+}
+
+function inferredEditMessage(action: PopupAction, form: FormName, queued: boolean): string {
+  if (action === 'draft') {
+    return queued
+      ? `Perubahan Draft ${form} aman di perangkat dan menunggu sinkronisasi.`
+      : `Perubahan Draft ${form} berhasil disimpan.`
+  }
+  return queued
+    ? `Hasil edit ${form} aman di perangkat dan menunggu sinkronisasi.`
+    : `Hasil edit ${form} berhasil disimpan.`
 }
 
 export default function SaveStatusPopup() {
@@ -79,34 +105,69 @@ export default function SaveStatusPopup() {
   const sawClear = useRef(false)
   const formRef = useRef<FormName>('Spraying')
   const actionRef = useRef<PopupAction>('save')
+  const editedRef = useRef(false)
+  const sourceSectionRef = useRef<HTMLElement | null>(null)
   const errorRepeatTimer = useRef<number | null>(null)
 
   useEffect(() => {
     const currentMessage = () => {
       if (actionRef.current === 'upload') return globalAlertText()
+      const source = sourceSectionRef.current
+      if (source?.isConnected) return directAlertText(source)
       const target = getTargetSection()
       return target ? directAlertText(target.section) : ''
+    }
+
+    const finishInferredEdit = () => {
+      if (!armed.current || !editedRef.current || actionRef.current === 'upload') return false
+      const source = sourceSectionRef.current
+      if (!source || source.isConnected) return false
+      const queued = !navigator.onLine
+      armed.current = false
+      if (errorRepeatTimer.current) window.clearTimeout(errorRepeatTimer.current)
+      setPopup({
+        kind: queued ? 'queued' : 'success',
+        action: actionRef.current,
+        form: formRef.current,
+        edited: true,
+        message: inferredEditMessage(actionRef.current, formRef.current, queued),
+      })
+      return true
     }
 
     const capture = () => {
       if (!armed.current) return
       const message = currentMessage()
-      if (!message) {
+      if (message) {
+        if (message === baseline.current && !sawClear.current) {
+          finishInferredEdit()
+          return
+        }
+        const kind = classify(message)
+        if (kind) {
+          armed.current = false
+          if (errorRepeatTimer.current) window.clearTimeout(errorRepeatTimer.current)
+          setPopup({ kind, action: actionRef.current, form: formRef.current, edited: editedRef.current, message })
+          return
+        }
+      } else {
         sawClear.current = true
-        return
       }
-      if (message === baseline.current && !sawClear.current) return
-      const kind = classify(message)
-      if (!kind) return
-      armed.current = false
-      if (errorRepeatTimer.current) window.clearTimeout(errorRepeatTimer.current)
-      setPopup({ kind, action: actionRef.current, form: formRef.current, message })
+      finishInferredEdit()
     }
 
-    const armPopup = (action: PopupAction, form: FormName, initialMessage: string) => {
+    const armPopup = (
+      action: PopupAction,
+      form: FormName,
+      initialMessage: string,
+      edited = false,
+      sourceSection: HTMLElement | null = null,
+    ) => {
       armed.current = true
       actionRef.current = action
       formRef.current = form
+      editedRef.current = edited
+      sourceSectionRef.current = sourceSection
       baseline.current = initialMessage
       sawClear.current = false
       setPopup(null)
@@ -117,7 +178,7 @@ export default function SaveStatusPopup() {
         const message = currentMessage()
         if (!message || message !== baseline.current || classify(message) !== 'error') return
         armed.current = false
-        setPopup({ kind: 'error', action, form, message })
+        setPopup({ kind: 'error', action, form, edited, message })
       }, 350)
 
       window.setTimeout(capture, 0)
@@ -149,7 +210,8 @@ export default function SaveStatusPopup() {
       const form = formFromText(heading)
       if (!form || !SAVE_BUTTON.test(buttonText)) return
       const action: PopupAction = /draft/i.test(buttonText) || button.value === 'draft' ? 'draft' : 'save'
-      armPopup(action, form, directAlertText(section))
+      const edited = EDIT_HEADING.test(heading)
+      armPopup(action, form, directAlertText(section), edited, section)
     }
 
     const observer = new MutationObserver(capture)
@@ -173,14 +235,14 @@ export default function SaveStatusPopup() {
 
   if (!popup) return null
 
-  const title = popupTitle(popup.action, popup.kind)
+  const title = popupTitle(popup.action, popup.kind, popup.edited)
   const icon = popup.kind === 'success' ? '✓' : popup.kind === 'queued' ? '↻' : '!'
 
   return (
     <div className="save-popup-backdrop" role="presentation">
       <section className={`save-popup save-popup-${popup.kind}`} role="dialog" aria-modal="true" aria-labelledby="save-popup-title">
         <div className="save-popup-icon" aria-hidden="true">{icon}</div>
-        <div className="save-popup-form">{popupLabel(popup.action, popup.form)}</div>
+        <div className="save-popup-form">{popupLabel(popup.action, popup.form, popup.edited)}</div>
         <h2 id="save-popup-title">{title}</h2>
         <p>{popup.message}</p>
         <button className="primary save-popup-ok" type="button" autoFocus onClick={() => setPopup(null)}>OK, Mengerti</button>
