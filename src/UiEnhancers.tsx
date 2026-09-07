@@ -68,6 +68,7 @@ function enhanceReport(){
     const toolbar=sheet.closest('.report-dialog')?.querySelector<HTMLElement>('.report-toolbar > strong')
     if(toolbar)toolbar.textContent=isFert?'Preview Form QC Fertilizer':'Preview Form QC Spray'
     const cells=Array.from(sheet.querySelectorAll<HTMLElement>('.report-grid > div'))
+    cells.forEach(cell=>cell.classList.remove('report-group-start'))
     const seen=new Set<string>()
     cells.forEach(cell=>{
       const label=cell.querySelector('span')?.textContent?.trim()||''
@@ -91,11 +92,11 @@ export default function UiEnhancers(){
       const section=Array.from(document.querySelectorAll<HTMLElement>('main.content > section')).find(x=>/pengaturan/i.test(x.querySelector('h2')?.textContent||''))
       if(section){
         let host=section.querySelector<HTMLElement>('#account-settings-extension')
-        if(!host){host=document.createElement('div');host.id='account-settings-extension';const firstPanel=section.querySelector('.panel');firstPanel?.insertAdjacentElement('beforebegin',host)||section.appendChild(host)}
-        mountedHost=host;if(settingsHost!==host)setSettingsHost(host)
-      }else if(settingsHost)setSettingsHost(null)
+        if(!host){host=document.createElement('div');host.id='account-settings-extension';const firstPanel=section.querySelector('.panel');if(firstPanel)firstPanel.insertAdjacentElement('beforebegin',host);else section.appendChild(host)}
+        mountedHost=host;setSettingsHost(prev=>prev===host?prev:host)
+      }else setSettingsHost(prev=>prev?null:prev)
     }
     scan();const observer=new MutationObserver(scan);observer.observe(document.body,{childList:true,subtree:true});return()=>{observer.disconnect();if(mountedHost?.parentElement)mountedHost.remove()}
-  },[settingsHost])
+  },[])
   return settingsHost?createPortal(<AccountSettingsPanel/>,settingsHost):null
 }
