@@ -1,7 +1,10 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { onAuthStateChanged } from 'firebase/auth'
 import { getApiUrl, qcApi, setApiUrl } from './api'
 import { discardQueuedRecord, sendOrQueue } from './offline'
 import { signInFirebaseBridge, signOutFirebaseBridge } from './firebaseAuthBridge'
+import { firebaseAuth } from './firebase'
+import { subscribeQcRecords } from './firestoreRealtime'
 import SprayForm from './SprayForm'
 import FertilizerForm from './FertilizerForm'
 import OperationalDashboard from './OperationalDashboard'
@@ -18,6 +21,16 @@ function sameFertilizerSession(a:QcRecord,b:QcRecord){if(a.formType!=='fertilize
 export default function App(){
  const[token,setToken]=useState(()=>sessionStorage.getItem(TOKEN_KEY)||''),[user,setUser]=useState<User|null>(()=>readUser()),[records,setRecords]=useState<QcRecord[]>([]),[master,setMaster]=useState<MasterData>(()=>readMaster()),[view,setView]=useState<View>('dashboard'),[editingRecord,setEditingRecord]=useState<QcRecord|null>(null),[editingFertilizerRecords,setEditingFertilizerRecords]=useState<QcRecord[]>([]),[recordPreset,setRecordPreset]=useState<RecordPreset>({}),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
  useEffect(()=>{if(token&&user)void refreshSession()},[])
+ useEffect(()=>{
+  if(!token||!user||!firebaseAuth)return
+  let stopRecords:()=>void=()=>{}
+  const stopAuth=onAuthStateChanged(firebaseAuth,fbUser=>{
+   stopRecords();stopRecords=()=>{}
+   if(!fbUser)return
+   stopRecords=subscribeQcRecords(next=>{setRecords(next);setBusy(false)},state=>{if(!state.connected)void refreshRecords()})
+  })
+  return()=>{stopRecords();stopAuth()}
+ },[token,user?.username])
  async function refreshSession(){try{const result=await qcApi.me(token);if(result.user){setUser(result.user);sessionStorage.setItem(USER_KEY,JSON.stringify(result.user))}await Promise.all([refreshRecords(),refreshMaster()])}catch{clearSession()}}
  async function refreshMaster(){if(!token)return;try{const result=await qcApi.masterData(token);if(result.data){setMaster(result.data);localStorage.setItem(MASTER_KEY,JSON.stringify(result.data))}}catch(error){if(!Object.keys(master).length)setMessage(error instanceof Error?error.message:'Master data gagal dimuat')}}
  async function refreshRecords(){if(!token)return;setBusy(true);setMessage('');try{const result=await qcApi.records(token);setRecords((result.records||(Array.isArray(result.data)?result.data:[]))as QcRecord[])}catch(error){setMessage(error instanceof Error?error.message:'Gagal memuat data')}finally{setBusy(false)}}
