@@ -19,6 +19,7 @@ export function UsersApproval({ token }: UsersProps) {
   const [message, setMessage] = useState('')
   const [roleDraft, setRoleDraft] = useState<Record<string, string>>({})
   const [accountFeaturesReady, setAccountFeaturesReady] = useState(true)
+  const [userQuery, setUserQuery] = useState('')
 
   async function load() {
     setBusy(true); setMessage('')
@@ -34,7 +35,7 @@ export function UsersApproval({ token }: UsersProps) {
       } catch {
         setRequests([])
         setAccountFeaturesReady(false)
-        setMessage('Daftar user berhasil dimuat. Fitur perubahan akun dan edit role aktif setelah Apps Script v46.2.0 dideploy.')
+        setMessage('Daftar user berhasil dimuat. Fitur perubahan profil membutuhkan Apps Script terbaru.')
       }
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Gagal memuat administrasi pengguna') }
     finally { setBusy(false) }
@@ -100,14 +101,27 @@ export function UsersApproval({ token }: UsersProps) {
   const pending = users.filter((u) => String(u.status || '').toUpperCase() === 'PENDING')
   const approved = users.filter((u) => String(u.status || '').toUpperCase() === 'APPROVED')
   const pendingChanges = requests.filter((r) => String(r.status || '').toUpperCase() === 'PENDING')
+  const filteredUsers = useMemo(() => {
+    const q = userQuery.trim().toLowerCase()
+    if (!q) return users
+    return users.filter((u) => `${u.fullName} ${u.username} ${u.email || ''} ${u.role} ${u.status || ''} ${u.allowedForm || ''}`.toLowerCase().includes(q))
+  }, [users, userQuery])
+
   return <section>
     <div className="section-head"><div><div className="eyebrow">ADMINISTRASI</div><h2>Users & Approval</h2></div><button className="secondary" onClick={() => void load()} disabled={busy}>Refresh</button></div>
     {message && <div className="alert">{message}</div>}
     <div className="stats-grid"><Stat label="Total user" value={users.length} /><Stat label="Pending user" value={pending.length} /><Stat label="Approved" value={approved.length} /><Stat label="Perubahan akun" value={pendingChanges.length} /></div>
     <FirestoreMigrationPanel token={token}/>
-    <div className="panel"><h3>Permintaan Perubahan Akun</h3><p className="muted">Password baru tidak pernah ditampilkan. Owner hanya menyetujui atau menolak perubahan yang sudah diverifikasi dengan password lama user.</p>{!accountFeaturesReady&&<div className="alert">Menunggu backend Apps Script v46.2.0. Fitur ini sengaja dinonaktifkan sementara agar menu Users tetap dapat digunakan.</div>}<div className="table-wrap"><table><thead><tr><th>User</th><th>Permintaan</th><th>Username Baru</th><th>Password</th><th>Waktu</th><th>Aksi</th></tr></thead><tbody>{pendingChanges.map((r) => <tr key={r.requestId}><td>{r.fullName || r.username}<br/><small>@{r.username}</small></td><td>{(r.requestType || 'credentials').replaceAll('_',' ')}</td><td>{r.newUsername || 'Tidak diubah'}</td><td>{r.passwordRequested ? 'Akan diganti' : 'Tidak diubah'}</td><td>{formatLogTime(r.timestamp)}</td><td><div className="row-actions"><button className="primary" disabled={busy||!accountFeaturesReady} onClick={() => void decideAccount(r,'approve')}>Approve</button><button className="danger" disabled={busy||!accountFeaturesReady} onClick={() => void decideAccount(r,'reject')}>Reject</button></div></td></tr>)}{!pendingChanges.length && <tr><td colSpan={6} className="empty">Tidak ada permintaan perubahan akun.</td></tr>}</tbody></table></div></div>
+
+    <div className="panel"><h3>Permintaan Perubahan Akun</h3><p className="muted">Password baru tidak pernah ditampilkan. Owner hanya menyetujui atau menolak perubahan yang sudah diverifikasi dengan password lama user.</p>{!accountFeaturesReady&&<div className="alert">Menunggu backend Apps Script terbaru. Fitur ini sengaja dinonaktifkan sementara agar menu Users tetap dapat digunakan.</div>}<div className="table-wrap"><table><thead><tr><th>User</th><th>Permintaan</th><th>Nama Baru</th><th>Username Baru</th><th>Password</th><th>Waktu</th><th>Aksi</th></tr></thead><tbody>{pendingChanges.map((r) => <tr key={r.requestId}><td>{r.fullName || r.username}<br/><small>@{r.username}</small></td><td>{(r.requestType || 'credentials').replaceAll('_',' ')}</td><td>{r.newFullName || 'Tidak diubah'}</td><td>{r.newUsername || 'Tidak diubah'}</td><td>{r.passwordRequested ? 'Akan diganti' : 'Tidak diubah'}</td><td>{formatLogTime(r.timestamp)}</td><td><div className="row-actions"><button className="primary" disabled={busy||!accountFeaturesReady} onClick={() => void decideAccount(r,'approve')}>Approve</button><button className="danger" disabled={busy||!accountFeaturesReady} onClick={() => void decideAccount(r,'reject')}>Reject</button></div></td></tr>)}{!pendingChanges.length && <tr><td colSpan={7} className="empty">Tidak ada permintaan perubahan akun.</td></tr>}</tbody></table></div></div>
+
     <div className="panel"><h3>Menunggu Persetujuan User Baru</h3><div className="table-wrap"><table><thead><tr><th>Nama</th><th>Username</th><th>Email</th><th>Role</th><th>Aksi</th></tr></thead><tbody>{pending.map((u) => <tr key={u.username}><td>{u.fullName}</td><td>{u.username}</td><td>{u.email || '-'}</td><td><select value={roleDraft[u.username] || u.role} onChange={(e) => setRoleDraft((old) => ({...old,[u.username]:e.target.value}))}>{ROLES.map((r) => <option key={r} value={r}>{r.replaceAll('_',' ')}</option>)}</select></td><td><div className="row-actions"><button className="primary" disabled={busy} onClick={() => void decide(u,'approve')}>Approve</button><button className="danger" disabled={busy} onClick={() => void decide(u,'reject')}>Reject</button></div></td></tr>)}{!pending.length && <tr><td colSpan={5} className="empty">Tidak ada user pending.</td></tr>}</tbody></table></div></div>
-    <div className="panel"><h3>Pengguna Terdaftar & Edit Role</h3><div className="table-wrap"><table><thead><tr><th>Nama</th><th>Username</th><th>Role</th><th>Status</th><th>Form</th><th>Aksi</th></tr></thead><tbody>{users.map((u) => <tr key={u.username}><td>{u.fullName}</td><td>{u.username}</td><td><select value={roleDraft[u.username] || u.role} disabled={!accountFeaturesReady} onChange={(e) => setRoleDraft((old) => ({...old,[u.username]:e.target.value}))}>{ROLES.map((r) => <option key={r} value={r}>{r.replaceAll('_',' ')}</option>)}</select></td><td>{u.status || '-'}</td><td>{u.allowedForm || '-'}</td><td><div className="row-actions"><button disabled={busy || !accountFeaturesReady || (roleDraft[u.username] || u.role) === u.role} onClick={() => void saveRole(u)}>Simpan Role</button><button className="danger" disabled={busy || !accountFeaturesReady || u.role === 'owner'} title={u.role === 'owner' ? 'Akun Owner dilindungi dari penghapusan.' : 'Hapus akun login; data QC historis tetap disimpan.'} onClick={() => void deleteUser(u)}>Hapus Akun</button></div></td></tr>)}</tbody></table></div><p className="muted">Role baru berlaku pada sesi berikutnya. Hapus Akun hanya menghapus akses login pengguna; data QC historis, foto, dan laporan tetap dipertahankan.</p></div>
+
+    <div className="panel users-directory-panel">
+      <div className="section-head"><div><h3>Pengguna Terdaftar & Edit Role</h3><p className="muted">Cari berdasarkan nama, nickname/username, email, role, status, atau form.</p></div><span className="badge">{filteredUsers.length} dari {users.length} user</span></div>
+      <div className="user-search-bar"><input aria-label="Cari pengguna" placeholder="Cari nama, username/nickname, email, role…" value={userQuery} onChange={(e) => setUserQuery(e.target.value)} />{userQuery&&<button type="button" onClick={() => setUserQuery('')}>Reset</button>}</div>
+      <div className="table-wrap"><table><thead><tr><th>Nama</th><th>Username</th><th>Role</th><th>Status</th><th>Form</th><th>Aksi</th></tr></thead><tbody>{filteredUsers.map((u) => <tr key={u.username}><td>{u.fullName}</td><td>{u.username}</td><td><select value={roleDraft[u.username] || u.role} disabled={!accountFeaturesReady} onChange={(e) => setRoleDraft((old) => ({...old,[u.username]:e.target.value}))}>{ROLES.map((r) => <option key={r} value={r}>{r.replaceAll('_',' ')}</option>)}</select></td><td>{u.status || '-'}</td><td>{u.allowedForm || '-'}</td><td><div className="row-actions"><button disabled={busy || !accountFeaturesReady || (roleDraft[u.username] || u.role) === u.role} onClick={() => void saveRole(u)}>Simpan Role</button><button className="danger" disabled={busy || !accountFeaturesReady || u.role === 'owner'} title={u.role === 'owner' ? 'Akun Owner dilindungi dari penghapusan.' : 'Hapus akun login; data QC historis tetap disimpan.'} onClick={() => void deleteUser(u)}>Hapus Akun</button></div></td></tr>)}{!filteredUsers.length&&<tr><td colSpan={6} className="empty">Tidak ada pengguna yang cocok dengan pencarian.</td></tr>}</tbody></table></div><p className="muted">Role baru berlaku pada sesi berikutnya. Hapus Akun hanya menghapus akses login pengguna; data QC historis, foto, dan laporan tetap dipertahankan.</p>
+    </div>
   </section>
 }
 
