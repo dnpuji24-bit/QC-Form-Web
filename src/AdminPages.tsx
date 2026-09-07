@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { qcApi } from './api'
+import FirestoreMigrationPanel from './FirestoreMigrationPanel'
 import type { Role, User } from './types'
 
 const ROLES: Role[] = ['owner','manager','admin','asisten','mandor_spraying','mandor_fertilizer','pengunjung']
@@ -47,6 +48,7 @@ export function UsersApproval({ token }: UsersProps) {
     <div className="section-head"><div><div className="eyebrow">ADMINISTRASI</div><h2>Users & Approval</h2></div><button className="secondary" onClick={() => void load()} disabled={busy}>Refresh</button></div>
     {message && <div className="alert">{message}</div>}
     <div className="stats-grid"><Stat label="Total user" value={users.length} /><Stat label="Pending" value={pending.length} /><Stat label="Approved" value={approved.length} /></div>
+    <FirestoreMigrationPanel token={token}/>
     <div className="panel"><h3>Menunggu Persetujuan</h3><div className="table-wrap"><table><thead><tr><th>Nama</th><th>Username</th><th>Email</th><th>Role</th><th>Aksi</th></tr></thead><tbody>{pending.map((u) => <tr key={u.username}><td>{u.fullName}</td><td>{u.username}</td><td>{u.email || '-'}</td><td><select value={roleDraft[u.username] || u.role} onChange={(e) => setRoleDraft((old) => ({...old,[u.username]:e.target.value}))}>{ROLES.map((r) => <option key={r} value={r}>{r.replaceAll('_',' ')}</option>)}</select></td><td><div className="row-actions"><button className="primary" disabled={busy} onClick={() => void decide(u,'approve')}>Approve</button><button className="danger" disabled={busy} onClick={() => void decide(u,'reject')}>Reject</button></div></td></tr>)}{!pending.length && <tr><td colSpan={5} className="empty">Tidak ada user pending.</td></tr>}</tbody></table></div></div>
     <div className="panel"><h3>Pengguna Terdaftar</h3><div className="table-wrap"><table><thead><tr><th>Nama</th><th>Username</th><th>Role</th><th>Status</th><th>Form</th></tr></thead><tbody>{users.map((u) => <tr key={u.username}><td>{u.fullName}</td><td>{u.username}</td><td>{u.role.replaceAll('_',' ')}</td><td>{u.status || '-'}</td><td>{u.allowedForm || '-'}</td></tr>)}</tbody></table></div></div>
   </section>
