@@ -24,6 +24,7 @@ export interface AccountChangeRequest {
   username: string
   fullName?: string
   requestType?: string
+  newFullName?: string
   newUsername?: string
   passwordRequested?: boolean
   status?: string
