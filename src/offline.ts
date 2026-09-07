@@ -48,7 +48,7 @@ export async function saveDraftFirestoreFirst(token:string,record:QcRecord):Prom
   try{
     const mirrored=await mirrorRecordToFirestore(record)
     if(!mirrored)return sendOrQueue(token,'syncRecord',record)
-    // Queue the Spreadsheet sync before reporting success so a tab close cannot lose the server handoff.
+    // Persist the Spreadsheet handoff before reporting Firestore success so closing the tab cannot lose the sync job.
     await enqueue('syncRecord',record)
     void flushQueue(token).catch(error=>console.info('Sinkronisasi Spreadsheet akan dicoba ulang dari antrean.',error))
     return{queued:false,firestoreFirst:true,spreadsheetPending:true}
