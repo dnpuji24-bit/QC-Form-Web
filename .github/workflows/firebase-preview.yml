@@ -13,10 +13,10 @@ on:
       - 'firebase.json'
       - 'vite.config.ts'
       - 'tsconfig*.json'
-      - 'scripts/patch_offline_session_persistence.py'
+      - 'tests/offline_session_persistence_check.py'
 
 permissions:
-  contents: write
+  contents: read
   checks: write
   pull-requests: write
 
@@ -30,22 +30,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: migrate/react-typescript-vite
-          fetch-depth: 0
-
-      - name: Apply offline session persistence
-        run: python scripts/patch_offline_session_persistence.py
-
-      - name: Commit persistence changes when needed
-        run: |
-          if ! git diff --quiet; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add src/App.tsx src/firebase.ts src/firebaseAuthBridge.ts tests/offline_session_persistence_check.py
-            git commit -m "Keep QC session available across offline refresh"
-            git push origin HEAD:migrate/react-typescript-vite
-          else
-            echo "Offline session persistence already applied."
-          fi
 
       - name: Setup Node
         uses: actions/setup-node@v4
