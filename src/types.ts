@@ -16,6 +16,8 @@ export interface User {
   role: Role
   status?: string
   allowedForm?: FormType | 'all' | string
+  firebaseUid?: string
+  firebaseStatus?: string
 }
 
 export interface AccountChangeRequest {

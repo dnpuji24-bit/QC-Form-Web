@@ -1,5 +1,5 @@
 /**
- * QC Form Web API v46.2.2
+ * QC Form Web API v46.3.0
  * Deploy as a Web App from the Apps Script project bound to "Application QC Form".
  * Execute as: Me. Access: Anyone.
  *
@@ -9,7 +9,7 @@
  * - Permissions are enforced here; the browser UI is not trusted.
  */
 var QC = {
-  VERSION: '46.2.2',
+  VERSION: '46.3.0',
   SESSION_SECONDS: 21600,
   SHEETS: {
     USERS: 'Users', LOGS: 'Activity_Logs', CLOUD: 'Cloud_Monitoring', REQUESTS: 'Account_Change_Requests',
@@ -18,7 +18,7 @@ var QC = {
   ROLES: ['owner', 'manager', 'admin', 'asisten', 'mandor_spraying', 'mandor_fertilizer', 'pengunjung'],
   SPRAY_HEADERS: ['Date','Start Time','End Time','Shift','Status','Name','Name of Assistan','Paddock','Variety','Area (Ha)','Unit','No. Unit','Dropper','Droplet Size','Nozzle','Height (m)','Row Spacing (m)','Speed (Km/Jam)','Type','Activity','Deskripsi','Pesticide 1','Dosage','Pesticide 2','Dosage','Pesticide 3','Dosage','Pesticide 4','Dosage','Adjuvant','Adjuvant Dosage (mL/L)','Estimated Usage Pesticide 1','Estimated Usage Pesticide 2','Estimated Usage Pesticide 3','Estimated Usage Pesticide 4','Estimated Usage Adjuvant','Actual Usage Pesticide 1','Actual Usage Pesticide 2','Actual Usage Pesticide 3','Actual Usage Pesticide 4','Actual Usage Adjuvant','Water Rate','Water Quality','Actual Usage','Wind Speed (Km/jam)','Temperature (°C)','Humidity (NRC)','Delta T (°C)','Weather Condition','Noted*','Foto QC (Link Drive)','Record ID (Sistem)'],
   FERT_HEADERS: ['Tanggal','Shift','Name','Name of Assistan','Status','Start Time ','End Time','Paddock','Unit','No. Unit','Type','Activity','Jenis Pupuk','Dosis (Kg/Ha)','Status Hose','Pengisian Ke -','Jumlah (Kg)','Hasil Kerja (Ha)','Dosis Aktual (Kg/ha)','Perataan Pupuk','Catatan','Foto QC (Link Drive)','Record ID (Sistem)'],
-  USER_HEADERS: ['Timestamp','Username','Password','FullName','Role','Status','ApprovedBy','ApprovedAt','Notes','Email','PasswordHash','Salt','AllowedForm','UpdatedAt'],
+  USER_HEADERS: ['Timestamp','Username','Password','FullName','Role','Status','ApprovedBy','ApprovedAt','Notes','Email','PasswordHash','Salt','AllowedForm','UpdatedAt','FirebaseUID','FirebaseStatus'],
   CLOUD_HEADERS: ['LastUpdated','RecordID','FormType','Date','Shift','Mandor','Assistan','Paddock','Status','SaveType','SummaryDetails','RecordJSON','PhotoLink','UpdatedBy'],
   LOG_HEADERS: ['Timestamp','Username','FullName','Role','ActionType','Description','IP_Device'],
   REQUEST_HEADERS: ['Timestamp','RequestID','Username','FullName','RequestType','NewUsername','PasswordHash','Salt','Status','ApprovedBy','ApprovedAt','Notes']
@@ -89,12 +89,16 @@ function login_(req) {
   else valid = constantEqual_(String(found.data.Password || ''), password);
   if (!valid) { log_(null, {username:username,fullName:'-',role:'-'}, 'LOGIN_FAILED', 'Login ditolak', req.deviceInfo); return {ok:false,error:'INVALID_CREDENTIALS',message:'Akun tidak ditemukan, belum disetujui, atau kata sandi salah.'}; }
   if (!found.data.PasswordHash) upgradeLegacyPassword_(found,password);
+  var firebaseState={ok:false,status:'skipped'};
+  try { firebaseState=ensureFirebaseIdentity_(found,password,true); found=findUser_(username)||found; }
+  catch(firebaseErr){ console.warn('Firebase provisioning login dilewati: '+firebaseErr); firebaseState={ok:false,status:'error',message:String(firebaseErr)}; }
   var token = Utilities.getUuid().replace(/-/g,'') + Utilities.getUuid().replace(/-/g,'');
   var user = normalizeUser_(found.data);
+  if(firebaseState.ok && firebaseState.backfillRecommended) safeBackfillUserRecords_(user.username,150);
   CacheService.getScriptCache().remove('revoked:' + user.username);
   CacheService.getScriptCache().put('session:' + token, JSON.stringify(user), QC.SESSION_SECONDS);
   log_(null,user,'LOGIN','Login berhasil',req.deviceInfo);
-  return {ok:true,token:token,expiresIn:QC.SESSION_SECONDS,user:publicUser_(user)};
+  return {ok:true,token:token,expiresIn:QC.SESSION_SECONDS,user:publicUser_(user),firebase:firebaseState};
 }
 
 function register_(req) {
@@ -109,15 +113,19 @@ function register_(req) {
   if (fullName.length < 3 || password.length < 8) return {ok:false,error:'VALIDATION',message:'Nama minimal 3 karakter dan kata sandi minimal 8 karakter.'};
   if (findUser_(username) || findUser_(email)) return {ok:false,error:'DUPLICATE',message:'Username atau email sudah terdaftar.'};
   if (['owner','manager','admin'].indexOf(requested)>=0) requested='pengunjung';
-  var sh = getSheet_(QC.SHEETS.USERS), map = headerMap_(sh,1), salt = newSalt_();
+  var sh = ensureSheet_(SpreadsheetApp.getActiveSpreadsheet(),QC.SHEETS.USERS,QC.USER_HEADERS,1), map = headerMap_(sh,1), salt = newSalt_();
   var row = blankRow_(sh.getLastColumn());
   setBy_(row,map,'Timestamp',new Date()); setBy_(row,map,'Username',username); setBy_(row,map,'Password','');
   setBy_(row,map,'FullName',fullName); setBy_(row,map,'Role',requested); setBy_(row,map,'Status','PENDING');
   setBy_(row,map,'Notes','Pendaftaran dari web'); setBy_(row,map,'Email',email);
   setBy_(row,map,'PasswordHash',hashPassword_(password,salt)); setBy_(row,map,'Salt',salt);
   setBy_(row,map,'AllowedForm',allowedForm_(requested)); setBy_(row,map,'UpdatedAt',new Date());
-  sh.appendRow(row); log_(null,{username:username,fullName:fullName,role:requested},'REGISTER','Pendaftaran akun baru',req.deviceInfo);
-  return {ok:true,message:'Pendaftaran terkirim dan menunggu persetujuan Owner.'};
+  sh.appendRow(row);
+  var firebaseState={ok:false,status:'pending'};
+  try { firebaseState=ensureFirebaseIdentity_(findUser_(username),password,false); }
+  catch(firebaseErr){ console.warn('Firebase provisioning register tertunda: '+firebaseErr); firebaseState={ok:false,status:'error',message:String(firebaseErr)}; }
+  log_(null,{username:username,fullName:fullName,role:requested},'REGISTER','Pendaftaran akun baru | Firebase '+(firebaseState.ok?'siap':'tertunda'),req.deviceInfo);
+  return {ok:true,message:firebaseState.ok?'Pendaftaran terkirim, akun Firebase dibuat otomatis, dan menunggu persetujuan Owner.':'Pendaftaran terkirim dan menunggu persetujuan Owner. Firebase akan dicoba lagi otomatis saat login.',firebase:firebaseState};
 }
 function requireSession_(token) {
   token = String(token || ''); if (!token) throw new Error('AUTH_REQUIRED');
@@ -136,8 +144,8 @@ function syncRecord_(user, rec) {
   rec = validateRecord_(rec); if (!canInput_(user,rec.formType)) throw new Error('AUTH_FORBIDDEN');
   rec.inputtedBy=user.username; rec.inputtedByName=user.fullName; rec.updatedAt=new Date().toISOString();
   preparePhotoLinks_(rec);
-  upsertCloud_(rec,user); log_(null,user,'SYNC_DRAFT','Sinkronisasi '+rec.formType+' '+rec.paddock,rec.deviceInfo);
-  return {ok:true,recordId:rec.id,updatedAt:rec.updatedAt,photoDriveUrl:rec.photoDriveUrl||''};
+  upsertCloud_(rec,user); var firestoreSynced=safeMirrorRecordToFirestore_(rec); log_(null,user,'SYNC_DRAFT','Sinkronisasi '+rec.formType+' '+rec.paddock+' | Firestore '+(firestoreSynced?'OK':'pending'),rec.deviceInfo);
+  return {ok:true,recordId:rec.id,updatedAt:rec.updatedAt,photoDriveUrl:rec.photoDriveUrl||'',firestoreSynced:firestoreSynced};
 }
 
 function finalizeRecord_(user, rec) {
@@ -157,8 +165,9 @@ function finalizeRecord_(user, rec) {
     }
     upsertCloud_(rec,user);
   } finally { lock.releaseLock(); }
-  log_(null,user,'UPLOAD_'+rec.formType.toUpperCase(),'Upload/koreksi '+rec.paddock,rec.deviceInfo);
-  return {ok:true,recordId:rec.id,rows:result,photoDriveUrl:rec.photoDriveUrl||''};
+  var firestoreSynced=safeMirrorRecordToFirestore_(rec);
+  log_(null,user,'UPLOAD_'+rec.formType.toUpperCase(),'Upload/koreksi '+rec.paddock+' | Firestore '+(firestoreSynced?'OK':'pending'),rec.deviceInfo);
+  return {ok:true,recordId:rec.id,rows:result,photoDriveUrl:rec.photoDriveUrl||'',firestoreSynced:firestoreSynced};
 }
 
 function deleteRecord_(user,id) {
@@ -166,7 +175,8 @@ function deleteRecord_(user,id) {
   var lock=LockService.getScriptLock(); lock.waitLock(20000);
   try { deleteById_(getSheet_(QC.SHEETS.CLOUD),id,2,2); deleteById_(getSheet_(QC.SHEETS.SPRAY),id,52,detectSprayHeaderRow_(getSheet_(QC.SHEETS.SPRAY))+1); deleteById_(getSheet_(QC.SHEETS.FERT),id,23,2); }
   finally { lock.releaseLock(); }
-  log_(null,user,'DELETE_RECORD','Hapus record '+id,''); return {ok:true};
+  var firestoreDeleted=safeDeleteRecordFromFirestore_(id);
+  log_(null,user,'DELETE_RECORD','Hapus record '+id+' | Firestore '+(firestoreDeleted?'OK':'pending'),''); return {ok:true,firestoreSynced:firestoreDeleted};
 }
 
 function approveUser_(admin,req) { return updateApproval_(admin,req,'APPROVED'); }
@@ -177,7 +187,8 @@ function updateApproval_(admin,req,status) {
   var map=found.map,sh=found.sheet,row=found.row;
   sh.getRange(row,map.Role).setValue(role); sh.getRange(row,map.Status).setValue(status); sh.getRange(row,map.ApprovedBy).setValue(admin.username);
   sh.getRange(row,map.ApprovedAt).setValue(new Date()); if(map.AllowedForm) sh.getRange(row,map.AllowedForm).setValue(allowedForm_(role)); if(map.UpdatedAt) sh.getRange(row,map.UpdatedAt).setValue(new Date());
-  log_(null,admin,status+'_USER',status+' @'+found.data.Username+' sebagai '+role,''); return {ok:true};
+  var firebaseSynced=safeSyncFirebaseProfile_(findUser_(String(found.data.Username||'')));
+  log_(null,admin,status+'_USER',status+' @'+found.data.Username+' sebagai '+role+' | Firebase '+(firebaseSynced?'OK':'pending'),''); return {ok:true,firebaseSynced:firebaseSynced};
 }
 
 function updateUserRole_(admin,req) {
@@ -188,7 +199,8 @@ function updateUserRole_(admin,req) {
   found.sheet.getRange(found.row,found.map.Role).setValue(role);
   if(found.map.AllowedForm) found.sheet.getRange(found.row,found.map.AllowedForm).setValue(allowedForm_(role));
   if(found.map.UpdatedAt) found.sheet.getRange(found.row,found.map.UpdatedAt).setValue(new Date());
-  log_(null,admin,'CHANGE_ROLE','Role @'+username+' diubah menjadi '+role,'');
+  var firebaseSynced=safeSyncFirebaseProfile_(findUser_(username));
+  log_(null,admin,'CHANGE_ROLE','Role @'+username+' diubah menjadi '+role+' | Firebase '+(firebaseSynced?'OK':'pending'),'');
   return {ok:true,message:'Role @'+username+' diperbarui menjadi '+role+'. User perlu login ulang agar role baru berlaku.'};
 }
 
@@ -213,6 +225,7 @@ function deleteUserAccount_(admin,req) {
         if(requestMap.Notes) requestSheet.getRange(i+2,requestMap.Notes).setValue('Dibatalkan karena akun dihapus Owner');
       }
     });
+    safeDisableFirebaseProfile_(found);
     found.sheet.deleteRow(found.row);
     CacheService.getScriptCache().put('revoked:'+username,'1',QC.SESSION_SECONDS);
   } finally { lock.releaseLock(); }
@@ -274,6 +287,7 @@ function decideAccountChange_(admin,req) {
   if(data.PasswordHash&&data.Salt){if(found.map.Password)found.sheet.getRange(found.row,found.map.Password).setValue('');found.sheet.getRange(found.row,found.map.PasswordHash).setValue(String(data.PasswordHash));found.sheet.getRange(found.row,found.map.Salt).setValue(String(data.Salt));}
   if(found.map.UpdatedAt)found.sheet.getRange(found.row,found.map.UpdatedAt).setValue(new Date());
   if(nextUsername)migrateCloudOwner_(oldUsername,nextUsername);
+  safeSyncFirebaseProfile_(findUser_(nextUsername||oldUsername));
   sh.getRange(row,map.Status).setValue('APPROVED');if(map.ApprovedBy)sh.getRange(row,map.ApprovedBy).setValue(admin.username);if(map.ApprovedAt)sh.getRange(row,map.ApprovedAt).setValue(new Date());
   var desc='Perubahan akun @'+oldUsername+(nextFullName?' | nama menjadi '+nextFullName:'')+(nextUsername?' | username menjadi @'+nextUsername:'')+' disetujui';
   log_(null,admin,'APPROVE_ACCOUNT_CHANGE',desc,'');
@@ -337,8 +351,8 @@ function rowObject_(r,map){var o={};Object.keys(map).forEach(function(k){o[k]=r[
 function setBy_(row,map,key,val){if(map[key])row[map[key]-1]=val;}
 function blankRow_(n){return Array.apply(null,Array(n)).map(function(){return '';});}
 function findUser_(key){var sh=getSheet_(QC.SHEETS.USERS),map=headerMap_(sh,1),rows=dataRows_(sh,2),needle=String(key||'').toLowerCase();for(var i=0;i<rows.length;i++){var o=rowObject_(rows[i],map);if(String(o.Username||'').toLowerCase()===needle||String(o.Email||'').toLowerCase()===needle)return{sheet:sh,map:map,row:i+2,data:o};}return null;}
-function normalizeUser_(o){return{username:String(o.Username||'').toLowerCase(),email:String(o.Email||''),fullName:String(o.FullName||o.Username||''),role:normalizeRole_(o.Role),status:String(o.Status||''),allowedForm:String(o.AllowedForm||allowedForm_(o.Role))};}
-function publicUser_(u){return{username:u.username,email:u.email,fullName:u.fullName,role:u.role,status:u.status,allowedForm:u.allowedForm};}
+function normalizeUser_(o){return{username:String(o.Username||'').toLowerCase(),email:String(o.Email||''),fullName:String(o.FullName||o.Username||''),role:normalizeRole_(o.Role),status:String(o.Status||''),allowedForm:String(o.AllowedForm||allowedForm_(o.Role)),firebaseUid:String(o.FirebaseUID||''),firebaseStatus:String(o.FirebaseStatus||'')};}
+function publicUser_(u){return{username:u.username,email:u.email,fullName:u.fullName,role:u.role,status:u.status,allowedForm:u.allowedForm,firebaseUid:u.firebaseUid||'',firebaseStatus:u.firebaseStatus||''};}
 function normalizeRole_(r){r=String(r||'pengunjung').toLowerCase().replace(/\s+/g,'_');if(r==='mandor')return'mandor_spraying';if(r==='admin_staff')return'admin';if(r==='asisten_lapangan')return'asisten';return r;}
 function allowedForm_(r){r=normalizeRole_(r);return r==='mandor_spraying'?'spray':r==='mandor_fertilizer'?'fertilizer':['owner','asisten'].indexOf(r)>=0?'all':'none';}
 function upgradeLegacyPassword_(f,password){var salt=newSalt_();if(f.map.Password)f.sheet.getRange(f.row,f.map.Password).setValue('');if(f.map.PasswordHash)f.sheet.getRange(f.row,f.map.PasswordHash).setValue(hashPassword_(password,salt));if(f.map.Salt)f.sheet.getRange(f.row,f.map.Salt).setValue(salt);if(f.map.UpdatedAt)f.sheet.getRange(f.row,f.map.UpdatedAt).setValue(new Date());}
