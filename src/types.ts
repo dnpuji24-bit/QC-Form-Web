@@ -18,6 +18,20 @@ export interface User {
   allowedForm?: FormType | 'all' | string
 }
 
+export interface AccountChangeRequest {
+  requestId: string
+  timestamp?: string
+  username: string
+  fullName?: string
+  requestType?: string
+  newUsername?: string
+  passwordRequested?: boolean
+  status?: string
+  approvedBy?: string
+  approvedAt?: string
+  notes?: string
+}
+
 export interface HoldInterval {
   start: string
   end: string
@@ -101,6 +115,7 @@ export interface ApiResponse<T = unknown> {
   records?: QcRecord[]
   users?: User[]
   logs?: Record<string, unknown>[]
+  requests?: AccountChangeRequest[]
   recordId?: string
   updatedAt?: string
 }
