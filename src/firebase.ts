@@ -1,6 +1,6 @@
 import { getApp, getApps, initializeApp } from 'firebase/app'
-import { getAuth } from 'firebase/auth'
-import { getFirestore } from 'firebase/firestore'
+import { browserLocalPersistence, getAuth, setPersistence } from 'firebase/auth'
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
 
 // Firebase web config is intentionally client-visible. Access control is enforced
 // by Firebase Authentication + Firestore Security Rules, never by hiding this config.
@@ -19,4 +19,6 @@ export const firebaseConfigured = Boolean(firebaseConfig.apiKey && firebaseConfi
 
 export const firebaseApp = firebaseConfigured ? (getApps().length ? getApp() : initializeApp(firebaseConfig)) : null
 export const firebaseAuth = firebaseApp ? getAuth(firebaseApp) : null
-export const firestoreDb = firebaseApp ? getFirestore(firebaseApp) : null
+export const firebaseAuthPersistenceReady:Promise<void> = firebaseAuth ? setPersistence(firebaseAuth,browserLocalPersistence).catch(error=>{console.info('Firebase Auth local persistence tidak dapat diaktifkan; memakai persistence bawaan.',error)}) : Promise.resolve()
+function createFirestore(){if(!firebaseApp)return null;try{return initializeFirestore(firebaseApp,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})})}catch(error){console.info('Firestore persistent cache memakai instance yang sudah tersedia.',error);return getFirestore(firebaseApp)}}
+export const firestoreDb = createFirestore()

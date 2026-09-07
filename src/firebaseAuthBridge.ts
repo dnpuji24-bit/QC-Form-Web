@@ -1,5 +1,5 @@
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth'
-import { firebaseAuth } from './firebase'
+import { firebaseAuth, firebaseAuthPersistenceReady } from './firebase'
 
 const STATUS_KEY='qc_firebase_auth_status'
 const ERROR_KEY='qc_firebase_auth_error'
@@ -33,6 +33,7 @@ export async function signInFirebaseBridge(email:string,password:string):Promise
   sessionStorage.removeItem(ERROR_KEY)
   const targetEmail=email.trim().toLowerCase()
   try{
+    await firebaseAuthPersistenceReady
     const existingEmail=String(firebaseAuth.currentUser?.email||'').trim().toLowerCase()
     if(firebaseAuth.currentUser&&existingEmail!==targetEmail)await signOut(firebaseAuth)
     await signInWithEmailAndPassword(firebaseAuth,targetEmail,password)
