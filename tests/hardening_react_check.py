@@ -15,7 +15,7 @@ compact_network = ''.join(network.split())
 compact_app = ''.join(app.split())
 compact_local_db = ''.join(local_db.split())
 
-for token in ["exporttypeQueueAction='syncRecord'|'finalizeRecord'", "if(!navigator.onLine)", "exportasyncfunctionflushQueue(token:string)", "/sesi|login|izin|password|katasandi|auth/i", "openLocalDb()"]:
+for token in ["exporttypeQueueAction='syncRecord'|'finalizeRecord'", "if(!navigator.onLine)", "exportasyncfunctionflushQueue(token:string)", "functionisAuthError", "AUTH_REQUIRED", "openLocalDb()"]:
     assert token in compact_offline, f'Missing offline hardening token: {token}'
 for token in ['online','offline','queueCount()','flushQueue(token)','qc:queue-flushed']:
     assert token in compact_network, f'Missing network recovery token: {token}'
