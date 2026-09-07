@@ -1,5 +1,5 @@
 /**
- * QC Form Web API v46.2.1
+ * QC Form Web API v46.2.2
  * Deploy as a Web App from the Apps Script project bound to "Application QC Form".
  * Execute as: Me. Access: Anyone.
  *
@@ -9,7 +9,7 @@
  * - Permissions are enforced here; the browser UI is not trusted.
  */
 var QC = {
-  VERSION: '46.2.1',
+  VERSION: '46.2.2',
   SESSION_SECONDS: 21600,
   SHEETS: {
     USERS: 'Users', LOGS: 'Activity_Logs', CLOUD: 'Cloud_Monitoring', REQUESTS: 'Account_Change_Requests',
@@ -226,26 +226,34 @@ function verifyUserPassword_(found,password) {
   return constantEqual_(String(found.data.Password||''),String(password||''));
 }
 function getAccountRequestSheet_(){return ensureSheet_(SpreadsheetApp.getActiveSpreadsheet(),QC.SHEETS.REQUESTS,QC.REQUEST_HEADERS,1);}
+function parseAccountRequestNotes_(value){
+  try { var parsed=JSON.parse(String(value||'')); return parsed&&typeof parsed==='object'?parsed:{}; }
+  catch(e) { return {}; }
+}
 function requestAccountChange_(user,req) {
   rateLimit_('account-change:'+user.username,8,3600);
   var found=findUser_(user.username),current=String(req.currentPassword||'');
   if(!verifyUserPassword_(found,current)) return {ok:false,error:'INVALID_CREDENTIALS',message:'Password saat ini salah.'};
-  var nextUsername=clean_(req.newUsername,50).toLowerCase(),nextPassword=String(req.newPassword||'');
+  var currentFullName=String(found.data.FullName||user.fullName||'').trim();
+  var nextFullName=clean_(req.newFullName,100),nextUsername=clean_(req.newUsername,50).toLowerCase(),nextPassword=String(req.newPassword||'');
+  if(nextFullName===currentFullName) nextFullName='';
   if(nextUsername===user.username) nextUsername='';
+  if(nextFullName && nextFullName.length<3) return {ok:false,error:'VALIDATION',message:'Nama lengkap baru minimal 3 karakter.'};
   if(nextUsername && !/^[a-z0-9._-]{3,50}$/.test(nextUsername)) return {ok:false,error:'VALIDATION',message:'Username baru minimal 3 karakter dan hanya boleh huruf, angka, titik, garis bawah, atau tanda minus.'};
   if(nextUsername){var existing=findUser_(nextUsername);if(existing && String(existing.data.Username||'').toLowerCase()!==user.username) return {ok:false,error:'DUPLICATE',message:'Username baru sudah digunakan akun lain.'};}
   if(nextPassword && nextPassword.length<8) return {ok:false,error:'VALIDATION',message:'Password baru minimal 8 karakter.'};
-  if(!nextUsername && !nextPassword) return {ok:false,error:'VALIDATION',message:'Tidak ada perubahan username atau password yang diajukan.'};
+  if(!nextFullName && !nextUsername && !nextPassword) return {ok:false,error:'VALIDATION',message:'Tidak ada perubahan nama, username, atau password yang diajukan.'};
   var sh=getAccountRequestSheet_(),map=headerMap_(sh,1),rows=dataRows_(sh,2);
   rows.forEach(function(r,i){var o=rowObject_(r,map);if(String(o.Username||'').toLowerCase()===user.username && String(o.Status||'').toUpperCase()==='PENDING') sh.getRange(i+2,map.Status).setValue('SUPERSEDED');});
-  var salt=nextPassword?newSalt_():'',hash=nextPassword?hashPassword_(nextPassword,salt):'',requestId='acr_'+Date.now()+'_'+Utilities.getUuid().slice(0,8),row=blankRow_(sh.getLastColumn()),type=nextUsername&&nextPassword?'username_password':nextUsername?'username':'password';
-  setBy_(row,map,'Timestamp',new Date());setBy_(row,map,'RequestID',requestId);setBy_(row,map,'Username',user.username);setBy_(row,map,'FullName',user.fullName);setBy_(row,map,'RequestType',type);setBy_(row,map,'NewUsername',nextUsername);setBy_(row,map,'PasswordHash',hash);setBy_(row,map,'Salt',salt);setBy_(row,map,'Status','PENDING');setBy_(row,map,'Notes','Diajukan dari menu Pengaturan');sh.appendRow(row);
+  var salt=nextPassword?newSalt_():'',hash=nextPassword?hashPassword_(nextPassword,salt):'',requestId='acr_'+Date.now()+'_'+Utilities.getUuid().slice(0,8),row=blankRow_(sh.getLastColumn()),parts=[];
+  if(nextFullName)parts.push('name');if(nextUsername)parts.push('username');if(nextPassword)parts.push('password');var type=parts.join('_');
+  setBy_(row,map,'Timestamp',new Date());setBy_(row,map,'RequestID',requestId);setBy_(row,map,'Username',user.username);setBy_(row,map,'FullName',user.fullName);setBy_(row,map,'RequestType',type);setBy_(row,map,'NewUsername',nextUsername);setBy_(row,map,'PasswordHash',hash);setBy_(row,map,'Salt',salt);setBy_(row,map,'Status','PENDING');setBy_(row,map,'Notes',JSON.stringify({source:'Pengaturan',newFullName:nextFullName}));sh.appendRow(row);
   log_(null,user,'ACCOUNT_CHANGE_REQUEST','Permintaan perubahan '+type,'');
-  return {ok:true,requestId:requestId,message:'Permintaan perubahan akun dikirim dan menunggu persetujuan Owner.'};
+  return {ok:true,requestId:requestId,message:'Permintaan perubahan profil dikirim dan menunggu persetujuan Owner.'};
 }
 function listAccountChangeRequests_(){
   var sh=getAccountRequestSheet_(),map=headerMap_(sh,1),rows=dataRows_(sh,2);
-  return rows.slice().reverse().map(function(r){var o=rowObject_(r,map);return{timestamp:o.Timestamp,requestId:String(o.RequestID||''),username:String(o.Username||''),fullName:String(o.FullName||''),requestType:String(o.RequestType||''),newUsername:String(o.NewUsername||''),passwordRequested:Boolean(o.PasswordHash),status:String(o.Status||''),approvedBy:String(o.ApprovedBy||''),approvedAt:o.ApprovedAt,notes:String(o.Notes||'')};});
+  return rows.slice().reverse().map(function(r){var o=rowObject_(r,map),meta=parseAccountRequestNotes_(o.Notes);return{timestamp:o.Timestamp,requestId:String(o.RequestID||''),username:String(o.Username||''),fullName:String(o.FullName||''),requestType:String(o.RequestType||''),newFullName:String(meta.newFullName||''),newUsername:String(o.NewUsername||''),passwordRequested:Boolean(o.PasswordHash),status:String(o.Status||''),approvedBy:String(o.ApprovedBy||''),approvedAt:o.ApprovedAt,notes:String(o.Notes||'')};});
 }
 function decideAccountChange_(admin,req) {
   var sh=getAccountRequestSheet_(),map=headerMap_(sh,1),requestId=clean_(req.requestId,120),row=findRow_(sh,map.RequestID,requestId,2),decision=clean_(req.decision,20).toLowerCase();
@@ -258,15 +266,18 @@ function decideAccountChange_(admin,req) {
     log_(null,admin,'REJECT_ACCOUNT_CHANGE','Permintaan @'+data.Username+' ditolak','');return{ok:true,message:'Permintaan perubahan akun ditolak.'};
   }
   var oldUsername=String(data.Username||'').toLowerCase(),found=findUser_(oldUsername);if(!found)return{ok:false,error:'NOT_FOUND',message:'Akun asal tidak ditemukan.'};
-  var nextUsername=clean_(data.NewUsername,50).toLowerCase();
+  var meta=parseAccountRequestNotes_(data.Notes),nextFullName=clean_(meta.newFullName,100),nextUsername=clean_(data.NewUsername,50).toLowerCase();
+  if(nextFullName && nextFullName.length<3)return{ok:false,error:'VALIDATION',message:'Nama lengkap baru tidak valid.'};
   if(nextUsername){var clash=findUser_(nextUsername);if(clash&&String(clash.data.Username||'').toLowerCase()!==oldUsername)return{ok:false,error:'DUPLICATE',message:'Username baru sudah digunakan akun lain.'};}
+  if(nextFullName&&found.map.FullName)found.sheet.getRange(found.row,found.map.FullName).setValue(nextFullName);
   if(nextUsername) found.sheet.getRange(found.row,found.map.Username).setValue(nextUsername);
   if(data.PasswordHash&&data.Salt){if(found.map.Password)found.sheet.getRange(found.row,found.map.Password).setValue('');found.sheet.getRange(found.row,found.map.PasswordHash).setValue(String(data.PasswordHash));found.sheet.getRange(found.row,found.map.Salt).setValue(String(data.Salt));}
   if(found.map.UpdatedAt)found.sheet.getRange(found.row,found.map.UpdatedAt).setValue(new Date());
   if(nextUsername)migrateCloudOwner_(oldUsername,nextUsername);
   sh.getRange(row,map.Status).setValue('APPROVED');if(map.ApprovedBy)sh.getRange(row,map.ApprovedBy).setValue(admin.username);if(map.ApprovedAt)sh.getRange(row,map.ApprovedAt).setValue(new Date());
-  log_(null,admin,'APPROVE_ACCOUNT_CHANGE','Perubahan akun @'+oldUsername+(nextUsername?' menjadi @'+nextUsername:'')+' disetujui','');
-  return{ok:true,message:'Perubahan akun disetujui. User harus logout lalu login kembali dengan kredensial baru.'};
+  var desc='Perubahan akun @'+oldUsername+(nextFullName?' | nama menjadi '+nextFullName:'')+(nextUsername?' | username menjadi @'+nextUsername:'')+' disetujui';
+  log_(null,admin,'APPROVE_ACCOUNT_CHANGE',desc,'');
+  return{ok:true,message:'Perubahan profil disetujui. User harus logout lalu login kembali agar nama/username/password baru berlaku.'};
 }
 function migrateCloudOwner_(oldUsername,newUsername){
   var sh=getSheet_(QC.SHEETS.CLOUD),map=headerMap_(sh,1),rows=dataRows_(sh,2);rows.forEach(function(r,i){var o=rowObject_(r,map),rec=null;try{rec=JSON.parse(o.RecordJSON||'{}');}catch(e){}if(rec&&rec.inputtedBy===oldUsername){rec.inputtedBy=newUsername;sh.getRange(i+2,map.RecordJSON).setValue(JSON.stringify(rec));if(map.UpdatedBy&&String(o.UpdatedBy||'')===oldUsername)sh.getRange(i+2,map.UpdatedBy).setValue(newUsername);}});
