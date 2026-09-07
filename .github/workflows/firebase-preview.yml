@@ -13,6 +13,7 @@ on:
       - 'firebase.json'
       - 'vite.config.ts'
       - 'tsconfig*.json'
+      - 'scripts/patch_offline_session_persistence.py'
 
 permissions:
   contents: write
@@ -31,16 +32,20 @@ jobs:
           ref: migrate/react-typescript-vite
           fetch-depth: 0
 
-      - name: Apply realtime merge guard
-        run: python scripts/fix_realtime_merge.py
+      - name: Apply offline session persistence
+        run: python scripts/patch_offline_session_persistence.py
 
-      - name: Commit realtime merge guard
+      - name: Commit persistence changes when needed
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/App.tsx tests/ready_edit_react_check.py
-          git commit -m "Keep Ready edits optimistic until Firestore catches up"
-          git push origin HEAD:migrate/react-typescript-vite
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add src/App.tsx src/firebase.ts src/firebaseAuthBridge.ts tests/offline_session_persistence_check.py
+            git commit -m "Keep QC session available across offline refresh"
+            git push origin HEAD:migrate/react-typescript-vite
+          else
+            echo "Offline session persistence already applied."
+          fi
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -50,8 +55,8 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Ready edit regression check
-        run: python tests/ready_edit_react_check.py
+      - name: Offline session regression check
+        run: python tests/offline_session_persistence_check.py
 
       - name: TypeScript check
         run: npm run typecheck
