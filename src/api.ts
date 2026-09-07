@@ -1,4 +1,5 @@
 import type { ApiResponse, MasterData, QcRecord, User } from './types'
+import { mirrorRecordToFirestore, removeRecordFromFirestore } from './firestoreStore'
 
 const CONFIG_KEY = 'qc_v48_config'
 const DEFAULT_API = 'https://script.google.com/macros/s/AKfycbwjqnVwOBDQg3ptclpw_bCQO9kAcYUcHkxz4tdlNppcPYmMpCocPTbG8fgGVlp1muY/exec'
@@ -33,6 +34,11 @@ export async function api<T = unknown>(action: string, token = '', data: Record<
   return result
 }
 
+async function mirrorAfter<T>(result:ApiResponse<T>,record:QcRecord){
+  try{await mirrorRecordToFirestore(record)}catch(error){console.info('Mirror Firestore dilewati; Apps Script tetap berhasil.',error)}
+  return result
+}
+
 export const qcApi = {
   login: (username: string, password: string) => api('login', '', { username, password }),
   register: (payload: Record<string, unknown>) => api('register', '', payload),
@@ -40,9 +46,13 @@ export const qcApi = {
   logout: (token: string) => api('logout', token),
   masterData: (token: string) => api<MasterData>('masterData', token, {}, 'GET'),
   records: (token: string) => api<QcRecord[]>('records', token, {}, 'GET'),
-  syncRecord: (token: string, record: QcRecord) => api('syncRecord', token, { record }),
-  finalizeRecord: (token: string, record: QcRecord) => api('finalizeRecord', token, { record }),
-  deleteRecord: (token: string, recordId: string) => api('deleteRecord', token, { recordId }),
+  syncRecord: async (token: string, record: QcRecord) => mirrorAfter(await api('syncRecord', token, { record }),record),
+  finalizeRecord: async (token: string, record: QcRecord) => mirrorAfter(await api('finalizeRecord', token, { record }),{...record,saveType:'uploaded'}),
+  deleteRecord: async (token: string, recordId: string) => {
+    const result=await api('deleteRecord', token, { recordId })
+    try{await removeRecordFromFirestore(recordId)}catch(error){console.info('Hapus mirror Firestore dilewati; Apps Script tetap berhasil.',error)}
+    return result
+  },
   users: (token: string) => api<User[]>('users', token, {}, 'GET'),
   approveUser: (token: string, username: string, role: string) => api('approveUser', token, { username, role }),
   rejectUser: (token: string, username: string, role: string) => api('rejectUser', token, { username, role }),
