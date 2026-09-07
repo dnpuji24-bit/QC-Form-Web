@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore'
-import { onAuthStateChanged } from 'firebase/auth'
+import { onAuthStateChanged, type Auth, type User as FirebaseUser } from 'firebase/auth'
 import { qcApi } from './api'
 import { firebaseAuth, firestoreDb } from './firebase'
 import { getFirebaseBridgeStatus } from './firebaseAuthBridge'
@@ -17,25 +17,27 @@ function cleanRecord(record:QcRecord){
   return clean
 }
 
-async function waitForAuthReady(timeoutMs=5000){
-  if(!firebaseAuth)return null
-  if(firebaseAuth.currentUser)return firebaseAuth.currentUser
-  return await new Promise<typeof firebaseAuth.currentUser>((resolve)=>{
+async function waitForAuthReady(auth:Auth,timeoutMs=5000):Promise<FirebaseUser|null>{
+  if(auth.currentUser)return auth.currentUser
+  return await new Promise<FirebaseUser|null>((resolve)=>{
     let done=false
-    const timer=window.setTimeout(()=>{if(done)return;done=true;unsub();resolve(firebaseAuth.currentUser)},timeoutMs)
-    const unsub=onAuthStateChanged(firebaseAuth,user=>{if(done)return;if(user){done=true;window.clearTimeout(timer);unsub();resolve(user)}})
+    let unsub:()=>void=()=>{}
+    const finish=(user:FirebaseUser|null)=>{if(done)return;done=true;window.clearTimeout(timer);unsub();resolve(user)}
+    const timer=window.setTimeout(()=>finish(auth.currentUser),timeoutMs)
+    unsub=onAuthStateChanged(auth,user=>{if(user)finish(user)})
   })
 }
 
 async function ownerContext(){
-  if(!firestoreDb||!firebaseAuth)throw new Error('Firebase belum terkonfigurasi.')
-  const current=await waitForAuthReady()
+  const auth=firebaseAuth,db=firestoreDb
+  if(!db||!auth)throw new Error('Firebase belum terkonfigurasi.')
+  const current=await waitForAuthReady(auth)
   if(!current){
     const bridge=getFirebaseBridgeStatus()
     if(bridge.error)throw new Error(`Firebase Auth belum login. ${bridge.error}`)
     throw new Error('Firebase Auth belum login. Keluar lalu login ulang menggunakan akun Owner yang sama.')
   }
-  const profile=await getDoc(doc(firestoreDb,'users',current.uid))
+  const profile=await getDoc(doc(db,'users',current.uid))
   if(!profile.exists())throw new Error('Profil users/{UID} tidak ditemukan di Firestore.')
   const data=profile.data() as OwnerProfile
   if(data.active!==true)throw new Error('Profil Firebase tidak aktif.')
