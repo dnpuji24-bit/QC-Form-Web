@@ -1,4 +1,6 @@
+import { collection, getDocs } from 'firebase/firestore'
 import type { ApiResponse, MasterData, QcRecord, User } from './types'
+import { firebaseAuth, firestoreDb } from './firebase'
 import { mirrorRecordToFirestore, removeRecordFromFirestore } from './firestoreStore'
 
 const CONFIG_KEY = 'qc_v48_config'
@@ -34,6 +36,20 @@ export async function api<T = unknown>(action: string, token = '', data: Record<
   return result
 }
 
+async function recordsFirestoreFirst(token:string):Promise<ApiResponse<QcRecord[]>>{
+  if(firestoreDb&&firebaseAuth?.currentUser){
+    try{
+      const snapshot=await getDocs(collection(firestoreDb,'qc_records'))
+      const records=snapshot.docs.map(item=>({id:item.id,...item.data()}) as QcRecord)
+      records.sort((a,b)=>String(b.createdAt||b.date||'').localeCompare(String(a.createdAt||a.date||'')))
+      return{ok:true,data:records,records}
+    }catch(error){
+      console.info('Firestore read gagal; fallback ke Apps Script.',error)
+    }
+  }
+  return api<QcRecord[]>('records',token,{},'GET')
+}
+
 async function mirrorAfter<T>(result:ApiResponse<T>,record:QcRecord){
   try{await mirrorRecordToFirestore(record)}catch(error){console.info('Mirror Firestore dilewati; Apps Script tetap berhasil.',error)}
   return result
@@ -45,7 +61,7 @@ export const qcApi = {
   me: (token: string) => api<User>('me', token, {}, 'GET'),
   logout: (token: string) => api('logout', token),
   masterData: (token: string) => api<MasterData>('masterData', token, {}, 'GET'),
-  records: (token: string) => api<QcRecord[]>('records', token, {}, 'GET'),
+  records: (token: string) => recordsFirestoreFirst(token),
   syncRecord: async (token: string, record: QcRecord) => mirrorAfter(await api('syncRecord', token, { record }),record),
   finalizeRecord: async (token: string, record: QcRecord) => mirrorAfter(await api('finalizeRecord', token, { record }),{...record,saveType:'uploaded'}),
   deleteRecord: async (token: string, recordId: string) => {
