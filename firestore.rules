@@ -23,16 +23,19 @@ service cloud.firestore {
         canSeeAll() ||
         ((isSprayMandor() || isFertMandor()) && ownsExisting())
       );
-      allow create: if activeUser() && ownsIncoming() && (
+
+      allow create: if activeUser() && (
         canWriteAll() ||
-        (isSprayMandor() && request.resource.data.formType == 'spray') ||
-        (isFertMandor() && request.resource.data.formType == 'fertilizer')
+        (isSprayMandor() && ownsIncoming() && request.resource.data.formType == 'spray') ||
+        (isFertMandor() && ownsIncoming() && request.resource.data.formType == 'fertilizer')
       );
-      allow update: if activeUser() && ownsIncoming() && (
+
+      allow update: if activeUser() && (
         canWriteAll() ||
-        (isSprayMandor() && ownsExisting() && request.resource.data.formType == 'spray') ||
-        (isFertMandor() && ownsExisting() && request.resource.data.formType == 'fertilizer')
+        (isSprayMandor() && ownsExisting() && ownsIncoming() && request.resource.data.formType == 'spray') ||
+        (isFertMandor() && ownsExisting() && ownsIncoming() && request.resource.data.formType == 'fertilizer')
       );
+
       allow delete: if activeUser() && role() in ['owner','manager','admin','asisten'];
     }
 
