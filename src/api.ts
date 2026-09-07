@@ -73,6 +73,7 @@ export const qcApi = {
   approveUser: (token: string, username: string, role: string) => api('approveUser', token, { username, role }),
   rejectUser: (token: string, username: string, role: string) => api('rejectUser', token, { username, role }),
   updateUserRole: (token: string, username: string, role: string) => api('updateUserRole', token, { username, role }),
+  deleteUser: (token: string, username: string) => api('deleteUser', token, { username }),
   requestAccountChange: (token: string, payload: { currentPassword: string; newUsername?: string; newPassword?: string }) => api('accountChangeRequest', token, payload),
   accountChangeRequests: (token: string) => api<AccountChangeRequest[]>('accountChangeRequests', token, {}, 'GET'),
   decideAccountChange: (token: string, requestId: string, decision: 'approve' | 'reject') => api('decideAccountChange', token, { requestId, decision }),
