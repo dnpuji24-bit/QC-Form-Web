@@ -1,5 +1,5 @@
 /**
- * QC Form Web API v46.2.0
+ * QC Form Web API v46.2.1
  * Deploy as a Web App from the Apps Script project bound to "Application QC Form".
  * Execute as: Me. Access: Anyone.
  *
@@ -9,7 +9,7 @@
  * - Permissions are enforced here; the browser UI is not trusted.
  */
 var QC = {
-  VERSION: '46.2.0',
+  VERSION: '46.2.1',
   SESSION_SECONDS: 21600,
   SHEETS: {
     USERS: 'Users', LOGS: 'Activity_Logs', CLOUD: 'Cloud_Monitoring', REQUESTS: 'Account_Change_Requests',
@@ -52,6 +52,7 @@ function route_(req, method) {
     if (action === 'approveUser') { requireRole_(session,['owner']); return output_(approveUser_(session,req)); }
     if (action === 'rejectUser') { requireRole_(session,['owner']); return output_(rejectUser_(session,req)); }
     if (action === 'updateUserRole') { requireRole_(session,['owner']); return output_(updateUserRole_(session,req)); }
+    if (action === 'deleteUser') { requireRole_(session,['owner']); return output_(deleteUserAccount_(session,req)); }
     if (action === 'accountChangeRequest') return output_(requestAccountChange_(session,req));
     if (action === 'accountChangeRequests') { requireRole_(session,['owner']); return output_({ok:true,requests:listAccountChangeRequests_()}); }
     if (action === 'decideAccountChange') { requireRole_(session,['owner']); return output_(decideAccountChange_(session,req)); }
@@ -90,6 +91,7 @@ function login_(req) {
   if (!found.data.PasswordHash) upgradeLegacyPassword_(found,password);
   var token = Utilities.getUuid().replace(/-/g,'') + Utilities.getUuid().replace(/-/g,'');
   var user = normalizeUser_(found.data);
+  CacheService.getScriptCache().remove('revoked:' + user.username);
   CacheService.getScriptCache().put('session:' + token, JSON.stringify(user), QC.SESSION_SECONDS);
   log_(null,user,'LOGIN','Login berhasil',req.deviceInfo);
   return {ok:true,token:token,expiresIn:QC.SESSION_SECONDS,user:publicUser_(user)};
@@ -121,8 +123,10 @@ function requireSession_(token) {
   token = String(token || ''); if (!token) throw new Error('AUTH_REQUIRED');
   var cache = CacheService.getScriptCache(), raw = cache.get('session:' + token);
   if (!raw) throw new Error('AUTH_EXPIRED');
+  var session = JSON.parse(raw);
+  if (cache.get('revoked:' + String(session.username || '').toLowerCase())) { cache.remove('session:' + token); throw new Error('AUTH_EXPIRED'); }
   cache.put('session:' + token, raw, QC.SESSION_SECONDS);
-  return JSON.parse(raw);
+  return session;
 }
 function requireRole_(user, roles) { if (roles.indexOf(normalizeRole_(user.role)) < 0) throw new Error('AUTH_FORBIDDEN'); }
 function canInput_(u,type) { var r=normalizeRole_(u.role); return r==='owner'||r==='asisten'||(r==='mandor_spraying'&&type==='spray')||(r==='mandor_fertilizer'&&type==='fertilizer'); }
@@ -186,6 +190,34 @@ function updateUserRole_(admin,req) {
   if(found.map.UpdatedAt) found.sheet.getRange(found.row,found.map.UpdatedAt).setValue(new Date());
   log_(null,admin,'CHANGE_ROLE','Role @'+username+' diubah menjadi '+role,'');
   return {ok:true,message:'Role @'+username+' diperbarui menjadi '+role+'. User perlu login ulang agar role baru berlaku.'};
+}
+
+function deleteUserAccount_(admin,req) {
+  var username=clean_(req.username,100).toLowerCase();
+  if(!username) return {ok:false,error:'VALIDATION',message:'Username wajib diisi.'};
+  if(username===String(admin.username||'').toLowerCase()) return {ok:false,error:'VALIDATION',message:'Owner tidak dapat menghapus akun yang sedang digunakan.'};
+  var found=findUser_(username);
+  if(!found) return {ok:false,error:'NOT_FOUND',message:'Pengguna tidak ditemukan.'};
+  var role=normalizeRole_(found.data.Role);
+  if(role==='owner') return {ok:false,error:'VALIDATION',message:'Akun dengan role Owner dilindungi dan tidak dapat dihapus dari web.'};
+  var fullName=String(found.data.FullName||found.data.Username||username),email=String(found.data.Email||'');
+  var lock=LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    var requestSheet=getAccountRequestSheet_(),requestMap=headerMap_(requestSheet,1),requestRows=dataRows_(requestSheet,2);
+    requestRows.forEach(function(r,i){
+      var o=rowObject_(r,requestMap);
+      if(String(o.Username||'').toLowerCase()===username && String(o.Status||'').toUpperCase()==='PENDING') {
+        requestSheet.getRange(i+2,requestMap.Status).setValue('CANCELLED');
+        if(requestMap.ApprovedBy) requestSheet.getRange(i+2,requestMap.ApprovedBy).setValue(admin.username);
+        if(requestMap.ApprovedAt) requestSheet.getRange(i+2,requestMap.ApprovedAt).setValue(new Date());
+        if(requestMap.Notes) requestSheet.getRange(i+2,requestMap.Notes).setValue('Dibatalkan karena akun dihapus Owner');
+      }
+    });
+    found.sheet.deleteRow(found.row);
+    CacheService.getScriptCache().put('revoked:'+username,'1',QC.SESSION_SECONDS);
+  } finally { lock.releaseLock(); }
+  log_(null,admin,'DELETE_USER','Akun @'+username+' ('+fullName+') dihapus. Role: '+role+(email?' | '+email:''),'');
+  return {ok:true,message:'Akun @'+username+' berhasil dihapus. Data QC historis, foto, dan laporan tetap dipertahankan.'};
 }
 
 function verifyUserPassword_(found,password) {
