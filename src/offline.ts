@@ -13,7 +13,9 @@ type FlushResult={sent:number;left:number}
 const FINALIZE_RETRY_BASE_MS=15_000
 const FINALIZE_RETRY_MAX_MS=5*60_000
 const FINALIZE_STALE_MS=90_000
-const FINALIZE_WORKERS=2
+// Apps Script + Spreadsheet + Drive is intentionally serialized. Multiple concurrent
+// final uploads caused long-running requests and intermittent SERVER_ERROR in field tests.
+const FINALIZE_WORKERS=1
 let activeFlush:Promise<FlushResult>|null=null
 let authPausedToken=''
 const activeFinalizeIds=new Set<string>()
@@ -166,13 +168,21 @@ async function attemptFinalize(token:string,item:QueueItem):Promise<SaveTranspor
   }
 }
 
+function kickQueue(token:string){
+  // If another flush is already running, a second pass picks up records queued while
+  // that flush was in progress. This avoids waiting for the periodic timer.
+  void flushQueue(token).then(()=>flushQueue(token)).catch(error=>console.info('Upload tetap aman di antrean; percobaan berikutnya akan dilakukan otomatis.',error))
+}
+
 async function sendFinalizeStateMachine(token:string,record:QcRecord):Promise<SaveTransportResult>{
   const queued=uploadRecord(record,'queued')
-  const item=await enqueueInternal('finalizeRecord',queued)
+  await enqueueInternal('finalizeRecord',queued)
   await mirrorSafely(queued,'Status upload queued belum dapat dimirror ke Firestore.')
   emitUploadState(queued)
-  if(!navigator.onLine)return{queued:true,firestoreFirst:false,spreadsheetPending:true,uploadState:'queued'}
-  return attemptFinalize(token,item)
+  if(navigator.onLine)kickQueue(token)
+  // Return immediately after durable queueing. The single worker owns the actual
+  // Apps Script upload and publishes queued -> uploading -> uploaded/failed states.
+  return{queued:true,firestoreFirst:false,spreadsheetPending:true,uploadState:'queued'}
 }
 
 async function sendServerFirst(token:string,action:QueueAction,record:QcRecord):Promise<SaveTransportResult>{
@@ -202,7 +212,7 @@ export async function retryQueuedRecord(recordId:string,token:string):Promise<bo
   await putItem({...item,record:queued,lastError:'',nextAttemptAt:0})
   await mirrorSafely(queued,'Status retry upload belum dapat dimirror ke Firestore.')
   emitUploadState(queued)
-  await flushQueue(token)
+  kickQueue(token)
   return true
 }
 
@@ -245,10 +255,12 @@ async function runFinalizeWorkers(token:string,items:QueueItem[]):Promise<number
 }
 
 async function flushQueueInternal(token:string):Promise<FlushResult>{
-  let items=await recoverInterruptedUploads(await allItems());if(!navigator.onLine)return{sent:0,left:items.length}
+  const items=await recoverInterruptedUploads(await allItems());if(!navigator.onLine)return{sent:0,left:items.length}
   let sent=0
-  const syncItems=items.filter(item=>item.action!=='finalizeRecord')
   const finalizeItems=items.filter(item=>item.action==='finalizeRecord')
+  const syncItems=items.filter(item=>item.action!=='finalizeRecord')
+  // Final uploads are user-visible and heavier; process them first and one at a time.
+  sent+=await runFinalizeWorkers(token,finalizeItems)
   for(const original of syncItems){
     try{
       await qcApi.syncRecord(token,original.record)
@@ -260,7 +272,6 @@ async function flushQueueInternal(token:string):Promise<FlushResult>{
       await putItem({...original,lastAttemptAt:Date.now(),attempts:Number(original.attempts||0)+1,lastError:errorMessage(error)})
     }
   }
-  sent+=await runFinalizeWorkers(token,finalizeItems)
   return{sent,left:await queueCount()}
 }
 
