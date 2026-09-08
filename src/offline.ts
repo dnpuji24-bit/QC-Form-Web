@@ -6,10 +6,12 @@ import type { QcRecord } from './types'
 export type QueueAction='syncRecord'|'finalizeRecord'
 export type UploadState='ready'|'queued'|'uploading'|'uploaded'|'failed'
 export type SaveTransportResult={queued:boolean;firestoreFirst:boolean;spreadsheetPending:boolean;uploadState?:UploadState}
-type QueueItem={id:string;action:QueueAction;record:QcRecord;createdAt:number;attempts?:number;lastAttemptAt?:number;lastError?:string}
+type QueueItem={id:string;action:QueueAction;record:QcRecord;createdAt:number;attempts?:number;lastAttemptAt?:number;lastError?:string;nextAttemptAt?:number}
 
 type FlushResult={sent:number;left:number}
 
+const FINALIZE_RETRY_BASE_MS=15_000
+const FINALIZE_RETRY_MAX_MS=5*60_000
 let activeFlush:Promise<FlushResult>|null=null
 let authPausedToken=''
 
@@ -40,6 +42,8 @@ async function removeItem(queueId:string):Promise<void>{
 function errorMessage(error:unknown){return error instanceof Error?error.message:String(error||'')}
 function isAuthError(error:unknown){return /AUTH_REQUIRED|AUTH_EXPIRED|AUTH_FORBIDDEN|sesi|login|izin|password|kata sandi|auth/i.test(errorMessage(error))}
 function nowIso(){return new Date().toISOString()}
+function retryDelayMs(attempts:number){return Math.min(FINALIZE_RETRY_MAX_MS,FINALIZE_RETRY_BASE_MS*Math.pow(2,Math.max(0,attempts-1)))}
+function emitUploadState(record:QcRecord){if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent('qc:upload-state',{detail:record}))}
 
 function uploadRecord(record:QcRecord,state:UploadState,error=''):QcRecord{
   const stamp=nowIso(),attempts=Number(record.uploadAttempts||0)
@@ -85,6 +89,7 @@ async function enqueueInternal(action:QueueAction,record:QcRecord):Promise<Queue
     attempts:existing?.attempts||0,
     lastAttemptAt:existing?.lastAttemptAt,
     lastError:existing?.lastError,
+    nextAttemptAt:existing?.nextAttemptAt,
   }
   items.push(item)
   await replaceItems(items)
@@ -93,25 +98,30 @@ async function enqueueInternal(action:QueueAction,record:QcRecord):Promise<Queue
 
 async function setFinalizeQueueState(item:QueueItem,state:UploadState,error=''):Promise<QueueItem>{
   const record=uploadRecord(item.record,state,error)
+  const attemptCount=state==='uploading'?Number(item.attempts||0)+1:Number(item.attempts||0)
   const next:QueueItem={
     ...item,
     record,
-    attempts:state==='uploading'?Number(item.attempts||0)+1:item.attempts,
+    attempts:attemptCount,
     lastAttemptAt:state==='uploading'?Date.now():item.lastAttemptAt,
     lastError:error,
+    nextAttemptAt:state==='failed'?Date.now()+retryDelayMs(attemptCount):state==='uploading'?undefined:item.nextAttemptAt,
   }
   await putItem(next)
   await mirrorSafely(record,`Status upload ${state} belum dapat dimirror ke Firestore.`)
+  emitUploadState(record)
   return next
 }
 
 async function attemptFinalize(token:string,item:QueueItem):Promise<SaveTransportResult>{
+  if(item.nextAttemptAt&&item.nextAttemptAt>Date.now())return{queued:true,firestoreFirst:false,spreadsheetPending:true,uploadState:'failed'}
   let current=await setFinalizeQueueState(item,'uploading')
   try{
     await qcApi.finalizeRecord(token,current.record)
     const uploaded=uploadRecord(current.record,'uploaded')
     await mirrorSafely(uploaded,'Upload ke Spreadsheet berhasil, tetapi status Firestore belum terbarui.')
     await removeItem(current.id)
+    emitUploadState(uploaded)
     return{queued:false,firestoreFirst:false,spreadsheetPending:false,uploadState:'uploaded'}
   }catch(error){
     current=await setFinalizeQueueState(current,'failed',errorMessage(error))
@@ -124,6 +134,7 @@ async function sendFinalizeStateMachine(token:string,record:QcRecord):Promise<Sa
   const queued=uploadRecord(record,'queued')
   const item=await enqueueInternal('finalizeRecord',queued)
   await mirrorSafely(queued,'Status upload queued belum dapat dimirror ke Firestore.')
+  emitUploadState(queued)
   if(!navigator.onLine)return{queued:true,firestoreFirst:false,spreadsheetPending:true,uploadState:'queued'}
   return attemptFinalize(token,item)
 }
@@ -144,8 +155,21 @@ async function sendServerFirst(token:string,action:QueueAction,record:QcRecord):
 }
 
 export async function queueCount(){return(await allItems()).length}
+export async function queuedRecords(){return(await allItems()).map(item=>item.record)}
 export async function discardQueuedRecord(recordId:string){await replaceItems((await allItems()).filter(item=>item.record.id!==recordId))}
 export async function enqueue(action:QueueAction,record:QcRecord){await enqueueInternal(action,record)}
+
+export async function retryQueuedRecord(recordId:string,token:string):Promise<boolean>{
+  const item=(await allItems()).find(entry=>entry.action==='finalizeRecord'&&entry.record.id===recordId)
+  if(!item)return false
+  const queued=uploadRecord(item.record,'queued')
+  await putItem({...item,record:queued,lastError:'',nextAttemptAt:0})
+  await mirrorSafely(queued,'Status retry upload belum dapat dimirror ke Firestore.')
+  emitUploadState(queued)
+  await flushQueue(token)
+  if((await allItems()).some(entry=>entry.action==='finalizeRecord'&&entry.record.id===recordId))await flushQueue(token)
+  return true
+}
 
 export async function saveRecordFirestoreFirst(token:string,record:QcRecord):Promise<SaveTransportResult>{
   if(!navigator.onLine){await enqueueInternal('syncRecord',record);return{queued:true,firestoreFirst:false,spreadsheetPending:true}}
@@ -177,6 +201,7 @@ async function flushQueueInternal(token:string):Promise<FlushResult>{
   let sent=0
   for(const original of items){
     if(original.action==='finalizeRecord'){
+      if(original.nextAttemptAt&&original.nextAttemptAt>Date.now())continue
       const result=await attemptFinalize(token,original)
       if(result.queued)continue
       sent++
