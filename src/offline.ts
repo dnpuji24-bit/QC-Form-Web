@@ -12,7 +12,6 @@ type FlushResult={sent:number;left:number}
 
 const FINALIZE_RETRY_BASE_MS=15_000
 const FINALIZE_RETRY_MAX_MS=5*60_000
-const FINALIZE_STALE_MS=90_000
 // Apps Script + Spreadsheet + Drive is intentionally serialized. Multiple concurrent
 // final uploads caused long-running requests and intermittent SERVER_ERROR in field tests.
 const FINALIZE_WORKERS=1
@@ -125,12 +124,16 @@ async function setFinalizeQueueState(item:QueueItem,state:UploadState,error=''):
   return next
 }
 
-function staleUploading(item:QueueItem){
-  return item.action==='finalizeRecord'&&String(item.record.uploadState||'')==='uploading'&&!activeFinalizeIds.has(item.record.id)&&(!item.lastAttemptAt||Date.now()-item.lastAttemptAt>FINALIZE_STALE_MS)
+function interruptedUploading(item:QueueItem){
+  // In the current JS runtime every real in-flight upload is registered in activeFinalizeIds.
+  // Therefore an IndexedDB item marked uploading but not active is interrupted/stale and
+  // can safely return to queued immediately. Waiting 90 seconds made several records look
+  // as if they were uploading simultaneously after refresh/network interruption.
+  return item.action==='finalizeRecord'&&String(item.record.uploadState||'')==='uploading'&&!activeFinalizeIds.has(item.record.id)
 }
 
 async function recoverInterruptedItem(item:QueueItem):Promise<QueueItem>{
-  if(!staleUploading(item))return item
+  if(!interruptedUploading(item))return item
   const recovered=uploadRecord(item.record,'queued')
   const next:QueueItem={...item,record:recovered,lastError:'',nextAttemptAt:0}
   await putItem(next)
@@ -169,8 +172,6 @@ async function attemptFinalize(token:string,item:QueueItem):Promise<SaveTranspor
 }
 
 function kickQueue(token:string){
-  // If another flush is already running, a second pass picks up records queued while
-  // that flush was in progress. This avoids waiting for the periodic timer.
   void flushQueue(token).then(()=>flushQueue(token)).catch(error=>console.info('Upload tetap aman di antrean; percobaan berikutnya akan dilakukan otomatis.',error))
 }
 
@@ -180,8 +181,6 @@ async function sendFinalizeStateMachine(token:string,record:QcRecord):Promise<Sa
   await mirrorSafely(queued,'Status upload queued belum dapat dimirror ke Firestore.')
   emitUploadState(queued)
   if(navigator.onLine)kickQueue(token)
-  // Return immediately after durable queueing. The single worker owns the actual
-  // Apps Script upload and publishes queued -> uploading -> uploaded/failed states.
   return{queued:true,firestoreFirst:false,spreadsheetPending:true,uploadState:'queued'}
 }
 
@@ -259,7 +258,6 @@ async function flushQueueInternal(token:string):Promise<FlushResult>{
   let sent=0
   const finalizeItems=items.filter(item=>item.action==='finalizeRecord')
   const syncItems=items.filter(item=>item.action!=='finalizeRecord')
-  // Final uploads are user-visible and heavier; process them first and one at a time.
   sent+=await runFinalizeWorkers(token,finalizeItems)
   for(const original of syncItems){
     try{
