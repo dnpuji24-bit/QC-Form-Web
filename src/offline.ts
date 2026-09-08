@@ -12,8 +12,11 @@ type FlushResult={sent:number;left:number}
 
 const FINALIZE_RETRY_BASE_MS=15_000
 const FINALIZE_RETRY_MAX_MS=5*60_000
+const FINALIZE_STALE_MS=90_000
+const FINALIZE_WORKERS=2
 let activeFlush:Promise<FlushResult>|null=null
 let authPausedToken=''
+const activeFinalizeIds=new Set<string>()
 
 async function allItems():Promise<QueueItem[]>{
   const db=await openLocalDb()
@@ -54,14 +57,19 @@ function uploadRecord(record:QcRecord,state:UploadState,error=''):QcRecord{
     uploadStateUpdatedAt:stamp,
     uploadLastError:error,
   }
-  if(state==='queued')next.uploadQueuedAt=String(record.uploadQueuedAt||stamp)
+  if(state==='queued'){
+    next.uploadQueuedAt=String(record.uploadQueuedAt||stamp)
+    next.uploadNextRetryAt=''
+  }
   if(state==='uploading'){
     next.uploadStartedAt=stamp
     next.uploadAttempts=attempts+1
+    next.uploadNextRetryAt=''
   }
   if(state==='uploaded'){
     next.uploadedAt=String(record.uploadedAt||stamp)
     next.uploadLastError=''
+    next.uploadNextRetryAt=''
   }
   if(state==='failed')next.uploadFailedAt=stamp
   return next
@@ -97,15 +105,17 @@ async function enqueueInternal(action:QueueAction,record:QcRecord):Promise<Queue
 }
 
 async function setFinalizeQueueState(item:QueueItem,state:UploadState,error=''):Promise<QueueItem>{
-  const record=uploadRecord(item.record,state,error)
+  let record=uploadRecord(item.record,state,error)
   const attemptCount=state==='uploading'?Number(item.attempts||0)+1:Number(item.attempts||0)
+  const nextAttemptAt=state==='failed'?Date.now()+retryDelayMs(attemptCount):state==='uploading'?undefined:item.nextAttemptAt
+  if(state==='failed'&&nextAttemptAt)record={...record,uploadNextRetryAt:new Date(nextAttemptAt).toISOString()}
   const next:QueueItem={
     ...item,
     record,
     attempts:attemptCount,
     lastAttemptAt:state==='uploading'?Date.now():item.lastAttemptAt,
     lastError:error,
-    nextAttemptAt:state==='failed'?Date.now()+retryDelayMs(attemptCount):state==='uploading'?undefined:item.nextAttemptAt,
+    nextAttemptAt,
   }
   await putItem(next)
   await mirrorSafely(record,`Status upload ${state} belum dapat dimirror ke Firestore.`)
@@ -113,10 +123,34 @@ async function setFinalizeQueueState(item:QueueItem,state:UploadState,error=''):
   return next
 }
 
+function staleUploading(item:QueueItem){
+  return item.action==='finalizeRecord'&&String(item.record.uploadState||'')==='uploading'&&!activeFinalizeIds.has(item.record.id)&&(!item.lastAttemptAt||Date.now()-item.lastAttemptAt>FINALIZE_STALE_MS)
+}
+
+async function recoverInterruptedItem(item:QueueItem):Promise<QueueItem>{
+  if(!staleUploading(item))return item
+  const recovered=uploadRecord(item.record,'queued')
+  const next:QueueItem={...item,record:recovered,lastError:'',nextAttemptAt:0}
+  await putItem(next)
+  await mirrorSafely(recovered,'Status upload terputus belum dapat dikembalikan ke antrean di Firestore.')
+  emitUploadState(recovered)
+  return next
+}
+
+async function recoverInterruptedUploads(items:QueueItem[]):Promise<QueueItem[]>{
+  const recovered:QueueItem[]=[]
+  for(const item of items)recovered.push(await recoverInterruptedItem(item))
+  return recovered
+}
+
 async function attemptFinalize(token:string,item:QueueItem):Promise<SaveTransportResult>{
+  item=await recoverInterruptedItem(item)
   if(item.nextAttemptAt&&item.nextAttemptAt>Date.now())return{queued:true,firestoreFirst:false,spreadsheetPending:true,uploadState:'failed'}
-  let current=await setFinalizeQueueState(item,'uploading')
+  if(activeFinalizeIds.has(item.record.id))return{queued:true,firestoreFirst:false,spreadsheetPending:true,uploadState:'uploading'}
+  activeFinalizeIds.add(item.record.id)
+  let current=item
   try{
+    current=await setFinalizeQueueState(item,'uploading')
     await qcApi.finalizeRecord(token,current.record)
     const uploaded=uploadRecord(current.record,'uploaded')
     await mirrorSafely(uploaded,'Upload ke Spreadsheet berhasil, tetapi status Firestore belum terbarui.')
@@ -127,6 +161,8 @@ async function attemptFinalize(token:string,item:QueueItem):Promise<SaveTranspor
     current=await setFinalizeQueueState(current,'failed',errorMessage(error))
     if(isAuthError(error))throw error
     return{queued:true,firestoreFirst:false,spreadsheetPending:true,uploadState:'failed'}
+  }finally{
+    activeFinalizeIds.delete(item.record.id)
   }
 }
 
@@ -155,7 +191,7 @@ async function sendServerFirst(token:string,action:QueueAction,record:QcRecord):
 }
 
 export async function queueCount(){return(await allItems()).length}
-export async function queuedRecords(){return(await allItems()).map(item=>item.record)}
+export async function queuedRecords(){return(await recoverInterruptedUploads(await allItems())).map(item=>item.record)}
 export async function discardQueuedRecord(recordId:string){await replaceItems((await allItems()).filter(item=>item.record.id!==recordId))}
 export async function enqueue(action:QueueAction,record:QcRecord){await enqueueInternal(action,record)}
 
@@ -167,7 +203,6 @@ export async function retryQueuedRecord(recordId:string,token:string):Promise<bo
   await mirrorSafely(queued,'Status retry upload belum dapat dimirror ke Firestore.')
   emitUploadState(queued)
   await flushQueue(token)
-  if((await allItems()).some(entry=>entry.action==='finalizeRecord'&&entry.record.id===recordId))await flushQueue(token)
   return true
 }
 
@@ -176,7 +211,6 @@ export async function saveRecordFirestoreFirst(token:string,record:QcRecord):Pro
   try{
     const mirrored=await mirrorRecordToFirestore(record)
     if(!mirrored)return sendServerFirst(token,'syncRecord',record)
-    // Persist the Spreadsheet handoff before returning success. This protects edits/ready records if the tab closes immediately.
     await enqueueInternal('syncRecord',record)
     void flushQueue(token).catch(error=>console.info('Sinkronisasi Spreadsheet akan dicoba ulang dari antrean.',error))
     return{queued:false,firestoreFirst:true,spreadsheetPending:true}
@@ -191,22 +225,31 @@ export async function saveDraftFirestoreFirst(token:string,record:QcRecord):Prom
 }
 
 export async function sendOrQueue(token:string,action:QueueAction,record:QcRecord):Promise<SaveTransportResult>{
-  // Draft/Ready edits acknowledge Firestore first. Final upload/correction uses the durable Upload State Machine below.
   if(action==='syncRecord')return saveRecordFirestoreFirst(token,record)
   return sendFinalizeStateMachine(token,record)
 }
 
-async function flushQueueInternal(token:string):Promise<FlushResult>{
-  const items=await allItems();if(!navigator.onLine)return{sent:0,left:items.length}
-  let sent=0
-  for(const original of items){
-    if(original.action==='finalizeRecord'){
-      if(original.nextAttemptAt&&original.nextAttemptAt>Date.now())continue
-      const result=await attemptFinalize(token,original)
-      if(result.queued)continue
-      sent++
-      continue
+async function runFinalizeWorkers(token:string,items:QueueItem[]):Promise<number>{
+  let cursor=0,sent=0
+  async function worker(){
+    while(cursor<items.length){
+      const index=cursor++
+      const item=items[index]
+      if(item.nextAttemptAt&&item.nextAttemptAt>Date.now())continue
+      const result=await attemptFinalize(token,item)
+      if(!result.queued)sent++
     }
+  }
+  await Promise.all(Array.from({length:Math.min(FINALIZE_WORKERS,items.length)},()=>worker()))
+  return sent
+}
+
+async function flushQueueInternal(token:string):Promise<FlushResult>{
+  let items=await recoverInterruptedUploads(await allItems());if(!navigator.onLine)return{sent:0,left:items.length}
+  let sent=0
+  const syncItems=items.filter(item=>item.action!=='finalizeRecord')
+  const finalizeItems=items.filter(item=>item.action==='finalizeRecord')
+  for(const original of syncItems){
     try{
       await qcApi.syncRecord(token,original.record)
       await mirrorAfterServerSave(original.action,original.record)
@@ -217,6 +260,7 @@ async function flushQueueInternal(token:string):Promise<FlushResult>{
       await putItem({...original,lastAttemptAt:Date.now(),attempts:Number(original.attempts||0)+1,lastError:errorMessage(error)})
     }
   }
+  sent+=await runFinalizeWorkers(token,finalizeItems)
   return{sent,left:await queueCount()}
 }
 
@@ -235,5 +279,5 @@ async function autoFlushQueue(){
 
 if(typeof window!=='undefined'){
   window.addEventListener('online',()=>{void autoFlushQueue()})
-  window.setInterval(()=>{void autoFlushQueue()},30_000)
+  window.setInterval(()=>{void autoFlushQueue()},15_000)
 }
