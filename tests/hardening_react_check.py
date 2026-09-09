@@ -15,13 +15,13 @@ compact_network = ''.join(network.split())
 compact_app = ''.join(app.split())
 compact_local_db = ''.join(local_db.split())
 
-for token in ["exporttypeQueueAction='syncRecord'|'finalizeRecord'", "if(!navigator.onLine)", "exportasyncfunctionflushQueue(token:string)", "functionisAuthError", "AUTH_REQUIRED", "openLocalDb()"]:
+for token in ["exporttypeQueueAction='syncRecord'|'finalizeRecord'", "if(!navigator.onLine)", "exportasyncfunctionflushQueue(token:string)", "functionisAuthError", "AUTH_REQUIRED", "openLocalDb()", "ownerUsername?:string", "belongsToCurrentUser"]:
     assert token in compact_offline, f'Missing offline hardening token: {token}'
 for token in ['online','offline','queueCount()','flushQueue(token)','qc:queue-flushed']:
     assert token in compact_network, f'Missing network recovery token: {token}'
-for token in ['saveDraft', 'loadDraft', 'clearDraft', 'pendingWrites']:
+for token in ['saveDraft', 'loadDraft', 'clearDraft', 'pendingWrites', 'IMAGE_STORE', 'canDecodeImage']:
     assert token in drafts, f'Missing resumable form draft token: {token}'
-for token in ["LOCAL_DB_VERSION=3", "DRAFT_STORE='drafts'", "QUEUE_STORE='queue'", 'indexedDB.open(LOCAL_DB_NAME,LOCAL_DB_VERSION)']:
+for token in ["LOCAL_DB_VERSION=4", "DRAFT_STORE='drafts'", "QUEUE_STORE='queue'", "IMAGE_STORE='draft_images'", 'indexedDB.open(LOCAL_DB_NAME,LOCAL_DB_VERSION)']:
     assert token in compact_local_db, f'Missing shared IndexedDB token: {token}'
 assert '<NetworkStatus />' in main
 assert "navigator.serviceWorker.register('/react/sw.js', { scope: '/react/' })" in main
@@ -34,4 +34,4 @@ for token in ['--brand:', '.dashboard-hero', '.progress-track', '.unit-card', '.
     assert token in styles, f'Missing professional UI theme token: {token}'
 for token in ['.unit-tab-rail', '.spray-hold-section', '.downtime-section', '.report-photo']:
     assert token in field_ui, f'Missing field workflow UI token: {token}'
-print('React hardening check: shared IndexedDB queue/drafts, resumable forms, auth/finalize guards, PWA scope, unit tabs, HOLD workflow, and modern UI verified.')
+print('React hardening check: per-user queue, resilient IndexedDB drafts/images, resumable forms, auth/finalize guards, PWA scope, unit tabs, HOLD workflow, and modern UI verified.')
