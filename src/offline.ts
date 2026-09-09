@@ -6,7 +6,7 @@ import type { QcRecord } from './types'
 export type QueueAction='syncRecord'|'finalizeRecord'
 export type UploadState='ready'|'queued'|'uploading'|'uploaded'|'failed'
 export type SaveTransportResult={queued:boolean;firestoreFirst:boolean;spreadsheetPending:boolean;uploadState?:UploadState}
-type QueueItem={id:string;action:QueueAction;record:QcRecord;createdAt:number;attempts?:number;lastAttemptAt?:number;lastError?:string;nextAttemptAt?:number}
+type QueueItem={id:string;action:QueueAction;record:QcRecord;createdAt:number;ownerUsername?:string;attempts?:number;lastAttemptAt?:number;lastError?:string;nextAttemptAt?:number}
 
 type FlushResult={sent:number;left:number}
 
@@ -48,6 +48,17 @@ function isAuthError(error:unknown){return /AUTH_REQUIRED|AUTH_EXPIRED|AUTH_FORB
 function nowIso(){return new Date().toISOString()}
 function retryDelayMs(attempts:number){return Math.min(FINALIZE_RETRY_MAX_MS,FINALIZE_RETRY_BASE_MS*Math.pow(2,Math.max(0,attempts-1)))}
 function emitUploadState(record:QcRecord){if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent('qc:upload-state',{detail:record}))}
+function currentUsername(){
+  try{
+    const raw=localStorage.getItem('qc_user')||sessionStorage.getItem('qc_user')||''
+    return raw?String((JSON.parse(raw) as {username?:string}).username||'').trim().toLowerCase():''
+  }catch{return''}
+}
+function itemOwner(item:QueueItem){return String(item.ownerUsername||item.record.inputtedBy||'').trim().toLowerCase()}
+function belongsToCurrentUser(item:QueueItem,username=currentUsername()){
+  const owner=itemOwner(item)
+  return !username||!owner||owner===username
+}
 
 function uploadRecord(record:QcRecord,state:UploadState,error=''):QcRecord{
   const stamp=nowIso(),attempts=Number(record.uploadAttempts||0)
@@ -87,13 +98,15 @@ async function mirrorAfterServerSave(action:QueueAction,record:QcRecord):Promise
 
 async function enqueueInternal(action:QueueAction,record:QcRecord):Promise<QueueItem>{
   let items=await allItems()
-  const existing=items.find(item=>item.action===action&&item.record.id===record.id)
-  if(action==='finalizeRecord')items=items.filter(item=>item.record.id!==record.id)
-  else items=items.filter(item=>!(item.action===action&&item.record.id===record.id))
+  const owner=String(record.inputtedBy||currentUsername()||'').trim().toLowerCase()
+  const existing=items.find(item=>item.action===action&&item.record.id===record.id&&(!owner||!itemOwner(item)||itemOwner(item)===owner))
+  if(action==='finalizeRecord')items=items.filter(item=>item.record.id!==record.id||Boolean(owner&&itemOwner(item)&&itemOwner(item)!==owner))
+  else items=items.filter(item=>!(item.action===action&&item.record.id===record.id&&(!owner||!itemOwner(item)||itemOwner(item)===owner)))
   const item:QueueItem={
     id:existing?.id||crypto.randomUUID(),
     action,
     record,
+    ownerUsername:existing?.ownerUsername||owner,
     createdAt:existing?.createdAt||Date.now(),
     attempts:existing?.attempts||0,
     lastAttemptAt:existing?.lastAttemptAt,
@@ -112,6 +125,7 @@ async function setFinalizeQueueState(item:QueueItem,state:UploadState,error=''):
   if(state==='failed'&&nextAttemptAt)record={...record,uploadNextRetryAt:new Date(nextAttemptAt).toISOString()}
   const next:QueueItem={
     ...item,
+    ownerUsername:item.ownerUsername||String(record.inputtedBy||'').toLowerCase(),
     record,
     attempts:attemptCount,
     lastAttemptAt:state==='uploading'?Date.now():item.lastAttemptAt,
@@ -127,8 +141,7 @@ async function setFinalizeQueueState(item:QueueItem,state:UploadState,error=''):
 function interruptedUploading(item:QueueItem){
   // In the current JS runtime every real in-flight upload is registered in activeFinalizeIds.
   // Therefore an IndexedDB item marked uploading but not active is interrupted/stale and
-  // can safely return to queued immediately. Waiting 90 seconds made several records look
-  // as if they were uploading simultaneously after refresh/network interruption.
+  // can safely return to queued immediately.
   return item.action==='finalizeRecord'&&String(item.record.uploadState||'')==='uploading'&&!activeFinalizeIds.has(item.record.id)
 }
 
@@ -190,7 +203,8 @@ async function sendServerFirst(token:string,action:QueueAction,record:QcRecord):
   try{
     await qcApi.syncRecord(token,record)
     await mirrorAfterServerSave(action,record)
-    const items=await allItems();await replaceItems(items.filter(item=>!(item.action===action&&item.record.id===record.id)))
+    const owner=String(record.inputtedBy||currentUsername()||'').toLowerCase()
+    const items=await allItems();await replaceItems(items.filter(item=>!(item.action===action&&item.record.id===record.id&&(!owner||!itemOwner(item)||itemOwner(item)===owner))))
     return{queued:false,firestoreFirst:false,spreadsheetPending:false}
   }catch(error){
     if(isAuthError(error))throw error
@@ -199,19 +213,27 @@ async function sendServerFirst(token:string,action:QueueAction,record:QcRecord):
   }
 }
 
-export async function queueCount(){return(await allItems()).length}
-export async function queuedRecords(){return(await recoverInterruptedUploads(await allItems())).map(item=>item.record)}
-export async function discardQueuedRecord(recordId:string){await replaceItems((await allItems()).filter(item=>item.record.id!==recordId))}
+export async function queueCount(){const username=currentUsername();return(await allItems()).filter(item=>belongsToCurrentUser(item,username)).length}
+export async function queuedRecords(){const username=currentUsername();return(await recoverInterruptedUploads((await allItems()).filter(item=>belongsToCurrentUser(item,username)))).map(item=>item.record)}
+export async function discardQueuedRecord(recordId:string){const username=currentUsername();await replaceItems((await allItems()).filter(item=>item.record.id!==recordId||!belongsToCurrentUser(item,username)))}
 export async function enqueue(action:QueueAction,record:QcRecord){await enqueueInternal(action,record)}
 
 export async function retryQueuedRecord(recordId:string,token:string):Promise<boolean>{
-  const item=(await allItems()).find(entry=>entry.action==='finalizeRecord'&&entry.record.id===recordId)
+  const username=currentUsername()
+  let item=(await allItems()).find(entry=>entry.action==='finalizeRecord'&&entry.record.id===recordId&&belongsToCurrentUser(entry,username))
   if(!item)return false
   const queued=uploadRecord(item.record,'queued')
-  await putItem({...item,record:queued,lastError:'',nextAttemptAt:0})
+  item={...item,ownerUsername:item.ownerUsername||String(item.record.inputtedBy||username).toLowerCase(),record:queued,lastError:'',nextAttemptAt:0}
+  await putItem(item)
   await mirrorSafely(queued,'Status retry upload belum dapat dimirror ke Firestore.')
   emitUploadState(queued)
-  kickQueue(token)
+  // Manual retry should actually wait for the previous serialized flush to finish and then
+  // make a fresh request. Previously it only scheduled a background flush, so the button
+  // could appear to do nothing while an older request was still active.
+  if(activeFlush)await activeFlush.catch(()=>undefined)
+  const fresh=(await allItems()).find(entry=>entry.id===item!.id&&belongsToCurrentUser(entry,username))
+  if(!fresh)return true
+  await attemptFinalize(token,{...fresh,nextAttemptAt:0})
   return true
 }
 
@@ -254,7 +276,9 @@ async function runFinalizeWorkers(token:string,items:QueueItem[]):Promise<number
 }
 
 async function flushQueueInternal(token:string):Promise<FlushResult>{
-  const items=await recoverInterruptedUploads(await allItems());if(!navigator.onLine)return{sent:0,left:items.length}
+  const username=currentUsername()
+  const all=await allItems(),owned=all.filter(item=>belongsToCurrentUser(item,username))
+  const items=await recoverInterruptedUploads(owned);if(!navigator.onLine)return{sent:0,left:items.length}
   let sent=0
   const finalizeItems=items.filter(item=>item.action==='finalizeRecord')
   const syncItems=items.filter(item=>item.action!=='finalizeRecord')
@@ -267,7 +291,7 @@ async function flushQueueInternal(token:string):Promise<FlushResult>{
       sent++
     }catch(error){
       if(isAuthError(error))throw error
-      await putItem({...original,lastAttemptAt:Date.now(),attempts:Number(original.attempts||0)+1,lastError:errorMessage(error)})
+      await putItem({...original,ownerUsername:original.ownerUsername||String(original.record.inputtedBy||username).toLowerCase(),lastAttemptAt:Date.now(),attempts:Number(original.attempts||0)+1,lastError:errorMessage(error)})
     }
   }
   return{sent,left:await queueCount()}
