@@ -2,7 +2,7 @@ name: React migration checks
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, migrate/react-typescript-vite]
   push:
     branches: [migrate/react-typescript-vite]
 
