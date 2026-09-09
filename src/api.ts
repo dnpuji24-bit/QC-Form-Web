@@ -59,8 +59,18 @@ async function recordsFirestoreFirst(token:string):Promise<ApiResponse<QcRecord[
   return api<QcRecord[]>('records',token,{},'GET')
 }
 
+function serverMergedRecord<T>(result:ApiResponse<T>,record:QcRecord):QcRecord{
+  const next:QcRecord={...record}
+  if(result.photoDriveUrl!==undefined)next.photoDriveUrl=result.photoDriveUrl
+  return next
+}
+
 async function mirrorAfter<T>(result:ApiResponse<T>,record:QcRecord){
-  try{await mirrorRecordToFirestore(record)}catch(error){console.info('Mirror Firestore dilewati; Apps Script tetap berhasil.',error)}
+  // Apps Script already mirrors the authoritative record after Drive upload. Do not
+  // overwrite it with the pre-upload browser record (which still has an empty Drive URL).
+  if(result.firestoreSynced)return result
+  const saved=serverMergedRecord(result,record)
+  try{await mirrorRecordToFirestore(saved)}catch(error){console.info('Mirror Firestore dilewati; Apps Script tetap berhasil.',error)}
   return result
 }
 
