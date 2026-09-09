@@ -6,7 +6,7 @@ import type { QcRecord } from './types'
 export type QueueAction='syncRecord'|'finalizeRecord'
 export type UploadState='ready'|'queued'|'uploading'|'uploaded'|'failed'
 export type SaveTransportResult={queued:boolean;firestoreFirst:boolean;spreadsheetPending:boolean;uploadState?:UploadState}
-type QueueItem={id:string;action:QueueAction;record:QcRecord;createdAt:number;attempts?:number;lastAttemptAt?:number;lastError?:string;nextAttemptAt?:number}
+type QueueItem={id:string;action:QueueAction;record:QcRecord;createdAt:number;ownerUsername?:string;attempts?:number;lastAttemptAt?:number;lastError?:string;nextAttemptAt?:number}
 type FlushResult={sent:number;left:number}
 
 const FINALIZE_RETRY_BASE_MS=15_000
@@ -23,7 +23,20 @@ async function allItems():Promise<QueueItem[]>{
   finally{db.close()}
 }
 
-async function findFinalizeItem(recordId:string):Promise<QueueItem|undefined>{return(await allItems()).find(item=>item.action==='finalizeRecord'&&item.record.id===recordId)}
+function currentUsername(){
+  try{
+    const raw=localStorage.getItem('qc_user')||sessionStorage.getItem('qc_user')||''
+    return raw?String((JSON.parse(raw) as {username?:string}).username||'').trim().toLowerCase():''
+  }catch{return''}
+}
+function itemOwner(item:QueueItem){return String(item.ownerUsername||item.record.inputtedBy||'').trim().toLowerCase()}
+function belongsToCurrentUser(item:QueueItem,username=currentUsername()){
+  const owner=itemOwner(item)
+  // Legacy queue rows did not have ownerUsername. inputtedBy is used as migration fallback.
+  // If both are missing, keep the row visible rather than deleting user data.
+  return !username||!owner||owner===username
+}
+async function findFinalizeItem(recordId:string):Promise<QueueItem|undefined>{const username=currentUsername();return(await allItems()).find(item=>item.action==='finalizeRecord'&&item.record.id===recordId&&belongsToCurrentUser(item,username))}
 
 async function replaceItems(items:QueueItem[]):Promise<void>{
   const db=await openLocalDb()
@@ -64,10 +77,12 @@ async function mirrorAfterServerSave(action:QueueAction,record:QcRecord):Promise
 
 async function enqueueInternal(action:QueueAction,record:QcRecord):Promise<QueueItem>{
   let items=await allItems()
-  const existing=items.find(item=>item.action===action&&item.record.id===record.id)
-  if(action==='finalizeRecord')items=items.filter(item=>item.record.id!==record.id)
-  else items=items.filter(item=>!(item.action===action&&item.record.id===record.id))
-  const item:QueueItem={id:existing?.id||crypto.randomUUID(),action,record,createdAt:existing?.createdAt||Date.now(),attempts:existing?.attempts||0,lastAttemptAt:existing?.lastAttemptAt,lastError:existing?.lastError,nextAttemptAt:existing?.nextAttemptAt}
+  const owner=String(record.inputtedBy||currentUsername()||'').trim().toLowerCase()
+  const sameOwner=(item:QueueItem)=>!owner||!itemOwner(item)||itemOwner(item)===owner
+  const existing=items.find(item=>item.action===action&&item.record.id===record.id&&sameOwner(item))
+  if(action==='finalizeRecord')items=items.filter(item=>item.record.id!==record.id||!sameOwner(item))
+  else items=items.filter(item=>!(item.action===action&&item.record.id===record.id&&sameOwner(item)))
+  const item:QueueItem={id:existing?.id||crypto.randomUUID(),action,record,ownerUsername:existing?.ownerUsername||owner,createdAt:existing?.createdAt||Date.now(),attempts:existing?.attempts||0,lastAttemptAt:existing?.lastAttemptAt,lastError:existing?.lastError,nextAttemptAt:existing?.nextAttemptAt}
   items.push(item);await replaceItems(items);return item
 }
 
@@ -76,7 +91,7 @@ async function setFinalizeQueueState(item:QueueItem,state:UploadState,error=''):
   const attemptCount=state==='uploading'?Number(item.attempts||0)+1:Number(item.attempts||0)
   const nextAttemptAt=state==='failed'?Date.now()+retryDelayMs(attemptCount):state==='uploading'?undefined:item.nextAttemptAt
   if(state==='failed'&&nextAttemptAt)record={...record,uploadNextRetryAt:new Date(nextAttemptAt).toISOString()}
-  const next:QueueItem={...item,record,attempts:attemptCount,lastAttemptAt:state==='uploading'?Date.now():item.lastAttemptAt,lastError:error,nextAttemptAt}
+  const next:QueueItem={...item,ownerUsername:item.ownerUsername||String(record.inputtedBy||currentUsername()||'').toLowerCase(),record,attempts:attemptCount,lastAttemptAt:state==='uploading'?Date.now():item.lastAttemptAt,lastError:error,nextAttemptAt}
   await putItem(next);await mirrorSafely(record,`Status upload ${state} belum dapat dimirror ke Firestore.`);emitUploadState(record);return next
 }
 
@@ -116,13 +131,17 @@ async function sendFinalizeStateMachine(token:string,record:QcRecord):Promise<Sa
 async function sendServerFirst(token:string,action:QueueAction,record:QcRecord):Promise<SaveTransportResult>{
   if(action==='finalizeRecord')return sendFinalizeStateMachine(token,record)
   if(!navigator.onLine){await enqueueInternal(action,record);return{queued:true,firestoreFirst:false,spreadsheetPending:true}}
-  try{await qcApi.syncRecord(token,record);await mirrorAfterServerSave(action,record);const items=await allItems();await replaceItems(items.filter(item=>!(item.action===action&&item.record.id===record.id)));return{queued:false,firestoreFirst:false,spreadsheetPending:false}}
-  catch(error){if(isAuthError(error))throw error;await enqueueInternal(action,record);return{queued:true,firestoreFirst:false,spreadsheetPending:true}}
+  try{
+    await qcApi.syncRecord(token,record);await mirrorAfterServerSave(action,record)
+    const owner=String(record.inputtedBy||currentUsername()||'').toLowerCase(),items=await allItems()
+    await replaceItems(items.filter(item=>!(item.action===action&&item.record.id===record.id&&(!owner||!itemOwner(item)||itemOwner(item)===owner))))
+    return{queued:false,firestoreFirst:false,spreadsheetPending:false}
+  }catch(error){if(isAuthError(error))throw error;await enqueueInternal(action,record);return{queued:true,firestoreFirst:false,spreadsheetPending:true}}
 }
 
-export async function queueCount(){return(await allItems()).length}
-export async function queuedRecords(){return(await recoverInterruptedUploads(await allItems())).map(item=>item.record)}
-export async function discardQueuedRecord(recordId:string){await replaceItems((await allItems()).filter(item=>item.record.id!==recordId))}
+export async function queueCount(){const username=currentUsername();return(await allItems()).filter(item=>belongsToCurrentUser(item,username)).length}
+export async function queuedRecords(){const username=currentUsername();return(await recoverInterruptedUploads((await allItems()).filter(item=>belongsToCurrentUser(item,username)))).map(item=>item.record)}
+export async function discardQueuedRecord(recordId:string){const username=currentUsername();await replaceItems((await allItems()).filter(item=>item.record.id!==recordId||!belongsToCurrentUser(item,username)))}
 export async function enqueue(action:QueueAction,record:QcRecord){await enqueueInternal(action,record)}
 
 export async function retryQueuedRecord(recordId:string,token:string):Promise<boolean>{
@@ -130,7 +149,7 @@ export async function retryQueuedRecord(recordId:string,token:string):Promise<bo
   const task=(async()=>{
     let item=await findFinalizeItem(recordId);if(!item)return false
     item=await recoverInterruptedItem(item)
-    const queued=uploadRecord(item.record,'queued');item={...item,record:queued,lastError:'',nextAttemptAt:0}
+    const queued=uploadRecord(item.record,'queued');item={...item,ownerUsername:item.ownerUsername||String(item.record.inputtedBy||currentUsername()||'').toLowerCase(),record:queued,lastError:'',nextAttemptAt:0}
     await putItem(item);await mirrorSafely(queued,'Status retry upload belum dapat dimirror ke Firestore.');emitUploadState(queued)
     if(!navigator.onLine||activeFinalizeIds.has(recordId))return true
     const result=await attemptFinalize(token,item,true)
@@ -161,11 +180,12 @@ export async function sendOrQueue(token:string,action:QueueAction,record:QcRecor
 async function runFinalizeWorkers(token:string,items:QueueItem[]):Promise<number>{let cursor=0,sent=0;async function worker(){while(cursor<items.length){const index=cursor++,item=items[index];if(item.nextAttemptAt&&item.nextAttemptAt>Date.now())continue;const result=await attemptFinalize(token,item);if(!result.queued)sent++}}await Promise.all(Array.from({length:Math.min(FINALIZE_WORKERS,items.length)},()=>worker()));return sent}
 
 async function flushQueueInternal(token:string):Promise<FlushResult>{
-  const items=await recoverInterruptedUploads(await allItems());if(!navigator.onLine)return{sent:0,left:items.length}
+  const username=currentUsername(),owned=(await allItems()).filter(item=>belongsToCurrentUser(item,username)),items=await recoverInterruptedUploads(owned)
+  if(!navigator.onLine)return{sent:0,left:items.length}
   let sent=0
   const finalizeItems=items.filter(item=>item.action==='finalizeRecord'),syncItems=items.filter(item=>item.action!=='finalizeRecord')
   sent+=await runFinalizeWorkers(token,finalizeItems)
-  for(const original of syncItems){try{await qcApi.syncRecord(token,original.record);await mirrorAfterServerSave(original.action,original.record);await removeItem(original.id);sent++}catch(error){if(isAuthError(error))throw error;await putItem({...original,lastAttemptAt:Date.now(),attempts:Number(original.attempts||0)+1,lastError:errorMessage(error)})}}
+  for(const original of syncItems){try{await qcApi.syncRecord(token,original.record);await mirrorAfterServerSave(original.action,original.record);await removeItem(original.id);sent++}catch(error){if(isAuthError(error))throw error;await putItem({...original,ownerUsername:original.ownerUsername||String(original.record.inputtedBy||username).toLowerCase(),lastAttemptAt:Date.now(),attempts:Number(original.attempts||0)+1,lastError:errorMessage(error)})}}
   return{sent,left:await queueCount()}
 }
 
