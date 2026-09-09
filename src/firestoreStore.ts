@@ -15,27 +15,39 @@ function requireDb(){
   return firestoreDb
 }
 
-async function stripLargePayload(record:QcRecord):Promise<QcRecord>{
-  const clean = JSON.parse(JSON.stringify(record)) as QcRecord
-  const fullMain=String(clean.photoBase64||'')
-  const mainDrive=String(clean.photoDriveUrl||'')
+async function attachReportPhotoPreviews(record:QcRecord):Promise<void>{
+  const fullMain=String(record.photoBase64||'')
+  const mainDrive=String(record.photoDriveUrl||'')
   if(fullMain.startsWith('data:image/')){
     const preview=await makeReportPhotoPreview(fullMain)
-    clean.photoPreviewBase64=preview
+    if(preview)record.photoPreviewBase64=preview
   }else if(!mainDrive){
-    clean.photoPreviewBase64=''
+    record.photoPreviewBase64=''
   }
-  clean.photoBase64=''
 
-  if(Array.isArray(clean.holdIntervals)){
-    clean.holdIntervals=await Promise.all(clean.holdIntervals.map(async hold=>{
+  if(Array.isArray(record.holdIntervals)){
+    await Promise.all(record.holdIntervals.map(async hold=>{
       const full=String(hold.photoBase64||'')
       const drive=String(hold.photoDriveUrl||'')
-      let preview=String(hold.photoPreviewBase64||'')
-      if(full.startsWith('data:image/'))preview=await makeReportPhotoPreview(full)
-      else if(!drive)preview=''
-      return{...hold,photoBase64:'',photoPreviewBase64:preview}
+      if(full.startsWith('data:image/')){
+        const preview=await makeReportPhotoPreview(full)
+        if(preview)hold.photoPreviewBase64=preview
+      }else if(!drive){
+        hold.photoPreviewBase64=''
+      }
     }))
+  }
+}
+
+async function stripLargePayload(record:QcRecord):Promise<QcRecord>{
+  // Mutate the transport record intentionally: Apps Script mirrors the same record
+  // back to Firestore after saving to Spreadsheet/Drive. Keeping the lightweight
+  // preview fields on that record prevents the server mirror from replacing them.
+  await attachReportPhotoPreviews(record)
+  const clean = JSON.parse(JSON.stringify(record)) as QcRecord
+  clean.photoBase64=''
+  if(Array.isArray(clean.holdIntervals)){
+    clean.holdIntervals=clean.holdIntervals.map(hold=>({...hold,photoBase64:''}))
   }
   return clean
 }
