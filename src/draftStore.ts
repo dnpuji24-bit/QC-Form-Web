@@ -9,9 +9,11 @@ async function withStore<T>(mode:IDBTransactionMode,run:(store:IDBObjectStore)=>
   try{
     return await new Promise<T>((resolve,reject)=>{
       const tx=db.transaction(DRAFT_STORE,mode),store=tx.objectStore(DRAFT_STORE),request=run(store)
-      request.onsuccess=()=>resolve(request.result)
-      request.onerror=()=>reject(request.error||new Error('Penyimpanan lokal gagal.'))
-      tx.onabort=()=>reject(tx.error||new Error('Penyimpanan lokal dibatalkan.'))
+      let settled=false
+      const fail=(error:unknown)=>{if(settled)return;settled=true;reject(error instanceof Error?error:new Error('Penyimpanan lokal gagal.'))}
+      request.onsuccess=()=>{if(settled)return;settled=true;resolve(request.result)}
+      request.onerror=()=>fail(request.error||new Error('Penyimpanan lokal gagal.'))
+      tx.onabort=()=>fail(tx.error||new Error('Penyimpanan lokal dibatalkan.'))
     })
   }finally{db.close()}
 }
@@ -26,14 +28,26 @@ export async function loadDraft<T>(key:string):Promise<T|null>{
   }
 }
 
-export function saveDraft<T>(key:string,value:T):Promise<void>{
+function queueDraftWrite<T>(key:string,value:T):Promise<void>{
   const previous=pendingWrites.get(key)||Promise.resolve()
   const next=previous.catch(()=>undefined).then(async()=>{
     await withStore<IDBValidKey>('readwrite',store=>store.put({key,value,updatedAt:Date.now()} satisfies DraftEnvelope<T>))
-  }).catch(error=>{console.error('[QC autosave] saveDraft gagal',error)})
+  })
   pendingWrites.set(key,next)
   void next.finally(()=>{if(pendingWrites.get(key)===next)pendingWrites.delete(key)})
   return next
+}
+
+/** Autosave helper: logs failures so typing is never interrupted. */
+export function saveDraft<T>(key:string,value:T):Promise<void>{
+  return queueDraftWrite(key,value).catch(error=>{
+    console.error('[QC autosave] saveDraft gagal',error)
+  })
+}
+
+/** Manual save helper: propagates IndexedDB/quota errors to the form. */
+export function saveDraftStrict<T>(key:string,value:T):Promise<void>{
+  return queueDraftWrite(key,value)
 }
 
 export async function flushDraftWrite(key:string):Promise<void>{
