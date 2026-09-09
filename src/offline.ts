@@ -1,7 +1,7 @@
 import { qcApi } from './api'
 import { mirrorRecordToFirestore } from './firestoreStore'
 import { openLocalDb, QUEUE_STORE } from './localDb'
-import type { QcRecord } from './types'
+import type { ApiResponse, QcRecord } from './types'
 
 export type QueueAction='syncRecord'|'finalizeRecord'
 export type UploadState='ready'|'queued'|'uploading'|'uploaded'|'failed'
@@ -32,8 +32,6 @@ function currentUsername(){
 function itemOwner(item:QueueItem){return String(item.ownerUsername||item.record.inputtedBy||'').trim().toLowerCase()}
 function belongsToCurrentUser(item:QueueItem,username=currentUsername()){
   const owner=itemOwner(item)
-  // Legacy queue rows did not have ownerUsername. inputtedBy is used as migration fallback.
-  // If both are missing, keep the row visible rather than deleting user data.
   return !username||!owner||owner===username
 }
 async function findFinalizeItem(recordId:string):Promise<QueueItem|undefined>{const username=currentUsername();return(await allItems()).find(item=>item.action==='finalizeRecord'&&item.record.id===recordId&&belongsToCurrentUser(item,username))}
@@ -72,8 +70,19 @@ function uploadRecord(record:QcRecord,state:UploadState,error=''):QcRecord{
   return next
 }
 
+function serverMergedRecord(result:ApiResponse,record:QcRecord):QcRecord{
+  const next:QcRecord={...record}
+  if(result.photoDriveUrl!==undefined)next.photoDriveUrl=result.photoDriveUrl
+  return next
+}
+
 async function mirrorSafely(record:QcRecord,message:string):Promise<void>{try{await mirrorRecordToFirestore(record)}catch(error){console.info(message,error)}}
-async function mirrorAfterServerSave(action:QueueAction,record:QcRecord):Promise<void>{const mirrored:QcRecord=action==='finalizeRecord'?uploadRecord(record,'uploaded'):record;await mirrorSafely(mirrored,'Mirror Firestore dilewati; Apps Script tetap menjadi sumber aman.')}
+async function mirrorAfterServerSave(action:QueueAction,record:QcRecord,result:ApiResponse):Promise<void>{
+  if(result.firestoreSynced)return
+  const saved=serverMergedRecord(result,record)
+  const mirrored:QcRecord=action==='finalizeRecord'?uploadRecord(saved,'uploaded'):saved
+  await mirrorSafely(mirrored,'Mirror Firestore dilewati; Apps Script tetap menjadi sumber aman.')
+}
 
 async function enqueueInternal(action:QueueAction,record:QcRecord):Promise<QueueItem>{
   let items=await allItems()
@@ -107,9 +116,9 @@ async function attemptFinalize(token:string,item:QueueItem,ignoreBackoff=false):
   let current=item
   try{
     current=await setFinalizeQueueState(item,'uploading')
-    await qcApi.finalizeRecord(token,current.record)
-    const uploaded=uploadRecord(current.record,'uploaded')
-    await mirrorSafely(uploaded,'Upload ke Spreadsheet berhasil, tetapi status Firestore belum terbarui.')
+    const server=await qcApi.finalizeRecord(token,current.record)
+    const uploaded=uploadRecord(serverMergedRecord(server,current.record),'uploaded')
+    if(!server.firestoreSynced)await mirrorSafely(uploaded,'Upload ke Spreadsheet berhasil, tetapi status Firestore belum terbarui.')
     await removeItem(current.id);emitUploadState(uploaded)
     return{queued:false,firestoreFirst:false,spreadsheetPending:false,uploadState:'uploaded'}
   }catch(error){
@@ -132,7 +141,7 @@ async function sendServerFirst(token:string,action:QueueAction,record:QcRecord):
   if(action==='finalizeRecord')return sendFinalizeStateMachine(token,record)
   if(!navigator.onLine){await enqueueInternal(action,record);return{queued:true,firestoreFirst:false,spreadsheetPending:true}}
   try{
-    await qcApi.syncRecord(token,record);await mirrorAfterServerSave(action,record)
+    const server=await qcApi.syncRecord(token,record);await mirrorAfterServerSave(action,record,server)
     const owner=String(record.inputtedBy||currentUsername()||'').toLowerCase(),items=await allItems()
     await replaceItems(items.filter(item=>!(item.action===action&&item.record.id===record.id&&(!owner||!itemOwner(item)||itemOwner(item)===owner))))
     return{queued:false,firestoreFirst:false,spreadsheetPending:false}
@@ -185,7 +194,7 @@ async function flushQueueInternal(token:string):Promise<FlushResult>{
   let sent=0
   const finalizeItems=items.filter(item=>item.action==='finalizeRecord'),syncItems=items.filter(item=>item.action!=='finalizeRecord')
   sent+=await runFinalizeWorkers(token,finalizeItems)
-  for(const original of syncItems){try{await qcApi.syncRecord(token,original.record);await mirrorAfterServerSave(original.action,original.record);await removeItem(original.id);sent++}catch(error){if(isAuthError(error))throw error;await putItem({...original,ownerUsername:original.ownerUsername||String(original.record.inputtedBy||username).toLowerCase(),lastAttemptAt:Date.now(),attempts:Number(original.attempts||0)+1,lastError:errorMessage(error)})}}
+  for(const original of syncItems){try{const server=await qcApi.syncRecord(token,original.record);await mirrorAfterServerSave(original.action,original.record,server);await removeItem(original.id);sent++}catch(error){if(isAuthError(error))throw error;await putItem({...original,ownerUsername:original.ownerUsername||String(original.record.inputtedBy||username).toLowerCase(),lastAttemptAt:Date.now(),attempts:Number(original.attempts||0)+1,lastError:errorMessage(error)})}}
   return{sent,left:await queueCount()}
 }
 

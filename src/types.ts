@@ -121,4 +121,7 @@ export interface ApiResponse<T = unknown> {
   requests?: AccountChangeRequest[]
   recordId?: string
   updatedAt?: string
+  photoDriveUrl?: string
+  firestoreSynced?: boolean
+  rows?: number
 }
