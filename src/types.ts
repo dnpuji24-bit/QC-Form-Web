@@ -43,6 +43,7 @@ export interface HoldInterval {
   note: string
   photoBase64?: string
   photoDriveUrl?: string
+  photoPreviewBase64?: string
 }
 
 export interface PlanMaster {
@@ -81,6 +82,9 @@ export interface QcRecord {
   inputtedBy?: string
   updatedAt?: string
   createdAt?: string
+  photoBase64?: string
+  photoDriveUrl?: string
+  photoPreviewBase64?: string
   holdIntervals?: HoldInterval[]
   workingDurationMinutes?: number
   holdTotalMinutes?: number
