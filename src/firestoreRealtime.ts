@@ -1,5 +1,6 @@
 import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore'
 import { firebaseAuth, firestoreDb } from './firebase'
+import { hydrateReportPhotoPreviews } from './reportPhoto'
 import type { QcRecord } from './types'
 
 export type RealtimeState={
@@ -44,7 +45,7 @@ export function subscribeQcRecords(
 
       if(stopped)return
       stopSnapshot=onSnapshot(ref,snapshot=>{
-        const records=snapshot.docs.map(docSnap=>({id:docSnap.id,...docSnap.data()} as QcRecord))
+        const records=snapshot.docs.map(docSnap=>hydrateReportPhotoPreviews({id:docSnap.id,...docSnap.data()} as QcRecord))
         records.sort((a,b)=>String(b.createdAt||b.date||'').localeCompare(String(a.createdAt||a.date||'')))
         onRecords(records)
         onState?.({source:'firestore',connected:true})
