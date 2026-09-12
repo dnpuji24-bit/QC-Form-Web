@@ -15,6 +15,6 @@ export default function MasterActivityWorkspace({user}:Props){
       <button type="button" className={view==='manage'?'active':''} onClick={()=>setView('manage')}>Kelola Master</button>
       <button type="button" className={view==='import'?'active':''} onClick={()=>setView('import')}>Update / Import</button>
     </div>
-    {view==='list'?<MasterActivityListPanel/>:view==='manage'?<MasterActivityManagePanel user={user}/>:<MasterActivityImportPanel user={user}/>} 
+    {view==='list'?<MasterActivityListPanel/>:view==='manage'?<MasterActivityManagePanel user={user}/>:<MasterActivityImportPanel user={user} onOpenManage={()=>setView('manage')}/>} 
   </section>
 }
