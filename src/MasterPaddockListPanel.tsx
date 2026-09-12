@@ -68,6 +68,7 @@ function logFromData(id:string,data:Record<string,unknown>):ImportLog{
 }
 function formatDate(value:string|null){if(!value)return'-';const date=new Date(value);return Number.isNaN(date.getTime())?value:date.toLocaleDateString('id-ID',{day:'2-digit',month:'2-digit',year:'numeric'})}
 function formatDateTime(value:string){if(!value)return'-';const date=new Date(value);return Number.isNaN(date.getTime())?value:date.toLocaleString('id-ID',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}
+function formatHa(value:number,digits=2){return `${new Intl.NumberFormat('id-ID',{minimumFractionDigits:digits,maximumFractionDigits:digits}).format(value)} Ha`}
 function inRange(date:string,from:string,to:string){if(!date)return false;return(!from||date>=from)&&(!to||date<=to)}
 function progressInRange(events:ProgressEntry[],from:string,to:string){return events.reduce((sum,item)=>sum+(inRange(item.date,from,to)?item.areaHa:0),0)}
 
@@ -146,10 +147,10 @@ export default function MasterPaddockListPanel(){
     </div>
     <div className="stats-grid">
       <div className="stat"><span>PID</span><strong>{filtered.length}</strong></div>
-      <div className="stat"><span>Area Plan / Paddock</span><strong>{totalArea.toFixed(2)} Ha</strong></div>
-      <div className="stat"><span>Plant Progress {dateFrom||dateTo?'Rentang':'Tersimpan'}</span><strong>{plantRangeTotal.toFixed(2)} Ha</strong></div>
-      <div className="stat"><span>Harvest Progress {dateFrom||dateTo?'Rentang':'Tersimpan'}</span><strong>{harvestRangeTotal.toFixed(2)} Ha</strong></div>
-      <div className="stat"><span>Harvest Stage Aktif</span><strong>{totalHarvest.toFixed(2)} Ha</strong></div>
+      <div className="stat"><span>Area Plan / Paddock</span><strong>{formatHa(totalArea,2)}</strong></div>
+      <div className="stat"><span>Plant Progress {dateFrom||dateTo?'Rentang':'Tersimpan'}</span><strong>{formatHa(plantRangeTotal,2)}</strong></div>
+      <div className="stat"><span>Harvest Progress {dateFrom||dateTo?'Rentang':'Tersimpan'}</span><strong>{formatHa(harvestRangeTotal,2)}</strong></div>
+      <div className="stat"><span>Harvest Stage Aktif</span><strong>{formatHa(totalHarvest,2)}</strong></div>
       <div className="stat"><span>Active</span><strong>{activeCount}</strong></div>
       <div className="stat"><span>PC</span><strong>{stageCounts.get('PC')||0}</strong></div>
       <div className="stat"><span>R1</span><strong>{stageCounts.get('R1')||0}</strong></div>
@@ -157,11 +158,11 @@ export default function MasterPaddockListPanel(){
     </div>
     <div className="panel">
       <div className="section-head"><div><h3>Rekap per Farm</h3><p className="muted">Mengikuti filter Company, Farm, Stage, smart search, dan Progress Date.</p></div></div>
-      <div className="table-wrap"><table><thead><tr><th>Company</th><th>Farm</th><th>PID</th><th>Area Plan</th><th>Plant Progress</th><th>Harvest Progress</th><th>PC</th><th>R1</th><th>R2</th></tr></thead><tbody>{farmSummary.map(item=><tr key={`${item.company}-${item.farm}`}><td>{item.company}</td><td>{item.farm||'-'}</td><td>{item.pids}</td><td>{item.area.toFixed(4)} Ha</td><td>{item.plantRange.toFixed(4)} Ha</td><td>{item.harvestRange.toFixed(4)} Ha</td><td>{item.pc}</td><td>{item.r1}</td><td>{item.r2}</td></tr>)}{!farmSummary.length&&<tr><td colSpan={9} className="empty">Belum ada Master Paddock sesuai filter.</td></tr>}</tbody></table></div>
+      <div className="table-wrap"><table><thead><tr><th>Company</th><th>Farm</th><th>PID</th><th>Area Plan</th><th>Plant Progress</th><th>Harvest Progress</th><th>PC</th><th>R1</th><th>R2</th></tr></thead><tbody>{farmSummary.map(item=><tr key={`${item.company}-${item.farm}`}><td>{item.company}</td><td>{item.farm||'-'}</td><td>{item.pids}</td><td>{formatHa(item.area,4)}</td><td>{formatHa(item.plantRange,4)}</td><td>{formatHa(item.harvestRange,4)}</td><td>{item.pc}</td><td>{item.r1}</td><td>{item.r2}</td></tr>)}{!farmSummary.length&&<tr><td colSpan={9} className="empty">Belum ada Master Paddock sesuai filter.</td></tr>}</tbody></table></div>
     </div>
     <div className="panel">
       <div className="section-head"><div><h3>Detail Master Paddock</h3><p className="muted">{filtered.length} paddock ditampilkan.</p></div></div>
-      <div className="table-wrap"><table><thead><tr><th>Company</th><th>Farm</th><th>PID</th><th>Block</th><th>Paddock</th><th>Variety</th><th>Area Plan</th><th>Plant Progress</th><th>Harvest Progress</th><th>Stage</th><th>Harvest Stage</th><th>Sisa Stage</th><th>Last Harvest</th><th>Source</th></tr></thead><tbody>{filtered.map(row=><tr key={row.pid}><td>{row.companyCode}</td><td>{row.farm||'-'}</td><td><strong>{row.pid}</strong></td><td>{row.block||'-'}</td><td>{row.paddock||'-'}</td><td>{row.variety||'-'}</td><td>{row.areaPlantedHa.toFixed(4)} Ha</td><td>{progressInRange(row.plantProgress,dateFrom,dateTo).toFixed(4)} Ha</td><td>{progressInRange(row.harvestProgress,dateFrom,dateTo).toFixed(4)} Ha</td><td><span className="badge">{row.currentStage}</span></td><td>{row.harvestedCurrentStageHa.toFixed(4)} Ha</td><td>{row.remainingHarvestCurrentStageHa.toFixed(4)} Ha</td><td>{formatDate(row.lastHarvestDate)}</td><td>{row.sourceFileName||'-'}</td></tr>)}{!filtered.length&&<tr><td colSpan={14} className="empty">Belum ada Master Paddock tersimpan atau tidak ada data sesuai filter.</td></tr>}</tbody></table></div>
+      <div className="table-wrap"><table><thead><tr><th>Company</th><th>Farm</th><th>PID</th><th>Block</th><th>Paddock</th><th>Variety</th><th>Area Plan</th><th>Plant Progress</th><th>Harvest Progress</th><th>Stage</th><th>Harvest Stage</th><th>Sisa Stage</th><th>Last Harvest</th><th>Source</th></tr></thead><tbody>{filtered.map(row=><tr key={row.pid}><td>{row.companyCode}</td><td>{row.farm||'-'}</td><td><strong>{row.pid}</strong></td><td>{row.block||'-'}</td><td>{row.paddock||'-'}</td><td>{row.variety||'-'}</td><td>{formatHa(row.areaPlantedHa,4)}</td><td>{formatHa(progressInRange(row.plantProgress,dateFrom,dateTo),4)}</td><td>{formatHa(progressInRange(row.harvestProgress,dateFrom,dateTo),4)}</td><td><span className="badge">{row.currentStage}</span></td><td>{formatHa(row.harvestedCurrentStageHa,4)}</td><td>{formatHa(row.remainingHarvestCurrentStageHa,4)}</td><td>{formatDate(row.lastHarvestDate)}</td><td>{row.sourceFileName||'-'}</td></tr>)}{!filtered.length&&<tr><td colSpan={14} className="empty">Belum ada Master Paddock tersimpan atau tidak ada data sesuai filter.</td></tr>}</tbody></table></div>
     </div>
     <div className="panel">
       <div className="section-head"><div><h3>Riwayat Import Terakhir</h3><p className="muted">20 batch Master Paddock terbaru.</p></div></div>
