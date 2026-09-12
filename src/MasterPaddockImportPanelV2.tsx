@@ -11,12 +11,14 @@ type ImportStatus='CREATE'|'UPDATE'|'NO_CHANGE'
 type IssueLevel='ERROR'|'WARNING'|'INFO'
 type Issue={level:IssueLevel;pid?:string;message:string}
 type StageSummary={stage:string;areaHa:number;startDate:string|null;endDate:string|null;rows:number}
+type ProgressEntry={date:string;areaHa:number;stage?:string}
 type ParsedMaster={
   pid:string;companyCode:string;companyPrefix:string;cycleId:string;cycleNumber:number
   region:string;farm:string;block:string;paddock:string;blockLc:string;variety:string
   areaPlantedHa:number;plantStartDate:string;plantEndDate:string;currentStage:string
   harvestedCurrentStageHa:number;harvestStartCurrentStage:string|null;lastHarvestDate:string|null
   remainingHarvestCurrentStageHa:number;harvestProgressCurrentStagePct:number;harvestStages:StageSummary[]
+  plantProgress:ProgressEntry[];harvestProgress:ProgressEntry[]
   sourcePlantRows:number;sourceHarvestRows:number;sourceAreaPaddockRef:number|null;active:boolean
 }
 type PreviewRow=ParsedMaster&{status:ImportStatus;changes:string[]}
@@ -26,7 +28,7 @@ type FirestoreProfile={active?:boolean;role?:string;username?:string}
 
 const PLANT_SHEET='Area Plant'
 const HARVEST_SHEET='Area Harvest'
-const CHANGE_FIELDS:(keyof ParsedMaster)[]=['companyCode','companyPrefix','region','farm','block','paddock','blockLc','variety','areaPlantedHa','plantStartDate','plantEndDate','currentStage','harvestedCurrentStageHa','harvestStartCurrentStage','lastHarvestDate','remainingHarvestCurrentStageHa','cycleId','active']
+const CHANGE_FIELDS:(keyof ParsedMaster)[]=['companyCode','companyPrefix','region','farm','block','paddock','blockLc','variety','areaPlantedHa','plantStartDate','plantEndDate','currentStage','harvestedCurrentStageHa','harvestStartCurrentStage','lastHarvestDate','remainingHarvestCurrentStageHa','cycleId','active','plantProgress','harvestProgress']
 
 function normalized(value:string){return value.trim().toLowerCase().replace(/\s+/g,' ')}
 function rowValue(row:SheetRow,...names:string[]){const lookup=new Map(Object.keys(row).map(key=>[normalized(key),row[key]]));for(const name of names){const value=lookup.get(normalized(name));if(value!==undefined)return value}return undefined}
@@ -45,9 +47,27 @@ function round(value:number,digits=4){const factor=10**digits;return Math.round(
 function latest<T extends TimedRow>(rows:T[]){return [...rows].sort((a,b)=>a.date.getTime()-b.date.getTime()).at(-1)}
 function getSheetRows(workbook:XLSX.WorkBook,name:string){const sheet=workbook.Sheets[name];if(!sheet)throw new Error(`Sheet "${name}" tidak ditemukan. Gunakan file Administrasi dengan sheet ${PLANT_SHEET} dan ${HARVEST_SHEET}.`);return XLSX.utils.sheet_to_json<SheetRow>(sheet,{defval:null,raw:true})}
 function pidParts(pid:string){const parts=pid.split('-');return parts.length>=4?{region:parts[0],farm:parts[1],block:parts[2],paddock:parts.slice(3).join('-')}:{region:'',farm:'',block:'',paddock:''}}
-function sameValue(a:unknown,b:unknown,key:keyof ParsedMaster){if(typeof a==='number'||typeof b==='number')return Math.abs(Number(a||0)-Number(b||0))<0.0001;if(key==='active')return Boolean(a)===Boolean(b);return String(a??'')===String(b??'')}
-function displayChange(key:keyof ParsedMaster){const labels:Partial<Record<keyof ParsedMaster,string>>={companyCode:'company',companyPrefix:'prefix company',areaPlantedHa:'luas tanam',currentStage:'stage',harvestedCurrentStageHa:'luas harvest stage',variety:'variety',blockLc:'Block LC',cycleId:'crop cycle',plantStartDate:'awal tanam',plantEndDate:'akhir tanam',lastHarvestDate:'harvest terakhir'};return labels[key]||String(key)}
+function sameValue(a:unknown,b:unknown,key:keyof ParsedMaster){
+  if(Array.isArray(a)||Array.isArray(b))return JSON.stringify(a??[])===JSON.stringify(b??[])
+  if(typeof a==='number'||typeof b==='number')return Math.abs(Number(a||0)-Number(b||0))<0.0001
+  if(key==='active')return Boolean(a)===Boolean(b)
+  return String(a??'')===String(b??'')
+}
+function displayChange(key:keyof ParsedMaster){const labels:Partial<Record<keyof ParsedMaster,string>>={companyCode:'company',companyPrefix:'prefix company',areaPlantedHa:'Area Paddock / plan',currentStage:'stage',harvestedCurrentStageHa:'luas harvest stage',variety:'variety',blockLc:'Block LC',cycleId:'crop cycle',plantStartDate:'awal tanam',plantEndDate:'akhir tanam',lastHarvestDate:'harvest terakhir',plantProgress:'riwayat progress tanam',harvestProgress:'riwayat progress harvest'};return labels[key]||String(key)}
 function companyFromData(id:string,data:Record<string,unknown>):CompanyRecord{return{id,code:String(data.code||id).toUpperCase(),name:String(data.name||''),prefixes:Array.isArray(data.prefixes)?data.prefixes.map(item=>String(item).toUpperCase()).filter(Boolean):[],active:data.active!==false}}
+function progressSeries(rows:TimedRow[],kind:'plant'|'harvest'):ProgressEntry[]{
+  const map=new Map<string,ProgressEntry>()
+  for(const item of rows){
+    const date=isoDay(item.date);if(!date)continue
+    const stage=text(rowValue(item.row,'Planting Stage (pc,r1,r2..)'))
+    const area=kind==='plant'?numberValue(rowValue(item.row,'Progres (Ha)','Progress (Ha)','Progres (Ha) ')):numberValue(rowValue(item.row,'Progres (Ha) Area Geometri','Progress (Ha) Area Geometri','Progres (Ha)','Progress (Ha)'))
+    if(!Number.isFinite(area)||area<0)continue
+    const key=`${date}__${stage}`
+    const previous=map.get(key)
+    map.set(key,{date,areaHa:round((previous?.areaHa||0)+area),...(stage?{stage}:{})})
+  }
+  return[...map.values()].sort((a,b)=>a.date.localeCompare(b.date)||String(a.stage||'').localeCompare(String(b.stage||''),undefined,{numeric:true}))
+}
 
 function parseWorkbook(buffer:ArrayBuffer,fileName:string,companies:CompanyRecord[],selected:CompanyRecord):ParsedFile{
   const workbook=XLSX.read(buffer,{type:'array',cellDates:true})
@@ -101,8 +121,14 @@ function parseWorkbook(buffer:ArrayBuffer,fileName:string,companies:CompanyRecor
     const currentCycle=Math.max(...plantCycles.keys()),currentPlants=plantCycles.get(currentCycle)||[],currentHarvests=harvestCycles.get(currentCycle)||[]
     if(!currentPlants.length){issues.push({level:'ERROR',pid,message:'Tidak ada Area Plant valid untuk cycle aktif.'});continue}
     const plantStart=new Date(Math.min(...currentPlants.map(r=>r.date.getTime()))),plantEnd=new Date(Math.max(...currentPlants.map(r=>r.date.getTime()))),currentMeta=latest(currentPlants)!,parts=pidParts(pid)
-    const areaPlanted=round(currentPlants.reduce((sum,item)=>sum+numberValue(rowValue(item.row,'Progres (Ha)','Progress (Ha)','Progres (Ha) ')),0))
-    if(areaPlanted<=0)issues.push({level:'ERROR',pid,message:'Total Area Plant Progres (Ha) untuk cycle aktif = 0.'})
+    const areaValues=currentPlants.map(item=>numberValue(rowValue(item.row,'Area Paddock (Ha)','Area Paddock'))).filter(value=>Number.isFinite(value)&&value>0)
+    const distinctAreas=[...new Set(areaValues.map(value=>round(value)))]
+    if(distinctAreas.length>1)issues.push({level:'WARNING',pid,message:`Cycle aktif memiliki beberapa nilai Area Paddock (Ha): ${distinctAreas.join(', ')}. Area Plan memakai nilai Area Paddock dari baris tanam terbaru yang valid.`})
+    const latestArea=[...currentPlants].reverse().map(item=>numberValue(rowValue(item.row,'Area Paddock (Ha)','Area Paddock'))).find(value=>Number.isFinite(value)&&value>0)
+    const areaPlanted=round(latestArea||0)
+    if(areaPlanted<=0)issues.push({level:'ERROR',pid,message:'Area Paddock (Ha) pada Area Plant untuk cycle aktif tidak valid atau kosong.'})
+    const currentPlantProgress=round(currentPlants.reduce((sum,item)=>sum+numberValue(rowValue(item.row,'Progres (Ha)','Progress (Ha)','Progres (Ha) ')),0))
+    if(areaPlanted>0&&currentPlantProgress>areaPlanted*1.02)issues.push({level:'WARNING',pid,message:`Total Progres Area Plant cycle aktif (${currentPlantProgress.toFixed(4)} Ha) lebih besar dari Area Paddock (${areaPlanted.toFixed(4)} Ha). Area Plan tetap memakai Area Paddock, bukan penjumlahan Progres.`})
     const blockLcs=[...new Set(currentPlants.map(item=>text(rowValue(item.row,'Block LC'))).filter(Boolean))],varieties=[...new Set(currentPlants.map(item=>text(rowValue(item.row,'Variety'))).filter(Boolean))]
     if(blockLcs.length>1)issues.push({level:'WARNING',pid,message:`Cycle aktif memiliki beberapa Block LC: ${blockLcs.join(', ')}. Master memakai nilai dari baris tanam terbaru.`})
     if(varieties.length>1)issues.push({level:'WARNING',pid,message:`Cycle aktif memiliki beberapa Variety: ${varieties.join(', ')}. Master memakai nilai dari baris tanam terbaru.`})
@@ -111,10 +137,12 @@ function parseWorkbook(buffer:ArrayBuffer,fileName:string,companies:CompanyRecor
     currentHarvests.forEach(item=>{const stage=text(rowValue(item.row,'Planting Stage (pc,r1,r2..)'))||'UNKNOWN',rows=stageGroups.get(stage)||[];rows.push(item);stageGroups.set(stage,rows)})
     const harvestStages:StageSummary[]=[...stageGroups.entries()].map(([stage,rows])=>({stage,areaHa:round(rows.reduce((sum,item)=>sum+numberValue(rowValue(item.row,'Progres (Ha) Area Geometri','Progress (Ha) Area Geometri','Progres (Ha)','Progress (Ha)')),0)),startDate:isoDay(new Date(Math.min(...rows.map(item=>item.date.getTime())))),endDate:isoDay(new Date(Math.max(...rows.map(item=>item.date.getTime())))),rows:rows.length})).sort((a,b)=>a.stage.localeCompare(b.stage,undefined,{numeric:true}))
     const currentStageSummary=harvestStages.find(item=>item.stage===currentStage),harvestedCurrent=round(currentStageSummary?.areaHa||0),remaining=round(Math.max(areaPlanted-harvestedCurrent,0)),progressPct=areaPlanted>0?round(harvestedCurrent/areaPlanted*100,2):0
-    if(areaPlanted>0&&harvestedCurrent>areaPlanted*1.02)issues.push({level:'WARNING',pid,message:`Luas harvest ${currentStage} (${harvestedCurrent.toFixed(4)} Ha) lebih besar dari area planted (${areaPlanted.toFixed(4)} Ha).`})
+    if(areaPlanted>0&&harvestedCurrent>areaPlanted*1.02)issues.push({level:'WARNING',pid,message:`Luas harvest ${currentStage} (${harvestedCurrent.toFixed(4)} Ha) lebih besar dari Area Paddock (${areaPlanted.toFixed(4)} Ha).`})
     if(currentCycle>1)issues.push({level:'INFO',pid,message:`Terdeteksi crop cycle ke-${currentCycle}; Area Plant setelah harvest lama dipisahkan otomatis dari cycle sebelumnya.`})
-    const sourceArea=numberValue(rowValue(currentMeta.row,'Area Paddock (Ha)'))
-    masters.push({pid,companyCode:selected.code,companyPrefix:pidPrefix(pid),cycleId:`${pid}-C${currentCycle}-${compactDay(plantStart)}`,cycleNumber:currentCycle,region:parts.region||text(rowValue(currentMeta.row,'Region')),farm:parts.farm||text(rowValue(currentMeta.row,'Farm')),block:parts.block||text(rowValue(currentMeta.row,'Block')),paddock:parts.paddock||text(rowValue(currentMeta.row,'Paddock')),blockLc:text(rowValue(currentMeta.row,'Block LC')),variety:text(rowValue(currentMeta.row,'Variety')),areaPlantedHa:areaPlanted,plantStartDate:isoDay(plantStart)!,plantEndDate:isoDay(plantEnd)!,currentStage,harvestedCurrentStageHa:harvestedCurrent,harvestStartCurrentStage:currentStageSummary?.startDate||null,lastHarvestDate:currentStageSummary?.endDate||null,remainingHarvestCurrentStageHa:remaining,harvestProgressCurrentStagePct:progressPct,harvestStages,sourcePlantRows:currentPlants.length,sourceHarvestRows:currentHarvests.length,sourceAreaPaddockRef:Number.isFinite(sourceArea)?round(sourceArea):null,active:true})
+    const harvestAreaValues=currentHarvests.map(item=>numberValue(rowValue(item.row,'Area Paddock (Ha)','Area Paddock'))).filter(value=>Number.isFinite(value)&&value>0)
+    const latestHarvestArea=[...harvestAreaValues].reverse()[0]
+    if(areaPlanted>0&&latestHarvestArea&&Math.abs(latestHarvestArea-areaPlanted)>Math.max(0.05,areaPlanted*0.02))issues.push({level:'WARNING',pid,message:`Area Paddock Area Harvest (${round(latestHarvestArea).toFixed(4)} Ha) berbeda dengan Area Paddock Area Plant (${areaPlanted.toFixed(4)} Ha). Master tetap memakai Area Plant.`})
+    masters.push({pid,companyCode:selected.code,companyPrefix:pidPrefix(pid),cycleId:`${pid}-C${currentCycle}-${compactDay(plantStart)}`,cycleNumber:currentCycle,region:parts.region||text(rowValue(currentMeta.row,'Region')),farm:parts.farm||text(rowValue(currentMeta.row,'Farm')),block:parts.block||text(rowValue(currentMeta.row,'Block')),paddock:parts.paddock||text(rowValue(currentMeta.row,'Paddock')),blockLc:text(rowValue(currentMeta.row,'Block LC')),variety:text(rowValue(currentMeta.row,'Variety')),areaPlantedHa:areaPlanted,plantStartDate:isoDay(plantStart)!,plantEndDate:isoDay(plantEnd)!,currentStage,harvestedCurrentStageHa:harvestedCurrent,harvestStartCurrentStage:currentStageSummary?.startDate||null,lastHarvestDate:currentStageSummary?.endDate||null,remainingHarvestCurrentStageHa:remaining,harvestProgressCurrentStagePct:progressPct,harvestStages,plantProgress:progressSeries(plantRows,'plant'),harvestProgress:progressSeries(harvestRows,'harvest'),sourcePlantRows:currentPlants.length,sourceHarvestRows:currentHarvests.length,sourceAreaPaddockRef:areaPlanted||null,active:true})
   }
   return{rows:masters,issues,fileName,plantRowCount:plantRaw.length,harvestRowCount:harvestRaw.length,companyCode:selected.code}
 }
@@ -169,7 +197,7 @@ export default function MasterPaddockImportPanelV2({user}:Props){
     try{
       const result=parseWorkbook(await file.arrayBuffer(),file.name,companies,selectedCompany);setParsed(result)
       const initial=result.rows.map(row=>({...row,status:'CREATE' as const,changes:['Firestore belum dibandingkan']}));setPreview(initial)
-      setMessage(`File terbaca untuk ${selectedCompany.code}: ${result.rows.length} PID dari ${result.plantRowCount} baris Area Plant dan ${result.harvestRowCount} baris Area Harvest.`)
+      setMessage(`File terbaca untuk ${selectedCompany.code}: ${result.rows.length} PID dari ${result.plantRowCount} baris Area Plant dan ${result.harvestRowCount} baris Area Harvest. Area Plan memakai Area Paddock (Ha), bukan penjumlahan Progres.`)
       if(result.issues.some(issue=>issue.level==='ERROR'))return
       try{await firebaseWriterContext(user);const next=await compareWithFirestore(result.rows);setPreview(next);setMessage(`Preview ${selectedCompany.code} siap: ${next.filter(r=>r.status==='CREATE').length} baru, ${next.filter(r=>r.status==='UPDATE').length} berubah, ${next.filter(r=>r.status==='NO_CHANGE').length} tidak berubah.`)}catch(error){setMessage(`${error instanceof Error?error.message:'Firestore belum dapat dibandingkan'} File tetap berhasil divalidasi; import belum dijalankan.`)}
     }catch(error){setMessage(error instanceof Error?error.message:'File Excel gagal dibaca.')}finally{setBusy(false)}
@@ -188,20 +216,20 @@ export default function MasterPaddockImportPanelV2({user}:Props){
       const context=await firebaseWriterContext(user),checked=await compareWithFirestore(scopedRows);setPreview(checked)
       const changed=checked.filter(row=>row.status!=='NO_CHANGE');if(!changed.length){setMessage('Tidak ada perubahan yang perlu ditulis ke Firestore.');return}
       const scopeLabel=farmScope==='ALL'?'Semua Farm':`Farm ${farmScope}`
-      const confirmation=window.prompt(`Company: ${selectedCompany.code} - ${selectedCompany.name}\nScope: ${scopeLabel}\n\nAkan menulis ${changed.length} Master Paddock (${changed.filter(r=>r.status==='CREATE').length} baru, ${changed.filter(r=>r.status==='UPDATE').length} update).\nData yang hilang dari file TIDAK akan dihapus.\n\nKetik IMPORT untuk melanjutkan.`)
+      const confirmation=window.prompt(`Company: ${selectedCompany.code} - ${selectedCompany.name}\nScope: ${scopeLabel}\n\nAkan menulis ${changed.length} Master Paddock (${changed.filter(r=>r.status==='CREATE').length} baru, ${changed.filter(r=>r.status==='UPDATE').length} update).\nArea Plan diambil dari Area Paddock (Ha). Riwayat progress tanggal juga akan disimpan.\nData yang hilang dari file TIDAK akan dihapus.\n\nKetik IMPORT untuk melanjutkan.`)
       if(confirmation!=='IMPORT'){setMessage('Import dibatalkan. Tidak ada data Firestore yang diubah.');return}
       const batchId=`PADDOCK-${selectedCompany.code}-${new Date().toISOString().replace(/[-:TZ.]/g,'').slice(0,14)}`;let written=0
       for(let start=0;start<changed.length;start+=250){
         const batch=writeBatch(context.db),chunk=changed.slice(start,start+250)
         for(const row of chunk){
-          batch.set(doc(context.db,'master_paddocks',row.pid),{pid:row.pid,companyCode:row.companyCode,companyPrefix:row.companyPrefix,region:row.region,farm:row.farm,block:row.block,paddock:row.paddock,blockLc:row.blockLc,variety:row.variety,areaPlantedHa:row.areaPlantedHa,plantStartDate:row.plantStartDate,plantEndDate:row.plantEndDate,currentStage:row.currentStage,harvestedCurrentStageHa:row.harvestedCurrentStageHa,harvestStartCurrentStage:row.harvestStartCurrentStage,lastHarvestDate:row.lastHarvestDate,remainingHarvestCurrentStageHa:row.remainingHarvestCurrentStageHa,harvestProgressCurrentStagePct:row.harvestProgressCurrentStagePct,currentCycleId:row.cycleId,active:row.active,sourceAreaPaddockRef:row.sourceAreaPaddockRef,sourceFileName:parsed.fileName,lastImportBatchId:batchId,updatedAt:serverTimestamp(),updatedBy:context.username},{merge:true})
+          batch.set(doc(context.db,'master_paddocks',row.pid),{pid:row.pid,companyCode:row.companyCode,companyPrefix:row.companyPrefix,region:row.region,farm:row.farm,block:row.block,paddock:row.paddock,blockLc:row.blockLc,variety:row.variety,areaPlantedHa:row.areaPlantedHa,plantStartDate:row.plantStartDate,plantEndDate:row.plantEndDate,currentStage:row.currentStage,harvestedCurrentStageHa:row.harvestedCurrentStageHa,harvestStartCurrentStage:row.harvestStartCurrentStage,lastHarvestDate:row.lastHarvestDate,remainingHarvestCurrentStageHa:row.remainingHarvestCurrentStageHa,harvestProgressCurrentStagePct:row.harvestProgressCurrentStagePct,plantProgress:row.plantProgress,harvestProgress:row.harvestProgress,currentCycleId:row.cycleId,active:row.active,sourceAreaPaddockRef:row.sourceAreaPaddockRef,sourceFileName:parsed.fileName,lastImportBatchId:batchId,updatedAt:serverTimestamp(),updatedBy:context.username},{merge:true})
           batch.set(doc(context.db,'paddock_cycles',row.cycleId),{cycleId:row.cycleId,pid:row.pid,companyCode:row.companyCode,companyPrefix:row.companyPrefix,cycleNumber:row.cycleNumber,areaPlantedHa:row.areaPlantedHa,plantStartDate:row.plantStartDate,plantEndDate:row.plantEndDate,blockLc:row.blockLc,variety:row.variety,currentStage:row.currentStage,harvestStages:row.harvestStages,active:true,sourceFileName:parsed.fileName,lastImportBatchId:batchId,updatedAt:serverTimestamp(),updatedBy:context.username},{merge:true})
         }
         await batch.commit();written+=chunk.length;setMessage(`Import berjalan ${written}/${changed.length} paddock…`)
       }
       const logBatch=writeBatch(context.db);logBatch.set(doc(context.db,'master_import_logs',batchId),{batchId,type:'master_paddock',companyCode:selectedCompany.code,companyName:selectedCompany.name,farmScope,sourceFileName:parsed.fileName,created:changed.filter(r=>r.status==='CREATE').length,updated:changed.filter(r=>r.status==='UPDATE').length,unchanged:checked.filter(r=>r.status==='NO_CHANGE').length,warnings:counts.warnings,importedBy:context.username,importedAt:serverTimestamp()});await logBatch.commit()
       const after=await compareWithFirestore(scopedRows);setPreview(after)
-      setMessage(`Import selesai. ${written} Master Paddock ${selectedCompany.code} (${scopeLabel}) ditulis ke Firestore. Tidak ada paddock yang dihapus. Buka tab Daftar Paddock untuk melihat rekap Firestore.`)
+      setMessage(`Import selesai. ${written} Master Paddock ${selectedCompany.code} (${scopeLabel}) ditulis ke Firestore. Area Plan sekarang memakai Area Paddock dan riwayat Progress Date sudah tersimpan.`)
     }catch(error){setMessage(error instanceof Error?error.message:'Import Master Paddock gagal.')}finally{setBusy(false)}
   }
 
@@ -209,12 +237,12 @@ export default function MasterPaddockImportPanelV2({user}:Props){
     <div className="section-head"><div><div className="eyebrow">MASTER DATA</div><h2>Import Master Paddock</h2></div><span className="badge">Company scoped</span></div>
     <div className="panel form-stack">
       <h3>Scope Upload</h3>
-      <p className="muted">Pilih Company terlebih dahulu. Farm dapat dipilih setelah file dibaca. Prefix PID tetap divalidasi terhadap Master Company agar data antar perusahaan tidak tercampur.</p>
+      <p className="muted">Pilih Company terlebih dahulu. Farm dapat dipilih setelah file dibaca. <strong>Area Plan = Area Paddock (Ha) Area Plant.</strong> Kolom Progres disimpan terpisah sebagai riwayat progress per tanggal.</p>
       <div className="form-grid">
         <label>Company<select value={selectedCode} disabled={busy||Boolean(parsed)} onChange={e=>{setSelectedCode(e.target.value);setParsed(null);setPreview([])}}>{companies.map(company=><option key={company.id} value={company.code}>{company.code} - {company.name}</option>)}</select></label>
         <label>Farm<select value={farmScope} disabled={busy||!parsed} onChange={e=>setFarmScope(e.target.value)}><option value="ALL">Semua Farm</option>{farmOptions.map(farm=><option key={farm} value={farm}>Farm {farm}</option>)}</select></label>
       </div>
-      {companySource==='DEFAULT'&&<div className="alert">Master Company Firestore belum dapat dibaca. Preview memakai mapping default sementara <strong>JAGF → GPA</strong>. Simpan mapping dari menu Company & Prefix setelah Firestore Rules aktif.</div>}
+      {companySource==='DEFAULT'&&<div className="alert">Master Company Firestore belum dapat dibaca. Preview memakai mapping default sementara <strong>JAGF → GPA</strong>.</div>}
       <label>File Data Update Paddock (.xlsx / .xls)<input type="file" accept=".xlsx,.xls" disabled={busy||!selectedCompany} onChange={e=>void chooseFile(e.target.files?.[0]||null)}/></label>
       <div className="row-actions"><button type="button" disabled={busy||!parsed||counts.errors>0||!scopedRows.length} onClick={()=>void refreshComparison()}>Bandingkan Firestore</button><button type="button" className="primary" disabled={busy||!parsed||counts.errors>0||!preview.length} onClick={()=>void importToFirestore()}>{busy?'Memproses…':'Confirm Import Firestore'}</button></div>
       {message&&<div className="alert">{message}</div>}
@@ -229,10 +257,10 @@ export default function MasterPaddockImportPanelV2({user}:Props){
         <Stat label="Warning" value={counts.warnings} onClick={()=>jumpQuality('WARNING')}/>
         <Stat label="Error" value={counts.errors} onClick={()=>jumpQuality('ERROR')}/>
       </div>
-      <div className="panel" ref={previewRef}><div className="section-head"><div><h3>Preview Perubahan</h3><p className="muted">Klik kartu ringkasan di atas untuk langsung menuju dan memfilter baris terkait. Company {selectedCompany.code} • {farmScope==='ALL'?'Semua Farm':`Farm ${farmScope}`} • maksimal 200 baris ditampilkan.</p></div><select value={filter} onChange={e=>setFilter(e.target.value as 'ALL'|ImportStatus)}><option value="ALL">Semua</option><option value="CREATE">CREATE</option><option value="UPDATE">UPDATE</option><option value="NO_CHANGE">NO CHANGE</option></select></div>
-        <div className="table-wrap"><table><thead><tr><th>Status</th><th>Company</th><th>Farm</th><th>PID</th><th>Cycle</th><th>Variety</th><th>Area Plan</th><th>Stage</th><th>Harvest Stage</th><th>Perubahan</th></tr></thead><tbody>{visible.map(row=><tr key={row.pid}><td><span className="badge">{row.status}</span></td><td>{row.companyCode}</td><td>{row.farm}</td><td>{row.pid}</td><td>{row.cycleId}</td><td>{row.variety||'-'}</td><td>{row.areaPlantedHa.toFixed(4)} Ha</td><td>{row.currentStage}</td><td>{row.harvestedCurrentStageHa.toFixed(4)} Ha</td><td>{row.changes.join(', ')||'-'}</td></tr>)}{!visible.length&&<tr><td colSpan={10} className="empty">Tidak ada baris pada filter ini.</td></tr>}</tbody></table></div>
+      <div className="panel" ref={previewRef}><div className="section-head"><div><h3>Preview Perubahan</h3><p className="muted">Klik kartu ringkasan untuk memfilter baris. Area Plan pada tabel berasal dari kolom <strong>Area Paddock (Ha)</strong> Area Plant.</p></div><select value={filter} onChange={e=>setFilter(e.target.value as 'ALL'|ImportStatus)}><option value="ALL">Semua</option><option value="CREATE">CREATE</option><option value="UPDATE">UPDATE</option><option value="NO_CHANGE">NO CHANGE</option></select></div>
+        <div className="table-wrap"><table><thead><tr><th>Status</th><th>Company</th><th>Farm</th><th>PID</th><th>Cycle</th><th>Variety</th><th>Area Plan (Kolom I)</th><th>Stage</th><th>Harvest Stage</th><th>Perubahan</th></tr></thead><tbody>{visible.map(row=><tr key={row.pid}><td><span className="badge">{row.status}</span></td><td>{row.companyCode}</td><td>{row.farm}</td><td>{row.pid}</td><td>{row.cycleId}</td><td>{row.variety||'-'}</td><td>{row.areaPlantedHa.toFixed(4)} Ha</td><td>{row.currentStage}</td><td>{row.harvestedCurrentStageHa.toFixed(4)} Ha</td><td>{row.changes.join(', ')||'-'}</td></tr>)}{!visible.length&&<tr><td colSpan={10} className="empty">Tidak ada baris pada filter ini.</td></tr>}</tbody></table></div>
       </div>
-      <div className="panel" ref={qualityRef}><div className="section-head"><div><h3>Data Quality</h3><p className="muted">Klik kartu Warning atau Error untuk langsung menampilkan jenis catatan tersebut.</p></div><select value={qualityFilter} onChange={e=>setQualityFilter(e.target.value as 'ALL'|'WARNING'|'ERROR')}><option value="ALL">Semua</option><option value="WARNING">WARNING</option><option value="ERROR">ERROR</option></select></div><div className="table-wrap"><table><thead><tr><th>Level</th><th>PID</th><th>Catatan</th></tr></thead><tbody>{visibleIssues.map((issue,index)=><tr key={`${issue.pid||'file'}-${index}`}><td>{issue.level}</td><td>{issue.pid||'-'}</td><td>{issue.message}</td></tr>)}{!visibleIssues.length&&<tr><td colSpan={3} className="empty">Tidak ada catatan pada filter ini.</td></tr>}</tbody></table></div>{(parsed.issues.filter(issue=>qualityFilter==='ALL'||issue.level===qualityFilter).length)>200&&<p className="muted">Menampilkan 200 catatan pertama pada filter ini.</p>}</div>
+      <div className="panel" ref={qualityRef}><div className="section-head"><div><h3>Data Quality</h3><p className="muted">Warning tidak selalu memblokir import. Error harus diselesaikan terlebih dahulu.</p></div><select value={qualityFilter} onChange={e=>setQualityFilter(e.target.value as 'ALL'|'WARNING'|'ERROR')}><option value="ALL">Semua</option><option value="WARNING">WARNING</option><option value="ERROR">ERROR</option></select></div><div className="table-wrap"><table><thead><tr><th>Level</th><th>PID</th><th>Catatan</th></tr></thead><tbody>{visibleIssues.map((issue,index)=><tr key={`${issue.pid||'file'}-${index}`}><td>{issue.level}</td><td>{issue.pid||'-'}</td><td>{issue.message}</td></tr>)}{!visibleIssues.length&&<tr><td colSpan={3} className="empty">Tidak ada catatan pada filter ini.</td></tr>}</tbody></table></div></div>
     </>}
   </section>
 }
