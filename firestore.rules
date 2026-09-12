@@ -1,0 +1,88 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function profile() { return get(/databases/$(database)/documents/users/$(request.auth.uid)); }
+    function activeUser() { return signedIn() && profile().data.active == true; }
+    function role() { return profile().data.role; }
+    function username() { return profile().data.username; }
+    function canSeeAll() { return role() in ['owner','manager','admin','asisten','pengunjung']; }
+    function canWriteAll() { return role() in ['owner','asisten']; }
+    function isSprayMandor() { return role() == 'mandor_spraying'; }
+    function isFertMandor() { return role() == 'mandor_fertilizer'; }
+    function ownsExisting() { return resource.data.inputtedBy == username(); }
+    function ownsIncoming() { return request.resource.data.inputtedBy == username(); }
+
+    match /users/{uid} {
+      allow read: if activeUser() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /qc_records/{recordId} {
+      allow read: if activeUser() && (
+        canSeeAll() ||
+        ((isSprayMandor() || isFertMandor()) && ownsExisting())
+      );
+
+      allow create: if activeUser() && (
+        canWriteAll() ||
+        (isSprayMandor() && ownsIncoming() && request.resource.data.formType == 'spray') ||
+        (isFertMandor() && ownsIncoming() && request.resource.data.formType == 'fertilizer')
+      );
+
+      allow update: if activeUser() && (
+        canWriteAll() ||
+        (isSprayMandor() && ownsExisting() && ownsIncoming() && request.resource.data.formType == 'spray') ||
+        (isFertMandor() && ownsExisting() && ownsIncoming() && request.resource.data.formType == 'fertilizer')
+      );
+
+      allow delete: if activeUser() && role() in ['owner','manager','admin','asisten'];
+    }
+
+    match /master_companies/{companyId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && role() == 'owner';
+      allow delete: if false;
+    }
+
+    match /master_paddocks/{pid} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canWriteAll();
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /paddock_cycles/{cycleId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canWriteAll();
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /master_import_logs/{batchId} {
+      allow read: if activeUser() && role() in ['owner','manager','admin','asisten'];
+      allow create: if activeUser() && canWriteAll();
+      allow update, delete: if false;
+    }
+
+    match /master_activities/{activityId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canWriteAll();
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /master_materials/{materialId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canWriteAll();
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /master_activity_import_logs/{batchId} {
+      allow read: if activeUser() && role() in ['owner','manager','admin','asisten'];
+      allow create: if activeUser() && canWriteAll();
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

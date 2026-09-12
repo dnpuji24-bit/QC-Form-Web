@@ -1,0 +1,85 @@
+name: React migration checks
+
+on:
+  pull_request:
+    branches: [main, migrate/react-typescript-vite]
+  push:
+    branches: [migrate/react-typescript-vite]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Regression checks
+        run: |
+          for test in tests/*_check.py; do
+            echo "Running $test"
+            python "$test"
+          done
+
+      - name: TypeScript typecheck
+        run: npm run typecheck
+
+      - name: Vite production build
+        run: npm run build
+
+      - name: Apps Script runtime smoke
+        if: github.event_name == 'push'
+        env:
+          SMOKE_OWNER_USERNAME: ${{ secrets.SMOKE_OWNER_USERNAME }}
+          SMOKE_OWNER_PASSWORD: ${{ secrets.SMOKE_OWNER_PASSWORD }}
+        run: node tests/runtime_smoke.mjs
+
+      - name: Photo runtime smoke
+        if: github.event_name == 'push'
+        continue-on-error: true
+        env:
+          SMOKE_OWNER_USERNAME: ${{ secrets.SMOKE_OWNER_USERNAME }}
+          SMOKE_OWNER_PASSWORD: ${{ secrets.SMOKE_OWNER_PASSWORD }}
+        run: node tests/photo_role_smoke.mjs
+
+      - name: Install browser smoke dependency
+        if: github.event_name == 'push'
+        run: npm install --no-save --no-audit --no-fund playwright-core
+
+      - name: Patch browser smoke for Vite base and SW timeout
+        if: github.event_name == 'push'
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('tests/browser_offline_smoke.mjs')
+          s = p.read_text()
+          s = s.replace('http://127.0.0.1:5173/offline-harness.html', 'http://127.0.0.1:5173/react/offline-harness.html')
+          s = s.replace("await navigator.serviceWorker.ready", "await Promise.race([navigator.serviceWorker.ready, new Promise((_, reject) => setTimeout(() => reject(new Error('service worker ready timeout')), 8000))])")
+          p.write_text(s)
+          PY
+
+      - name: Browser offline and PWA smoke
+        if: github.event_name == 'push'
+        timeout-minutes: 3
+        env:
+          SMOKE_OWNER_USERNAME: ${{ secrets.SMOKE_OWNER_USERNAME }}
+          SMOKE_OWNER_PASSWORD: ${{ secrets.SMOKE_OWNER_PASSWORD }}
+        run: node tests/browser_offline_smoke.mjs
