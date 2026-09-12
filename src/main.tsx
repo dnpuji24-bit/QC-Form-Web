@@ -5,6 +5,7 @@ import NetworkStatus from './NetworkStatus'
 import SaveStatusPopup from './SaveStatusPopup'
 import UiEnhancers from './UiEnhancers'
 import PortalRouter from './PortalRouter'
+import ScrollToTopButton from './ScrollToTopButton'
 import './styles.css'
 import './theme.css'
 import './network.css'
@@ -25,5 +26,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <NetworkStatus />
     <SaveStatusPopup />
     <UiEnhancers />
+    <ScrollToTopButton />
   </React.StrictMode>,
 )
