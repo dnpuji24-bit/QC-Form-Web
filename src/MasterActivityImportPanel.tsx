@@ -128,6 +128,12 @@ async function compareFirestore(parsed:ParsedFile){
   return{activities,materials}
 }
 
+function comparisonMessage(prefix:string,activities:PreviewActivity[],materials:PreviewMaterial[]){
+  const activityCreate=activities.filter(item=>item.status==='CREATE').length,activityUpdate=activities.filter(item=>item.status==='UPDATE').length,activitySame=activities.filter(item=>item.status==='NO_CHANGE').length
+  const materialCreate=materials.filter(item=>item.status==='CREATE').length,materialUpdate=materials.filter(item=>item.status==='UPDATE').length,materialSame=materials.filter(item=>item.status==='NO_CHANGE').length
+  return`${prefix}\nActivity: ${activityCreate} CREATE / ${activityUpdate} UPDATE / ${activitySame} NO CHANGE\nMaterial: ${materialCreate} CREATE / ${materialUpdate} UPDATE / ${materialSame} NO CHANGE`
+}
+
 export default function MasterActivityImportPanel({user}:Props){
   const[companies,setCompanies]=useState<CompanyRecord[]>(FALLBACK_COMPANIES),[scope,setScope]=useState('GLOBAL')
   const[parsed,setParsed]=useState<ParsedFile|null>(null),[activityPreview,setActivityPreview]=useState<PreviewActivity[]>([]),[materialPreview,setMaterialPreview]=useState<PreviewMaterial[]>([])
@@ -154,11 +160,15 @@ export default function MasterActivityImportPanel({user}:Props){
       setActivityPreview(result.activities.map(item=>({...item,status:'CREATE' as const,changes:['Firestore belum dibandingkan']})));setMaterialPreview(result.materials.map(item=>({...item,status:'CREATE' as const,changes:['Firestore belum dibandingkan']})))
       setMessage(`File terbaca: ${result.activities.length} Activity (${result.activities.filter(item=>item.active).length} ACTIVE, ${result.activities.filter(item=>!item.active).length} INACTIVE) dan ${result.materials.length} Material.`)
       if(result.issues.some(issue=>issue.level==='ERROR'))return
-      try{await firebaseWriterContext(user);const compared=await compareFirestore(result);setActivityPreview(compared.activities);setMaterialPreview(compared.materials);setMessage(`Preview siap: Activity ${compared.activities.filter(item=>item.status==='CREATE').length} CREATE / ${compared.activities.filter(item=>item.status==='UPDATE').length} UPDATE / ${compared.activities.filter(item=>item.status==='NO_CHANGE').length} NO CHANGE; Material ${compared.materials.filter(item=>item.status==='CREATE').length} CREATE / ${compared.materials.filter(item=>item.status==='UPDATE').length} UPDATE / ${compared.materials.filter(item=>item.status==='NO_CHANGE').length} NO CHANGE.`)}catch(error){setMessage(`${error instanceof Error?error.message:'Firestore belum dapat dibandingkan.'} File tetap berhasil divalidasi; import belum dijalankan.`)}
+      try{await firebaseWriterContext(user);const compared=await compareFirestore(result);setActivityPreview(compared.activities);setMaterialPreview(compared.materials);setMessage(comparisonMessage('Preview siap:',compared.activities,compared.materials))}catch(error){setMessage(`${error instanceof Error?error.message:'Firestore belum dapat dibandingkan.'} File tetap berhasil divalidasi; import belum dijalankan.`)}
     }catch(error){setMessage(error instanceof Error?error.message:'File Master Activity gagal dibaca.')}finally{setBusy(false)}
   }
 
-  async function refreshComparison(){if(!parsed||errors>0)return;setBusy(true);setMessage('Membandingkan Master Activity dengan Firestore…');try{await firebaseWriterContext(user);const compared=await compareFirestore(parsed);setActivityPreview(compared.activities);setMaterialPreview(compared.materials);setMessage('Perbandingan Firestore selesai.')}catch(error){setMessage(error instanceof Error?error.message:'Perbandingan Firestore gagal.')}finally{setBusy(false)}}
+  async function refreshComparison(){
+    if(!parsed||errors>0)return
+    setBusy(true);setMessage('Membandingkan Master Activity dengan Firestore…')
+    try{await firebaseWriterContext(user);const compared=await compareFirestore(parsed);setActivityPreview(compared.activities);setMaterialPreview(compared.materials);setMessage(comparisonMessage('Perbandingan Firestore selesai:',compared.activities,compared.materials))}catch(error){setMessage(error instanceof Error?error.message:'Perbandingan Firestore gagal.')}finally{setBusy(false)}
+  }
 
   async function importToFirestore(){
     if(!parsed||errors>0)return
@@ -166,13 +176,17 @@ export default function MasterActivityImportPanel({user}:Props){
     try{
       const context=await firebaseWriterContext(user),compared=await compareFirestore(parsed);setActivityPreview(compared.activities);setMaterialPreview(compared.materials)
       const changedActivities=compared.activities.filter(item=>item.status!=='NO_CHANGE'),changedMaterials=compared.materials.filter(item=>item.status!=='NO_CHANGE')
-      if(!changedActivities.length&&!changedMaterials.length){setMessage('Tidak ada perubahan yang perlu ditulis ke Firestore.');return}
+      if(!changedActivities.length&&!changedMaterials.length){setMessage(`${comparisonMessage('Tidak ada perubahan yang perlu diimport.',compared.activities,compared.materials)}\nFirestore tidak diubah.`);return}
       const confirmation=window.prompt(`Scope Activity: ${scope}\n\nActivity: ${changedActivities.length} ditulis (${changedActivities.filter(item=>item.status==='CREATE').length} baru, ${changedActivities.filter(item=>item.status==='UPDATE').length} update).\nMaterial: ${changedMaterials.length} ditulis (${changedMaterials.filter(item=>item.status==='CREATE').length} baru, ${changedMaterials.filter(item=>item.status==='UPDATE').length} update).\n${activityCounts.inactive} Activity tanpa komposisi akan disimpan INACTIVE.\nData yang hilang dari file TIDAK akan dihapus.\n\nKetik IMPORT untuk melanjutkan.`)
       if(confirmation!=='IMPORT'){setMessage('Import dibatalkan. Tidak ada data Firestore yang diubah.');return}
+      const activityCreate=changedActivities.filter(item=>item.status==='CREATE').length,activityUpdate=changedActivities.filter(item=>item.status==='UPDATE').length,materialCreate=changedMaterials.filter(item=>item.status==='CREATE').length,materialUpdate=changedMaterials.filter(item=>item.status==='UPDATE').length
       const batchId=`ACTIVITY-${scope}-${new Date().toISOString().replace(/[-:TZ.]/g,'').slice(0,14)}`,writes=[...changedActivities.map(item=>({kind:'activity' as const,item})),...changedMaterials.map(item=>({kind:'material' as const,item}))];let written=0
       for(let start=0;start<writes.length;start+=250){const batch=writeBatch(context.db),chunk=writes.slice(start,start+250);chunk.forEach(entry=>{if(entry.kind==='activity'){const row=entry.item;batch.set(doc(context.db,'master_activities',row.docId),{activityCode:row.activityCode,description:row.description,activity:row.activity,type:row.type,activityCategory:row.activityCategory,companyScope:row.companyScope,active:row.active,components:row.components,componentCount:row.componentCount,sourceFileName:parsed.fileName,lastImportBatchId:batchId,updatedAt:serverTimestamp(),updatedBy:context.username},{merge:true})}else{const row=entry.item;batch.set(doc(context.db,'master_materials',row.docId),{materialName:row.materialName,activeIngredient:row.activeIngredient,unit:row.unit,category:row.category,active:row.active,sourceFileName:parsed.fileName,lastImportBatchId:batchId,updatedAt:serverTimestamp(),updatedBy:context.username},{merge:true})}});await batch.commit();written+=chunk.length;setMessage(`Import berjalan ${written}/${writes.length} record…`)}
       const logBatch=writeBatch(context.db);logBatch.set(doc(context.db,'master_activity_import_logs',batchId),{batchId,companyScope:scope,sourceFileName:parsed.fileName,activityCreated:compared.activities.filter(item=>item.status==='CREATE').length,activityUpdated:compared.activities.filter(item=>item.status==='UPDATE').length,activityUnchanged:compared.activities.filter(item=>item.status==='NO_CHANGE').length,materialCreated:compared.materials.filter(item=>item.status==='CREATE').length,materialUpdated:compared.materials.filter(item=>item.status==='UPDATE').length,materialUnchanged:compared.materials.filter(item=>item.status==='NO_CHANGE').length,warnings,infos,importedBy:context.username,importedAt:serverTimestamp()});await logBatch.commit()
-      const after=await compareFirestore(parsed);setActivityPreview(after.activities);setMaterialPreview(after.materials);setMessage(`Import selesai. ${changedActivities.length} Activity dan ${changedMaterials.length} Material ditulis ke Firestore. Upload file yang sama kembali seharusnya menjadi NO CHANGE.`)
+      const after=await compareFirestore(parsed);setActivityPreview(after.activities);setMaterialPreview(after.materials)
+      const remainingActivity=after.activities.filter(item=>item.status!=='NO_CHANGE').length,remainingMaterial=after.materials.filter(item=>item.status!=='NO_CHANGE').length
+      const verification=remainingActivity||remainingMaterial?`PERINGATAN: setelah import masih ada ${remainingActivity} Activity dan ${remainingMaterial} Material yang berbeda. Tinjau Preview Perubahan sebelum import ulang.`:'Firestore sudah sinkron dengan file.'
+      setMessage(`Import selesai.\nDitulis ke Firestore: Activity ${changedActivities.length} (${activityCreate} CREATE / ${activityUpdate} UPDATE); Material ${changedMaterials.length} (${materialCreate} CREATE / ${materialUpdate} UPDATE).\n${comparisonMessage('Verifikasi setelah import:',after.activities,after.materials)}\n${verification}`)
     }catch(error){setMessage(error instanceof Error?error.message:'Import Master Activity gagal.')}finally{setBusy(false)}
   }
 
@@ -187,7 +201,7 @@ export default function MasterActivityImportPanel({user}:Props){
       </div>
       <label>File Master Activity (.xlsx / .xls)<input type="file" accept=".xlsx,.xls" disabled={busy} onChange={e=>void chooseFile(e.target.files?.[0]||null)}/></label>
       <div className="row-actions"><button type="button" disabled={busy||!parsed||errors>0} onClick={()=>void refreshComparison()}>Bandingkan Firestore</button><button type="button" className="primary" disabled={busy||!parsed||errors>0||(!activityPreview.length&&!materialPreview.length)} onClick={()=>void importToFirestore()}>{busy?'Memproses…':'Confirm Import Firestore'}</button></div>
-      {message&&<div className="alert">{message}</div>}
+      {message&&<div className="alert" style={{whiteSpace:'pre-line'}}>{message}</div>}
     </div>
     {parsed&&<>
       <div className="stats-grid">
