@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import MasterPaddockImportPanel from './MasterPaddockImportPanel'
+import { GROUP_BRAND } from './groupConfig'
 import type { User } from './types'
 import './portal.css'
 
@@ -67,7 +68,7 @@ export default function PortalRouter(){
 
   return <div className="portal-layer chooser-layer">
     <header className="portal-topbar">
-      <div><div className="portal-eyebrow">PT. GLOBAL PAPUA ABADI</div><h1>Operational Portal</h1></div>
+      <div><div className="portal-eyebrow">{GROUP_BRAND}</div><h1>Operational Portal</h1></div>
       <div className="portal-user"><div><strong>{user.fullName}</strong><span>{user.role.replaceAll('_',' ')}</span></div></div>
     </header>
     <main className="portal-content chooser-content">
