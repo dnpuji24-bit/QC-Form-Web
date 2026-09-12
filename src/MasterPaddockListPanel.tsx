@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { collection, getDocs } from 'firebase/firestore'
 import { firestoreDb } from './firebase'
-import { FALLBACK_COMPANIES, type CompanyRecord } from './companyMaster'
+import { FALLBACK_COMPANIES, planningAreaFallback, type CompanyRecord } from './companyMaster'
 
 type ProgressEntry={date:string;areaHa:number;stage?:string}
 type PaddockRow={
@@ -40,7 +40,9 @@ type ImportLog={
 }
 
 function companyFromData(id:string,data:Record<string,unknown>):CompanyRecord{
-  return{id,code:String(data.code||id).toUpperCase(),name:String(data.name||''),prefixes:Array.isArray(data.prefixes)?data.prefixes.map(item=>String(item).toUpperCase()).filter(Boolean):[],active:data.active!==false}
+  const code=String(data.code||id).toUpperCase()
+  const storedPlanningArea=Number(data.planningAreaHa||0)
+  return{id,code,name:String(data.name||''),prefixes:Array.isArray(data.prefixes)?data.prefixes.map(item=>String(item).toUpperCase()).filter(Boolean):[],active:data.active!==false,planningAreaHa:Number.isFinite(storedPlanningArea)&&storedPlanningArea>0?storedPlanningArea:planningAreaFallback(code)}
 }
 function numberValue(value:unknown){const number=Number(value||0);return Number.isFinite(number)?number:0}
 function dateValue(value:unknown){
@@ -111,7 +113,12 @@ export default function MasterPaddockListPanel(){
       return row.plantProgress.some(item=>inRange(item.date,dateFrom,dateTo))||row.harvestProgress.some(item=>inRange(item.date,dateFrom,dateTo))
     })
   },[rows,company,farm,stage,query,dateFrom,dateTo])
-  const totalArea=useMemo(()=>filtered.reduce((sum,row)=>sum+row.areaPlantedHa,0),[filtered])
+  const totalPaddockArea=useMemo(()=>filtered.reduce((sum,row)=>sum+row.areaPlantedHa,0),[filtered])
+  const companyPlanningArea=useMemo(()=>{
+    if(company==='ALL')return companies.filter(item=>item.active).reduce((sum,item)=>sum+(item.planningAreaHa||planningAreaFallback(item.code)),0)
+    const selected=companies.find(item=>item.code===company)
+    return selected?.planningAreaHa||planningAreaFallback(company)
+  },[companies,company])
   const totalHarvest=useMemo(()=>filtered.reduce((sum,row)=>sum+row.harvestedCurrentStageHa,0),[filtered])
   const plantRangeTotal=useMemo(()=>filtered.reduce((sum,row)=>sum+progressInRange(row.plantProgress,dateFrom,dateTo),0),[filtered,dateFrom,dateTo])
   const harvestRangeTotal=useMemo(()=>filtered.reduce((sum,row)=>sum+progressInRange(row.harvestProgress,dateFrom,dateTo),0),[filtered,dateFrom,dateTo])
@@ -128,7 +135,7 @@ export default function MasterPaddockListPanel(){
   function reset(){setQuery('');setCompany('ALL');setFarm('ALL');setStage('ALL');setDateFrom('');setDateTo('')}
 
   return <section>
-    <div className="section-head"><div><div className="eyebrow">FIRESTORE MASTER</div><h2>Daftar Paddock</h2><p className="muted">Rekapan Master Paddock yang sudah benar-benar tersimpan di Firestore. Area Plan mengambil <strong>Area Paddock (Ha)</strong> dari sheet Area Plant, sedangkan progres tanggal mengambil kolom Progres.</p></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'Memuat…':'Refresh'}</button></div>
+    <div className="section-head"><div><div className="eyebrow">FIRESTORE MASTER</div><h2>Daftar Paddock</h2><p className="muted">Luas Planning Company berasal dari Master Company dan dapat berbeda untuk setiap perusahaan. Area Paddock Terdata berasal dari data paddock yang sudah diimport; progres tanggal tetap mengambil kolom Progres Area Plant / Area Harvest.</p></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'Memuat…':'Refresh'}</button></div>
     {message&&<div className="alert">{message}</div>}
     <div className="panel">
       <div className="record-filters">
@@ -144,10 +151,12 @@ export default function MasterPaddockListPanel(){
         <div><strong>Filter Progress Date</strong><p className="muted" style={{margin:'7px 0 0'}}>Rentang ini menghitung Progres (Ha) Area Plant dan Progres (Ha) Area Geometri Area Harvest pada tanggal yang dipilih.</p></div>
       </div>
       {!hasProgressHistory&&<div className="alert">Riwayat progress per tanggal belum tersimpan pada Master Paddock lama. Upload ulang file Administrasi melalui tab Update / Import agar filter tanggal dapat digunakan.</div>}
+      {companyPlanningArea>0&&totalPaddockArea>companyPlanningArea*1.1&&<div className="alert">Area Paddock Terdata ({formatHa(totalPaddockArea,2)}) jauh melebihi Luas Planning Company ({formatHa(companyPlanningArea,2)}). Ini biasanya menandakan ada nilai Area Paddock sumber yang tidak wajar. Luas Planning Company tidak akan ikut berubah karena anomali file paddock.</div>}
     </div>
     <div className="stats-grid">
       <div className="stat"><span>PID</span><strong>{filtered.length}</strong></div>
-      <div className="stat"><span>Area Plan / Paddock</span><strong>{formatHa(totalArea,2)}</strong></div>
+      <div className="stat"><span>Luas Planning Company</span><strong>{companyPlanningArea>0?formatHa(companyPlanningArea,2):'-'}</strong></div>
+      <div className="stat"><span>Area Paddock Terdata</span><strong>{formatHa(totalPaddockArea,2)}</strong></div>
       <div className="stat"><span>Plant Progress {dateFrom||dateTo?'Rentang':'Tersimpan'}</span><strong>{formatHa(plantRangeTotal,2)}</strong></div>
       <div className="stat"><span>Harvest Progress {dateFrom||dateTo?'Rentang':'Tersimpan'}</span><strong>{formatHa(harvestRangeTotal,2)}</strong></div>
       <div className="stat"><span>Harvest Stage Aktif</span><strong>{formatHa(totalHarvest,2)}</strong></div>
@@ -157,12 +166,12 @@ export default function MasterPaddockListPanel(){
       <div className="stat"><span>R2</span><strong>{stageCounts.get('R2')||0}</strong></div>
     </div>
     <div className="panel">
-      <div className="section-head"><div><h3>Rekap per Farm</h3><p className="muted">Mengikuti filter Company, Farm, Stage, smart search, dan Progress Date.</p></div></div>
-      <div className="table-wrap"><table><thead><tr><th>Company</th><th>Farm</th><th>PID</th><th>Area Plan</th><th>Plant Progress</th><th>Harvest Progress</th><th>PC</th><th>R1</th><th>R2</th></tr></thead><tbody>{farmSummary.map(item=><tr key={`${item.company}-${item.farm}`}><td>{item.company}</td><td>{item.farm||'-'}</td><td>{item.pids}</td><td>{formatHa(item.area,4)}</td><td>{formatHa(item.plantRange,4)}</td><td>{formatHa(item.harvestRange,4)}</td><td>{item.pc}</td><td>{item.r1}</td><td>{item.r2}</td></tr>)}{!farmSummary.length&&<tr><td colSpan={9} className="empty">Belum ada Master Paddock sesuai filter.</td></tr>}</tbody></table></div>
+      <div className="section-head"><div><h3>Rekap per Farm</h3><p className="muted">Mengikuti filter Company, Farm, Stage, smart search, dan Progress Date. Area Paddock Terdata adalah total data paddock pada masing-masing Farm, bukan Luas Planning Company.</p></div></div>
+      <div className="table-wrap"><table><thead><tr><th>Company</th><th>Farm</th><th>PID</th><th>Area Paddock Terdata</th><th>Plant Progress</th><th>Harvest Progress</th><th>PC</th><th>R1</th><th>R2</th></tr></thead><tbody>{farmSummary.map(item=><tr key={`${item.company}-${item.farm}`}><td>{item.company}</td><td>{item.farm||'-'}</td><td>{item.pids}</td><td>{formatHa(item.area,4)}</td><td>{formatHa(item.plantRange,4)}</td><td>{formatHa(item.harvestRange,4)}</td><td>{item.pc}</td><td>{item.r1}</td><td>{item.r2}</td></tr>)}{!farmSummary.length&&<tr><td colSpan={9} className="empty">Belum ada Master Paddock sesuai filter.</td></tr>}</tbody></table></div>
     </div>
     <div className="panel">
       <div className="section-head"><div><h3>Detail Master Paddock</h3><p className="muted">{filtered.length} paddock ditampilkan.</p></div></div>
-      <div className="table-wrap"><table><thead><tr><th>Company</th><th>Farm</th><th>PID</th><th>Block</th><th>Paddock</th><th>Variety</th><th>Area Plan</th><th>Plant Progress</th><th>Harvest Progress</th><th>Stage</th><th>Harvest Stage</th><th>Sisa Stage</th><th>Last Harvest</th><th>Source</th></tr></thead><tbody>{filtered.map(row=><tr key={row.pid}><td>{row.companyCode}</td><td>{row.farm||'-'}</td><td><strong>{row.pid}</strong></td><td>{row.block||'-'}</td><td>{row.paddock||'-'}</td><td>{row.variety||'-'}</td><td>{formatHa(row.areaPlantedHa,4)}</td><td>{formatHa(progressInRange(row.plantProgress,dateFrom,dateTo),4)}</td><td>{formatHa(progressInRange(row.harvestProgress,dateFrom,dateTo),4)}</td><td><span className="badge">{row.currentStage}</span></td><td>{formatHa(row.harvestedCurrentStageHa,4)}</td><td>{formatHa(row.remainingHarvestCurrentStageHa,4)}</td><td>{formatDate(row.lastHarvestDate)}</td><td>{row.sourceFileName||'-'}</td></tr>)}{!filtered.length&&<tr><td colSpan={14} className="empty">Belum ada Master Paddock tersimpan atau tidak ada data sesuai filter.</td></tr>}</tbody></table></div>
+      <div className="table-wrap"><table><thead><tr><th>Company</th><th>Farm</th><th>PID</th><th>Block</th><th>Paddock</th><th>Variety</th><th>Area Paddock</th><th>Plant Progress</th><th>Harvest Progress</th><th>Stage</th><th>Harvest Stage</th><th>Sisa Stage</th><th>Last Harvest</th><th>Source</th></tr></thead><tbody>{filtered.map(row=><tr key={row.pid}><td>{row.companyCode}</td><td>{row.farm||'-'}</td><td><strong>{row.pid}</strong></td><td>{row.block||'-'}</td><td>{row.paddock||'-'}</td><td>{row.variety||'-'}</td><td>{formatHa(row.areaPlantedHa,4)}</td><td>{formatHa(progressInRange(row.plantProgress,dateFrom,dateTo),4)}</td><td>{formatHa(progressInRange(row.harvestProgress,dateFrom,dateTo),4)}</td><td><span className="badge">{row.currentStage}</span></td><td>{formatHa(row.harvestedCurrentStageHa,4)}</td><td>{formatHa(row.remainingHarvestCurrentStageHa,4)}</td><td>{formatDate(row.lastHarvestDate)}</td><td>{row.sourceFileName||'-'}</td></tr>)}{!filtered.length&&<tr><td colSpan={14} className="empty">Belum ada Master Paddock tersimpan atau tidak ada data sesuai filter.</td></tr>}</tbody></table></div>
     </div>
     <div className="panel">
       <div className="section-head"><div><h3>Riwayat Import Terakhir</h3><p className="muted">20 batch Master Paddock terbaru.</p></div></div>
