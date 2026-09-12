@@ -6,6 +6,7 @@ export type CompanyRecord={
   name:string
   prefixes:string[]
   active:boolean
+  planningAreaHa?:number
   fallback?:boolean
 }
 
@@ -15,6 +16,7 @@ export const FALLBACK_COMPANIES:CompanyRecord[]=[{
   name:DEFAULT_COMPANY.name,
   prefixes:['JAGF'],
   active:true,
+  planningAreaHa:28000,
   fallback:true,
 }]
 
@@ -22,6 +24,10 @@ export function normalizeCompanyCode(value:string){return value.trim().toUpperCa
 export function normalizePrefix(value:string){return value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'')}
 export function companyDocId(code:string){return normalizeCompanyCode(code).toLowerCase()}
 export function pidPrefix(pid:string){return normalizePrefix(pid.split('-')[0]||'')}
+export function planningAreaFallback(code:string){
+  const normalized=normalizeCompanyCode(code)
+  return FALLBACK_COMPANIES.find(company=>normalizeCompanyCode(company.code)===normalized)?.planningAreaHa||0
+}
 export function findCompanyByPrefix(companies:CompanyRecord[],prefix:string){
   const normalized=normalizePrefix(prefix)
   return companies.find(company=>company.active&&company.prefixes.map(normalizePrefix).includes(normalized))||null
