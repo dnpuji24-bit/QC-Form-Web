@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import MasterPaddockImportPanel from './MasterPaddockImportPanel'
+import CompanyMasterPanel from './CompanyMasterPanel'
+import MasterPaddockImportPanelV2 from './MasterPaddockImportPanelV2'
 import { GROUP_BRAND } from './groupConfig'
 import type { User } from './types'
 import './portal.css'
 
 type PortalMode='chooser'|'qc'|'data-unm'
-type DataView='home'|'plan'|'master-paddock'
+type DataView='home'|'plan'|'master-paddock'|'company'
 
 const MODE_KEY='unm_portal_mode'
 const TOKEN_KEY='qc_token'
@@ -58,11 +59,13 @@ export default function PortalRouter(){
         <section className="portal-hero compact"><div><span className="portal-kicker">WORKSPACE OPERASIONAL</span><h2>Data UnM</h2><p>Kelola rencana kerja dan master data yang menjadi sumber Form QC.</p></div></section>
         <section className="portal-grid data-grid">
           <button className="portal-card" type="button" onClick={()=>setDataView('plan')}><span className="portal-icon">PL</span><strong>Plan</strong><p>Monthly Plan dan Daily Plan. Modul input dan upload plan akan dibangun pada tahap berikutnya.</p><span className="portal-link">Buka Plan →</span></button>
-          <button className="portal-card" type="button" onClick={()=>setDataView('master-paddock')}><span className="portal-icon">MP</span><strong>Master Paddock</strong><p>Upload Area Plant + Area Harvest, preview perubahan, lalu update Firestore.</p><span className="portal-link">Buka Master Paddock →</span></button>
+          <button className="portal-card" type="button" onClick={()=>setDataView('master-paddock')}><span className="portal-icon">MP</span><strong>Master Paddock</strong><p>Upload per Company dengan filter Farm opsional. Prefix PID divalidasi otomatis.</p><span className="portal-link">Buka Master Paddock →</span></button>
+          <button className="portal-card" type="button" onClick={()=>setDataView('company')}><span className="portal-icon">CO</span><strong>Company & Prefix</strong><p>Tambah, edit, aktif/nonaktifkan Company serta mapping prefix PID seperti JAGF → GPA.</p><span className="portal-link">Buka Company →</span></button>
         </section>
       </>}
       {dataView==='plan'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM</span><h2>Plan</h2><p>Tempat Monthly Plan dan Daily Plan.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><div className="portal-placeholder"><strong>Modul Plan berikutnya</strong><p>Struktur menu sudah disiapkan. Tahap selanjutnya kita hubungkan Monthly Plan, Daily Plan, Activity, paket bahan, dan upload Excel ke Firestore.</p></div></section>}
-      {dataView==='master-paddock'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM</span><h2>Master Paddock</h2><p>Sumber utama: Area Plant. Area Harvest hanya memperbarui stage dan progress panen.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><MasterPaddockImportPanel user={user}/></section>}
+      {dataView==='master-paddock'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM</span><h2>Master Paddock</h2><p>Sumber utama: Area Plant. Pilih Company dan, jika diperlukan, batasi update ke satu Farm.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><MasterPaddockImportPanelV2 user={user}/></section>}
+      {dataView==='company'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM</span><h2>Company & Prefix</h2><p>Master klasifikasi perusahaan MSG berdasarkan prefix PID.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><CompanyMasterPanel user={user}/></section>}
     </main>
   </div>
 
@@ -75,7 +78,7 @@ export default function PortalRouter(){
       <section className="portal-hero"><div><span className="portal-kicker">SELAMAT DATANG</span><h2>Pilih area kerja</h2><p>Setelah login, pilih sistem yang akan digunakan. Anda dapat kembali ke menu ini kapan saja.</p></div></section>
       <section className="portal-grid">
         <button className="portal-card primary-card" type="button" onClick={()=>choose('qc')}><span className="portal-icon">QC</span><strong>Form QC</strong><p>Input Spraying, Fertilizer, monitoring Data QC, laporan, dan dashboard.</p><span className="portal-link">Masuk Form QC →</span></button>
-        {canData&&<button className="portal-card" type="button" onClick={()=>choose('data-unm')}><span className="portal-icon">DU</span><strong>Data UnM</strong><p>Plan, Master Paddock, dan master operasional untuk sumber data kegiatan.</p><span className="portal-link">Masuk Data UnM →</span></button>}
+        {canData&&<button className="portal-card" type="button" onClick={()=>choose('data-unm')}><span className="portal-icon">DU</span><strong>Data UnM</strong><p>Plan, Master Paddock, Company, dan master operasional untuk sumber data kegiatan.</p><span className="portal-link">Masuk Data UnM →</span></button>}
       </section>
       {!canData&&<p className="portal-note">Role Anda saat ini menggunakan Form QC. Akses Data UnM tersedia untuk Owner dan Asisten.</p>}
     </main>
