@@ -11,6 +11,8 @@ on:
       - 'public/**'
       - 'package.json'
       - 'firebase.json'
+      - 'firestore.rules'
+      - 'firestore.indexes.json'
       - 'vite.config.ts'
       - 'tsconfig*.json'
       - 'tests/offline_session_persistence_check.py'
@@ -54,6 +56,22 @@ jobs:
           test -f public/react/sw.js
           echo "React build output verified."
 
+      - name: Prepare Firebase service account
+        env:
+          FIREBASE_SERVICE_ACCOUNT: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_FORM_QC_UNM }}'
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "Firebase service account secret is empty." >&2
+            exit 1
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-service-account.json"
+          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
+
+      - name: Deploy Firestore rules
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: '${{ runner.temp }}/firebase-service-account.json'
+        run: npx --yes firebase-tools@latest deploy --only firestore:rules --project form-qc-unm --non-interactive
+
       - name: Deploy Firebase Hosting preview
         id: firebase_preview
         uses: FirebaseExtended/action-hosting-deploy@v0
@@ -63,6 +81,10 @@ jobs:
           projectId: form-qc-unm
           channelId: react-test
           expires: 7d
+
+      - name: Clean up Firebase service account file
+        if: always()
+        run: rm -f "$RUNNER_TEMP/firebase-service-account.json"
 
       - name: Show preview URL
         run: |
