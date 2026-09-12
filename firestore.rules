@@ -63,6 +63,24 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    match /master_activities/{activityId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canWriteAll();
+      allow delete: if false;
+    }
+
+    match /master_materials/{materialId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canWriteAll();
+      allow delete: if false;
+    }
+
+    match /master_activity_import_logs/{batchId} {
+      allow read: if activeUser() && role() in ['owner','manager','admin','asisten'];
+      allow create: if activeUser() && canWriteAll();
+      allow update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
