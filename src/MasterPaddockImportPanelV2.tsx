@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { collection, doc, getDoc, getDocs, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { firebaseAuth, firestoreDb } from './firebase'
@@ -143,6 +143,8 @@ export default function MasterPaddockImportPanelV2({user}:Props){
   const[parsed,setParsed]=useState<ParsedFile|null>(null)
   const[preview,setPreview]=useState<PreviewRow[]>([])
   const[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[filter,setFilter]=useState<'ALL'|ImportStatus>('ALL')
+  const[qualityFilter,setQualityFilter]=useState<'ALL'|'WARNING'|'ERROR'>('ALL')
+  const previewRef=useRef<HTMLDivElement|null>(null),qualityRef=useRef<HTMLDivElement|null>(null)
 
   useEffect(()=>{(async()=>{
     if(!firestoreDb)return
@@ -154,12 +156,16 @@ export default function MasterPaddockImportPanelV2({user}:Props){
   const scopedRows=useMemo(()=>parsed?.rows.filter(row=>farmScope==='ALL'||row.farm===farmScope)||[],[parsed,farmScope])
   const counts=useMemo(()=>({create:preview.filter(r=>r.status==='CREATE').length,update:preview.filter(r=>r.status==='UPDATE').length,same:preview.filter(r=>r.status==='NO_CHANGE').length,errors:parsed?.issues.filter(i=>i.level==='ERROR').length||0,warnings:parsed?.issues.filter(i=>i.level==='WARNING').length||0}),[preview,parsed])
   const visible=useMemo(()=>preview.filter(row=>filter==='ALL'||row.status===filter).slice(0,200),[preview,filter])
+  const visibleIssues=useMemo(()=>parsed?.issues.filter(issue=>qualityFilter==='ALL'||issue.level===qualityFilter).slice(0,200)||[],[parsed,qualityFilter])
 
   useEffect(()=>{if(!parsed)return;setPreview(scopedRows.map(row=>({...row,status:'CREATE' as const,changes:['Firestore belum dibandingkan']})))},[farmScope])
 
+  function jumpPreview(next:'ALL'|ImportStatus){setFilter(next);requestAnimationFrame(()=>previewRef.current?.scrollIntoView({behavior:'smooth',block:'start'}))}
+  function jumpQuality(next:'ALL'|'WARNING'|'ERROR'){setQualityFilter(next);requestAnimationFrame(()=>qualityRef.current?.scrollIntoView({behavior:'smooth',block:'start'}))}
+
   async function chooseFile(file:File|null){
     if(!file||!selectedCompany)return
-    setBusy(true);setMessage('Membaca file Administrasi…');setParsed(null);setPreview([]);setFarmScope('ALL')
+    setBusy(true);setMessage('Membaca file Administrasi…');setParsed(null);setPreview([]);setFarmScope('ALL');setFilter('ALL');setQualityFilter('ALL')
     try{
       const result=parseWorkbook(await file.arrayBuffer(),file.name,companies,selectedCompany);setParsed(result)
       const initial=result.rows.map(row=>({...row,status:'CREATE' as const,changes:['Firestore belum dibandingkan']}));setPreview(initial)
@@ -194,7 +200,8 @@ export default function MasterPaddockImportPanelV2({user}:Props){
         await batch.commit();written+=chunk.length;setMessage(`Import berjalan ${written}/${changed.length} paddock…`)
       }
       const logBatch=writeBatch(context.db);logBatch.set(doc(context.db,'master_import_logs',batchId),{batchId,type:'master_paddock',companyCode:selectedCompany.code,companyName:selectedCompany.name,farmScope,sourceFileName:parsed.fileName,created:changed.filter(r=>r.status==='CREATE').length,updated:changed.filter(r=>r.status==='UPDATE').length,unchanged:checked.filter(r=>r.status==='NO_CHANGE').length,warnings:counts.warnings,importedBy:context.username,importedAt:serverTimestamp()});await logBatch.commit()
-      setMessage(`Import selesai. ${written} Master Paddock ${selectedCompany.code} (${scopeLabel}) ditulis ke Firestore. Tidak ada paddock yang dihapus.`)
+      const after=await compareWithFirestore(scopedRows);setPreview(after)
+      setMessage(`Import selesai. ${written} Master Paddock ${selectedCompany.code} (${scopeLabel}) ditulis ke Firestore. Tidak ada paddock yang dihapus. Buka tab Daftar Paddock untuk melihat rekap Firestore.`)
     }catch(error){setMessage(error instanceof Error?error.message:'Import Master Paddock gagal.')}finally{setBusy(false)}
   }
 
@@ -213,13 +220,21 @@ export default function MasterPaddockImportPanelV2({user}:Props){
       {message&&<div className="alert">{message}</div>}
     </div>
     {parsed&&<>
-      <div className="stats-grid"><Stat label="PID File" value={parsed.rows.length}/><Stat label="Scope" value={scopedRows.length}/><Stat label="Paddock baru" value={counts.create}/><Stat label="Update" value={counts.update}/><Stat label="Warning" value={counts.warnings}/><Stat label="Error" value={counts.errors}/></div>
-      <div className="panel"><div className="section-head"><div><h3>Preview Perubahan</h3><p className="muted">Company {selectedCompany.code} • {farmScope==='ALL'?'Semua Farm':`Farm ${farmScope}`} • maksimal 200 baris ditampilkan.</p></div><select value={filter} onChange={e=>setFilter(e.target.value as 'ALL'|ImportStatus)}><option value="ALL">Semua</option><option value="CREATE">CREATE</option><option value="UPDATE">UPDATE</option><option value="NO_CHANGE">NO CHANGE</option></select></div>
+      <div className="stats-grid">
+        <Stat label="PID File" value={parsed.rows.length} onClick={()=>jumpPreview('ALL')}/>
+        <Stat label="Scope" value={scopedRows.length} onClick={()=>jumpPreview('ALL')}/>
+        <Stat label="Paddock baru" value={counts.create} onClick={()=>jumpPreview('CREATE')}/>
+        <Stat label="Update" value={counts.update} onClick={()=>jumpPreview('UPDATE')}/>
+        <Stat label="Tidak berubah" value={counts.same} onClick={()=>jumpPreview('NO_CHANGE')}/>
+        <Stat label="Warning" value={counts.warnings} onClick={()=>jumpQuality('WARNING')}/>
+        <Stat label="Error" value={counts.errors} onClick={()=>jumpQuality('ERROR')}/>
+      </div>
+      <div className="panel" ref={previewRef}><div className="section-head"><div><h3>Preview Perubahan</h3><p className="muted">Klik kartu ringkasan di atas untuk langsung menuju dan memfilter baris terkait. Company {selectedCompany.code} • {farmScope==='ALL'?'Semua Farm':`Farm ${farmScope}`} • maksimal 200 baris ditampilkan.</p></div><select value={filter} onChange={e=>setFilter(e.target.value as 'ALL'|ImportStatus)}><option value="ALL">Semua</option><option value="CREATE">CREATE</option><option value="UPDATE">UPDATE</option><option value="NO_CHANGE">NO CHANGE</option></select></div>
         <div className="table-wrap"><table><thead><tr><th>Status</th><th>Company</th><th>Farm</th><th>PID</th><th>Cycle</th><th>Variety</th><th>Area Plan</th><th>Stage</th><th>Harvest Stage</th><th>Perubahan</th></tr></thead><tbody>{visible.map(row=><tr key={row.pid}><td><span className="badge">{row.status}</span></td><td>{row.companyCode}</td><td>{row.farm}</td><td>{row.pid}</td><td>{row.cycleId}</td><td>{row.variety||'-'}</td><td>{row.areaPlantedHa.toFixed(4)} Ha</td><td>{row.currentStage}</td><td>{row.harvestedCurrentStageHa.toFixed(4)} Ha</td><td>{row.changes.join(', ')||'-'}</td></tr>)}{!visible.length&&<tr><td colSpan={10} className="empty">Tidak ada baris pada filter ini.</td></tr>}</tbody></table></div>
       </div>
-      <div className="panel"><h3>Data Quality</h3><div className="table-wrap"><table><thead><tr><th>Level</th><th>PID</th><th>Catatan</th></tr></thead><tbody>{parsed.issues.slice(0,200).map((issue,index)=><tr key={`${issue.pid||'file'}-${index}`}><td>{issue.level}</td><td>{issue.pid||'-'}</td><td>{issue.message}</td></tr>)}{!parsed.issues.length&&<tr><td colSpan={3} className="empty">Tidak ada warning/error pada file.</td></tr>}</tbody></table></div>{parsed.issues.length>200&&<p className="muted">Menampilkan 200 dari {parsed.issues.length} catatan validasi.</p>}</div>
+      <div className="panel" ref={qualityRef}><div className="section-head"><div><h3>Data Quality</h3><p className="muted">Klik kartu Warning atau Error untuk langsung menampilkan jenis catatan tersebut.</p></div><select value={qualityFilter} onChange={e=>setQualityFilter(e.target.value as 'ALL'|'WARNING'|'ERROR')}><option value="ALL">Semua</option><option value="WARNING">WARNING</option><option value="ERROR">ERROR</option></select></div><div className="table-wrap"><table><thead><tr><th>Level</th><th>PID</th><th>Catatan</th></tr></thead><tbody>{visibleIssues.map((issue,index)=><tr key={`${issue.pid||'file'}-${index}`}><td>{issue.level}</td><td>{issue.pid||'-'}</td><td>{issue.message}</td></tr>)}{!visibleIssues.length&&<tr><td colSpan={3} className="empty">Tidak ada catatan pada filter ini.</td></tr>}</tbody></table></div>{(parsed.issues.filter(issue=>qualityFilter==='ALL'||issue.level===qualityFilter).length)>200&&<p className="muted">Menampilkan 200 catatan pertama pada filter ini.</p>}</div>
     </>}
   </section>
 }
 
-function Stat({label,value}:{label:string;value:number}){return <div className="stat"><span>{label}</span><strong>{value}</strong></div>}
+function Stat({label,value,onClick}:{label:string;value:number;onClick:()=>void}){return <button type="button" className="stat stat-button" onClick={onClick}><span>{label}</span><strong>{value}</strong><small>Klik untuk lihat baris</small></button>}
