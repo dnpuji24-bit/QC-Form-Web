@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import CompanyMasterPanel from './CompanyMasterPanel'
-import MasterPaddockImportPanelV2 from './MasterPaddockImportPanelV2'
+import MasterPaddockWorkspace from './MasterPaddockWorkspace'
 import { GROUP_BRAND } from './groupConfig'
 import type { User } from './types'
 import './portal.css'
@@ -59,12 +59,12 @@ export default function PortalRouter(){
         <section className="portal-hero compact"><div><span className="portal-kicker">WORKSPACE OPERASIONAL</span><h2>Data UnM</h2><p>Kelola rencana kerja dan master data yang menjadi sumber Form QC.</p></div></section>
         <section className="portal-grid data-grid">
           <button className="portal-card" type="button" onClick={()=>setDataView('plan')}><span className="portal-icon">PL</span><strong>Plan</strong><p>Monthly Plan dan Daily Plan. Modul input dan upload plan akan dibangun pada tahap berikutnya.</p><span className="portal-link">Buka Plan →</span></button>
-          <button className="portal-card" type="button" onClick={()=>setDataView('master-paddock')}><span className="portal-icon">MP</span><strong>Master Paddock</strong><p>Upload per Company dengan filter Farm opsional. Prefix PID divalidasi otomatis.</p><span className="portal-link">Buka Master Paddock →</span></button>
+          <button className="portal-card" type="button" onClick={()=>setDataView('master-paddock')}><span className="portal-icon">MP</span><strong>Master Paddock</strong><p>Lihat daftar paddock Firestore serta update/import per Company dengan filter Farm opsional.</p><span className="portal-link">Buka Master Paddock →</span></button>
           <button className="portal-card" type="button" onClick={()=>setDataView('company')}><span className="portal-icon">CO</span><strong>Company & Prefix</strong><p>Tambah, edit, aktif/nonaktifkan Company serta mapping prefix PID seperti JAGF → GPA.</p><span className="portal-link">Buka Company →</span></button>
         </section>
       </>}
       {dataView==='plan'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM</span><h2>Plan</h2><p>Tempat Monthly Plan dan Daily Plan.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><div className="portal-placeholder"><strong>Modul Plan berikutnya</strong><p>Struktur menu sudah disiapkan. Tahap selanjutnya kita hubungkan Monthly Plan, Daily Plan, Activity, paket bahan, dan upload Excel ke Firestore.</p></div></section>}
-      {dataView==='master-paddock'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM</span><h2>Master Paddock</h2><p>Sumber utama: Area Plant. Pilih Company dan, jika diperlukan, batasi update ke satu Farm.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><MasterPaddockImportPanelV2 user={user}/></section>}
+      {dataView==='master-paddock'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM</span><h2>Master Paddock</h2><p>Lihat data Firestore atau lakukan update dari Area Plant dan Area Harvest.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><MasterPaddockWorkspace user={user}/></section>}
       {dataView==='company'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM</span><h2>Company & Prefix</h2><p>Master klasifikasi perusahaan MSG berdasarkan prefix PID.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><CompanyMasterPanel user={user}/></section>}
     </main>
   </div>
