@@ -36,7 +36,12 @@ function activityDocId(scope:string,description:string){return`${slug(scope)}__$
 function materialDocId(name:string){return slug(name)}
 function getRows(workbook:XLSX.WorkBook,name:string){const sheet=workbook.Sheets[name];if(!sheet)throw new Error(`Sheet "${name}" tidak ditemukan. File wajib memiliki sheet ${VALIDATION_SHEET}, ${COMPOSITION_SHEET}, dan ${MATERIAL_SHEET}.`);return XLSX.utils.sheet_to_json<SheetRow>(sheet,{defval:null,raw:true})}
 function componentSequence(label:string,fallback:number){const match=label.match(/(\d+)/);return match?Number(match[1]):fallback}
-function sameArray(a:unknown,b:unknown){return JSON.stringify(a??[])===JSON.stringify(b??[])}
+function canonical(value:unknown):unknown{
+  if(Array.isArray(value))return value.map(item=>canonical(item))
+  if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value as Record<string,unknown>).filter(([,item])=>item!==undefined).sort(([a],[b])=>a.localeCompare(b)).map(([key,item])=>[key,canonical(item)]))
+  return value
+}
+function sameArray(a:unknown,b:unknown){return JSON.stringify(canonical(a??[]))===JSON.stringify(canonical(b??[]))}
 function sameText(a:unknown,b:unknown){return String(a??'')===String(b??'')}
 function companyFromData(id:string,data:Record<string,unknown>):CompanyRecord{return{id,code:text(data.code||id).toUpperCase(),name:text(data.name),prefixes:Array.isArray(data.prefixes)?data.prefixes.map(item=>text(item).toUpperCase()).filter(Boolean):[],active:data.active!==false}}
 
