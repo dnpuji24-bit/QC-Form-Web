@@ -4,7 +4,6 @@ import { onAuthStateChanged, type Auth, type User as FirebaseUser } from 'fireba
 import { qcApi } from './api'
 import { firebaseAuth, firestoreDb } from './firebase'
 import { getFirebaseBridgeStatus, signInFirebaseBridge } from './firebaseAuthBridge'
-import MasterPaddockOwnerPanel from './MasterPaddockOwnerPanel'
 import type { QcRecord } from './types'
 
 type Props={token:string}
@@ -137,6 +136,5 @@ export default function FirestoreMigrationPanel({token}:Props){
     </div>
     <div className="row-actions"><button type="button" disabled={busy} onClick={()=>void verify()}>Verifikasi Firestore</button><button type="button" className="primary" disabled={busy} onClick={()=>void migrate()}>{busy?'Memproses…':count===null?'Import Data QC':`Import ${count} Record`}</button></div>
     {message&&<div className="alert">{message}</div>}
-    <MasterPaddockOwnerPanel token={token}/>
   </section>
 }
