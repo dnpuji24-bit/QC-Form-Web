@@ -39,6 +39,12 @@ service cloud.firestore {
       allow delete: if activeUser() && role() in ['owner','manager','admin','asisten'];
     }
 
+    match /master_companies/{companyId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && role() == 'owner';
+      allow delete: if false;
+    }
+
     match /master_paddocks/{pid} {
       allow read: if activeUser();
       allow create, update: if activeUser() && canWriteAll();
