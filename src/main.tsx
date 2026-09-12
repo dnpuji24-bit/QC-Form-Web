@@ -4,6 +4,7 @@ import App from './App'
 import NetworkStatus from './NetworkStatus'
 import SaveStatusPopup from './SaveStatusPopup'
 import UiEnhancers from './UiEnhancers'
+import PortalRouter from './PortalRouter'
 import './styles.css'
 import './theme.css'
 import './network.css'
@@ -20,6 +21,7 @@ if ('serviceWorker' in navigator) {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <App />
+    <PortalRouter />
     <NetworkStatus />
     <SaveStatusPopup />
     <UiEnhancers />
