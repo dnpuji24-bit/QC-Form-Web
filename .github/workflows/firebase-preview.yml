@@ -11,7 +11,6 @@ on:
       - 'public/**'
       - 'package.json'
       - 'firebase.json'
-      - 'firestore.rules'
       - 'vite.config.ts'
       - 'tsconfig*.json'
       - 'tests/offline_session_persistence_check.py'
@@ -54,14 +53,6 @@ jobs:
           test -f public/react/index.html
           test -f public/react/sw.js
           echo "React build output verified."
-
-      - name: Authenticate Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_FORM_QC_UNM }}'
-
-      - name: Deploy Firestore rules
-        run: npx --yes firebase-tools deploy --only firestore:rules --project form-qc-unm --non-interactive
 
       - name: Deploy Firebase Hosting preview
         id: firebase_preview
