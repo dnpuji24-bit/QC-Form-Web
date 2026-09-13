@@ -15,6 +15,6 @@ export default function MonthlyPlanWorkspace({user}:Props){
       <button type="button" className={view==='import'?'active':''} onClick={()=>setView('import')}>Update / Import Excel</button>
       <button type="button" className={view==='sync'?'active':''} onClick={()=>setView('sync')}>Sinkron Master Paddock</button>
     </div>
-    {view==='list'?<MonthlyPlanListPanel/>:view==='import'?<MonthlyPlanImportPanel user={user}/>:<MonthlyPlanMasterSyncPanel user={user}/>} 
+    {view==='list'?<MonthlyPlanListPanel user={user}/>:view==='import'?<MonthlyPlanImportPanel user={user}/>:<MonthlyPlanMasterSyncPanel user={user}/>} 
   </section>
 }
