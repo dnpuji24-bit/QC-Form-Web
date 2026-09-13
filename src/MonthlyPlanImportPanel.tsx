@@ -92,7 +92,7 @@ function parseWorkbook(buffer:ArrayBuffer,fileName:string,refs:MasterRefs):Parse
     const monthKey=`${year}-${pad(monthNumber)}`,inputDate=dateFromValue(rowValue(row,'Input Date'),year,monthNumber),startDate=dateFromValue(rowValue(row,'Start Date'),year,monthNumber),endDate=dateFromValue(rowValue(row,'End Date'),year,monthNumber),calculatedBalanceHa=targetAreaHa-actualAreaHa
     if(Math.abs(balanceHa-calculatedBalanceHa)>0.02)issues.push({level:'WARNING',item:planLineId,message:`Balance file ${formatHa(balanceHa,4)} berbeda dari Target - Dikerjakan ${formatHa(calculatedBalanceHa,4)}. Keduanya tetap disimpan untuk review.`})
     const paddock=refs.paddocks.get(pid),prefix=pidPrefix(pid),prefixCompany=refs.companies.find(company=>company.prefixes.map(x=>x.toUpperCase()).includes(prefix)),companyCode=paddock?.companyCode||prefixCompany?.code||''
-    if(!paddock)issues.push({level:'WARNING',item:planLineId,message:`PID ${pid} tidak ditemukan di Master Paddock. Data tetap diimport, tetapi Farm/Stage/Area Paddock tidak tersedia.`})
+    if(!paddock)issues.push({level:'INFO',item:planLineId,message:`MASTER PENDING — PID ${pid} belum ditemukan di Master Paddock. Kondisi ini normal untuk paddock yang belum tertanam atau master belum diperbarui. Plan tetap dapat diimport; Farm/Stage/Area Paddock akan dilengkapi saat sinkronisasi master.`})
     if(!companyCode)issues.push({level:'WARNING',item:planLineId,message:`Company untuk PID ${pid} tidak dapat ditentukan dari Master Paddock/prefix.`})
     const candidates=refs.activities.get(normalized(description))||[],masterActivity=(candidates.find(x=>x.active&&(x.companyScope==='GLOBAL'||x.companyScope===companyCode))||candidates.find(x=>x.companyScope==='GLOBAL'||x.companyScope===companyCode)||candidates[0]||null)
     if(candidates.length>1)issues.push({level:'WARNING',item:planLineId,message:`Deskripsi ${description} memiliki ${candidates.length} record Master Activity. Import memilih ${masterActivity?.activityCode||masterActivity?.id||'record pertama'} untuk snapshot.`})
@@ -146,7 +146,7 @@ export default function MonthlyPlanImportPanel({user}:Props){
   }
 
   return <section>
-    <div className="section-head"><div><div className="eyebrow">MONTHLY PLAN</div><h2>Update / Import Excel</h2><p className="muted">Gunakan format Monthly Plan final. Plan ID Baru menjadi identitas record. Data yang pernah diedit melalui Web akan ditandai PROTECTED dan tidak ditimpa otomatis.</p></div></div>
+    <div className="section-head"><div><div className="eyebrow">MONTHLY PLAN</div><h2>Update / Import Excel</h2><p className="muted">Gunakan format Monthly Plan final. Plan ID Baru menjadi identitas record. Data yang pernah diedit melalui Web akan ditandai PROTECTED dan tidak ditimpa otomatis. PID yang belum ada di Master Paddock ditandai INFO / MASTER PENDING dan tetap boleh diimport.</p></div></div>
     <div className="panel">
       <label><span>File Monthly Plan (.xlsx / .xls)</span><input type="file" accept=".xlsx,.xls" onChange={onFile} disabled={busy}/></label>
       <div style={{display:'flex',gap:10,flexWrap:'wrap',marginTop:14}}><button type="button" onClick={()=>void refreshComparison()} disabled={busy||!parsed}>Bandingkan Firestore</button><button type="button" className="primary" onClick={()=>void confirmImport()} disabled={busy||!parsed||!preview.length}>Confirm Import Firestore</button></div>
