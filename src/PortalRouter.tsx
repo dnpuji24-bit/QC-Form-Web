@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import CompanyMasterPanel from './CompanyMasterPanel'
 import MasterActivityWorkspace from './MasterActivityWorkspace'
 import MasterPaddockWorkspace from './MasterPaddockWorkspace'
+import PlanWorkspace from './PlanWorkspace'
 import { GROUP_BRAND } from './groupConfig'
 import type { User } from './types'
 import './portal.css'
@@ -65,7 +66,7 @@ export default function PortalRouter(){
           <button className="portal-card" type="button" onClick={()=>setDataView('company')}><span className="portal-icon">CO</span><strong>Company & Prefix</strong><p>Tambah, edit, aktif/nonaktifkan Company serta mapping prefix PID seperti JAGF → GPA.</p><span className="portal-link">Buka Company →</span></button>
         </section>
       </>}
-      {dataView==='plan'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM</span><h2>Plan</h2><p>Tempat Monthly Plan dan Daily Plan.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><div className="portal-placeholder"><strong>Modul Plan berikutnya</strong><p>Master Paddock dan Master Activity sudah menjadi fondasi. Tahap selanjutnya kita hubungkan Monthly Plan dan Daily Plan ke Activity ACTIVE, komposisi bahan, serta target paddock.</p></div></section>}
+      {dataView==='plan'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM</span><h2>Plan</h2><p>Monthly Plan dan Daily Plan berbasis Master Paddock serta Master Activity.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><PlanWorkspace user={user}/></section>}
       {dataView==='master-paddock'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM</span><h2>Master Paddock</h2><p>Lihat data Firestore atau lakukan update dari Area Plant dan Area Harvest.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><MasterPaddockWorkspace user={user}/></section>}
       {dataView==='master-activity'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM</span><h2>Master Activity</h2><p>Activity, komposisi bahan per hektar, Master Material, dan status penggunaan di Plan.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><MasterActivityWorkspace user={user}/></section>}
       {dataView==='company'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM</span><h2>Company & Prefix</h2><p>Master klasifikasi perusahaan MSG berdasarkan prefix PID.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><CompanyMasterPanel user={user}/></section>}
