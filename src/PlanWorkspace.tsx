@@ -108,15 +108,17 @@ function MonthlyPlanPanel({user}:Props){
     if(editingId&&editingId!==docId&&plans.some(row=>row.id===docId)){setMessage('Perubahan ini akan bertabrakan dengan Monthly Plan yang sudah ada.');return}
     setBusy(true);setMessage('Menyimpan Monthly Plan…')
     try{
-      if(editingId&&editingId!==docId)await deleteDoc(doc(firestoreDb,'monthly_plans',editingId))
       const planCode=`MP-${company}-${month.replace('-','')}-${pid}-${selectedActivity.activityCode||selectedActivity.id}`.toUpperCase()
       const existing=plans.find(row=>row.id===editingId)
-      await setDoc(doc(firestoreDb,'monthly_plans',docId),{
+      const payload:Record<string,unknown>={
         planCode,month,companyCode:company,farm:selectedPaddock.farm,pid:selectedPaddock.pid,areaPaddockHa:selectedPaddock.areaPlantedHa,stage:selectedPaddock.currentStage,
         activityId:selectedActivity.id,activityCode:selectedActivity.activityCode,description:selectedActivity.description,activity:selectedActivity.activity,type:selectedActivity.type,activityCategory:selectedActivity.activityCategory,
         targetAreaHa:targetValue,weeklyTargets:weeks,componentsSnapshot:selectedActivity.components,status,notes:notes.trim(),sourceType:'MONTHLY',
-        createdBy:existing?.createdBy||user.username,createdAt:existing?undefined:serverTimestamp(),updatedBy:user.username,updatedAt:serverTimestamp(),
-      },{merge:true})
+        createdBy:existing?.createdBy||user.username,updatedBy:user.username,updatedAt:serverTimestamp(),
+      }
+      if(!existing)payload.createdAt=serverTimestamp()
+      await setDoc(doc(firestoreDb,'monthly_plans',docId),payload,{merge:true})
+      if(editingId&&editingId!==docId)await deleteDoc(doc(firestoreDb,'monthly_plans',editingId))
       clearForm();await load();setMessage(`Monthly Plan ${planCode} berhasil disimpan.`)
     }catch(error){setMessage(error instanceof Error?error.message:'Monthly Plan gagal disimpan.')}finally{setBusy(false)}
   }
