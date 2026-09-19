@@ -32,7 +32,7 @@ export default function DailyPlanListPanel(){
   const totals=useMemo(()=>filtered.reduce((acc,row)=>({area:acc.area+row.areaHa,manpower:acc.manpower+row.manpower,monthly:acc.monthly+(row.sourceType==='MONTHLY'?1:0),adhoc:acc.adhoc+(row.sourceType==='ADHOC'?1:0),support:acc.support+(row.sourceType==='SUPPORT'?1:0),pending:acc.pending+(row.masterPending?1:0)}),{area:0,manpower:0,monthly:0,adhoc:0,support:0,pending:0}),[filtered])
 
   return <section>
-    <div className="section-head"><div><div className="eyebrow">DAILY PLAN</div><h2>Daftar Daily Plan</h2><p className="muted">Satu baris daftar mewakili satu pekerjaan lapangan; beberapa baris bahan dari Excel sudah digabung ke dalam satu Daily Plan.</p></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'Memuat…':'Refresh'}</button></div>
+    <div className="section-head"><div><div className="eyebrow">DAILY PLAN</div><h2>Daftar Daily Plan</h2><p className="muted">Satu baris Excel mewakili satu pekerjaan Daily Plan. Bahan 1–5 dibaca horizontal bila tersedia; bahan boleh kosong untuk baseline historis.</p></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'Memuat…':'Refresh'}</button></div>
     {message&&<div className="alert">{message}</div>}
     <div className="panel" style={{marginTop:18}}><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:12}}>
       <label><span>Bulan</span><select value={month} onChange={e=>setMonth(e.target.value)}><option value="ALL">Semua Bulan</option>{months.map(x=><option key={x}>{x}</option>)}</select></label>
