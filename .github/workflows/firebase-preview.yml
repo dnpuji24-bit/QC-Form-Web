@@ -1,0 +1,92 @@
+name: Firebase Hosting Preview
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - migrate/react-typescript-vite
+    paths:
+      - '.github/workflows/firebase-preview.yml'
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'firebase.json'
+      - 'firestore.rules'
+      - 'firestore.indexes.json'
+      - 'vite.config.ts'
+      - 'tsconfig*.json'
+      - 'tests/offline_session_persistence_check.py'
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout migration branch
+        uses: actions/checkout@v4
+        with:
+          ref: migrate/react-typescript-vite
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Offline session regression check
+        run: python tests/offline_session_persistence_check.py
+
+      - name: TypeScript check
+        run: npm run typecheck
+
+      - name: Build React
+        run: npm run build
+
+      - name: Verify React build output
+        run: |
+          test -f public/react/index.html
+          test -f public/react/sw.js
+          echo "React build output verified."
+
+      - name: Prepare Firebase service account
+        env:
+          FIREBASE_SERVICE_ACCOUNT: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_FORM_QC_UNM }}'
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "Firebase service account secret is empty." >&2
+            exit 1
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-service-account.json"
+          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
+
+      - name: Deploy Firestore rules
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: '${{ runner.temp }}/firebase-service-account.json'
+        run: npx --yes firebase-tools@latest deploy --only firestore:rules --project form-qc-unm --non-interactive
+
+      - name: Deploy Firebase Hosting preview
+        id: firebase_preview
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_FORM_QC_UNM }}'
+          projectId: form-qc-unm
+          channelId: react-test
+          expires: 7d
+
+      - name: Clean up Firebase service account file
+        if: always()
+        run: rm -f "$RUNNER_TEMP/firebase-service-account.json"
+
+      - name: Show preview URL
+        run: |
+          echo "Preview details: ${{ steps.firebase_preview.outputs.details_url }}"
+          echo "Hosting URL: ${{ steps.firebase_preview.outputs.url }}"
