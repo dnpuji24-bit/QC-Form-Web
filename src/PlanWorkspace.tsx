@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import MonthlyPlanWorkspace from './MonthlyPlanWorkspace'
 import DailyPlanWorkspace from './DailyPlanWorkspace'
+import ActualPlanWorkspace from './ActualPlanWorkspace'
 import type { User } from './types'
 
 type Props={user:User}
-type Tab='monthly'|'daily'
+type Tab='monthly'|'daily'|'actual'
 
 export default function PlanWorkspace({user}:Props){
   const[tab,setTab]=useState<Tab>('monthly')
@@ -12,7 +13,8 @@ export default function PlanWorkspace({user}:Props){
     <div className="segmented" aria-label="Menu Plan" style={{marginBottom:18}}>
       <button type="button" className={tab==='monthly'?'active':''} onClick={()=>setTab('monthly')}>Monthly Plan</button>
       <button type="button" className={tab==='daily'?'active':''} onClick={()=>setTab('daily')}>Daily Plan</button>
+      <button type="button" className={tab==='actual'?'active':''} onClick={()=>setTab('actual')}>Actual Plan</button>
     </div>
-    {tab==='monthly'?<MonthlyPlanWorkspace user={user}/>:<DailyPlanWorkspace user={user}/>}
+    {tab==='monthly'?<MonthlyPlanWorkspace user={user}/>:tab==='daily'?<DailyPlanWorkspace user={user}/>:<ActualPlanWorkspace user={user}/>}
   </section>
 }
