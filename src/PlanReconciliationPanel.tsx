@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { collection, getDocs } from 'firebase/firestore'
 import { firestoreDb } from './firebase'
 
@@ -29,6 +29,10 @@ export default function PlanReconciliationPanel(){
   const[company,setCompany]=useState('ALL')
   const[code,setCode]=useState('ALL')
   const[query,setQuery]=useState('')
+  const[issuePage,setIssuePage]=useState(1)
+  const[flowPage,setFlowPage]=useState(1)
+  const PAGE_SIZE=50
+  const deferredQuery=useDeferredValue(query)
 
   async function load(){
     if(!firestoreDb){setMessage('Firestore belum tersedia.');return}
@@ -123,8 +127,13 @@ export default function PlanReconciliationPanel(){
   const months=useMemo(()=>[...new Set([...monthly.map(x=>x.monthKey),...daily.map(x=>x.monthKey),...actual.map(x=>x.monthKey)].filter(Boolean))].sort().reverse(),[monthly,daily,actual])
   const companies=useMemo(()=>[...new Set(monthly.map(x=>x.companyCode).filter(Boolean))].sort(),[monthly])
   const codes=useMemo(()=>[...new Set(audit.issues.map(x=>x.code))].sort(),[audit.issues])
-  const filteredIssues=useMemo(()=>{const q=query.trim().toLowerCase();return audit.issues.filter(item=>(severity==='ALL'||item.severity===severity)&&(month==='ALL'||item.monthKey===month)&&(company==='ALL'||item.companyCode===company)&&(code==='ALL'||item.code===code)&&(!q||[item.entityId,item.monthlyPlanLineId,item.dailyPlanId,item.pid,item.activity,item.message,item.code].join(' ').toLowerCase().includes(q)))},[audit.issues,severity,month,company,code,query])
-  const filteredFlows=useMemo(()=>{const q=query.trim().toLowerCase();return audit.flows.filter(row=>(month==='ALL'||row.monthKey===month)&&(company==='ALL'||row.companyCode===company)&&(!q||[row.planLineId,row.pid,row.activity,row.description,row.companyCode,row.farm].join(' ').toLowerCase().includes(q))).sort((a,b)=>b.issueCount-a.issueCount||b.monthKey.localeCompare(a.monthKey)||a.planLineId.localeCompare(b.planLineId,undefined,{numeric:true}))},[audit.flows,month,company,query])
+  const filteredIssues=useMemo(()=>{const q=deferredQuery.trim().toLowerCase();return audit.issues.filter(item=>(severity==='ALL'||item.severity===severity)&&(month==='ALL'||item.monthKey===month)&&(company==='ALL'||item.companyCode===company)&&(code==='ALL'||item.code===code)&&(!q||[item.entityId,item.monthlyPlanLineId,item.dailyPlanId,item.pid,item.activity,item.message,item.code].join(' ').toLowerCase().includes(q)))},[audit.issues,severity,month,company,code,deferredQuery])
+  const filteredFlows=useMemo(()=>{const q=deferredQuery.trim().toLowerCase();return audit.flows.filter(row=>(month==='ALL'||row.monthKey===month)&&(company==='ALL'||row.companyCode===company)&&(!q||[row.planLineId,row.pid,row.activity,row.description,row.companyCode,row.farm].join(' ').toLowerCase().includes(q))).sort((a,b)=>b.issueCount-a.issueCount||b.monthKey.localeCompare(a.monthKey)||a.planLineId.localeCompare(b.planLineId,undefined,{numeric:true}))},[audit.flows,month,company,deferredQuery])
+  const issuePages=Math.max(1,Math.ceil(filteredIssues.length/PAGE_SIZE)),flowPages=Math.max(1,Math.ceil(filteredFlows.length/PAGE_SIZE))
+  const safeIssuePage=Math.min(issuePage,issuePages),safeFlowPage=Math.min(flowPage,flowPages)
+  const pagedIssues=useMemo(()=>filteredIssues.slice((safeIssuePage-1)*PAGE_SIZE,safeIssuePage*PAGE_SIZE),[filteredIssues,safeIssuePage])
+  const pagedFlows=useMemo(()=>filteredFlows.slice((safeFlowPage-1)*PAGE_SIZE,safeFlowPage*PAGE_SIZE),[filteredFlows,safeFlowPage])
+  useEffect(()=>{setIssuePage(1);setFlowPage(1)},[severity,month,company,code,deferredQuery])
   const errors=audit.issues.filter(x=>x.severity==='ERROR').length,warnings=audit.issues.filter(x=>x.severity==='WARNING').length
   const healthyMonthly=audit.flows.filter(x=>x.issueCount===0).length
 
@@ -155,18 +164,19 @@ export default function PlanReconciliationPanel(){
         <label><span>Bulan</span><select value={month} onChange={e=>setMonth(e.target.value)}><option value="ALL">Semua Bulan</option>{months.map(x=><option key={x}>{x}</option>)}</select></label>
         <label><span>Company</span><select value={company} onChange={e=>setCompany(e.target.value)}><option value="ALL">Semua Company</option>{companies.map(x=><option key={x}>{x}</option>)}</select></label>
         <label><span>Jenis Temuan</span><select value={code} onChange={e=>setCode(e.target.value)}><option value="ALL">Semua Jenis</option>{codes.map(x=><option key={x}>{x}</option>)}</select></label>
-        <label><span>Cari</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Plan ID / Daily ID / PID / activity"/></label>
+        <label><span>Cari</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Plan ID / Daily ID / PID / activity"/>{query!==deferredQuery&&<span className="muted">Memfilter…</span>}</label>
       </div>
     </div>
     <div className="panel" style={{marginTop:18}}>
       <div className="section-head"><div><h3>Temuan Audit</h3><p className="muted">ERROR = hubungan data rusak atau hilang. WARNING = data terhubung tetapi nilainya perlu diperiksa.</p></div><strong>{filteredIssues.length} temuan</strong></div>
-      <div className="table-wrap"><table><thead><tr><th>Severity</th><th>Jenis</th><th>Entity</th><th>Bulan</th><th>Monthly</th><th>Daily</th><th>PID</th><th>Activity</th><th>Keterangan</th></tr></thead><tbody>{filteredIssues.map(item=><tr key={item.id}><td><strong style={{color:item.severity==='ERROR'?'#b91c1c':undefined}}>{item.severity}</strong></td><td>{item.code}</td><td>{item.entityType}<br/><span className="muted">{item.entityId}</span></td><td>{item.monthKey||'-'}</td><td>{item.monthlyPlanLineId||'-'}</td><td>{item.dailyPlanId||'-'}</td><td>{item.pid||'-'}</td><td>{item.activity||'-'}</td><td>{item.message}</td></tr>)}</tbody></table></div>
+      <div className="table-wrap"><table><thead><tr><th>Severity</th><th>Jenis</th><th>Entity</th><th>Bulan</th><th>Monthly</th><th>Daily</th><th>PID</th><th>Activity</th><th>Keterangan</th></tr></thead><tbody>{pagedIssues.map(item=><tr key={item.id}><td><strong style={{color:item.severity==='ERROR'?'#b91c1c':undefined}}>{item.severity}</strong></td><td>{item.code}</td><td>{item.entityType}<br/><span className="muted">{item.entityId}</span></td><td>{item.monthKey||'-'}</td><td>{item.monthlyPlanLineId||'-'}</td><td>{item.dailyPlanId||'-'}</td><td>{item.pid||'-'}</td><td>{item.activity||'-'}</td><td>{item.message}</td></tr>)}</tbody></table></div>
       {!filteredIssues.length&&<p className="muted">Tidak ada temuan sesuai filter.</p>}
+      {filteredIssues.length>0&&<div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap',marginTop:14}}><span className="muted">Menampilkan {(safeIssuePage-1)*PAGE_SIZE+1}–{Math.min(safeIssuePage*PAGE_SIZE,filteredIssues.length)} dari {filteredIssues.length} temuan.</span><div style={{display:'flex',gap:8,alignItems:'center'}}><button type="button" disabled={safeIssuePage<=1} onClick={()=>setIssuePage(p=>Math.max(1,p-1))}>← Sebelumnya</button><strong>Halaman {safeIssuePage} / {issuePages}</strong><button type="button" disabled={safeIssuePage>=issuePages} onClick={()=>setIssuePage(p=>Math.min(issuePages,p+1))}>Berikutnya →</button></div></div>}
     </div>
     <div className="panel" style={{marginTop:18}}>
       <div className="section-head"><div><h3>Ringkasan Flow per Monthly Plan</h3><p className="muted">Urutan awal menampilkan Monthly Plan dengan jumlah temuan terbanyak.</p></div><strong>{filteredFlows.length} plan</strong></div>
-      <div className="table-wrap"><table><thead><tr><th>Plan ID</th><th>Bulan / Week</th><th>Company / Farm</th><th>PID</th><th>Activity</th><th>Target</th><th>Daily</th><th>Actual</th><th>Daily - Target</th><th>Actual - Target</th><th>Temuan</th></tr></thead><tbody>{filteredFlows.slice(0,500).map(row=><tr key={row.id}><td><strong>{row.planLineId}</strong></td><td>{row.monthKey}<br/><span className="muted">{row.week}</span></td><td>{row.companyCode||'-'}<br/><span className="muted">{row.farm||'-'}</span></td><td>{row.pid}</td><td>{row.description}<br/><span className="muted">{row.activity||'-'}</span></td><td>{formatHa(row.targetAreaHa)}</td><td>{formatHa(row.dailyAreaHa)}</td><td>{formatHa(row.actualAreaHa)}</td><td style={{color:row.dailyVarianceHa>0.02?'#b91c1c':undefined}}>{formatHa(row.dailyVarianceHa)}</td><td style={{color:row.actualVarianceHa>0.02?'#b91c1c':undefined}}>{formatHa(row.actualVarianceHa)}</td><td><strong>{row.issueCount}</strong></td></tr>)}</tbody></table></div>
-      {filteredFlows.length>500&&<p className="muted">Menampilkan 500 dari {filteredFlows.length} Monthly Plan.</p>}
+      <div className="table-wrap"><table><thead><tr><th>Plan ID</th><th>Bulan / Week</th><th>Company / Farm</th><th>PID</th><th>Activity</th><th>Target</th><th>Daily</th><th>Actual</th><th>Daily - Target</th><th>Actual - Target</th><th>Temuan</th></tr></thead><tbody>{pagedFlows.map(row=><tr key={row.id}><td><strong>{row.planLineId}</strong></td><td>{row.monthKey}<br/><span className="muted">{row.week}</span></td><td>{row.companyCode||'-'}<br/><span className="muted">{row.farm||'-'}</span></td><td>{row.pid}</td><td>{row.description}<br/><span className="muted">{row.activity||'-'}</span></td><td>{formatHa(row.targetAreaHa)}</td><td>{formatHa(row.dailyAreaHa)}</td><td>{formatHa(row.actualAreaHa)}</td><td style={{color:row.dailyVarianceHa>0.02?'#b91c1c':undefined}}>{formatHa(row.dailyVarianceHa)}</td><td style={{color:row.actualVarianceHa>0.02?'#b91c1c':undefined}}>{formatHa(row.actualVarianceHa)}</td><td><strong>{row.issueCount}</strong></td></tr>)}</tbody></table></div>
+      {filteredFlows.length>0&&<div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap',marginTop:14}}><span className="muted">Menampilkan {(safeFlowPage-1)*PAGE_SIZE+1}–{Math.min(safeFlowPage*PAGE_SIZE,filteredFlows.length)} dari {filteredFlows.length} Monthly Plan.</span><div style={{display:'flex',gap:8,alignItems:'center'}}><button type="button" disabled={safeFlowPage<=1} onClick={()=>setFlowPage(p=>Math.max(1,p-1))}>← Sebelumnya</button><strong>Halaman {safeFlowPage} / {flowPages}</strong><button type="button" disabled={safeFlowPage>=flowPages} onClick={()=>setFlowPage(p=>Math.min(flowPages,p+1))}>Berikutnya →</button></div></div>}
     </div>
   </section>
 }
