@@ -1,5 +1,5 @@
 /**
- * QC Form Web API v46.3.0
+ * QC Form Web API v46.3.1
  * Deploy as a Web App from the Apps Script project bound to "Application QC Form".
  * Execute as: Me. Access: Anyone.
  *
@@ -9,7 +9,7 @@
  * - Permissions are enforced here; the browser UI is not trusted.
  */
 var QC = {
-  VERSION: '46.3.0',
+  VERSION: '46.3.1',
   SESSION_SECONDS: 21600,
   SHEETS: {
     USERS: 'Users', LOGS: 'Activity_Logs', CLOUD: 'Cloud_Monitoring', REQUESTS: 'Account_Change_Requests',
@@ -362,7 +362,7 @@ function constantEqual_(a,b){a=String(a);b=String(b);var d=a.length^b.length,n=M
 function rateLimit_(key,max,seconds){var c=CacheService.getScriptCache(),k='rate:'+key,n=Number(c.get(k)||0)+1;if(n>max)throw new Error('Terlalu banyak percobaan. Coba lagi beberapa menit.');c.put(k,String(n),seconds);}
 function findRow_(sh,col,val,start){if(!col)return 0;var n=sh.getLastRow()-start+1;if(n<=0)return 0;var a=sh.getRange(start,col,n,1).getDisplayValues();for(var i=0;i<a.length;i++)if(String(a[i][0])===String(val))return i+start;return 0;}
 function upsertRow_(sh,values,idCol,id,start){var row=findRow_(sh,idCol,id,start);if(row)sh.getRange(row,1,1,values.length).setValues([values]);else sh.appendRow(values);}
-function deleteById_(sh,id,col,start){var rows=[];for(var r=start;r<=sh.getLastRow();r++){var v=String(sh.getRange(r,col).getDisplayValue());if(v===id||v.indexOf(id+'_')===0)rows.push(r);}for(var i=rows.length-1;i>=0;i--)sh.deleteRow(rows[i]);}
+function deleteById_(sh,id,col,start){var last=sh.getLastRow(),count=last-start+1;if(count<=0)return 0;var values=sh.getRange(start,col,count,1).getDisplayValues(),rows=[];for(var i=0;i<values.length;i++){var v=String(values[i][0]||'');if(v===id||v.indexOf(id+'_')===0)rows.push(start+i);}for(var j=rows.length-1;j>=0;j--)sh.deleteRow(rows[j]);return rows.length;}
 function getPhotoFolder_(){var props=PropertiesService.getScriptProperties(),id=clean_(props.getProperty('PHOTO_FOLDER_ID'),200),folder=null;if(id){try{folder=DriveApp.getFolderById(id);folder.getName();}catch(e){console.warn('PHOTO_FOLDER_ID tidak valid/terakses: '+id+' | '+e);folder=null;}}if(!folder){var it=DriveApp.getFoldersByName('QC Form Photos');folder=it.hasNext()?it.next():DriveApp.createFolder('QC Form Photos');props.setProperty('PHOTO_FOLDER_ID',folder.getId());}return folder;}
 function savePhoto_(rec,label){var b=String(rec.photoBase64||'');if(b.length<100)return rec.photoDriveUrl||'';var m=b.match(/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/);if(!m)throw new Error('Format foto tidak didukung.');var bytes=Utilities.base64Decode(m[2]);if(bytes.length>2000000)throw new Error('Foto maksimal 2 MB.');var ext=m[1]==='image/png'?'.png':m[1]==='image/webp'?'.webp':'.jpg',folder=getPhotoFolder_(),kind=clean_(label||rec.photoLabel||rec.formType||'QC',30).replace(/[^a-z0-9_-]/gi,'_'),name='QC_'+kind+'_'+clean_(rec.paddock,40).replace(/[^a-z0-9_-]/gi,'_')+'_'+Date.now()+ext,file=folder.createFile(Utilities.newBlob(bytes,m[1],name));try{file.setSharing(DriveApp.Access.ANYONE_WITH_LINK,DriveApp.Permission.VIEW);}catch(e){console.warn('Foto tersimpan tetapi sharing link tidak dapat diubah: '+e);}return file.getUrl();}
 function preparePhotoLinks_(rec){if(rec.photoBase64&&!rec.photoDriveUrl)rec.photoDriveUrl=savePhoto_(rec,rec.formType);(rec.holdIntervals||[]).forEach(function(h,i){if(h.photoBase64&&!h.photoDriveUrl){var x={photoBase64:h.photoBase64,formType:rec.formType,paddock:rec.paddock};h.photoDriveUrl=savePhoto_(x,'HOLD_'+(i+1));}});return rec;}
