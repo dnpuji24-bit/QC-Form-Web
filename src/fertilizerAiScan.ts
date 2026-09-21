@@ -1,6 +1,7 @@
 import { getAI, getGenerativeModel, GoogleAIBackend, Schema } from 'firebase/ai'
 import { firebaseApp } from './firebase'
-import type { MasterData, MaterialMaster, PlanMaster } from './types'
+import type { MasterData, MaterialMaster, PlanMaster, User } from './types'
+import { loadFertilizerScanLearningExamples } from './fertilizerScanFeedback'
 import type { FertilizerScanResult, ScanFilling, ScanUnit } from './FertilizerReportScanner'
 
 type AiPayload={
@@ -60,10 +61,11 @@ const responseSchema=Schema.object({properties:{
 function isTransientGeminiError(error:unknown){const message=error instanceof Error?error.message:String(error||'');return /high demand|\b500\b|\b503\b|\b429\b|RESOURCE_EXHAUSTED|UNAVAILABLE|INTERNAL|temporar|fetch-error/i.test(message)}
 function modelCandidates(){const preferred=String(import.meta.env.VITE_GEMINI_SCAN_MODEL||'gemini-3.8-flash').trim();return unique([preferred,'gemini-3.8-flash','gemini-3.7-flash','gemini-3.6-flash','gemini-3.5-flash'])}
 
-export async function scanFertilizerReportWithGemini(file:File,master:MasterData,defaults:{date:string;shift:string;mandor:string;assistant:string}):Promise<FertilizerScanResult>{
+export async function scanFertilizerReportWithGemini(file:File,master:MasterData,defaults:{date:string;shift:string;mandor:string;assistant:string},learningUser?:Pick<User,'username'>):Promise<FertilizerScanResult>{
   if(!firebaseApp)throw new Error('Firebase belum tersedia.')
   const ai=getAI(firebaseApp,{backend:new GoogleAIBackend()})
   const masterContext=compactMaster(master)
+  const learningExamples=learningUser?await loadFertilizerScanLearningExamples(learningUser):[]
   const prompt=[
     'Anda membaca FOTO LAPORAN LAPANGAN QC FERTILIZER.',
     'Ekstrak data faktual dari foto ke JSON sesuai schema. Jangan menebak data yang tidak terlihat.',
@@ -80,6 +82,8 @@ export async function scanFertilizerReportWithGemini(file:File,master:MasterData
     '- pemerataanPupuk pertahankan seperti yang tertulis (1,2,3,4,>4) atau kosong.',
     '- catatan hanya untuk issue/kendala/downtime yang benar-benar terlihat.',
     '- transcription berisi transkripsi ringkas teks penting yang terbaca, untuk audit manusia.',
+    '- Correction Learning di bawah adalah contoh koreksi pengguna sebelumnya. Gunakan hanya untuk mengenali pola penamaan/struktur yang berulang. JANGAN menyalin nilai contoh bila tidak terlihat pada foto saat ini.',
+    learningExamples.length?'Contoh Correction Learning (AI original -> koreksi manusia): '+JSON.stringify(learningExamples):'Belum ada contoh Correction Learning untuk pengguna ini.',
     'Default session yang sudah ada di form (gunakan hanya jika field pada foto tidak ada, bukan untuk mengarang unit): '+JSON.stringify(defaults),
     'Master valid aplikasi: '+JSON.stringify(masterContext),
   ].join('\n')
