@@ -14,7 +14,7 @@ const text=(v:unknown)=>String(v??'').trim()
 const unique=(items:unknown[])=>[...new Set(items.map(text).filter(Boolean))]
 const strNum=(v:unknown)=>v===null||v===undefined||v===''?'':String(v).replace(',','.')
 function blankFilling(index=1):ScanFilling{return{pengisianKe:index,dosis:'',statusHose:'Lancar',jenisPupuk:'',jumlah:'',hasilKerja:'',pemerataanPupuk:''}}
-function normalizeDate(v:unknown){const s=text(v);const m=s.match(/^(20\d{2})-(\d{2})-(\d{2})$/);return m?s:''}
+function normalizeDate(v:unknown){const s=text(v);let m=s.match(/^(20\d{2})-(\d{2})-(\d{2})$/);if(m)return m[1]+'-'+m[2]+'-'+m[3];m=s.match(/^(\d{2})-(\d{2})-(20\d{2})$/);if(m)return m[3]+'-'+m[2]+'-'+m[1];return''}
 function completionScore(result:FertilizerScanResult){
   let required=4,filled=0
   if(result.date)filled++;if(result.shift)filled++;if(result.mandor)filled++;if(result.assistant)filled++
@@ -71,7 +71,7 @@ export async function scanFertilizerReportWithGemini(file:File,master:MasterData
     'Anda membaca FOTO LAPORAN LAPANGAN QC FERTILIZER.',
     'Ekstrak data faktual dari foto ke JSON sesuai schema. Jangan menebak data yang tidak terlihat.',
     'Aturan penting:',
-    '- Tanggal keluarkan YYYY-MM-DD. Jika tidak terbaca, kosongkan.',
+    '- Tanggal boleh dikeluarkan sebagai DD-MM-YYYY atau YYYY-MM-DD. Jika tidak terbaca, kosongkan.',
     '- Untuk Jenis Unit, No. Unit, Paddock, Activity, Type, Mandor, Asisten, dan Jenis Pupuk: gunakan NILAI PERSIS dari master bila yakin cocok. Jika tidak yakin, kosongkan; jangan membuat nama baru.',
     '- Desimal koma pada foto dikonversi menjadi angka desimal.',
     '- Satu laporan dapat berisi beberapa unit, tetapi buat Unit Card HANYA untuk unit yang benar-benar menjadi unit utama pada header/tabel pekerjaan. Nomor unit yang hanya disebut di bagian Catatan sebagai referensi, sumber sisa pupuk, unit rusak, atau unit tujuan pemindahan JANGAN dibuat sebagai unit baru.',
@@ -99,6 +99,9 @@ export async function scanFertilizerReportWithGemini(file:File,master:MasterData
   }
   const templateByModel:Record<string,string>={
     'gemini-3.8-flash':'fertilizer-scan-v1-3-8',
+    'gemini-3.7-flash':'fertilizer-scan-v1-3-7',
+    'gemini-3.6-flash':'fertilizer-scan-v1-3-6',
+    'gemini-3.5-flash':'fertilizer-scan-v1-3-5',
   }
   const routeStarted=typeof performance!=='undefined'?performance.now():Date.now()
   const routeAttempts:Array<{model:string;ok:boolean;latencyMs:number;errorKind?:string;errorDetail?:string;via?:'template'|'direct';templateId?:string}>=[]
