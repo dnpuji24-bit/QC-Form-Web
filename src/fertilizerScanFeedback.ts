@@ -125,6 +125,7 @@ export async function saveFertilizerScanFeedback(args:{
         ok:Boolean(attempt.ok),
         latencyMs:Number(attempt.latencyMs||0),
         errorKind:text(attempt.errorKind),
+        errorDetail:text(attempt.errorDetail).slice(0,220),
         via:text(attempt.via),
         templateId:text(attempt.templateId),
       })),
