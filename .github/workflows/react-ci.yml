@@ -58,6 +58,8 @@ jobs:
       - name: Vite production build
         env:
           VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY }}
+          VITE_PADDLEOCR_URL: ${{ vars.VITE_PADDLEOCR_URL }}
+          VITE_PADDLEOCR_TIMEOUT_MS: '18000'
         run: npm run build
 
       - name: Apps Script runtime smoke
