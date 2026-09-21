@@ -29,6 +29,9 @@ for token in [
 for token in [
     "app_check.verify_token",
     "PADDLEOCR_ENABLED",
+    "MONTHLY_REQUEST_LIMIT",
+    "PADDLEOCR_MONTHLY_GUARD",
+    "consume_monthly_quota",
     "HTTPException(status_code=503",
     '@app.post("/ocr")',
     "PP-OCRv5",
