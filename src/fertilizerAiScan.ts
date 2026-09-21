@@ -57,11 +57,12 @@ const responseSchema=Schema.object({properties:{
   }})}),
 }})
 
+function isTransientGeminiError(error:unknown){const message=error instanceof Error?error.message:String(error||'');return /high demand|\b500\b|\b503\b|\b429\b|RESOURCE_EXHAUSTED|UNAVAILABLE|INTERNAL|temporar|fetch-error/i.test(message)}
+function modelCandidates(){const preferred=String(import.meta.env.VITE_GEMINI_SCAN_MODEL||'gemini-3.8-flash').trim();return unique([preferred,'gemini-3.8-flash','gemini-3.7-flash','gemini-3.6-flash','gemini-3.5-flash'])}
+
 export async function scanFertilizerReportWithGemini(file:File,master:MasterData,defaults:{date:string;shift:string;mandor:string;assistant:string}):Promise<FertilizerScanResult>{
   if(!firebaseApp)throw new Error('Firebase belum tersedia.')
   const ai=getAI(firebaseApp,{backend:new GoogleAIBackend()})
-  const modelName=String(import.meta.env.VITE_GEMINI_SCAN_MODEL||'gemini-3.8-flash')
-  const model=getGenerativeModel(ai,{model:modelName,generationConfig:{responseMimeType:'application/json',responseSchema,temperature:0.1}})
   const masterContext=compactMaster(master)
   const prompt=[
     'Anda membaca FOTO LAPORAN LAPANGAN QC FERTILIZER.',
@@ -80,17 +81,28 @@ export async function scanFertilizerReportWithGemini(file:File,master:MasterData
     'Master valid aplikasi: '+JSON.stringify(masterContext),
   ].join('\n')
   const image=await filePart(file,file.type||'image/jpeg')
-  const generated=await model.generateContent([prompt,image])
-  const raw=generated.response.text()
-  let parsed:AiPayload
-  try{parsed=JSON.parse(raw)}catch{throw new Error('Gemini mengembalikan JSON yang tidak dapat dibaca.')}
+  let parsed:AiPayload|undefined,modelUsed='',lastError:unknown
+  for(const modelName of modelCandidates()){
+    try{
+      const model=getGenerativeModel(ai,{model:modelName,generationConfig:{responseMimeType:'application/json',responseSchema,temperature:0.1}})
+      const generated=await model.generateContent([prompt,image])
+      const raw=generated.response.text()
+      try{parsed=JSON.parse(raw)}catch{throw new Error('Gemini mengembalikan JSON yang tidak dapat dibaca.')}
+      modelUsed=modelName
+      break
+    }catch(error){
+      lastError=error
+      if(!isTransientGeminiError(error))throw error
+    }
+  }
+  if(!parsed)throw lastError instanceof Error?lastError:new Error('Semua model Gemini sementara tidak tersedia.')
   const units:ScanUnit[]=(parsed.units||[]).map((u,ui)=>({
     unit:text(u.unit),noUnit:text(u.noUnit),paddock:text(u.paddock),type:text(u.type)||'Fertilizer',activity:text(u.activity),catatan:text(u.catatan),
     fillings:(u.fillings||[]).map((f,fi)=>({pengisianKe:Number(f.pengisianKe)||fi+1,dosis:strNum(f.dosis),statusHose:/tidak/i.test(text(f.statusHose))?'Tidak Lancar':'Lancar',jenisPupuk:text(f.jenisPupuk),jumlah:strNum(f.jumlah),hasilKerja:strNum(f.hasilKerja),pemerataanPupuk:text(f.pemerataanPupuk)})),
   })).filter(u=>Boolean(u.unit||u.noUnit||u.paddock||u.activity||u.fillings.length))
   if(!units.length)units.push({unit:'',noUnit:'',paddock:'',type:'Fertilizer',activity:'',catatan:'',fillings:[blankFilling()]})
   units.forEach(u=>{if(!u.fillings.length)u.fillings=[blankFilling()]})
-  const result:FertilizerScanResult={date:normalizeDate(parsed.date)||defaults.date,shift:text(parsed.shift)||defaults.shift,mandor:text(parsed.mandor)||defaults.mandor,assistant:text(parsed.assistant)||defaults.assistant,units,rawText:text(parsed.transcription),confidence:0,warnings:[]}
+  const result:FertilizerScanResult={date:normalizeDate(parsed.date)||defaults.date,shift:text(parsed.shift)||defaults.shift,mandor:text(parsed.mandor)||defaults.mandor,assistant:text(parsed.assistant)||defaults.assistant,units,rawText:text(parsed.transcription),confidence:0,warnings:[],sourceModel:modelUsed}
   result.warnings=validate(result,master);result.confidence=completionScore(result)
   return result
 }
