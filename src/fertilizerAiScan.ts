@@ -1,0 +1,96 @@
+import { getAI, getGenerativeModel, GoogleAIBackend, Schema } from 'firebase/ai'
+import { firebaseApp } from './firebase'
+import type { MasterData, MaterialMaster, PlanMaster } from './types'
+import type { FertilizerScanResult, ScanFilling, ScanUnit } from './FertilizerReportScanner'
+
+type AiPayload={
+  date?:string;shift?:string;mandor?:string;assistant?:string;transcription?:string
+  units?:Array<{unit?:string;noUnit?:string;paddock?:string;type?:string;activity?:string;catatan?:string;fillings?:Array<{pengisianKe?:number;dosis?:number|string;statusHose?:string;jenisPupuk?:string;jumlah?:number|string;hasilKerja?:number|string;pemerataanPupuk?:string|number}>}>
+}
+
+const text=(v:unknown)=>String(v??'').trim()
+const unique=(items:unknown[])=>[...new Set(items.map(text).filter(Boolean))]
+const strNum=(v:unknown)=>v===null||v===undefined||v===''?'':String(v).replace(',','.')
+function blankFilling(index=1):ScanFilling{return{pengisianKe:index,dosis:'',statusHose:'Lancar',jenisPupuk:'',jumlah:'',hasilKerja:'',pemerataanPupuk:''}}
+function normalizeDate(v:unknown){const s=text(v);const m=s.match(/^(20\d{2})-(\d{2})-(\d{2})$/);return m?s:''}
+function completionScore(result:FertilizerScanResult){
+  let required=4,filled=0
+  if(result.date)filled++;if(result.shift)filled++;if(result.mandor)filled++;if(result.assistant)filled++
+  result.units.forEach(u=>{required+=5;if(u.unit)filled++;if(u.noUnit)filled++;if(u.paddock)filled++;if(u.activity)filled++;if(u.type)filled++;u.fillings.forEach(f=>{required+=5;if(f.jenisPupuk)filled++;if(f.dosis)filled++;if(f.jumlah)filled++;if(f.hasilKerja)filled++;if(f.statusHose)filled++})})
+  return required?Math.max(0,Math.min(100,Math.round(filled/required*100))):0
+}
+function validate(result:FertilizerScanResult,master:MasterData){
+  const warnings:string[]=[]
+  const plans=((master.plans||master.plan||[])as PlanMaster[]).filter(p=>{const c=text(p.category||p.keterangan).toLowerCase();return !c||/fertil|pupuk/.test(c)})
+  const unitTypes=Object.keys(master.unitMap||{}),unitNumbers=unique(Object.values(master.unitMap||{}).flat()),paddocks=unique(plans.map(p=>p.paddock)),activities=unique(plans.map(p=>p.activity)),materials=unique(((master.materials||[])as MaterialMaster[]).map(m=>m.material))
+  if(!result.date)warnings.push('Tanggal belum terbaca.');if(!result.mandor)warnings.push('Mandor belum terbaca.')
+  result.units.forEach((u,i)=>{
+    if(!u.unit)warnings.push('Unit '+(i+1)+': Jenis Unit belum terbaca.');else if(!unitTypes.includes(u.unit))warnings.push('Unit '+(i+1)+': Jenis Unit tidak cocok dengan Master Unit.')
+    if(!u.noUnit)warnings.push('Unit '+(i+1)+': No. Unit belum terbaca.');else if(!unitNumbers.includes(u.noUnit))warnings.push('Unit '+(i+1)+': No. Unit tidak cocok dengan Master Unit.')
+    if(!u.paddock)warnings.push('Unit '+(i+1)+': Paddock belum terbaca.');else if(!paddocks.includes(u.paddock))warnings.push('Unit '+(i+1)+': Paddock tidak cocok dengan Master/Plan.')
+    if(!u.activity)warnings.push('Unit '+(i+1)+': Activity belum terbaca.');else if(!activities.includes(u.activity))warnings.push('Unit '+(i+1)+': Activity tidak cocok dengan Plan.')
+    u.fillings.forEach((f,j)=>{if(!f.jenisPupuk)warnings.push('Unit '+(i+1)+' Pengisian '+(j+1)+': Jenis Pupuk belum terbaca.');else if(!materials.includes(f.jenisPupuk))warnings.push('Unit '+(i+1)+' Pengisian '+(j+1)+': Jenis Pupuk tidak cocok dengan Master Material.');if(!f.jumlah)warnings.push('Unit '+(i+1)+' Pengisian '+(j+1)+': Jumlah belum terbaca.');if(!f.hasilKerja)warnings.push('Unit '+(i+1)+' Pengisian '+(j+1)+': Hasil Kerja belum terbaca.')})
+  })
+  return warnings
+}
+async function filePart(file:Blob,mimeType:string){
+  const data=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(new Error('Foto laporan tidak dapat dibaca.'));reader.onloadend=()=>{const raw=String(reader.result||''),comma=raw.indexOf(',');resolve(comma>=0?raw.slice(comma+1):raw)};reader.readAsDataURL(file)})
+  return{inlineData:{data,mimeType}}
+}
+function compactMaster(master:MasterData){
+  const plans=((master.plans||master.plan||[])as PlanMaster[]).filter(p=>{const c=text(p.category||p.keterangan).toLowerCase();return !c||/fertil|pupuk/.test(c)})
+  const planRows=plans.map(p=>({paddock:text(p.paddock),activity:text(p.activity),type:text(p.type)})).filter((x,i,a)=>x.paddock&&a.findIndex(y=>y.paddock===x.paddock&&y.activity===x.activity&&y.type===x.type)===i)
+  return{
+    shifts:unique(master.shifts||[]),mandor:unique(master.names||[]),assistants:unique(master.assistants||[]),
+    units:Object.fromEntries(Object.entries(master.unitMap||{}).map(([k,v])=>[k,unique(v)])),
+    fertilizerMaterials:unique(((master.materials||[])as MaterialMaster[]).map(m=>m.material)),
+    plans:planRows.slice(0,1200),
+  }
+}
+const responseSchema=Schema.object({properties:{
+  date:Schema.string(),shift:Schema.string(),mandor:Schema.string(),assistant:Schema.string(),transcription:Schema.string(),
+  units:Schema.array({items:Schema.object({properties:{
+    unit:Schema.string(),noUnit:Schema.string(),paddock:Schema.string(),type:Schema.string(),activity:Schema.string(),catatan:Schema.string(),
+    fillings:Schema.array({items:Schema.object({properties:{
+      pengisianKe:Schema.number(),dosis:Schema.number(),statusHose:Schema.string(),jenisPupuk:Schema.string(),jumlah:Schema.number(),hasilKerja:Schema.number(),pemerataanPupuk:Schema.string(),
+    }})}),
+  }})}),
+}})
+
+export async function scanFertilizerReportWithGemini(file:File,master:MasterData,defaults:{date:string;shift:string;mandor:string;assistant:string}):Promise<FertilizerScanResult>{
+  if(!firebaseApp)throw new Error('Firebase belum tersedia.')
+  const ai=getAI(firebaseApp,{backend:new GoogleAIBackend()})
+  const modelName=String(import.meta.env.VITE_GEMINI_SCAN_MODEL||'gemini-3.8-flash')
+  const model=getGenerativeModel(ai,{model:modelName,generationConfig:{responseMimeType:'application/json',responseSchema,temperature:0.1}})
+  const masterContext=compactMaster(master)
+  const prompt=[
+    'Anda membaca FOTO LAPORAN LAPANGAN QC FERTILIZER.',
+    'Ekstrak data faktual dari foto ke JSON sesuai schema. Jangan menebak data yang tidak terlihat.',
+    'Aturan penting:',
+    '- Tanggal keluarkan YYYY-MM-DD. Jika tidak terbaca, kosongkan.',
+    '- Untuk Jenis Unit, No. Unit, Paddock, Activity, Type, Mandor, Asisten, dan Jenis Pupuk: gunakan NILAI PERSIS dari master bila yakin cocok. Jika tidak yakin, kosongkan; jangan membuat nama baru.',
+    '- Desimal koma pada foto dikonversi menjadi angka desimal.',
+    '- Satu laporan dapat berisi beberapa unit. Buat satu object units untuk setiap unit.',
+    '- Setiap baris/pengisian harus dipertahankan terpisah pada fillings.',
+    '- statusHose hanya "Lancar" atau "Tidak Lancar". Jika tidak tertulis, gunakan "Lancar".',
+    '- pemerataanPupuk pertahankan seperti yang tertulis (1,2,3,4,>4) atau kosong.',
+    '- catatan hanya untuk issue/kendala/downtime yang benar-benar terlihat.',
+    '- transcription berisi transkripsi ringkas teks penting yang terbaca, untuk audit manusia.',
+    'Default session yang sudah ada di form (gunakan hanya jika field pada foto tidak ada, bukan untuk mengarang unit): '+JSON.stringify(defaults),
+    'Master valid aplikasi: '+JSON.stringify(masterContext),
+  ].join('\n')
+  const image=await filePart(file,file.type||'image/jpeg')
+  const generated=await model.generateContent([prompt,image])
+  const raw=generated.response.text()
+  let parsed:AiPayload
+  try{parsed=JSON.parse(raw)}catch{throw new Error('Gemini mengembalikan JSON yang tidak dapat dibaca.')}
+  const units:ScanUnit[]=(parsed.units||[]).map((u,ui)=>({
+    unit:text(u.unit),noUnit:text(u.noUnit),paddock:text(u.paddock),type:text(u.type)||'Fertilizer',activity:text(u.activity),catatan:text(u.catatan),
+    fillings:(u.fillings||[]).map((f,fi)=>({pengisianKe:Number(f.pengisianKe)||fi+1,dosis:strNum(f.dosis),statusHose:/tidak/i.test(text(f.statusHose))?'Tidak Lancar':'Lancar',jenisPupuk:text(f.jenisPupuk),jumlah:strNum(f.jumlah),hasilKerja:strNum(f.hasilKerja),pemerataanPupuk:text(f.pemerataanPupuk)})),
+  })).filter(u=>Boolean(u.unit||u.noUnit||u.paddock||u.activity||u.fillings.length))
+  if(!units.length)units.push({unit:'',noUnit:'',paddock:'',type:'Fertilizer',activity:'',catatan:'',fillings:[blankFilling()]})
+  units.forEach(u=>{if(!u.fillings.length)u.fillings=[blankFilling()]})
+  const result:FertilizerScanResult={date:normalizeDate(parsed.date)||defaults.date,shift:text(parsed.shift)||defaults.shift,mandor:text(parsed.mandor)||defaults.mandor,assistant:text(parsed.assistant)||defaults.assistant,units,rawText:text(parsed.transcription),confidence:0,warnings:[]}
+  result.warnings=validate(result,master);result.confidence=completionScore(result)
+  return result
+}
