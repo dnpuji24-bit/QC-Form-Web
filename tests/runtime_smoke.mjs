@@ -1,6 +1,7 @@
 const API = process.env.SMOKE_API_URL || 'https://script.google.com/macros/s/AKfycbwjqnVwOBDQg3ptclpw_bCQO9kAcYUcHkxz4tdlNppcPYmMpCocPTbG8fgGVlp1muY/exec'
 const ownerUser = process.env.SMOKE_OWNER_USERNAME || ''
 const ownerPass = process.env.SMOKE_OWNER_PASSWORD || ''
+const expectedApiVersion = process.env.SMOKE_EXPECTED_API_VERSION || '46.3.1'
 
 function assert(condition, message) {
   if (!condition) throw new Error(message)
@@ -50,7 +51,8 @@ console.log('Runtime smoke: public API checks')
 const health = await get('health')
 assert(health.ok === true, `health failed: ${JSON.stringify(health)}`)
 assert(typeof health.version === 'string' && health.version.length > 0, 'health version missing')
-console.log(`  ✓ health OK (API v${health.version})`)
+assert(health.version === expectedApiVersion, `deployed API version mismatch: expected v${expectedApiVersion}, got v${health.version}`)
+console.log(`  ✓ health OK (deployed API v${health.version})`)
 
 const master = await get('masterData')
 assert(master.ok === true && master.data && typeof master.data === 'object', 'masterData failed')
