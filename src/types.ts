@@ -44,12 +44,6 @@ export interface HoldInterval {
   photoBase64?: string
   photoDriveUrl?: string
   photoPreviewBase64?: string
-  scanReportPhotoBase64?: string
-  scanReportDriveUrl?: string
-  scanConfidence?: number
-  scanRawText?: string
-  scanSourceFileName?: string
-  scanAppliedAt?: string
 }
 
 export interface PlanMaster {
@@ -92,6 +86,14 @@ export interface QcRecord {
   photoBase64?: string
   photoDriveUrl?: string
   photoPreviewBase64?: string
+  scanReportPhotoBase64?: string
+  scanReportDriveUrl?: string
+  scanConfidence?: number
+  scanRawText?: string
+  scanSourceFileName?: string
+  scanAppliedAt?: string
+  averageActualDosage?: number
+  weightedActualDosage?: number
   holdIntervals?: HoldInterval[]
   workingDurationMinutes?: number
   holdTotalMinutes?: number
