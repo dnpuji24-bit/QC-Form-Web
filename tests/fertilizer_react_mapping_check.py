@@ -23,4 +23,5 @@ headers = re.findall(r"'([^']*)'", match.group(1))
 assert len(headers) == 23, f'Expected 23 fertilizer columns, got {len(headers)}'
 for token in ["p.jenisPupuk||rec.jenisPupuk","num_(p.dosis||rec.dosis)","p.statusHose||rec.statusHose","p.pengisianKe||rec.pengisianKe||i+1","num_(p.pemerataanPupuk||rec.pemerataanPupuk)","deleteById_(getSheet_(QC.SHEETS.FERT),rec.id,23,2)"]:
     assert token in backend, f'Missing backend per-filling/correction mapping: {token}'
-assert 'Rata-rata Dosis Aktual' in app and 'Dosis Total/Ha' in app, 'Fertilizer report dosage validation summary missing'\nprint('Fertilizer unit-tabs/session/uploaded-correction check: OK')
+assert 'Rata-rata Dosis Aktual' in app and 'Dosis Total/Ha' in app, 'Fertilizer report dosage validation summary missing'
+print('Fertilizer unit-tabs/session/uploaded-correction check: OK')
