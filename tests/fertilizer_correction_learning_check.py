@@ -25,7 +25,7 @@ for token in [
     "originalAiRef",
     "cloneFertilizerScanResult",
     "saveFertilizerScanFeedback",
-    "Menyimpan Correction Learning",
+    "Menyimpan Gemini Correction Learning",
     "learningFeedbackSaved",
     "learningChangedFields",
     "Koreksi akan masuk Correction Learning",
