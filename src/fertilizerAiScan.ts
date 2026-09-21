@@ -125,8 +125,11 @@ export async function scanFertilizerReportWithGemini(file:File,master:MasterData
       recordGeminiAttempt(modelName,false,latencyMs,error)
       routeAttempts.push({model:modelName,ok:false,latencyMs,errorKind,via:templateByModel[modelName]?'template':'direct',templateId:templateByModel[modelName]})
       lastError=error
-      if(!isTransientGeminiError(error))throw error
-      onRouteUpdate?.(modelName+' sedang tidak stabil; mencoba model berikutnya...')
+      const templateFailure=Boolean(templateByModel[modelName])
+      if(!isTransientGeminiError(error)&&!templateFailure)throw error
+      onRouteUpdate?.(templateFailure
+        ?modelName+' Server Prompt Template belum siap; mencoba model berikutnya...'
+        :modelName+' sedang tidak stabil; mencoba model berikutnya...')
     }
   }
   if(!parsed)throw lastError instanceof Error?lastError:new Error('Semua model Gemini sementara tidak tersedia.')
