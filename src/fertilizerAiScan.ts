@@ -101,7 +101,7 @@ export async function scanFertilizerReportWithGemini(file:File,master:MasterData
     'gemini-3.8-flash':'fertilizer-scan-v1-3-8',
   }
   const routeStarted=typeof performance!=='undefined'?performance.now():Date.now()
-  const routeAttempts:Array<{model:string;ok:boolean;latencyMs:number;errorKind?:string}>=[]
+  const routeAttempts:Array<{model:string;ok:boolean;latencyMs:number;errorKind?:string;via?:'template'|'direct';templateId?:string}>=[]
   let parsed:AiPayload|undefined,modelUsed='',sourceTemplateId='',lastError:unknown
   for(const modelName of modelCandidates()){
     const attemptStarted=typeof performance!=='undefined'?performance.now():Date.now()
