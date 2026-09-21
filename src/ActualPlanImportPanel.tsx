@@ -70,19 +70,49 @@ async function loadRefs():Promise<Refs>{
   return{daily,monthlyByKey,paddocks}
 }
 
-function resolveDaily(dailySource:string,date:string,activity:string,shift:string,paddock:string,refs:Refs){
-  const exact=refs.daily.filter(d=>normalized(d.sourcePlanIdRaw)===normalized(dailySource)&&d.date===date&&normActivity(d.activity)===normActivity(activity)&&text(d.shift)===text(shift)&&compact(d.paddockRaw)===compact(paddock))
-  if(exact.length===1)return{status:'LINKED' as LinkStatus,row:exact[0],candidates:exact}
-  if(exact.length>1)return{status:'AMBIGUOUS' as LinkStatus,row:null,candidates:exact}
-  const fallback=refs.daily.filter(d=>d.date===date&&normActivity(d.activity)===normActivity(activity)&&text(d.shift)===text(shift)&&compact(d.paddockRaw)===compact(paddock))
+function uniqueNearestByArea(candidates:DailyRef[],areaHa:number){
+  if(!candidates.length)return null
+  const ranked=candidates.map(row=>({row,diff:Math.abs(row.areaHa-areaHa)})).sort((a,b)=>a.diff-b.diff)
+  if(ranked.length===1||ranked[0].diff<ranked[1].diff-0.000001)return ranked[0].row
+  return null
+}
+function resolveDaily(dailySource:string,date:string,activity:string,shift:string,paddock:string,areaHa:number,refs:Refs){
+  const samePlan=refs.daily.filter(d=>normalized(d.sourcePlanIdRaw)===normalized(dailySource))
+  if(samePlan.length){
+    const sameWork=samePlan.filter(d=>normActivity(d.activity)===normActivity(activity)&&compact(d.paddockRaw)===compact(paddock))
+    if(sameWork.length===1)return{status:'LINKED' as LinkStatus,row:sameWork[0],candidates:sameWork}
+    if(sameWork.length>1){
+      const sameDate=sameWork.filter(d=>d.date===date)
+      if(sameDate.length===1)return{status:'LINKED' as LinkStatus,row:sameDate[0],candidates:sameWork}
+      const sameDateShift=sameDate.filter(d=>text(d.shift)===text(shift))
+      if(sameDateShift.length===1)return{status:'LINKED' as LinkStatus,row:sameDateShift[0],candidates:sameWork}
+      const sameShift=sameWork.filter(d=>text(d.shift)===text(shift))
+      if(sameShift.length===1)return{status:'LINKED' as LinkStatus,row:sameShift[0],candidates:sameWork}
+      const nearest=uniqueNearestByArea(sameDateShift.length?sameDateShift:sameDate.length?sameDate:sameShift.length?sameShift:sameWork,areaHa)
+      if(nearest)return{status:'LINKED' as LinkStatus,row:nearest,candidates:sameWork}
+      return{status:'AMBIGUOUS' as LinkStatus,row:null,candidates:sameWork}
+    }
+  }
+
+  const fallback=refs.daily.filter(d=>d.date===date&&normActivity(d.activity)===normActivity(activity)&&compact(d.paddockRaw)===compact(paddock))
   if(fallback.length===1)return{status:'LINKED' as LinkStatus,row:fallback[0],candidates:fallback}
-  if(fallback.length>1)return{status:'AMBIGUOUS' as LinkStatus,row:null,candidates:fallback}
+  if(fallback.length>1){
+    const sameShift=fallback.filter(d=>text(d.shift)===text(shift))
+    if(sameShift.length===1)return{status:'LINKED' as LinkStatus,row:sameShift[0],candidates:fallback}
+    const nearest=uniqueNearestByArea(sameShift.length?sameShift:fallback,areaHa)
+    if(nearest)return{status:'LINKED' as LinkStatus,row:nearest,candidates:fallback}
+    return{status:'AMBIGUOUS' as LinkStatus,row:null,candidates:fallback}
+  }
   return{status:'NOT_FOUND' as LinkStatus,row:null,candidates:[] as DailyRef[]}
 }
-function resolveMonthly(legacy:string,refs:Refs){
-  const parsed=parseMonthlyLegacy(legacy);if(!parsed)return{status:'NOT_APPLICABLE' as LinkStatus,row:null as MonthlyRef|null,candidates:[] as MonthlyRef[]}
-  const candidates=refs.monthlyByKey.get(parsed.key)||[];if(candidates.length===1)return{status:'LINKED' as LinkStatus,row:candidates[0],candidates}
-  if(candidates.length>1&&parsed.target!==null){const exact=candidates.filter(x=>Math.abs(x.targetAreaHa-(parsed.target||0))<=0.02);if(exact.length===1)return{status:'LINKED' as LinkStatus,row:exact[0],candidates}}
+function resolveMonthly(dailySource:string,legacy:string,areaHa:number,refs:Refs){
+  const parsedLegacy=parseMonthlyLegacy(legacy)
+  const key=parsedLegacy?.key||legacyDailyKey(dailySource)
+  if(!key)return{status:'NOT_APPLICABLE' as LinkStatus,row:null as MonthlyRef|null,candidates:[] as MonthlyRef[]}
+  const candidates=refs.monthlyByKey.get(key)||[]
+  if(candidates.length===1)return{status:'LINKED' as LinkStatus,row:candidates[0],candidates}
+  const target=parsedLegacy?.target??areaHa
+  if(candidates.length>1){const exact=candidates.filter(x=>Math.abs(x.targetAreaHa-target)<=0.02);if(exact.length===1)return{status:'LINKED' as LinkStatus,row:exact[0],candidates}}
   return{status:(candidates.length?'AMBIGUOUS':'NOT_FOUND') as LinkStatus,row:null,candidates}
 }
 
@@ -102,8 +132,8 @@ function parseWorkbook(buffer:ArrayBuffer,fileName:string,refs:Refs):ParsedFile{
     if(actualAreaHa<0)issues.push({level:'ERROR',item:'Baris '+sourceRow,message:'Luas aktual tidak boleh negatif.'})
     const shift=text(cell(r,shiftI)),unitName=text(cell(r,unitI)),foreman=text(cell(r,foremanI)),key=identityKey(date,dailySourcePlanIdRaw,legacy,activity,shift,paddockRaw,unitName,foreman),occ=(occurrences.get(key)||0)+1;occurrences.set(key,occ)
     if(occ>1)issues.push({level:'INFO',item:'Baris '+sourceRow,message:'Identitas inti Actual sama dengan record sebelumnya; sistem membuat Actual Report ID terpisah dengan urutan '+occ+'.'})
-    const dailyRes=resolveDaily(dailySourcePlanIdRaw,date,activity,shift,paddockRaw,refs)
-    const directMonthly=resolveMonthly(legacy,refs),dailyRow=dailyRes.row
+    const dailyRes=resolveDaily(dailySourcePlanIdRaw,date,activity,shift,paddockRaw,actualAreaHa,refs)
+    const directMonthly=resolveMonthly(dailySourcePlanIdRaw,legacy,actualAreaHa,refs),dailyRow=dailyRes.row
     let monthlyRow:MonthlyRef|null=null,monthlyLinkStatus:LinkStatus='NOT_APPLICABLE',monthlyCandidates:string[]=[]
     if(dailyRow?.monthlyPlanLineId){monthlyLinkStatus='LINKED';monthlyCandidates=[dailyRow.monthlyPlanLineId]}
     else if(directMonthly.row){monthlyRow=directMonthly.row;monthlyLinkStatus='LINKED';monthlyCandidates=directMonthly.candidates.map(x=>x.planLineId)}
@@ -132,7 +162,7 @@ export default function ActualPlanImportPanel({user}:Props){
   async function refresh(){if(!parsed)return;setBusy(true);try{const p=await compareFirestore(parsed);setPreview(p);setMessage('Perbandingan selesai: '+p.filter(x=>x.importStatus==='CREATE').length+' CREATE / '+p.filter(x=>x.importStatus==='UPDATE').length+' UPDATE / '+p.filter(x=>x.importStatus==='NO_CHANGE').length+' NO CHANGE / '+p.filter(x=>x.importStatus==='PROTECTED').length+' PROTECTED.')}catch(err){setMessage(err instanceof Error?err.message:'Perbandingan gagal.')}finally{setBusy(false)}}
   async function confirmImport(){if(!parsed||!preview.length)return;if(counts.errors){setMessage('Import diblokir karena masih ada '+counts.errors+' ERROR.');return}const writable=preview.filter(x=>x.importStatus==='CREATE'||x.importStatus==='UPDATE');if(!writable.length){setMessage('Tidak ada data yang perlu ditulis.');return}const ok=window.prompt('Akan menulis '+writable.length+' Actual Plan ke Daily Report. Record Daily Plan Pending tetap boleh masuk. Ketik IMPORT untuk lanjut.','');if(ok!=='IMPORT')return;setBusy(true);try{const{db,username}=await writerContext(user),batchId='AR-'+Date.now();for(const part of chunks(writable,400)){const batch=writeBatch(db);part.forEach(r=>{const prev=r.previous||{},payload:Record<string,unknown>={...importedShape(r),dailyCandidates:r.dailyCandidates,monthlyCandidates:r.monthlyCandidates,sourceRow:r.sourceRow,sourceOrigin:text(prev.sourceOrigin)||'EXCEL',lastModifiedSource:'EXCEL',sourceFileName:parsed.fileName,lastImportBatchId:batchId,importedAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedBy:username};if(r.importStatus==='CREATE'){payload.createdAt=serverTimestamp();payload.createdBy=username}batch.set(doc(db,'daily_reports',r.docId),payload,{merge:true})});await batch.commit()}await setDoc(doc(db,'actual_plan_import_logs',batchId),{batchId,sourceFileName:parsed.fileName,total:preview.length,created:counts.create,updated:counts.update,unchanged:counts.unchanged,protected:counts.protected,dailyLinked:counts.dailyLinked,dailyPending:counts.dailyPending,monthlyLinked:counts.monthlyLinked,masterPending:counts.masterPending,warnings:counts.warnings,errors:counts.errors,importedBy:username,importedAt:serverTimestamp()});const next=await compareFirestore(parsed);setPreview(next);setMessage('Import selesai. Ditulis '+writable.length+' Actual. Verifikasi: '+next.filter(x=>x.importStatus==='NO_CHANGE').length+' NO CHANGE, '+next.filter(x=>x.importStatus==='PROTECTED').length+' PROTECTED.')}catch(err){setMessage(err instanceof Error?err.message:'Import Actual Plan gagal.')}finally{setBusy(false)}}
   return <section>
-    <div className="section-head"><div><div className="eyebrow">ACTUAL PLAN</div><h2>Update / Import Excel</h2><p className="muted">Actual disimpan sebagai Daily Report terpisah; Daily Plan dan Monthly Plan tidak diubah saat import. Dua header Plan ID tetap didukung: kolom pertama dibaca sebagai referensi Daily Plan, kolom kedua sebagai Plan ID legacy Monthly Plan bila polanya sesuai.</p></div></div>
+    <div className="section-head"><div><div className="eyebrow">ACTUAL PLAN</div><h2>Update / Import Excel</h2><p className="muted">Actual disimpan sebagai Daily Report terpisah; Daily Plan dan Monthly Plan tidak diubah saat import. Link Daily Plan memprioritaskan Plan ID + kegiatan + paddock, lalu tanggal/shift/luas sebagai pembeda. Plan ID yang mengikuti pola Monthly juga dicocokkan langsung ke Monthly Plan.</p></div></div>
     <div className="panel"><label><span>File Actual Plan (.xlsx / .xls)</span><input type="file" accept=".xlsx,.xls" onChange={onFile} disabled={busy}/></label><div style={{display:'flex',gap:10,flexWrap:'wrap',marginTop:14}}><button type="button" onClick={()=>void refresh()} disabled={busy||!parsed}>Bandingkan Firestore</button><button type="button" className="primary" onClick={()=>void confirmImport()} disabled={busy||!preview.length}>Confirm Import Firestore</button></div>{message&&<div className="alert" style={{marginTop:14}}>{message}</div>}</div>
     {parsed&&<><div className="cards" style={{marginTop:18}}><div className="card"><span>ACTUAL</span><strong>{counts.total}</strong></div><div className="card"><span>DAILY LINKED</span><strong>{counts.dailyLinked}</strong></div><div className="card"><span>DAILY PENDING</span><strong>{counts.dailyPending}</strong></div><div className="card"><span>MONTHLY LINKED</span><strong>{counts.monthlyLinked}</strong></div><div className="card"><span>MASTER PENDING</span><strong>{counts.masterPending}</strong></div><div className="card"><span>CREATE</span><strong>{counts.create}</strong></div><div className="card"><span>UPDATE</span><strong>{counts.update}</strong></div><div className="card"><span>NO CHANGE</span><strong>{counts.unchanged}</strong></div><div className="card"><span>PROTECTED</span><strong>{counts.protected}</strong></div><div className="card"><span>WARNING</span><strong>{counts.warnings}</strong></div><div className="card"><span>ERROR</span><strong>{counts.errors}</strong></div></div>
     {parsed.issues.length>0&&<div className="panel" style={{marginTop:18}}><h3>Data Quality</h3><p className="muted">DAILY PLAN PENDING dan MONTHLY AMBIGUOUS adalah INFO dan tidak memblokir data historis.</p><div className="table-wrap"><table><thead><tr><th>Level</th><th>Item</th><th>Keterangan</th></tr></thead><tbody>{parsed.issues.slice(0,250).map((x,i)=><tr key={i}><td><strong>{x.level}</strong></td><td>{x.item||'-'}</td><td>{x.message}</td></tr>)}</tbody></table></div></div>}
