@@ -27,7 +27,7 @@ for token in [
 
 for token in [
     "scanFertilizerReportWithGemini",
-    "Scan Otomatis",
+    "Scan dengan AI",
     "OCR Lokal",
     "engine==='gemini'",
     "Gemini sedang sibuk. Hasil sementara menggunakan OCR Lokal.",
@@ -40,4 +40,4 @@ for token in [
 assert "initializeAppCheck" in firebase and "ReCaptchaEnterpriseProvider" in firebase
 assert "VITE_GEMINI_SCAN_MODEL=gemini-3.8-flash" in env
 
-print('Fertilizer Gemini scan check passed: Gemini remains protected fallback behind PaddleOCR with stable-model failover and local OCR fallback.')
+print('Fertilizer Gemini scan check passed: structured image extraction uses stable-model failover, concise mobile fallback, local OCR fallback, and App Check wiring.')
