@@ -9,6 +9,12 @@ on:
 permissions:
   contents: read
 
+# Runtime smoke writes to the production Apps Script/Spreadsheet.
+# Serialize push workflows so two commits never finalize/delete QC rows at the same time.
+concurrency:
+  group: react-ci-${{ github.event_name }}-${{ github.event_name == 'push' && github.ref || github.run_id }}
+  cancel-in-progress: false
+
 jobs:
   verify:
     runs-on: ubuntu-latest
