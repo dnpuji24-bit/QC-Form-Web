@@ -44,6 +44,12 @@ export interface HoldInterval {
   photoBase64?: string
   photoDriveUrl?: string
   photoPreviewBase64?: string
+  scanReportPhotoBase64?: string
+  scanReportDriveUrl?: string
+  scanConfidence?: number
+  scanRawText?: string
+  scanSourceFileName?: string
+  scanAppliedAt?: string
 }
 
 export interface PlanMaster {
@@ -127,6 +133,7 @@ export interface ApiResponse<T = unknown> {
   recordId?: string
   updatedAt?: string
   photoDriveUrl?: string
+  scanReportDriveUrl?: string
   firestoreSynced?: boolean
   rows?: number
 }
