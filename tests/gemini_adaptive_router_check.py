@@ -7,7 +7,7 @@ scanner = (root/'src'/'FertilizerReportScanner.tsx').read_text(encoding='utf-8')
 feedback = (root/'src'/'fertilizerScanFeedback.ts').read_text(encoding='utf-8')
 
 for token in [
-    "qc_gemini_adaptive_router_v1",
+    "qc_gemini_adaptive_router_v2",
     "localStorage",
     "cooldownUntil",
     "consecutiveTransientFailures",
