@@ -128,6 +128,18 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    match /fertilizer_ocr_feedback/{feedbackId} {
+      allow read: if activeUser() && resource.data.inputtedBy == username();
+
+      allow create: if activeUser()
+        && request.resource.data.formType == 'fertilizer'
+        && request.resource.data.engine == 'tesseract'
+        && request.resource.data.inputtedBy == username()
+        && request.resource.data.firebaseUid == request.auth.uid;
+
+      allow update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
