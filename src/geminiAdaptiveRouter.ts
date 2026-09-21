@@ -26,7 +26,7 @@ type RouterState={
   recent:GeminiAttemptTelemetry[]
 }
 
-const STORAGE_KEY='qc_gemini_adaptive_router_v1'
+const STORAGE_KEY='qc_gemini_adaptive_router_v2'
 const MAX_RECENT=30
 
 function emptyStats():ModelStats{
