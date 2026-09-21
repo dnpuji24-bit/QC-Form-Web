@@ -7,7 +7,7 @@ import firebase_admin
 import numpy as np
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from firebase_admin import app_check
+from firebase_admin import app_check, firestore
 from PIL import Image, ImageOps
 from paddleocr import PaddleOCR
 
@@ -16,6 +16,7 @@ MAX_IMAGE_BYTES = int(os.getenv("MAX_IMAGE_BYTES", "12000000"))
 OCR_ENABLED = os.getenv("PADDLEOCR_ENABLED", "true").lower() == "true"
 OCR_LANG = os.getenv("PADDLEOCR_LANG", "en")
 OCR_VERSION = os.getenv("PADDLEOCR_VERSION", "PP-OCRv5")
+MONTHLY_REQUEST_LIMIT = int(os.getenv("MONTHLY_REQUEST_LIMIT", "0"))
 
 try:
     firebase_admin.get_app()
@@ -63,6 +64,39 @@ def verify_app_check(token: str | None) -> None:
         raise HTTPException(status_code=401, detail="APP_CHECK_INVALID") from exc
 
 
+def consume_monthly_quota() -> None:
+    if MONTHLY_REQUEST_LIMIT <= 0:
+        return
+
+    from datetime import datetime, timezone
+
+    month = datetime.now(timezone.utc).strftime("%Y-%m")
+    db = firestore.client()
+    ref = db.collection("system_usage").document("paddleocr_" + month)
+    transaction = db.transaction()
+
+    @firestore.transactional
+    def increment(txn):
+        snapshot = ref.get(transaction=txn)
+        current = int(snapshot.get("count") or 0) if snapshot.exists else 0
+        if current >= MONTHLY_REQUEST_LIMIT:
+            return False
+        txn.set(
+            ref,
+            {
+                "count": current + 1,
+                "limit": MONTHLY_REQUEST_LIMIT,
+                "month": month,
+                "updatedAt": firestore.SERVER_TIMESTAMP,
+            },
+            merge=True,
+        )
+        return True
+
+    if not increment(transaction):
+        raise HTTPException(status_code=429, detail="PADDLEOCR_MONTHLY_GUARD")
+
+
 def result_payload(result: Any) -> dict[str, Any]:
     value = getattr(result, "json", None)
     if callable(value):
@@ -81,6 +115,7 @@ def health() -> dict[str, Any]:
         "enabled": OCR_ENABLED,
         "modelLoaded": _ocr is not None,
         "ocrVersion": OCR_VERSION,
+        "monthlyRequestLimit": MONTHLY_REQUEST_LIMIT,
     }
 
 
@@ -92,6 +127,7 @@ async def ocr_image(
     if not OCR_ENABLED:
         raise HTTPException(status_code=503, detail="PADDLEOCR_DISABLED")
     verify_app_check(x_firebase_appcheck)
+    consume_monthly_quota()
 
     raw = await file.read()
     if not raw:
