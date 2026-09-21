@@ -30,6 +30,22 @@ async function post(action, token = '', data = {}) {
   return response.json()
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function postWithRetry(action, token = '', data = {}, attempts = 3) {
+  let result
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    result = await post(action, token, data)
+    if (result?.ok !== false || result?.error !== 'SERVER_ERROR' || attempt === attempts) return result
+    const waitMs = 1500 * attempt
+    console.warn(`  ↻ ${action} transient SERVER_ERROR; retry ${attempt + 1}/${attempts} in ${waitMs}ms`)
+    await sleep(waitMs)
+  }
+  return result
+}
+
 console.log('Runtime smoke: public API checks')
 const health = await get('health')
 assert(health.ok === true, `health failed: ${JSON.stringify(health)}`)
@@ -104,13 +120,13 @@ try {
     saveType: 'draft',
     deviceInfo: 'github-actions-write-smoke',
   }
-  const spraySync = await post('syncRecord', token, { record: sprayRecord })
+  const spraySync = await postWithRetry('syncRecord', token, { record: sprayRecord })
   assert(spraySync.ok === true && spraySync.recordId === sprayId, `spray sync failed: ${JSON.stringify(spraySync)}`)
   sprayCreated = true
   console.log('  ✓ Spray draft sync OK')
 
   const sprayEdit = { ...sprayRecord, noted: 'SMOKE_TEST_DRAFT_V2', area: 0.02 }
-  const sprayResync = await post('syncRecord', token, { record: sprayEdit })
+  const sprayResync = await postWithRetry('syncRecord', token, { record: sprayEdit })
   assert(sprayResync.ok === true, `spray edit sync failed: ${JSON.stringify(sprayResync)}`)
   const afterSprayEdit = await get('records', token)
   const sprayMatches = afterSprayEdit.records.filter((r) => r.id === sprayId)
@@ -119,7 +135,7 @@ try {
   assert(Number(sprayMatches[0].area) === 0.02, 'spray edit did not persist latest area')
   console.log('  ✓ Spray edit/upsert OK')
 
-  const sprayFinal = await post('finalizeRecord', token, { record: { ...sprayEdit, saveType: 'ready' } })
+  const sprayFinal = await postWithRetry('finalizeRecord', token, { record: { ...sprayEdit, saveType: 'ready' } })
   assert(sprayFinal.ok === true && sprayFinal.recordId === sprayId && Number(sprayFinal.rows) === 1, `spray finalize failed: ${JSON.stringify(sprayFinal)}`)
   const afterSprayFinal = await get('records', token)
   const sprayUploaded = afterSprayFinal.records.find((r) => r.id === sprayId)
@@ -149,12 +165,12 @@ try {
       { pengisianKe: 2, jenisPupuk: 'TEST-B', dosis: 120, statusHose: 'OK', jumlah: 12, hasilKerja: 0.1, pemerataanPupuk: 2 },
     ],
   }
-  const fertSync = await post('syncRecord', token, { record: fertRecord })
+  const fertSync = await postWithRetry('syncRecord', token, { record: fertRecord })
   assert(fertSync.ok === true && fertSync.recordId === fertId, `fert sync failed: ${JSON.stringify(fertSync)}`)
   fertCreated = true
   console.log('  ✓ Fertilizer session draft sync OK')
 
-  const fertFinal = await post('finalizeRecord', token, { record: { ...fertRecord, saveType: 'ready' } })
+  const fertFinal = await postWithRetry('finalizeRecord', token, { record: { ...fertRecord, saveType: 'ready' } })
   assert(fertFinal.ok === true && fertFinal.recordId === fertId && Number(fertFinal.rows) === 2, `fert finalize failed: ${JSON.stringify(fertFinal)}`)
   const afterFertFinal = await get('records', token)
   const fertUploaded = afterFertFinal.records.find((r) => r.id === fertId)
@@ -163,10 +179,10 @@ try {
   console.log('  ✓ Fertilizer 2-fill finalize/upload OK')
 
   console.log('Runtime smoke: cleanup controlled records')
-  const deleteSpray = await post('deleteRecord', token, { recordId: sprayId })
+  const deleteSpray = await postWithRetry('deleteRecord', token, { recordId: sprayId })
   assert(deleteSpray.ok === true, `spray cleanup failed: ${JSON.stringify(deleteSpray)}`)
   sprayCreated = false
-  const deleteFert = await post('deleteRecord', token, { recordId: fertId })
+  const deleteFert = await postWithRetry('deleteRecord', token, { recordId: fertId })
   assert(deleteFert.ok === true, `fert cleanup failed: ${JSON.stringify(deleteFert)}`)
   fertCreated = false
   const afterCleanup = await get('records', token)
@@ -174,10 +190,10 @@ try {
   console.log('  ✓ cleanup verified')
 } finally {
   if (sprayCreated) {
-    try { await post('deleteRecord', token, { recordId: sprayId }) } catch (error) { console.error('Emergency Spray cleanup failed:', error.message) }
+    try { await postWithRetry('deleteRecord', token, { recordId: sprayId }) } catch (error) { console.error('Emergency Spray cleanup failed:', error.message) }
   }
   if (fertCreated) {
-    try { await post('deleteRecord', token, { recordId: fertId }) } catch (error) { console.error('Emergency Fertilizer cleanup failed:', error.message) }
+    try { await postWithRetry('deleteRecord', token, { recordId: fertId }) } catch (error) { console.error('Emergency Fertilizer cleanup failed:', error.message) }
   }
   const logout = await post('logout', token)
   assert(logout.ok === true, 'logout failed')
