@@ -119,6 +119,13 @@ export async function saveFertilizerScanFeedback(args:{
       sourceFileName:text(args.sourceFileName).slice(0,180),
       applyMode:args.applyMode,
       originalConfidence:Number(args.original.confidence||0),
+      routeTotalMs:Number(args.original.routeTotalMs||0),
+      routeAttempts:(args.original.routeAttempts||[]).slice(0,8).map(attempt=>({
+        model:text(attempt.model),
+        ok:Boolean(attempt.ok),
+        latencyMs:Number(attempt.latencyMs||0),
+        errorKind:text(attempt.errorKind),
+      })),
       originalWarnings:(args.original.warnings||[]).slice(0,30),
       originalRawText:text(args.original.rawText).slice(0,6000),
       original,
