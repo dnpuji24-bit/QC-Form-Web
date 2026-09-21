@@ -1,4 +1,4 @@
-import { getAI, getGenerativeModel, GoogleAIBackend, Schema } from 'firebase/ai'
+import { getAI, getGenerativeModel, getTemplateGenerativeModel, GoogleAIBackend, Schema } from 'firebase/ai'
 import { firebaseApp } from './firebase'
 import type { MasterData, MaterialMaster, PlanMaster, User } from './types'
 import { loadFertilizerScanLearningExamples } from './fertilizerScanFeedback'
@@ -89,27 +89,41 @@ export async function scanFertilizerReportWithGemini(file:File,master:MasterData
     'Master valid aplikasi: '+JSON.stringify(masterContext),
   ].join('\n')
   const image=await filePart(file,file.type||'image/jpeg')
+  const templateModel=getTemplateGenerativeModel(ai)
+  const templateInputs={
+    mimeType:file.type||'image/jpeg',
+    imageData:image.inlineData.data,
+    defaultsJson:JSON.stringify(defaults),
+    masterContextJson:JSON.stringify(masterContext),
+    learningExamplesJson:learningExamples.length?JSON.stringify(learningExamples):'[]',
+  }
+  const templateByModel:Record<string,string>={
+    'gemini-3.8-flash':'fertilizer-scan-v1-3-8',
+  }
   const routeStarted=typeof performance!=='undefined'?performance.now():Date.now()
   const routeAttempts:Array<{model:string;ok:boolean;latencyMs:number;errorKind?:string}>=[]
-  let parsed:AiPayload|undefined,modelUsed='',lastError:unknown
+  let parsed:AiPayload|undefined,modelUsed='',sourceTemplateId='',lastError:unknown
   for(const modelName of modelCandidates()){
     const attemptStarted=typeof performance!=='undefined'?performance.now():Date.now()
     onRouteUpdate?.('Mencoba '+modelName+'...')
     try{
-      const model=getGenerativeModel(ai,{model:modelName,generationConfig:{responseMimeType:'application/json',responseSchema,temperature:0.1}})
-      const generated=await model.generateContent([prompt,image])
+      const templateId=templateByModel[modelName]
+      const generated=templateId
+        ?await templateModel.generateContent(templateId,templateInputs)
+        :await getGenerativeModel(ai,{model:modelName,generationConfig:{responseMimeType:'application/json',responseSchema,temperature:0.1}}).generateContent([prompt,image])
       const raw=generated.response.text()
       try{parsed=JSON.parse(raw)}catch{throw new Error('Gemini mengembalikan JSON yang tidak dapat dibaca.')}
       const attemptEnded=typeof performance!=='undefined'?performance.now():Date.now(),latencyMs=Math.max(0,Math.round(attemptEnded-attemptStarted))
       recordGeminiAttempt(modelName,true,latencyMs)
-      routeAttempts.push({model:modelName,ok:true,latencyMs})
+      routeAttempts.push({model:modelName,ok:true,latencyMs,via:templateId?'template':'direct',templateId})
       modelUsed=modelName
-      onRouteUpdate?.(modelName+' berhasil dalam '+(latencyMs/1000).toFixed(1)+' detik.')
+      sourceTemplateId=templateId||''
+      onRouteUpdate?.(modelName+(templateId?' via Server Prompt Template':'')+' berhasil dalam '+(latencyMs/1000).toFixed(1)+' detik.')
       break
     }catch(error){
       const attemptEnded=typeof performance!=='undefined'?performance.now():Date.now(),latencyMs=Math.max(0,Math.round(attemptEnded-attemptStarted)),errorKind=geminiErrorKind(error)
       recordGeminiAttempt(modelName,false,latencyMs,error)
-      routeAttempts.push({model:modelName,ok:false,latencyMs,errorKind})
+      routeAttempts.push({model:modelName,ok:false,latencyMs,errorKind,via:templateByModel[modelName]?'template':'direct',templateId:templateByModel[modelName]})
       lastError=error
       if(!isTransientGeminiError(error))throw error
       onRouteUpdate?.(modelName+' sedang tidak stabil; mencoba model berikutnya...')
@@ -123,7 +137,7 @@ export async function scanFertilizerReportWithGemini(file:File,master:MasterData
   if(!units.length)units.push({unit:'',noUnit:'',paddock:'',type:'Fertilizer',activity:'',catatan:'',fillings:[blankFilling()]})
   units.forEach(u=>{if(!u.fillings.length)u.fillings=[blankFilling()]})
   const routeEnded=typeof performance!=='undefined'?performance.now():Date.now(),routeTotalMs=Math.max(0,Math.round(routeEnded-routeStarted))
-  const result:FertilizerScanResult={date:normalizeDate(parsed.date)||defaults.date,shift:text(parsed.shift)||defaults.shift,mandor:text(parsed.mandor)||defaults.mandor,assistant:text(parsed.assistant)||defaults.assistant,units,rawText:text(parsed.transcription),confidence:0,warnings:[],sourceModel:modelUsed,routeAttempts,routeTotalMs}
+  const result:FertilizerScanResult={date:normalizeDate(parsed.date)||defaults.date,shift:text(parsed.shift)||defaults.shift,mandor:text(parsed.mandor)||defaults.mandor,assistant:text(parsed.assistant)||defaults.assistant,units,rawText:text(parsed.transcription),confidence:0,warnings:[],sourceModel:modelUsed,sourceTemplateId:sourceTemplateId||undefined,routeAttempts,routeTotalMs}
   result.warnings=validate(result,master);result.confidence=completionScore(result)
   return result
 }
