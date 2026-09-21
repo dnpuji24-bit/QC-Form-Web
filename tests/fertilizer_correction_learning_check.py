@@ -28,7 +28,7 @@ for token in [
     "Menyimpan Gemini Correction Learning",
     "learningFeedbackSaved",
     "learningChangedFields",
-    "Koreksi akan masuk Correction Learning",
+    "Koreksi akan masuk Gemini Correction Learning",
 ]:
     assert token in scanner, f'Missing correction-learning scanner token: {token}'
 
