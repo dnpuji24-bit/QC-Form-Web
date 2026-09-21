@@ -57,6 +57,8 @@ jobs:
       - name: Build React
         env:
           VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: '${{ vars.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY }}'
+          VITE_PADDLEOCR_URL: '${{ vars.VITE_PADDLEOCR_URL }}'
+          VITE_PADDLEOCR_TIMEOUT_MS: '18000'
         run: npm run build
 
       - name: Verify React build output
