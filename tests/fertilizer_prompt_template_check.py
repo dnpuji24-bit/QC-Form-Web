@@ -35,6 +35,8 @@ for token in [
 # Only 3.8 is migrated initially; direct model fallback remains available for
 # 3.7/3.6/3.5 until their templates are created and verified.
 assert "'gemini-3.8-flash':'fertilizer-scan-v1-3-8'" in ai
+assert "return['gemini-3.8-flash',...adaptive]" in ai
+assert "errorDetail" in ai
 assert "getGenerativeModel" in ai
 
 print('Firebase Server Prompt Template check passed: Gemini 3.8 uses fertilizer-scan-v1-3-8 while lower models remain direct fallbacks.')
