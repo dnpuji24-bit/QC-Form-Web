@@ -52,7 +52,7 @@ const responseSchema=Schema.object({properties:{
   units:Schema.array({items:Schema.object({properties:{
     unit:Schema.string(),noUnit:Schema.string(),paddock:Schema.string(),type:Schema.string(),activity:Schema.string(),catatan:Schema.string(),
     fillings:Schema.array({items:Schema.object({properties:{
-      pengisianKe:Schema.number(),dosis:Schema.number(),statusHose:Schema.string(),jenisPupuk:Schema.string(),jumlah:Schema.number(),hasilKerja:Schema.number(),pemerataanPupuk:Schema.string(),
+      pengisianKe:Schema.number(),dosis:Schema.string(),statusHose:Schema.string(),jenisPupuk:Schema.string(),jumlah:Schema.string(),hasilKerja:Schema.string(),pemerataanPupuk:Schema.string(),
     }})}),
   }})}),
 }})
