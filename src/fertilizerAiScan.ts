@@ -60,7 +60,7 @@ const responseSchema=Schema.object({properties:{
 }})
 
 function isTransientGeminiError(error:unknown){return isAdaptiveTransientGeminiError(error)}
-function modelCandidates(){const preferred=String(import.meta.env.VITE_GEMINI_SCAN_MODEL||'gemini-3.8-flash').trim();return adaptiveGeminiCandidates(preferred)}
+function modelCandidates(){const preferred=String(import.meta.env.VITE_GEMINI_SCAN_MODEL||'gemini-3.8-flash').trim();const adaptive=adaptiveGeminiCandidates(preferred).filter(model=>model!=='gemini-3.8-flash');return['gemini-3.8-flash',...adaptive]}
 
 export async function scanFertilizerReportWithGemini(file:File,master:MasterData,defaults:{date:string;shift:string;mandor:string;assistant:string},learningUser?:Pick<User,'username'>,onRouteUpdate?:(message:string)=>void):Promise<FertilizerScanResult>{
   if(!firebaseApp)throw new Error('Firebase belum tersedia.')
@@ -101,7 +101,7 @@ export async function scanFertilizerReportWithGemini(file:File,master:MasterData
     'gemini-3.8-flash':'fertilizer-scan-v1-3-8',
   }
   const routeStarted=typeof performance!=='undefined'?performance.now():Date.now()
-  const routeAttempts:Array<{model:string;ok:boolean;latencyMs:number;errorKind?:string;via?:'template'|'direct';templateId?:string}>=[]
+  const routeAttempts:Array<{model:string;ok:boolean;latencyMs:number;errorKind?:string;errorDetail?:string;via?:'template'|'direct';templateId?:string}>=[]
   let parsed:AiPayload|undefined,modelUsed='',sourceTemplateId='',lastError:unknown
   for(const modelName of modelCandidates()){
     const attemptStarted=typeof performance!=='undefined'?performance.now():Date.now()
@@ -121,9 +121,9 @@ export async function scanFertilizerReportWithGemini(file:File,master:MasterData
       onRouteUpdate?.(modelName+(templateId?' via Server Prompt Template':'')+' berhasil dalam '+(latencyMs/1000).toFixed(1)+' detik.')
       break
     }catch(error){
-      const attemptEnded=typeof performance!=='undefined'?performance.now():Date.now(),latencyMs=Math.max(0,Math.round(attemptEnded-attemptStarted)),errorKind=geminiErrorKind(error)
+      const attemptEnded=typeof performance!=='undefined'?performance.now():Date.now(),latencyMs=Math.max(0,Math.round(attemptEnded-attemptStarted)),errorKind=geminiErrorKind(error),errorDetail=(error instanceof Error?error.message:String(error||'')).replace(/\s+/g,' ').slice(0,220)
       recordGeminiAttempt(modelName,false,latencyMs,error)
-      routeAttempts.push({model:modelName,ok:false,latencyMs,errorKind,via:templateByModel[modelName]?'template':'direct',templateId:templateByModel[modelName]})
+      routeAttempts.push({model:modelName,ok:false,latencyMs,errorKind,errorDetail,via:templateByModel[modelName]?'template':'direct',templateId:templateByModel[modelName]})
       lastError=error
       const templateFailure=Boolean(templateByModel[modelName])
       if(!isTransientGeminiError(error)&&!templateFailure)throw error
