@@ -62,6 +62,7 @@ async function recordsFirestoreFirst(token:string):Promise<ApiResponse<QcRecord[
 function serverMergedRecord<T>(result:ApiResponse<T>,record:QcRecord):QcRecord{
   const next:QcRecord={...record}
   if(result.photoDriveUrl!==undefined)next.photoDriveUrl=result.photoDriveUrl
+  if(result.scanReportDriveUrl!==undefined)next.scanReportDriveUrl=result.scanReportDriveUrl
   return next
 }
 
