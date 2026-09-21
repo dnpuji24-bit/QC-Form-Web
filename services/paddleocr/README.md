@@ -20,3 +20,15 @@ client automatically falls back to Gemini AI.
 The production /ocr endpoint requires a real Firebase App Check token. For a
 full local integration test, use the web app's App Check debug provider rather
 than disabling verification in production.
+
+
+## Cost guard
+
+Set MONTHLY_REQUEST_LIMIT to a conservative monthly request ceiling after the
+benchmark. A value of 0 disables the application-level guard. When the ceiling
+is reached the service returns HTTP 429 (PADDLEOCR_MONTHLY_GUARD), and the React
+scanner automatically routes the same image to Gemini.
+
+This guard complements Cloud Billing spend caps. It is intentionally not called
+an exact Cloud Run free-tier meter because Cloud Run free usage is based on
+compute/memory/request consumption, not only request count.
