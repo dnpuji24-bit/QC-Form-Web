@@ -1,7 +1,7 @@
 const API = process.env.SMOKE_API_URL || 'https://script.google.com/macros/s/AKfycbwjqnVwOBDQg3ptclpw_bCQO9kAcYUcHkxz4tdlNppcPYmMpCocPTbG8fgGVlp1muY/exec'
 const ownerUser = process.env.SMOKE_OWNER_USERNAME || ''
 const ownerPass = process.env.SMOKE_OWNER_PASSWORD || ''
-const expectedApiVersion = process.env.SMOKE_EXPECTED_API_VERSION || '46.3.1'
+const expectedApiVersion = process.env.SMOKE_EXPECTED_API_VERSION || '46.3.2'
 
 function assert(condition, message) {
   if (!condition) throw new Error(message)
