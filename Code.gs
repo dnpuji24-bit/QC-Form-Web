@@ -1,5 +1,5 @@
 /**
- * QC Form Web API v46.3.1
+ * QC Form Web API v46.3.2
  * Deploy as a Web App from the Apps Script project bound to "Application QC Form".
  * Execute as: Me. Access: Anyone.
  *
@@ -9,7 +9,7 @@
  * - Permissions are enforced here; the browser UI is not trusted.
  */
 var QC = {
-  VERSION: '46.3.1',
+  VERSION: '46.3.2',
   SESSION_SECONDS: 21600,
   SHEETS: {
     USERS: 'Users', LOGS: 'Activity_Logs', CLOUD: 'Cloud_Monitoring', REQUESTS: 'Account_Change_Requests',
@@ -145,7 +145,7 @@ function syncRecord_(user, rec) {
   rec.inputtedBy=user.username; rec.inputtedByName=user.fullName; rec.updatedAt=new Date().toISOString();
   preparePhotoLinks_(rec);
   upsertCloud_(rec,user); var firestoreSynced=safeMirrorRecordToFirestore_(rec); log_(null,user,'SYNC_DRAFT','Sinkronisasi '+rec.formType+' '+rec.paddock+' | Firestore '+(firestoreSynced?'OK':'pending'),rec.deviceInfo);
-  return {ok:true,recordId:rec.id,updatedAt:rec.updatedAt,photoDriveUrl:rec.photoDriveUrl||'',firestoreSynced:firestoreSynced};
+  return {ok:true,recordId:rec.id,updatedAt:rec.updatedAt,photoDriveUrl:rec.photoDriveUrl||'',scanReportDriveUrl:rec.scanReportDriveUrl||'',firestoreSynced:firestoreSynced};
 }
 
 function finalizeRecord_(user, rec) {
@@ -167,7 +167,7 @@ function finalizeRecord_(user, rec) {
   } finally { lock.releaseLock(); }
   var firestoreSynced=safeMirrorRecordToFirestore_(rec);
   log_(null,user,'UPLOAD_'+rec.formType.toUpperCase(),'Upload/koreksi '+rec.paddock+' | Firestore '+(firestoreSynced?'OK':'pending'),rec.deviceInfo);
-  return {ok:true,recordId:rec.id,rows:result,photoDriveUrl:rec.photoDriveUrl||'',firestoreSynced:firestoreSynced};
+  return {ok:true,recordId:rec.id,rows:result,photoDriveUrl:rec.photoDriveUrl||'',scanReportDriveUrl:rec.scanReportDriveUrl||'',firestoreSynced:firestoreSynced};
 }
 
 function deleteRecord_(user,id) {
@@ -365,7 +365,7 @@ function upsertRow_(sh,values,idCol,id,start){var row=findRow_(sh,idCol,id,start
 function deleteById_(sh,id,col,start){var last=sh.getLastRow(),count=last-start+1;if(count<=0)return 0;var values=sh.getRange(start,col,count,1).getDisplayValues(),rows=[];for(var i=0;i<values.length;i++){var v=String(values[i][0]||'');if(v===id||v.indexOf(id+'_')===0)rows.push(start+i);}for(var j=rows.length-1;j>=0;j--)sh.deleteRow(rows[j]);return rows.length;}
 function getPhotoFolder_(){var props=PropertiesService.getScriptProperties(),id=clean_(props.getProperty('PHOTO_FOLDER_ID'),200),folder=null;if(id){try{folder=DriveApp.getFolderById(id);folder.getName();}catch(e){console.warn('PHOTO_FOLDER_ID tidak valid/terakses: '+id+' | '+e);folder=null;}}if(!folder){var it=DriveApp.getFoldersByName('QC Form Photos');folder=it.hasNext()?it.next():DriveApp.createFolder('QC Form Photos');props.setProperty('PHOTO_FOLDER_ID',folder.getId());}return folder;}
 function savePhoto_(rec,label){var b=String(rec.photoBase64||'');if(b.length<100)return rec.photoDriveUrl||'';var m=b.match(/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/);if(!m)throw new Error('Format foto tidak didukung.');var bytes=Utilities.base64Decode(m[2]);if(bytes.length>2000000)throw new Error('Foto maksimal 2 MB.');var ext=m[1]==='image/png'?'.png':m[1]==='image/webp'?'.webp':'.jpg',folder=getPhotoFolder_(),kind=clean_(label||rec.photoLabel||rec.formType||'QC',30).replace(/[^a-z0-9_-]/gi,'_'),name='QC_'+kind+'_'+clean_(rec.paddock,40).replace(/[^a-z0-9_-]/gi,'_')+'_'+Date.now()+ext,file=folder.createFile(Utilities.newBlob(bytes,m[1],name));try{file.setSharing(DriveApp.Access.ANYONE_WITH_LINK,DriveApp.Permission.VIEW);}catch(e){console.warn('Foto tersimpan tetapi sharing link tidak dapat diubah: '+e);}return file.getUrl();}
-function preparePhotoLinks_(rec){if(rec.photoBase64&&!rec.photoDriveUrl)rec.photoDriveUrl=savePhoto_(rec,rec.formType);(rec.holdIntervals||[]).forEach(function(h,i){if(h.photoBase64&&!h.photoDriveUrl){var x={photoBase64:h.photoBase64,formType:rec.formType,paddock:rec.paddock};h.photoDriveUrl=savePhoto_(x,'HOLD_'+(i+1));}});return rec;}
+function preparePhotoLinks_(rec){if(rec.photoBase64&&!rec.photoDriveUrl)rec.photoDriveUrl=savePhoto_(rec,rec.formType);if(rec.scanReportPhotoBase64&&!rec.scanReportDriveUrl){var scan={photoBase64:rec.scanReportPhotoBase64,formType:rec.formType,paddock:rec.paddock};rec.scanReportDriveUrl=savePhoto_(scan,'FERT_SCAN_REPORT');}delete rec.scanReportPhotoBase64;(rec.holdIntervals||[]).forEach(function(h,i){if(h.photoBase64&&!h.photoDriveUrl){var x={photoBase64:h.photoBase64,formType:rec.formType,paddock:rec.paddock};h.photoDriveUrl=savePhoto_(x,'HOLD_'+(i+1));}});return rec;}
 function log_(ss,u,type,desc,device){try{var sh=(ss||SpreadsheetApp.getActiveSpreadsheet()).getSheetByName(QC.SHEETS.LOGS);if(sh)sh.appendRow([new Date(),u.username||'',u.fullName||'',u.role||'',type,desc,clean_(device,150)]);}catch(e){console.error(e);}}
 function clean_(v,n){return String(v===undefined||v===null?'':v).trim().slice(0,n||500);}
 function num_(v){if(v===undefined||v===null||v==='')return'';if(typeof v==='number')return v;var n=Number(String(v).replace(',','.'));return isFinite(n)?n:'';}
