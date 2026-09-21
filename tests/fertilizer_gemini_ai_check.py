@@ -19,6 +19,9 @@ for token in [
     "gemini-3.5-flash",
     "isTransientGeminiError",
     "Master valid aplikasi",
+    "dosisAktualTertulis",
+    "rataRataDosisAktualTertulis",
+    "JANGAN dibuat sebagai unit baru",
 ]:
     assert token in ai, f'Missing Gemini AI extraction token: {token}'
 
@@ -29,6 +32,8 @@ for token in [
     "engine==='gemini'",
     "Gemini sedang sibuk. Hasil sementara menggunakan OCR Lokal.",
     "sourceModel",
+    "Rata-rata Dosis Aktual",
+    "Dosis Total/Ha",
 ]:
     assert token in scanner, f'Missing Gemini-first scanner UI token: {token}'
 
