@@ -49,6 +49,8 @@ jobs:
         run: npm run typecheck
 
       - name: Vite production build
+        env:
+          VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY }}
         run: npm run build
 
       - name: Apps Script runtime smoke
