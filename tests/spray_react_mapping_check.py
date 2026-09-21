@@ -28,14 +28,14 @@ for token in [
     assert token in spray, f'Missing dynamic pesticide mapping: {token}'
 
 assert "for(let i=0;i<4;i++)" in spray, 'Expected four pesticide slots'
-assert "n(item.dosage)*n(form.area)" in spray, 'Estimated pesticide formula missing'
-assert "n(form.adjuvantDosage)*n(form.waterRate)*n(form.area)" in spray, 'Estimated adjuvant formula missing'
+assert "n(item.dosage)*n(card.area)" in spray, 'Estimated pesticide formula missing'
+assert "n(card.adjuvantDosage)*n(card.waterRate)*n(card.area)" in spray, 'Estimated adjuvant formula missing'
 assert "area:''" in spray, 'Actual area field should start blank/manual'
 assert "p.area" not in spray and "luas_target" not in spray, 'Plan area must not populate actual area'
-assert "editingUploaded?'finalizeRecord':'syncRecord'" in spray, 'Draft/uploaded correction action path missing'
+assert "uploaded?'finalizeRecord':'syncRecord'" in spray, 'Draft/uploaded correction action path missing'
 assert "Simpan Koreksi Uploaded" in spray, 'Uploaded correction UI missing'
 assert "PhotoPicker" in spray and "capture" not in spray, 'Shared camera/gallery photo picker integration missing'
 assert "photoBase64" in spray and "holdIntervals" in spray, 'Photo/HOLD payload missing'
 assert "deleteById_(spraySheet,rec.id,52" in code, 'Backend stale Spray/HOLD row replacement missing'
 
-print('Spray React mapping check passed: 52 backend columns, pesticide formulas, manual area, photos, offline and uploaded correction paths verified.')
+assert "sessionId" in spray and "Input Spraying per Unit" in spray and "Tambah Unit" in spray, 'Spray unit-session workflow missing'\nprint('Spray React mapping check passed: 52 backend columns, unit sessions, pesticide formulas, manual area, photos, offline and uploaded correction paths verified.')
