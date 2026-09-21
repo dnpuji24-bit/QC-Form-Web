@@ -41,7 +41,7 @@ for token in [
     assert token in ai, f'Missing correction-learning prompt token: {token}'
 
 assert "user={user}" in form
-assert "Correction Learning menyimpan" in form
+assert "OCR Correction Learning" in form and "Gemini Correction Learning" in form
 
 for token in [
     "match /fertilizer_scan_feedback/{feedbackId}",
