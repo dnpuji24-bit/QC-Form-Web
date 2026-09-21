@@ -77,9 +77,12 @@ console.log('  ✓ owner login OK')
 
 const nonce = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
 const sprayId = `SMOKE_SPRAY_${nonce}`
+const sprayId2 = `SMOKE_SPRAY2_${nonce}`
+const spraySessionId = `SMOKE_SPRAY_SESSION_${nonce}`
 const fertId = `SMOKE_FERT_${nonce}`
 const testDate = new Date().toISOString().slice(0, 10)
 let sprayCreated = false
+let sprayCreated2 = false
 let fertCreated = false
 
 try {
@@ -102,6 +105,7 @@ try {
   console.log('Runtime smoke: controlled Spray write/finalize')
   const sprayRecord = {
     id: sprayId,
+    sessionId: spraySessionId,
     formType: 'spray',
     date: testDate,
     shift: 'SMOKE',
@@ -142,7 +146,29 @@ try {
   const afterSprayFinal = await get('records', token)
   const sprayUploaded = afterSprayFinal.records.find((r) => r.id === sprayId)
   assert(sprayUploaded && sprayUploaded.saveType === 'uploaded', 'spray cloud record not marked uploaded')
-  console.log('  ✓ Spray finalize/upload OK')
+  console.log('  ✓ Spray unit 1 finalize/upload OK')
+
+  const sprayRecord2 = {
+    ...sprayRecord,
+    id: sprayId2,
+    sessionId: spraySessionId,
+    noUnit: 'CI-02',
+    area: 0.03,
+    actualUsage: 3,
+    noted: 'SMOKE_TEST_UNIT_2',
+    saveType: 'draft',
+  }
+  const spraySync2 = await postWithRetry('syncRecord', token, { record: sprayRecord2 })
+  assert(spraySync2.ok === true && spraySync2.recordId === sprayId2, `spray unit 2 sync failed: ${JSON.stringify(spraySync2)}`)
+  sprayCreated2 = true
+  const sprayFinal2 = await postWithRetry('finalizeRecord', token, { record: { ...sprayRecord2, saveType: 'ready' } })
+  assert(sprayFinal2.ok === true && sprayFinal2.recordId === sprayId2 && Number(sprayFinal2.rows) === 1, `spray unit 2 finalize failed: ${JSON.stringify(sprayFinal2)}`)
+  const afterSpraySession = await get('records', token)
+  const spraySession = afterSpraySession.records.filter((r) => r.id === sprayId || r.id === sprayId2)
+  assert(spraySession.length === 2, `spray session expected 2 unit records, got ${spraySession.length}`)
+  assert(spraySession.every((r) => r.saveType === 'uploaded'), 'spray session contains non-uploaded unit')
+  assert(spraySession.every((r) => String(r.sessionId || '') === spraySessionId), 'spray sessionId was not preserved for both units')
+  console.log('  ✓ Spray 2-unit session finalize/upload OK')
 
   console.log('Runtime smoke: controlled Fertilizer session write/finalize')
   const fertRecord = {
@@ -184,15 +210,21 @@ try {
   const deleteSpray = await postWithRetry('deleteRecord', token, { recordId: sprayId })
   assert(deleteSpray.ok === true, `spray cleanup failed: ${JSON.stringify(deleteSpray)}`)
   sprayCreated = false
+  const deleteSpray2 = await postWithRetry('deleteRecord', token, { recordId: sprayId2 })
+  assert(deleteSpray2.ok === true, `spray unit 2 cleanup failed: ${JSON.stringify(deleteSpray2)}`)
+  sprayCreated2 = false
   const deleteFert = await postWithRetry('deleteRecord', token, { recordId: fertId })
   assert(deleteFert.ok === true, `fert cleanup failed: ${JSON.stringify(deleteFert)}`)
   fertCreated = false
   const afterCleanup = await get('records', token)
-  assert(!afterCleanup.records.some((r) => r.id === sprayId || r.id === fertId), 'smoke records remain in Cloud_Monitoring after cleanup')
+  assert(!afterCleanup.records.some((r) => r.id === sprayId || r.id === sprayId2 || r.id === fertId), 'smoke records remain in Cloud_Monitoring after cleanup')
   console.log('  ✓ cleanup verified')
 } finally {
   if (sprayCreated) {
     try { await postWithRetry('deleteRecord', token, { recordId: sprayId }) } catch (error) { console.error('Emergency Spray cleanup failed:', error.message) }
+  }
+  if (sprayCreated2) {
+    try { await postWithRetry('deleteRecord', token, { recordId: sprayId2 }) } catch (error) { console.error('Emergency Spray unit 2 cleanup failed:', error.message) }
   }
   if (fertCreated) {
     try { await postWithRetry('deleteRecord', token, { recordId: fertId }) } catch (error) { console.error('Emergency Fertilizer cleanup failed:', error.message) }
