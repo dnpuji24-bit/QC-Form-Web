@@ -69,6 +69,7 @@ export interface MaterialMaster {
 
 export interface QcRecord {
   id: string
+  sessionId?: string
   formType: FormType
   date: string
   shift?: string
