@@ -15,6 +15,6 @@ export default function DailyPlanWorkspace({user}:Props){
       <button type="button" className={view==='web'?'active':''} onClick={()=>setView('web')}>Tambah dari Monthly</button>
       <button type="button" className={view==='import'?'active':''} onClick={()=>setView('import')}>Update / Import Excel</button>
     </div>
-    {view==='list'?<DailyPlanListPanel/>:view==='web'?<DailyPlanWebEntryPanel user={user}/>:<DailyPlanImportPanel user={user}/>}
+    {view==='list'?<DailyPlanListPanel user={user}/>:view==='web'?<DailyPlanWebEntryPanel user={user}/>:<DailyPlanImportPanel user={user}/>}
   </section>
 }
