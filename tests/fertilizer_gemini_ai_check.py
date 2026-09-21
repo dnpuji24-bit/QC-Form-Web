@@ -26,7 +26,6 @@ for token in [
     "scanFertilizerReportWithGemini",
     "Scan dengan AI",
     "OCR Lokal",
-    "Gemini AI tidak tersedia",
     "engine==='gemini'",
     "Gemini sedang sibuk. Hasil sementara menggunakan OCR Lokal.",
     "sourceModel",
