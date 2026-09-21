@@ -32,11 +32,15 @@ for token in [
 ]:
     assert token in feedback, f'Missing Server Prompt Template telemetry token: {token}'
 
-# Only 3.8 is migrated initially; direct model fallback remains available for
-# 3.7/3.6/3.5 until their templates are created and verified.
-assert "'gemini-3.8-flash':'fertilizer-scan-v1-3-8'" in ai
-assert "return['gemini-3.8-flash',...adaptive]" in ai
-assert "errorDetail" in ai
-assert "getGenerativeModel" in ai
+for token in [
+    "'gemini-3.8-flash':'fertilizer-scan-v1-3-8'",
+    "'gemini-3.7-flash':'fertilizer-scan-v1-3-7'",
+    "'gemini-3.6-flash':'fertilizer-scan-v1-3-6'",
+    "'gemini-3.5-flash':'fertilizer-scan-v1-3-5'",
+    "return['gemini-3.8-flash',...adaptive]",
+    "errorDetail",
+    "m=s.match(/^(\\d{2})-(\\d{2})-(20\\d{2})$/)",
+]:
+    assert token in ai, f'Missing multi-template/date token: {token}'
 
-print('Firebase Server Prompt Template check passed: Gemini 3.8 uses fertilizer-scan-v1-3-8 while lower models remain direct fallbacks.')
+print('Firebase Server Prompt Template check passed: all four Gemini models use locked server templates and DD-MM-YYYY is normalized for the form.')
