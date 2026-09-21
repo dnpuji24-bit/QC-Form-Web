@@ -47,6 +47,13 @@ jobs:
       - name: TypeScript check
         run: npm run typecheck
 
+      - name: Verify App Check site key variable
+        env:
+          VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: '${{ vars.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY }}'
+        run: |
+          test -n "$VITE_RECAPTCHA_ENTERPRISE_SITE_KEY"
+          echo "App Check site key variable is configured."
+
       - name: Build React
         env:
           VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: '${{ vars.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY }}'
