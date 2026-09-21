@@ -15,6 +15,6 @@ export default function ActualPlanWorkspace({user}:Props){
       <button type="button" className={view==='web'?'active':''} onClick={()=>setView('web')}>Input dari Daily Plan</button>
       <button type="button" className={view==='import'?'active':''} onClick={()=>setView('import')}>Update / Import Excel</button>
     </div>
-    {view==='list'?<ActualPlanListPanel/>:view==='web'?<ActualPlanWebEntryPanel user={user}/>:<ActualPlanImportPanel user={user}/>}
+    {view==='list'?<ActualPlanListPanel user={user}/>:view==='web'?<ActualPlanWebEntryPanel user={user}/>:<ActualPlanImportPanel user={user}/>}
   </section>
 }
