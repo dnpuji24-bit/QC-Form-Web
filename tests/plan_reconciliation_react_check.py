@@ -20,6 +20,11 @@ required_panel_tokens = [
     "ACTUAL_OVER_DAILY",
     "ADHOC dan SUPPORT tidak dianggap error",
     "Rekonsiliasi hanya membaca data",
+    "useDeferredValue",
+    "PAGE_SIZE=50",
+    "pagedIssues",
+    "pagedFlows",
+    "Memfilter…",
 ]
 for token in required_panel_tokens:
     assert token in panel, f'Missing reconciliation token: {token}'
@@ -28,4 +33,4 @@ assert "PlanReconciliationPanel" in workspace, 'Plan workspace must expose recon
 assert "Rekonsiliasi" in workspace, 'Reconciliation tab label missing'
 assert "setDoc(" not in panel and "writeBatch(" not in panel and "deleteDoc(" not in panel, 'Reconciliation panel must remain read-only'
 
-print('Plan reconciliation check passed: Monthly/Daily/Actual audit is read-only and covers link/orphan/mismatch/over-target cases.')
+print('Plan reconciliation check passed: audit is read-only, covers link/orphan/mismatch/over-target cases, and paginates/defer-filters large result sets.')
