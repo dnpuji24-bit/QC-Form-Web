@@ -48,6 +48,8 @@ jobs:
         run: npm run typecheck
 
       - name: Build React
+        env:
+          VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: '${{ vars.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY }}'
         run: npm run build
 
       - name: Verify React build output
