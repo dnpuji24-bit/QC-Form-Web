@@ -5,7 +5,7 @@ import type { FertilizerScanResult, ScanFilling, ScanUnit } from './FertilizerRe
 
 type AiPayload={
   date?:string;shift?:string;mandor?:string;assistant?:string;transcription?:string
-  units?:Array<{unit?:string;noUnit?:string;paddock?:string;type?:string;activity?:string;catatan?:string;fillings?:Array<{pengisianKe?:number;dosis?:number|string;statusHose?:string;jenisPupuk?:string;jumlah?:number|string;hasilKerja?:number|string;pemerataanPupuk?:string|number}>}>
+  units?:Array<{unit?:string;noUnit?:string;paddock?:string;type?:string;activity?:string;catatan?:string;rataRataDosisAktualTertulis?:number|string;fillings?:Array<{pengisianKe?:number;dosis?:number|string;statusHose?:string;jenisPupuk?:string;jumlah?:number|string;hasilKerja?:number|string;pemerataanPupuk?:string|number;dosisAktualTertulis?:number|string}>}>
 }
 
 const text=(v:unknown)=>String(v??'').trim()
@@ -29,7 +29,7 @@ function validate(result:FertilizerScanResult,master:MasterData){
     if(!u.noUnit)warnings.push('Unit '+(i+1)+': No. Unit belum terbaca.');else if(!unitNumbers.includes(u.noUnit))warnings.push('Unit '+(i+1)+': No. Unit tidak cocok dengan Master Unit.')
     if(!u.paddock)warnings.push('Unit '+(i+1)+': Paddock belum terbaca.');else if(!paddocks.includes(u.paddock))warnings.push('Unit '+(i+1)+': Paddock tidak cocok dengan Master/Plan.')
     if(!u.activity)warnings.push('Unit '+(i+1)+': Activity belum terbaca.');else if(!activities.includes(u.activity))warnings.push('Unit '+(i+1)+': Activity tidak cocok dengan Plan.')
-    u.fillings.forEach((f,j)=>{if(!f.jenisPupuk)warnings.push('Unit '+(i+1)+' Pengisian '+(j+1)+': Jenis Pupuk belum terbaca.');else if(!materials.includes(f.jenisPupuk))warnings.push('Unit '+(i+1)+' Pengisian '+(j+1)+': Jenis Pupuk tidak cocok dengan Master Material.');if(!f.jumlah)warnings.push('Unit '+(i+1)+' Pengisian '+(j+1)+': Jumlah belum terbaca.');if(!f.hasilKerja)warnings.push('Unit '+(i+1)+' Pengisian '+(j+1)+': Hasil Kerja belum terbaca.')})
+    const actualDoses:number[]=[];u.fillings.forEach((f,j)=>{if(!f.jenisPupuk)warnings.push('Unit '+(i+1)+' Pengisian '+(j+1)+': Jenis Pupuk belum terbaca.');else if(!materials.includes(f.jenisPupuk))warnings.push('Unit '+(i+1)+' Pengisian '+(j+1)+': Jenis Pupuk tidak cocok dengan Master Material.');if(!f.jumlah)warnings.push('Unit '+(i+1)+' Pengisian '+(j+1)+': Jumlah belum terbaca.');if(!f.hasilKerja)warnings.push('Unit '+(i+1)+' Pengisian '+(j+1)+': Hasil Kerja belum terbaca.');const jumlah=Number(strNum(f.jumlah)),hasil=Number(strNum(f.hasilKerja));if(jumlah>0&&hasil>0){const calculated=jumlah/hasil;actualDoses.push(calculated);const reported=Number(strNum(f.dosisAktualTertulis));if(reported>0&&Math.abs(reported-calculated)>Math.max(5,calculated*.02))warnings.push('Unit '+(i+1)+' Pengisian '+(j+1)+': Dosis Aktual tertulis berbeda dari hitungan Jumlah/Hasil.') }});const reportedAverage=Number(strNum(u.rataRataDosisAktualTertulis));if(reportedAverage>0&&actualDoses.length){const calculatedAverage=actualDoses.reduce((s,v)=>s+v,0)/actualDoses.length;if(Math.abs(reportedAverage-calculatedAverage)>Math.max(5,calculatedAverage*.02))warnings.push('Unit '+(i+1)+': Rata-rata Dosis Aktual tertulis berbeda dari rata-rata hasil hitung.')}
   })
   return warnings
 }
@@ -50,9 +50,9 @@ function compactMaster(master:MasterData){
 const responseSchema=Schema.object({properties:{
   date:Schema.string(),shift:Schema.string(),mandor:Schema.string(),assistant:Schema.string(),transcription:Schema.string(),
   units:Schema.array({items:Schema.object({properties:{
-    unit:Schema.string(),noUnit:Schema.string(),paddock:Schema.string(),type:Schema.string(),activity:Schema.string(),catatan:Schema.string(),
+    unit:Schema.string(),noUnit:Schema.string(),paddock:Schema.string(),type:Schema.string(),activity:Schema.string(),catatan:Schema.string(),rataRataDosisAktualTertulis:Schema.string(),
     fillings:Schema.array({items:Schema.object({properties:{
-      pengisianKe:Schema.number(),dosis:Schema.string(),statusHose:Schema.string(),jenisPupuk:Schema.string(),jumlah:Schema.string(),hasilKerja:Schema.string(),pemerataanPupuk:Schema.string(),
+      pengisianKe:Schema.number(),dosis:Schema.string(),statusHose:Schema.string(),jenisPupuk:Schema.string(),jumlah:Schema.string(),hasilKerja:Schema.string(),pemerataanPupuk:Schema.string(),dosisAktualTertulis:Schema.string(),
     }})}),
   }})}),
 }})
@@ -71,8 +71,11 @@ export async function scanFertilizerReportWithGemini(file:File,master:MasterData
     '- Tanggal keluarkan YYYY-MM-DD. Jika tidak terbaca, kosongkan.',
     '- Untuk Jenis Unit, No. Unit, Paddock, Activity, Type, Mandor, Asisten, dan Jenis Pupuk: gunakan NILAI PERSIS dari master bila yakin cocok. Jika tidak yakin, kosongkan; jangan membuat nama baru.',
     '- Desimal koma pada foto dikonversi menjadi angka desimal.',
-    '- Satu laporan dapat berisi beberapa unit. Buat satu object units untuk setiap unit.',
+    '- Satu laporan dapat berisi beberapa unit, tetapi buat Unit Card HANYA untuk unit yang benar-benar menjadi unit utama pada header/tabel pekerjaan. Nomor unit yang hanya disebut di bagian Catatan sebagai referensi, sumber sisa pupuk, unit rusak, atau unit tujuan pemindahan JANGAN dibuat sebagai unit baru.',
+    '- Bila Catatan menyebut unit lain, pertahankan nomor unit itu hanya di teks catatan unit utama.',
     '- Setiap baris/pengisian harus dipertahankan terpisah pada fillings.',
+    '- dosisAktualTertulis adalah nilai Dosis Aktual (Kg/Ha) yang memang tertulis pada laporan. Jangan menghitung atau mengarang nilai ini; kosongkan bila tidak terbaca.',
+    '- rataRataDosisAktualTertulis adalah nilai rata-rata Dosis Aktual yang memang tertulis pada baris rata-rata laporan. Jangan menghitungnya sendiri.',
     '- statusHose hanya "Lancar" atau "Tidak Lancar". Jika tidak tertulis, gunakan "Lancar".',
     '- pemerataanPupuk pertahankan seperti yang tertulis (1,2,3,4,>4) atau kosong.',
     '- catatan hanya untuk issue/kendala/downtime yang benar-benar terlihat.',
@@ -97,8 +100,8 @@ export async function scanFertilizerReportWithGemini(file:File,master:MasterData
   }
   if(!parsed)throw lastError instanceof Error?lastError:new Error('Semua model Gemini sementara tidak tersedia.')
   const units:ScanUnit[]=(parsed.units||[]).map((u,ui)=>({
-    unit:text(u.unit),noUnit:text(u.noUnit),paddock:text(u.paddock),type:text(u.type)||'Fertilizer',activity:text(u.activity),catatan:text(u.catatan),
-    fillings:(u.fillings||[]).map((f,fi)=>({pengisianKe:Number(f.pengisianKe)||fi+1,dosis:strNum(f.dosis),statusHose:/tidak/i.test(text(f.statusHose))?'Tidak Lancar':'Lancar',jenisPupuk:text(f.jenisPupuk),jumlah:strNum(f.jumlah),hasilKerja:strNum(f.hasilKerja),pemerataanPupuk:text(f.pemerataanPupuk)})),
+    unit:text(u.unit),noUnit:text(u.noUnit),paddock:text(u.paddock),type:text(u.type)||'Fertilizer',activity:text(u.activity),catatan:text(u.catatan),rataRataDosisAktualTertulis:strNum(u.rataRataDosisAktualTertulis),
+    fillings:(u.fillings||[]).map((f,fi)=>({pengisianKe:Number(f.pengisianKe)||fi+1,dosis:strNum(f.dosis),statusHose:/tidak/i.test(text(f.statusHose))?'Tidak Lancar':'Lancar',jenisPupuk:text(f.jenisPupuk),jumlah:strNum(f.jumlah),hasilKerja:strNum(f.hasilKerja),pemerataanPupuk:text(f.pemerataanPupuk),dosisAktualTertulis:strNum(f.dosisAktualTertulis)})),
   })).filter(u=>Boolean(u.unit||u.noUnit||u.paddock||u.activity||u.fillings.length))
   if(!units.length)units.push({unit:'',noUnit:'',paddock:'',type:'Fertilizer',activity:'',catatan:'',fillings:[blankFilling()]})
   units.forEach(u=>{if(!u.fillings.length)u.fillings=[blankFilling()]})
