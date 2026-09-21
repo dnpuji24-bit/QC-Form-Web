@@ -38,4 +38,5 @@ assert "PhotoPicker" in spray and "capture" not in spray, 'Shared camera/gallery
 assert "photoBase64" in spray and "holdIntervals" in spray, 'Photo/HOLD payload missing'
 assert "deleteById_(spraySheet,rec.id,52" in code, 'Backend stale Spray/HOLD row replacement missing'
 
-assert "sessionId" in spray and "Input Spraying per Unit" in spray and "Tambah Unit" in spray, 'Spray unit-session workflow missing'\nprint('Spray React mapping check passed: 52 backend columns, unit sessions, pesticide formulas, manual area, photos, offline and uploaded correction paths verified.')
+assert "sessionId" in spray and "Input Spraying per Unit" in spray and "Tambah Unit" in spray, 'Spray unit-session workflow missing'
+print('Spray React mapping check passed: 52 backend columns, unit sessions, pesticide formulas, manual area, photos, offline and uploaded correction paths verified.')
