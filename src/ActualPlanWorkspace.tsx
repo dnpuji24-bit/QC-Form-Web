@@ -10,8 +10,8 @@ type View='list'|'web'|'import'
 export default function ActualPlanWorkspace({user,prefillDailyPlanIds=[]}:Props){
   const[view,setView]=useState<View>(prefillDailyPlanIds.length?'web':'list')
   useEffect(()=>{if(prefillDailyPlanIds.length)setView('web')},[prefillDailyPlanIds.join('|')])
-  return <section>
-    <div className="segmented" aria-label="Menu Actual Plan">
+  return <section className="plan-subworkspace">
+    <div className="segmented plan-secondary-nav" aria-label="Menu Actual Plan">
       <button type="button" className={view==='list'?'active':''} onClick={()=>setView('list')}>Daftar Actual</button>
       <button type="button" className={view==='web'?'active':''} onClick={()=>setView('web')}>Input Actual</button>
       <button type="button" className={view==='import'?'active':''} onClick={()=>setView('import')}>Update / Import Excel</button>
