@@ -15,7 +15,7 @@ for token in [
     "Total Planning",
     "materialsPreview",
     "componentsSnapshot",
-    "Hapus Semua",
+    "Reset Draft",
 ]:
     assert token in monthly, f'Missing Monthly batch-input token: {token}'
 
@@ -29,7 +29,7 @@ for token in [
     "Unit Standby",
     "materialLinesFromComponents",
     "Sisa",
-    "Reset Draft",
+    "Hapus Semua",
 ]:
     assert token in daily, f'Missing Daily batch-input token: {token}'
 
