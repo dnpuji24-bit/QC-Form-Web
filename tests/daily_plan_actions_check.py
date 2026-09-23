@@ -19,11 +19,13 @@ for token in [
     assert token in web, f'Missing Daily smart/adhoc token: {token}'
 
 for token in [
-    "Copy to Actual",
-    "Copy to WA",
-    "Copy to Date",
-    "Pilih Semua Filter",
+    "Copy Actual",
+    "Copy WA",
+    "Salin ke tanggal",
+    "Pilih Semua",
     "copiedFromDailyPlanId",
+    "copiedFromWorkGroupId",
+    "groupSavedDailyRows",
     "dailyPlansToWhatsApp",
     "Bahan & Dosis",
 ]:
