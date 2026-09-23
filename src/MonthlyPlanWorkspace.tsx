@@ -10,8 +10,8 @@ type View='list'|'web'|'import'|'sync'
 
 export default function MonthlyPlanWorkspace({user}:Props){
   const[view,setView]=useState<View>('list')
-  return <section>
-    <div className="segmented" aria-label="Menu Monthly Plan">
+  return <section className="plan-subworkspace">
+    <div className="segmented plan-secondary-nav" aria-label="Menu Monthly Plan">
       <button type="button" className={view==='list'?'active':''} onClick={()=>setView('list')}>Daftar Plan</button>
       <button type="button" className={view==='web'?'active':''} onClick={()=>setView('web')}>Input Monthly</button>
       <button type="button" className={view==='import'?'active':''} onClick={()=>setView('import')}>Update / Import Excel</button>
