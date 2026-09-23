@@ -9,3 +9,5 @@
 
 .daily-bulk-actions{margin-top:14px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}.daily-bulk-actions>div:first-child{display:grid;gap:2px}.daily-copy-date{display:grid;gap:4px;min-width:165px;font-weight:700}.daily-copy-date span{font-size:.75rem;color:#64748b}.daily-selected-row{background:#f0fdf4!important}.daily-selected-row td:first-child{box-shadow:inset 3px 0 0 #16a34a}.daily-bulk-actions .row-actions{align-items:end}
 @media(max-width:800px){.daily-bulk-actions{align-items:stretch;flex-direction:column}.daily-bulk-actions .row-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.daily-copy-date{grid-column:1/-1}.daily-bulk-actions .row-actions button{width:100%}}
+
+.plan-search-hint{display:block;margin-top:4px;color:#64748b;font-size:.76rem;font-weight:600;line-height:1.35}.plan-grid input[list]{background-image:linear-gradient(45deg,transparent 50%,#64748b 50%),linear-gradient(135deg,#64748b 50%,transparent 50%);background-position:calc(100% - 16px) 50%,calc(100% - 11px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:30px}
