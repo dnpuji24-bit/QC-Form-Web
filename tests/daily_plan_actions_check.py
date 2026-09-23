@@ -8,8 +8,8 @@ actual=(root/'src'/'ActualPlanWebEntryPanel.tsx').read_text(encoding='utf-8')
 plan=(root/'src'/'PlanWorkspace.tsx').read_text(encoding='utf-8')
 
 for token in [
-    "Smart Search Monthly",
-    "G-007 / pre / top dressing",
+    "Monthly Plan — ketik untuk mencari",
+    "Ketik G-007 / pre / top dressing",
     "sourceType:'MONTHLY'",
     "ADHOC",
     "SUPPORT",
