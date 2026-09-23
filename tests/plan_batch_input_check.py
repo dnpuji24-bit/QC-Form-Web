@@ -8,7 +8,7 @@ utils = (root/'src'/'planInputUtils.ts').read_text(encoding='utf-8')
 css = (root/'src'/'field-ui.css').read_text(encoding='utf-8')
 
 for token in [
-    "BATCH INPUT",
+    "MULTI PID",
     "writeBatch",
     "Draft otomatis",
     "Tambah Pekerjaan",
@@ -20,9 +20,9 @@ for token in [
     assert token in monthly, f'Missing Monthly batch-input token: {token}'
 
 for token in [
-    "BATCH INPUT",
+    "MULTI PID",
     "writeBatch",
-    "Monthly → Daily",
+    "Multiple PID",
     "Jumlah HK",
     "Unit Ready",
     "Unit Breakdown",
@@ -34,7 +34,7 @@ for token in [
     assert token in daily, f'Missing Daily batch-input token: {token}'
 
 for token in [
-    "BATCH INPUT",
+    "MULTI PID",
     "writeBatch",
     "Daily → Actual",
     "Luas Actual",
@@ -66,8 +66,10 @@ for token in [
     assert token in css, f'Missing Plan batch style: {token}'
 
 assert "daily_plans" in daily and "monthly_plans" in monthly and "daily_reports" in actual
+assert "workGroupId:group.work.id" in daily
+assert "workGroupPidCount:group.pids.length" in daily
 assert "monthlyPlanLineId:isMonthly?(selected?.planLineId||''):''" in daily
-assert "sourceType:info.work.sourceType" in daily
+assert "sourceType:group.work.sourceType" in daily
 assert "monthlyLinkStatus:isMonthly?'LINKED':'NOT_APPLICABLE'" in daily
 assert "dailyPlanId:selected.dailyPlanId" in actual
 assert "monthlyPlanLineId" in actual
