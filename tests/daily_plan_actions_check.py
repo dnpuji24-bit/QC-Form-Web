@@ -27,7 +27,7 @@ for token in [
     "copiedFromWorkGroupId",
     "groupSavedDailyRows",
     "dailyPlansToWhatsApp",
-    "Bahan & Dosis",
+    "daily-draft-materials",
 ]:
     assert token in listing, f'Missing Daily bulk action token: {token}'
 
