@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { collection, doc, getDocs, writeBatch } from 'firebase/firestore'
+import { collection, doc, getDocs, query as fsQuery, where, writeBatch } from 'firebase/firestore'
 import { firestoreDb } from './firebase'
 import type { User } from './types'
 
-type Props={user:User}
+type Props={user:User;selectedMonth?:string;selectedWeek?:string;compact?:boolean;refreshKey?:number}
 type PlanRow={id:string;planLineId:string;year:number;monthKey:string;monthLabel:string;week:string;inputDate:string;startDate:string;endDate:string;companyCode:string;farm:string;pid:string;description:string;activity:string;targetAreaHa:number;sourceActualAreaHa:number;sourceBalanceHa:number;variety:string;masterVariety:string;sourceStatus:string;storedStatus:string;stage:string;notes:string;type:string;activityCategory:string;lastModifiedSource:string}
 type DailyRef={monthlyPlanLineId:string;areaHa:number}
 type ActualRef={monthlyPlanLineId:string;actualAreaHa:number}
@@ -21,13 +21,21 @@ function formatDate(value:string){if(!value)return'-';const d=new Date(value);re
 function formatDateTime(value:string){if(!value)return'-';const d=new Date(value);return Number.isNaN(d.getTime())?value:d.toLocaleString('id-ID',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}
 function autoStatus(row:PlanRow,actual:number){const original=(row.sourceStatus||row.storedStatus).toUpperCase();if(original.includes('CANCEL'))return'CANCELLED';if(actual<=0)return'PLANNED';if(actual<row.targetAreaHa-0.0001)return'ON PROGRESS';if(Math.abs(actual-row.targetAreaHa)<=0.0001)return'DONE';return'OVER ACTUAL'}
 
-export default function MonthlyPlanListPanel({user}:Props){
+export default function MonthlyPlanListPanel({user,selectedMonth,selectedWeek,compact=false,refreshKey=0}:Props){
   const[rows,setRows]=useState<PlanRow[]>([]),[daily,setDaily]=useState<DailyRef[]>([]),[actuals,setActuals]=useState<ActualRef[]>([]),[logs,setLogs]=useState<ImportLog[]>([]),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
   const[month,setMonth]=useState('ALL'),[week,setWeek]=useState('ALL'),[company,setCompany]=useState('ALL'),[farm,setFarm]=useState('ALL'),[status,setStatus]=useState('ALL'),[query,setQuery]=useState('')
   const isOwner=user.role==='owner'
 
-  async function load(){if(!firestoreDb){setMessage('Firestore belum tersedia.');return}setBusy(true);setMessage('Memuat Monthly Plan + Daily Plan + Actual…');try{const[planSnap,dailySnap,actualSnap,logSnap]=await Promise.all([getDocs(collection(firestoreDb,'monthly_plans')),getDocs(collection(firestoreDb,'daily_plans')),getDocs(collection(firestoreDb,'daily_reports')),getDocs(collection(firestoreDb,'monthly_plan_import_logs'))]);const next=planSnap.docs.map(x=>rowFromData(x.id,x.data() as Record<string,unknown>)).sort((a,b)=>b.monthKey.localeCompare(a.monthKey)||a.week.localeCompare(b.week)||a.pid.localeCompare(b.pid,undefined,{numeric:true})||a.planLineId.localeCompare(b.planLineId,undefined,{numeric:true}));setRows(next);setDaily(dailySnap.docs.map(x=>{const d=x.data() as Record<string,unknown>;return{monthlyPlanLineId:text(d.monthlyPlanLineId),areaHa:num(d.areaHa)}}));setActuals(actualSnap.docs.map(x=>{const d=x.data() as Record<string,unknown>;return{monthlyPlanLineId:text(d.monthlyPlanLineId),actualAreaHa:num(d.actualAreaHa)}}));setLogs(logSnap.docs.map(x=>logFromData(x.id,x.data() as Record<string,unknown>)).sort((a,b)=>b.importedAt.localeCompare(a.importedAt)).slice(0,10));setMessage('Monthly Plan siap: '+next.length+' Plan Line. Progress dihitung langsung dari Daily Plan dan Actual linked.')}catch(error){setMessage(error instanceof Error?error.message:'Monthly Plan gagal dimuat.')}finally{setBusy(false)}}
-  useEffect(()=>{void load()},[])
+  async function load(){if(!firestoreDb){setMessage('Firestore belum tersedia.');return}setBusy(true);const monthFilter=selectedMonth||new Date().toISOString().slice(0,7);setMessage('Memuat Monthly '+monthFilter+'…');try{
+    const planSnap=await getDocs(fsQuery(collection(firestoreDb,'monthly_plans'),where('monthKey','==',monthFilter)))
+    const next=planSnap.docs.map(x=>rowFromData(x.id,x.data() as Record<string,unknown>)).sort((a,b)=>a.week.localeCompare(b.week)||a.pid.localeCompare(b.pid,undefined,{numeric:true})||a.planLineId.localeCompare(b.planLineId,undefined,{numeric:true}))
+    const ids=next.map(x=>x.planLineId).filter(Boolean),dailyDocs:any[]=[],actualDocs:any[]=[]
+    for(let i=0;i<ids.length;i+=30){const part=ids.slice(i,i+30);const[d,a]=await Promise.all([getDocs(fsQuery(collection(firestoreDb,'daily_plans'),where('monthlyPlanLineId','in',part))),getDocs(fsQuery(collection(firestoreDb,'daily_reports'),where('monthlyPlanLineId','in',part)))]);dailyDocs.push(...d.docs);actualDocs.push(...a.docs)}
+    setRows(next);setDaily(dailyDocs.map(x=>{const d=x.data() as Record<string,unknown>;return{monthlyPlanLineId:text(d.monthlyPlanLineId),areaHa:num(d.areaHa)}}));setActuals(actualDocs.map(x=>{const d=x.data() as Record<string,unknown>;return{monthlyPlanLineId:text(d.monthlyPlanLineId),actualAreaHa:num(d.actualAreaHa)}}))
+    if(compact)setLogs([]);else{const logSnap=await getDocs(collection(firestoreDb,'monthly_plan_import_logs'));setLogs(logSnap.docs.map(x=>logFromData(x.id,x.data() as Record<string,unknown>)).sort((a,b)=>b.importedAt.localeCompare(a.importedAt)).slice(0,10))}
+    setMessage('Monthly '+monthFilter+': '+next.length+' Plan Line. Progress hanya dihitung dari link periode aktif.')
+  }catch(error){setMessage(error instanceof Error?error.message:'Monthly Plan gagal dimuat.')}finally{setBusy(false)}}
+  useEffect(()=>{void load()},[selectedMonth,refreshKey])
 
   const scheduledMap=useMemo(()=>{const map=new Map<string,number>();daily.forEach(x=>{if(x.monthlyPlanLineId)map.set(x.monthlyPlanLineId,(map.get(x.monthlyPlanLineId)||0)+x.areaHa)});return map},[daily])
   const actualMap=useMemo(()=>{const map=new Map<string,number>();actuals.forEach(x=>{if(x.monthlyPlanLineId)map.set(x.monthlyPlanLineId,(map.get(x.monthlyPlanLineId)||0)+x.actualAreaHa)});return map},[actuals])
@@ -36,7 +44,8 @@ export default function MonthlyPlanListPanel({user}:Props){
   const companies=useMemo(()=>[...new Set(viewRows.map(x=>x.companyCode).filter(Boolean))].sort(),[viewRows])
   const farms=useMemo(()=>[...new Set(viewRows.filter(x=>company==='ALL'||x.companyCode===company).map(x=>x.farm).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[viewRows,company])
   const statuses=['PLANNED','ON PROGRESS','DONE','OVER ACTUAL','CANCELLED']
-  const filtered=useMemo(()=>{const needle=query.trim().toLowerCase();return viewRows.filter(row=>(month==='ALL'||row.monthKey===month)&&(week==='ALL'||row.week===week)&&(company==='ALL'||row.companyCode===company)&&(farm==='ALL'||row.farm===farm)&&(status==='ALL'||row.systemStatus===status)&&(!needle||[row.planLineId,row.pid,row.description,row.activity,row.variety,row.notes].join(' ').toLowerCase().includes(needle)))},[viewRows,month,week,company,farm,status,query])
+  const activeWeek=selectedWeek||week
+  const filtered=useMemo(()=>{const needle=query.trim().toLowerCase();return viewRows.filter(row=>(selectedMonth?row.monthKey===selectedMonth:(month==='ALL'||row.monthKey===month))&&(activeWeek==='ALL'||row.week===activeWeek)&&(company==='ALL'||row.companyCode===company)&&(farm==='ALL'||row.farm===farm)&&(status==='ALL'||row.systemStatus===status)&&(!needle||[row.planLineId,row.pid,row.description,row.activity,row.variety,row.notes].join(' ').toLowerCase().includes(needle))},[viewRows,selectedMonth,month,activeWeek,company,farm,status,query])
   const totals=useMemo(()=>filtered.reduce((acc,row)=>({target:acc.target+row.targetAreaHa,scheduled:acc.scheduled+row.scheduledAreaHa,unallocated:acc.unallocated+row.unallocatedAreaHa,actual:acc.actual+row.systemActualAreaHa,balance:acc.balance+row.systemBalanceHa}),{target:0,scheduled:0,unallocated:0,actual:0,balance:0}),[filtered])
   const hasActiveFilter=month!=='ALL'||week!=='ALL'||company!=='ALL'||farm!=='ALL'||status!=='ALL'||query.trim()!==''
 
@@ -53,6 +62,14 @@ export default function MonthlyPlanListPanel({user}:Props){
     setBusy(true);setMessage('Menghapus '+targets.length+' Monthly Plan…')
     try{for(let start=0;start<targets.length;start+=450){const batch=writeBatch(firestoreDb);targets.slice(start,start+450).forEach(row=>batch.delete(doc(firestoreDb!,'monthly_plans',row.id)));await batch.commit()}const deletedIds=new Set(targets.map(row=>row.id));setRows(current=>current.filter(row=>!deletedIds.has(row.id)));setMessage('Hapus selesai: '+targets.length+' Monthly Plan dihapus. Daily/Actual downstream tidak dihapus.')}catch(error){setMessage(error instanceof Error?error.message:'Monthly Plan gagal dihapus.')}finally{setBusy(false)}
   }
+
+  if(compact)return <section className="monthly-period-list">
+    <div className="section-head compact-saved-head"><div><div className="eyebrow">MONTHLY PERIODE</div><h3>{selectedMonth||'-'} · {selectedWeek||'Semua Week'}</h3><p className="muted">{filtered.length} plan line pada periode aktif.</p></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'…':'Refresh'}</button></div>
+    {message&&<div className="alert">{message}</div>}
+    <div className="cards compact-period-cards"><div className="card"><span>PLAN LINE</span><strong>{filtered.length}</strong></div><div className="card"><span>TARGET</span><strong>{formatHa(totals.target)}</strong></div><div className="card"><span>DAILY</span><strong>{formatHa(totals.scheduled)}</strong></div><div className="card"><span>ACTUAL</span><strong>{formatHa(totals.actual)}</strong></div></div>
+    <div className="monthly-period-card-list">{filtered.map(row=><article className="monthly-period-card" key={row.id}><div><span className="eyebrow">{row.week} · {row.companyCode}</span><h4>{row.description||row.activity}</h4><p>📍 {row.pid} · {row.farm||'-'}</p></div><div className="monthly-period-metrics"><span>Target <b>{formatHa(row.targetAreaHa)}</b></span><span>Daily <b>{formatHa(row.scheduledAreaHa)}</b></span><span>Actual <b>{formatHa(row.systemActualAreaHa)}</b></span><span>Balance <b>{formatHa(row.systemBalanceHa)}</b></span></div>{isOwner&&<button type="button" className="danger monthly-card-delete" disabled={busy} onClick={()=>void deleteRows([row],'Plan ID '+row.planLineId)}>Hapus</button>}</article>)}</div>
+    {!filtered.length&&<div className="daily-draft-empty">Belum ada Monthly Plan pada periode ini.</div>}
+  </section>
 
   return <section>
     <div className="section-head"><div><div className="eyebrow">MONTHLY PLAN</div><h2>Daftar & Progress</h2><p className="muted">Target Monthly tidak pernah dikurangi langsung. Sistem menghitung Sisa Belum Dijadwalkan = Target − Daily Plan, dan Balance Aktual = Target − Actual/Daily Report yang memiliki monthlyPlanLineId yang sama.</p></div><div style={{display:'flex',gap:10,flexWrap:'wrap'}}><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'Memuat…':'Refresh Progress'}</button>{isOwner&&<button type="button" disabled={busy||!filtered.length} onClick={()=>void deleteRows(filtered,hasActiveFilter?'sesuai filter saat ini':'SEMUA Monthly Plan')} style={{borderColor:'#b91c1c',color:'#b91c1c'}}>{hasActiveFilter?'Hapus Sesuai Filter ('+filtered.length+')':'Hapus Semua Plan ('+filtered.length+')'}</button>}</div></div>
