@@ -11,9 +11,9 @@ for token in [
     "searchKey(row.planLineId).startsWith(q)||searchKey(row.pid).startsWith(q)",
     'placeholder="Ketik G-007"',
     "activityChoices",
-    "Pilih kegiatan pada card dahulu",
+    "Pilih kegiatan dahulu",
     "monthlyOptionLabel",
-    "monthly-plan-options-",
+    "monthly-active-options-",
     "pilihan cocok",
 ]:
     assert token in daily, f'Missing strict Daily smart-search token: {token}'
