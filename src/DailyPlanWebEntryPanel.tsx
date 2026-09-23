@@ -158,26 +158,35 @@ export default function DailyPlanWebEntryPanel({user}:Props){
     }catch(err){setMessage(err instanceof Error?err.message:'Gagal menyimpan Daily Plan.')}finally{setBusy(false)}
   }
 
-  return <section className="plan-entry-screen">
-    <div className="section-head"><div><div className="eyebrow">DAILY PLAN · SINGLE FORM</div><h2>Input Daily Plan</h2><p className="muted">Isi satu kegiatan, simpan ke draft, lalu cek semua card di bawah sebelum disimpan ke database.</p></div><div className="row-actions"><button type="button" onClick={()=>void load()} disabled={busy}>Refresh</button><button type="button" className="danger" onClick={clearAll} disabled={busy}>Hapus Semua</button></div></div>
+  return <section className="plan-entry-screen daily-mobile-workspace">
+    <div className="section-head daily-entry-head"><div><div className="eyebrow">DAILY PLAN</div><h2>Input Daily</h2><p className="muted">Tambah satu kegiatan lalu cek hasilnya di draft.</p></div><div className="row-actions"><button type="button" onClick={()=>void load()} disabled={busy}>Refresh</button><button type="button" className="danger" onClick={clearAll} disabled={busy}>Hapus Semua</button></div></div>
     {message&&<div className="alert">{message}</div>}
 
-    <section className="panel plan-section"><div className="plan-section-title"><div><span className="eyebrow">TANGGAL PLANNING</span><h3>Daily Planning</h3></div><span className="status-pill">Draft otomatis</span></div><div className="plan-grid"><label><span>Tanggal Daily Plan</span><input type="date" value={state.date} onChange={e=>setState(current=>({...current,date:e.target.value}))}/></label></div></section>
-
     <form id="daily-active-form" onSubmit={saveToDraft} className="panel plan-section daily-single-form">
-      <div className="plan-section-title"><div><span className="eyebrow">{state.editingId?'EDIT DRAFT':'INPUT PLANNING'}</span><h3>{state.editingId?'Edit Kegiatan Draft':'Tambah Kegiatan'}</h3></div>{state.editingId&&<button type="button" onClick={()=>resetInput()}>Batal Edit</button>}</div>
-      <div className="plan-grid">
-        <label><span>Shift</span><input value={state.active.shift} onChange={e=>patchActive({shift:e.target.value})} placeholder="1 / 2 / 3"/></label>
-        <label><span>Mandor / Foreman</span><input value={state.active.foreman} onChange={e=>patchActive({foreman:e.target.value})} placeholder="Nama mandor"/></label>
-        <label><span>Sumber</span><select value={state.active.sourceType} onChange={e=>patchActive({sourceType:e.target.value as WorkDraft['sourceType'],activitySearch:'',pids:[blankPid()]})}><option value="MONTHLY">MONTHLY</option><option value="ADHOC">ADHOC</option><option value="SUPPORT">SUPPORT</option></select></label>
-        <label><span>Kegiatan</span><input list="daily-active-activities" value={state.active.activitySearch} onChange={e=>patchActive({activitySearch:e.target.value,pids:state.active.pids.map(pid=>({...pid,search:'',monthlyId:''}))})} placeholder="Ketik top dressing / pre"/><datalist id="daily-active-activities">{activeInfo.activityOptions.map(x=><option key={x} value={x}/>)}</datalist></label>
-        <label><span>Jumlah HK</span><input type="number" min="0" step="1" value={state.active.manpower} onChange={e=>patchActive({manpower:e.target.value})}/></label>
-        <label><span>Kode / Nama Unit</span><input value={state.active.unitName} onChange={e=>patchActive({unitName:e.target.value})} placeholder="Contoh: Stool Splitter"/></label>
-        <label><span>Unit Ready</span><input type="number" min="0" step="1" value={state.active.unitReady} onChange={e=>patchActive({unitReady:e.target.value})}/></label>
-        <label><span>Unit Breakdown</span><input type="number" min="0" step="1" value={state.active.unitBreakdown} onChange={e=>patchActive({unitBreakdown:e.target.value})}/></label>
-        <label><span>Unit Standby</span><input type="number" min="0" step="1" value={state.active.unitStandby} onChange={e=>patchActive({unitStandby:e.target.value})}/></label>
-        <label className="plan-span-2"><span>Keterangan Kegiatan</span><input value={state.active.notes} onChange={e=>patchActive({notes:e.target.value})} placeholder="Opsional"/></label>
-      </div>
+      <div className="daily-form-toolbar"><div><span className="eyebrow">{state.editingId?'EDIT DRAFT':'INPUT PLANNING'}</span><h3>{state.editingId?'Edit Kegiatan':'Tambah Kegiatan'}</h3></div><div className="daily-form-toolbar-actions"><span className="status-pill">Draft otomatis</span>{state.editingId&&<button type="button" onClick={()=>resetInput()}>Batal Edit</button>}</div></div>
+
+      <section className="daily-form-group">
+        <div className="daily-form-group-title"><span>01</span><div><strong>Jadwal & Kegiatan</strong><small>Informasi utama pekerjaan</small></div></div>
+        <div className="plan-grid daily-schedule-grid">
+          <label className="daily-date-field"><span>Tanggal</span><input type="date" value={state.date} onChange={e=>setState(current=>({...current,date:e.target.value}))}/></label>
+          <label><span>Shift</span><input value={state.active.shift} onChange={e=>patchActive({shift:e.target.value})} placeholder="1 / 2 / 3"/></label>
+          <label><span>Mandor / Foreman</span><input value={state.active.foreman} onChange={e=>patchActive({foreman:e.target.value})} placeholder="Nama mandor"/></label>
+          <label><span>Sumber</span><select value={state.active.sourceType} onChange={e=>patchActive({sourceType:e.target.value as WorkDraft['sourceType'],activitySearch:'',pids:[blankPid()]})}><option value="MONTHLY">MONTHLY</option><option value="ADHOC">ADHOC</option><option value="SUPPORT">SUPPORT</option></select></label>
+          <label className="daily-activity-field"><span>Kegiatan</span><input list="daily-active-activities" value={state.active.activitySearch} onChange={e=>patchActive({activitySearch:e.target.value,pids:state.active.pids.map(pid=>({...pid,search:'',monthlyId:''}))})} placeholder="Ketik top dressing / pre"/><datalist id="daily-active-activities">{activeInfo.activityOptions.map(x=><option key={x} value={x}/>)}</datalist></label>
+        </div>
+      </section>
+
+      <section className="daily-form-group">
+        <div className="daily-form-group-title"><span>02</span><div><strong>Tenaga & Alat</strong><small>Resource bersama untuk seluruh PID</small></div></div>
+        <div className="plan-grid daily-resource-grid">
+          <label><span>Jumlah HK</span><input type="number" min="0" step="1" value={state.active.manpower} onChange={e=>patchActive({manpower:e.target.value})}/></label>
+          <label className="daily-unit-field"><span>Kode / Nama Unit</span><input value={state.active.unitName} onChange={e=>patchActive({unitName:e.target.value})} placeholder="Contoh: Stool Splitter"/></label>
+          <label className="daily-status-field ready"><span>Ready</span><input type="number" min="0" step="1" value={state.active.unitReady} onChange={e=>patchActive({unitReady:e.target.value})}/></label>
+          <label className="daily-status-field breakdown"><span>Breakdown</span><input type="number" min="0" step="1" value={state.active.unitBreakdown} onChange={e=>patchActive({unitBreakdown:e.target.value})}/></label>
+          <label className="daily-status-field standby"><span>Standby</span><input type="number" min="0" step="1" value={state.active.unitStandby} onChange={e=>patchActive({unitStandby:e.target.value})}/></label>
+          <label className="plan-span-2 daily-notes-field"><span>Keterangan</span><input value={state.active.notes} onChange={e=>patchActive({notes:e.target.value})} placeholder="Opsional"/></label>
+        </div>
+      </section>
 
       <div className="daily-activity-material-preview"><div className="daily-material-preview-head"><div><span className="eyebrow">BAHAN & DOSIS ACUAN</span><strong>{state.active.activitySearch||'Pilih kegiatan terlebih dahulu'}</strong></div>{activeInfo.area>0&&<span className="status-pill">{planHa(activeInfo.area)} total PID</span>}</div>{activeInfo.activityDosePreview.length>0?<div className="daily-material-dose-list">{activeInfo.activityDosePreview.map(m=>{const total=activeInfo.materials.find(x=>x.material===m.material&&x.unit===m.unit)?.totalMaterial||0;return <div key={m.material+'|'+m.unit}><span><b>{m.material}</b><small>Dosis {m.dosePerHa.toLocaleString('id-ID',{maximumFractionDigits:4})} {m.unit}/Ha</small></span><strong>{activeInfo.area>0?('Total '+total.toLocaleString('id-ID',{maximumFractionDigits:4})+' '+m.unit):'Isi luas PID untuk total'}</strong></div>})}</div>:<div className="daily-material-empty">{state.active.activitySearch?'Belum ada bahan/dosis pada Master Activity atau Monthly Plan untuk kegiatan ini.':'Pilih kegiatan untuk melihat bahan dan dosis.'}</div>}</div>
 
