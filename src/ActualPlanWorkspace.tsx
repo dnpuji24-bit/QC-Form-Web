@@ -12,7 +12,7 @@ export default function ActualPlanWorkspace({user}:Props){
   return <section>
     <div className="segmented" aria-label="Menu Actual Plan">
       <button type="button" className={view==='list'?'active':''} onClick={()=>setView('list')}>Daftar Actual</button>
-      <button type="button" className={view==='web'?'active':''} onClick={()=>setView('web')}>Input dari Daily Plan</button>
+      <button type="button" className={view==='web'?'active':''} onClick={()=>setView('web')}>Input Actual</button>
       <button type="button" className={view==='import'?'active':''} onClick={()=>setView('import')}>Update / Import Excel</button>
     </div>
     {view==='list'?<ActualPlanListPanel user={user}/>:view==='web'?<ActualPlanWebEntryPanel user={user}/>:<ActualPlanImportPanel user={user}/>}
