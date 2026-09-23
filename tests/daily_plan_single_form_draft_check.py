@@ -18,8 +18,9 @@ for token in [
     "writePlanDraft(draftKey,state)",
     "moveDraft(",
     "dropDraft(",
-    "↑ Naik",
-    "↓ Turun",
+    'aria-label="Naik"',
+    'aria-label="Turun"',
+    "DraftActionIcon",
     "planningOrder:state.works.findIndex",
 ]:
     assert token in daily, f'Missing single-form Daily draft token: {token}'
