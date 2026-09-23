@@ -40,6 +40,8 @@ for token in [
 assert "Plan ID" not in actions
 assert "dailyPlanId" not in actions.split("export function dailyPlansToWhatsApp",1)[1]
 assert "prefillDailyPlanIds" in actual
+for token in ["manpower:String(row.manpower||0)","unitName:row.unitName||''","unitReady:String(row.unitReady||0)","unitBreakdown:String(row.unitBreakdown||0)","unitStandby:String(row.unitStandby||0)","foreman:selected[0]?.foreman"]:
+    assert token in actual, f'Missing Actual prefill token: {token}'
 assert "onCopyToActual" in plan
 
 print('Daily Plan action check passed: smart Monthly search, ADHOC input, material review, WhatsApp copy without Plan IDs, Copy to Actual and Copy to Date are wired.')
