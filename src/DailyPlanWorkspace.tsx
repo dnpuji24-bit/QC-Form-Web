@@ -4,10 +4,10 @@ import DailyPlanListPanel from './DailyPlanListPanel'
 import DailyPlanWebEntryPanel from './DailyPlanWebEntryPanel'
 import type { User } from './types'
 
-type Props={user:User}
+type Props={user:User;onCopyToActual?:(dailyPlanIds:string[])=>void}
 type View='list'|'web'|'import'
 
-export default function DailyPlanWorkspace({user}:Props){
+export default function DailyPlanWorkspace({user,onCopyToActual}:Props){
   const[view,setView]=useState<View>('list')
   return <section>
     <div className="segmented" aria-label="Menu Daily Plan">
@@ -15,6 +15,6 @@ export default function DailyPlanWorkspace({user}:Props){
       <button type="button" className={view==='web'?'active':''} onClick={()=>setView('web')}>Input Daily</button>
       <button type="button" className={view==='import'?'active':''} onClick={()=>setView('import')}>Update / Import Excel</button>
     </div>
-    {view==='list'?<DailyPlanListPanel user={user}/>:view==='web'?<DailyPlanWebEntryPanel user={user}/>:<DailyPlanImportPanel user={user}/>}
+    {view==='list'?<DailyPlanListPanel user={user} onCopyToActual={onCopyToActual}/>:view==='web'?<DailyPlanWebEntryPanel user={user}/>:<DailyPlanImportPanel user={user}/>}
   </section>
 }
