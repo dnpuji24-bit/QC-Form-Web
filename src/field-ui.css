@@ -82,3 +82,27 @@
   .daily-resource-grid{gap:6px!important}
   .daily-status-field span{font-size:.68rem}
 }
+
+/* Compact 3x2 icon actions for Daily draft cards */
+.daily-draft-card-head{align-items:flex-start}.daily-draft-title-row{min-width:0;flex:1}.daily-draft-title-row>div{min-width:0}.daily-draft-card-head h4{overflow-wrap:anywhere}
+.daily-order-actions{display:grid!important;grid-template-columns:repeat(3,36px);grid-auto-rows:36px;gap:6px;flex:0 0 auto;align-content:start}
+.daily-icon-action{width:36px!important;height:36px!important;min-width:36px!important;min-height:36px!important;padding:0!important;display:grid!important;place-items:center;border:1px solid #e2e8f0!important;border-radius:10px!important;background:#f8fafc!important;color:#334155!important;box-shadow:none!important}
+.daily-icon-action svg{display:block}.daily-icon-action:hover{background:#eef2ff!important;color:#1d4ed8!important;border-color:#c7d2fe!important}.daily-icon-action:active{transform:scale(.96)}
+.daily-icon-action.wa{background:#ecfdf5!important;color:#15803d!important;border-color:#bbf7d0!important}.daily-icon-action.wa:hover{background:#dcfce7!important;color:#166534!important}
+.daily-icon-action.danger{background:#fff1f2!important;color:#dc2626!important;border-color:#fecdd3!important}.daily-icon-action.danger:hover{background:#ffe4e6!important;color:#b91c1c!important}
+.daily-icon-action:disabled{opacity:.28!important;cursor:not-allowed!important;transform:none!important}
+@media(max-width:800px){
+  .daily-draft-card-head{align-items:flex-start!important;flex-direction:row!important;gap:8px!important}
+  .daily-draft-title-row{flex:1 1 auto;max-width:calc(100% - 118px)}
+  .daily-draft-title-row .eyebrow{font-size:.68rem}
+  .daily-draft-card-head h4{font-size:.96rem;line-height:1.25}
+  .daily-order-actions{grid-template-columns:repeat(3,34px)!important;grid-auto-rows:34px!important;gap:5px!important;width:auto!important}
+  .daily-icon-action{width:34px!important;height:34px!important;min-width:34px!important;min-height:34px!important;border-radius:9px!important}
+  .daily-icon-action svg{width:17px;height:17px}
+}
+@media(max-width:380px){
+  .daily-draft-title-row{max-width:calc(100% - 108px)}
+  .daily-order-actions{grid-template-columns:repeat(3,31px)!important;grid-auto-rows:31px!important;gap:4px!important}
+  .daily-icon-action{width:31px!important;height:31px!important;min-width:31px!important;min-height:31px!important}
+  .daily-icon-action svg{width:16px;height:16px}
+}
