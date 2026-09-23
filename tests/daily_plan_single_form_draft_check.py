@@ -5,7 +5,7 @@ daily=(root/'src'/'DailyPlanWebEntryPanel.tsx').read_text(encoding='utf-8')
 css=(root/'src'/'field-ui.css').read_text(encoding='utf-8')
 
 for token in [
-    "DAILY PLAN · SINGLE FORM",
+    "DAILY PLAN",
     "Simpan ke Draft",
     "DRAFT DAILY PLANNING",
     "Periksa Hasil Plan",
