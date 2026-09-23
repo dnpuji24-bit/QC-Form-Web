@@ -8,14 +8,16 @@ for token in [
     "looksLikePaddockSearch",
     "shortPaddockCode",
     "complete?target===code:target.startsWith(code)",
-    "planId.startsWith(q)||activity.startsWith(q)||description.startsWith(q)",
-    'placeholder="Ketik G-007 / pre / top dressing"',
+    "searchKey(row.planLineId).startsWith(q)||searchKey(row.pid).startsWith(q)",
+    'placeholder="Ketik G-007"',
+    "activityChoices",
+    "Pilih kegiatan pada card dahulu",
     "monthlyOptionLabel",
     "monthly-plan-options-",
-    "pilihan cocok — pilih salah satu suggestion",
+    "pilihan cocok",
 ]:
     assert token in daily, f'Missing strict Daily smart-search token: {token}'
 
 assert "[x.planLineId,x.pid,x.description,x.activity,x.companyCode,x.farm,x.monthKey].join(' ').toLowerCase().includes(q)" not in daily
 
-print('Daily Monthly smart search check passed: the Monthly Plan field itself is type-to-search, with exact paddock matching and prefix activity/ID matching.')
+print('Daily Monthly smart search check passed: activity is selected once per card and each PID search is restricted to that activity with exact paddock matching.')
