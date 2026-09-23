@@ -21,10 +21,10 @@ function smartMonthlyChoices(rows:Monthly[],input:string){
   const q=searchKey(input)
   if(!q)return rows.slice(0,120)
   if(looksLikePaddockSearch(input)){
-    const code=paddockKey(input),shortQuery=code.split('-').length<=2
+    const code=paddockKey(input),shortQuery=code.split('-').length<=2,complete=/-\d{3,4}$/.test(code)
     return rows.filter(row=>{
-      const full=paddockKey(row.pid),short=shortPaddockCode(row.pid)
-      return shortQuery?short.startsWith(code):full.startsWith(code)
+      const full=paddockKey(row.pid),short=shortPaddockCode(row.pid),target=shortQuery?short:full
+      return complete?target===code:target.startsWith(code)
     }).slice(0,120)
   }
   return rows.filter(row=>{
