@@ -1,11 +1,11 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { collection, doc, getDoc, getDocs, serverTimestamp, writeBatch } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, query as fsQuery, serverTimestamp, where, writeBatch } from 'firebase/firestore'
 import { firebaseAuth, firestoreDb } from './firebase'
 import { FALLBACK_COMPANIES, type CompanyRecord } from './companyMaster'
 import { aggregateMaterials, clearPlanDraft, materialLinesFromComponents, planHa, planNum, planRowId, planText, readPlanDraft, writePlanDraft } from './planInputUtils'
 import type { User } from './types'
 
-type Props={user:User}
+type Props={user:User;selectedMonth?:string;selectedWeek?:string;onPeriodChange?:(month:string,week:string)=>void;onSaved?:()=>void}
 type Paddock={pid:string;companyCode:string;farm:string;variety:string;stage:string;areaPaddockHa:number}
 type Component={sequence:number;label:string;activeIngredient:string;dosePerHa:number;unit:string}
 type Activity={id:string;activityCode:string;description:string;activity:string;type:string;activityCategory:string;companyScope:string;active:boolean;components:Component[]}
@@ -21,14 +21,18 @@ function weekDates(monthKey:string,week:string){if(!/^\d{4}-\d{2}$/.test(monthKe
 function blankLine():LineDraft{return{id:planRowId('monthly'),pid:'',activityId:'',target:'',notes:''}}
 async function writer(appUser:User){const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.');const current=auth.currentUser;if(!current)throw new Error('Login Firebase tidak tersedia.');const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.');const p=snap.data() as Record<string,unknown>;if(p.active!==true||!['owner','asisten'].includes(planText(p.role))||!['owner','asisten'].includes(appUser.role))throw new Error('Role tidak memiliki izin membuat Monthly Plan.');return{db,username:planText(p.username)||appUser.username}}
 
-export default function MonthlyPlanWebEntryPanel({user}:Props){
+export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWeek,onPeriodChange,onSaved}:Props){
   const draftKey='plan_monthly_web_draft_'+user.username
-  const initial=readPlanDraft<Draft>(draftKey,{month:new Date().toISOString().slice(0,7),week:'W1',company:'GPA',farm:'',lines:[blankLine()]})
+  const storedInitial=readPlanDraft<Draft>(draftKey,{month:new Date().toISOString().slice(0,7),week:'W1',company:'GPA',farm:'',lines:[blankLine()]})
+  const initial={...storedInitial,month:selectedMonth||storedInitial.month,week:selectedWeek||storedInitial.week}
   const[companies,setCompanies]=useState<CompanyRecord[]>([]),[paddocks,setPaddocks]=useState<Paddock[]>([]),[activities,setActivities]=useState<Activity[]>([]),[existing,setExisting]=useState<Existing[]>([])
   const[draft,setDraft]=useState<Draft>(()=>({...initial,lines:initial.lines?.length?initial.lines:[blankLine()]})),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
 
-  async function load(){if(!firestoreDb)return;setBusy(true);try{const[c,p,a,m]=await Promise.all([getDocs(collection(firestoreDb,'master_companies')),getDocs(collection(firestoreDb,'master_paddocks')),getDocs(collection(firestoreDb,'master_activities')),getDocs(collection(firestoreDb,'monthly_plans'))]);setCompanies(c.empty?FALLBACK_COMPANIES:c.docs.map(x=>companyFromData(x.id,x.data() as Record<string,unknown>)).filter(x=>x.active));setPaddocks(p.docs.map(x=>{const d=x.data() as Record<string,unknown>;return{pid:planText(d.pid||x.id).toUpperCase(),companyCode:planText(d.companyCode).toUpperCase(),farm:planText(d.farm),variety:planText(d.variety),stage:planText(d.currentStage||d.stage),areaPaddockHa:planNum(d.areaPlantedHa||d.areaPaddockHa)}}));setActivities(a.docs.map(x=>{const d=x.data() as Record<string,unknown>;return{id:x.id,activityCode:planText(d.activityCode),description:planText(d.description),activity:planText(d.activity),type:planText(d.type),activityCategory:planText(d.activityCategory),companyScope:planText(d.companyScope||'GLOBAL').toUpperCase(),active:d.active===true,components:components(d.components)}}));setExisting(m.docs.map(x=>{const d=x.data() as Record<string,unknown>;return{planLineId:planText(d.planLineId||x.id),monthKey:planText(d.monthKey),week:planText(d.week),pid:planText(d.pid).toUpperCase(),activity:planText(d.activity)}}))}catch(e){setMessage(e instanceof Error?e.message:'Master data gagal dimuat.')}finally{setBusy(false)}}
-  useEffect(()=>{void load()},[])
+  async function loadMasters(){if(!firestoreDb)return;setBusy(true);try{const[c,p,a]=await Promise.all([getDocs(collection(firestoreDb,'master_companies')),getDocs(collection(firestoreDb,'master_paddocks')),getDocs(collection(firestoreDb,'master_activities'))]);setCompanies(c.empty?FALLBACK_COMPANIES:c.docs.map(x=>companyFromData(x.id,x.data() as Record<string,unknown>)).filter(x=>x.active));setPaddocks(p.docs.map(x=>{const d=x.data() as Record<string,unknown>;return{pid:planText(d.pid||x.id).toUpperCase(),companyCode:planText(d.companyCode).toUpperCase(),farm:planText(d.farm),variety:planText(d.variety),stage:planText(d.currentStage||d.stage),areaPaddockHa:planNum(d.areaPlantedHa||d.areaPaddockHa)}}));setActivities(a.docs.map(x=>{const d=x.data() as Record<string,unknown>;return{id:x.id,activityCode:planText(d.activityCode),description:planText(d.description),activity:planText(d.activity),type:planText(d.type),activityCategory:planText(d.activityCategory),companyScope:planText(d.companyScope||'GLOBAL').toUpperCase(),active:d.active===true,components:components(d.components)}}))}catch(e){setMessage(e instanceof Error?e.message:'Master data gagal dimuat.')}finally{setBusy(false)}}
+  async function loadPeriod(month=draft.month){if(!firestoreDb||!month)return;try{const m=await getDocs(fsQuery(collection(firestoreDb,'monthly_plans'),where('monthKey','==',month)));setExisting(m.docs.map(x=>{const d=x.data() as Record<string,unknown>;return{planLineId:planText(d.planLineId||x.id),monthKey:planText(d.monthKey),week:planText(d.week),pid:planText(d.pid).toUpperCase(),activity:planText(d.activity)}}))}catch(e){setMessage(e instanceof Error?e.message:'Monthly periode gagal dimuat.')}}
+  useEffect(()=>{void loadMasters()},[])
+  useEffect(()=>{void loadPeriod(draft.month);onPeriodChange?.(draft.month,draft.week)},[draft.month,draft.week])
+  useEffect(()=>{if((selectedMonth&&selectedMonth!==draft.month)||(selectedWeek&&selectedWeek!==draft.week))setDraft(current=>({...current,month:selectedMonth||current.month,week:selectedWeek||current.week}))},[selectedMonth,selectedWeek])
   useEffect(()=>{writePlanDraft(draftKey,draft)},[draft,draftKey])
 
   const farms=useMemo(()=>[...new Set(paddocks.filter(x=>!draft.company||x.companyCode===draft.company).map(x=>x.farm).filter(Boolean))].sort(),[paddocks,draft.company])
@@ -58,17 +62,18 @@ export default function MonthlyPlanWebEntryPanel({user}:Props){
       let seq=existing.map(x=>x.planLineId.startsWith(prefix)?Number(x.planLineId.slice(prefix.length)):0).filter(Number.isFinite).reduce((m,x)=>Math.max(m,x),0)
       const created:Existing[]=[]
       for(const info of lineInfo){seq++;const planLineId=prefix+String(seq).padStart(4,'0'),p=info.paddock!,a=info.activity!;batch.set(doc(db,'monthly_plans',planDocId(planLineId)),{planLineId,year,monthNumber,monthKey:draft.month,monthLabel:new Date(year,monthNumber-1,1).toLocaleString('id-ID',{month:'short'}),inputDate:new Date().toISOString().slice(0,10),startDate:dates.start,endDate:dates.end,week:draft.week,description:a.description,pid:p.pid,targetAreaHa:info.target,variety:p.variety,sourceStatus:'Belum dikerjakan',status:'PLANNED',actualAreaHa:0,balanceHa:info.target,calculatedBalanceHa:info.target,activity:a.activity,notes:info.line.notes,companyCode:draft.company,farm:p.farm||draft.farm,stage:p.stage,areaPaddockHa:p.areaPaddockHa,masterVariety:p.variety,masterActivityId:a.id,activityCode:a.activityCode,type:a.type,activityCategory:a.activityCategory,componentsSnapshot:a.components,materialsPreview:info.materials,sourceOrigin:'WEB',lastModifiedSource:'WEB',createdAt:serverTimestamp(),createdBy:username,updatedAt:serverTimestamp(),updatedBy:username});created.push({planLineId,monthKey:draft.month,week:draft.week,pid:p.pid,activity:a.activity})}
-      await batch.commit();setExisting(rows=>[...rows,...created]);clearPlanDraft(draftKey);setDraft(current=>({...current,lines:[blankLine()]}));setMessage(created.length+' Monthly Plan berhasil dibuat. Total target '+planHa(totalArea)+'.')
+      await batch.commit();setExisting(rows=>[...rows,...created]);clearPlanDraft(draftKey);setDraft(current=>({...current,lines:[blankLine()]}));setMessage(created.length+' Monthly Plan berhasil dibuat. Total target '+planHa(totalArea)+'.');onSaved?.()
     }catch(err){setMessage(err instanceof Error?err.message:'Gagal membuat Monthly Plan.')}finally{setBusy(false)}
   }
 
   return <section className="plan-entry-screen">
-    <div className="section-head"><div><div className="eyebrow">MONTHLY PLAN · BATCH INPUT</div><h2>Input Monthly Plan</h2><p className="muted">Satu sesi dapat berisi beberapa PID/Activity. Draft tersimpan otomatis di perangkat sampai berhasil disimpan.</p></div><div className="row-actions"><button type="button" onClick={()=>void load()} disabled={busy}>Refresh Master</button><button type="button" className="danger" onClick={reset} disabled={busy}>Reset Draft</button></div></div>
+    <div className="section-head"><div><div className="eyebrow">MONTHLY PLAN · BATCH INPUT</div><h2>Input Monthly Plan</h2><p className="muted">Satu sesi dapat berisi beberapa PID/Activity. Draft tersimpan otomatis di perangkat sampai berhasil disimpan.</p></div><div className="row-actions"><button type="button" onClick={()=>void Promise.all([loadMasters(),loadPeriod()])} disabled={busy}>Refresh Master</button><button type="button" className="danger" onClick={reset} disabled={busy}>Reset Draft</button></div></div>
     {message&&<div className="alert">{message}</div>}
     <form onSubmit={save} className="plan-entry-form">
       <section className="panel plan-section"><div className="plan-section-title"><div><span className="eyebrow">PERIODE PLANNING</span><h3>Periode & Company</h3></div><span className="status-pill">Draft otomatis</span></div><div className="plan-grid">
-        <label><span>Bulan</span><input type="month" value={draft.month} onChange={e=>patchDraft({month:e.target.value})}/></label>
-        <label><span>Week</span><select value={draft.week} onChange={e=>patchDraft({week:e.target.value})}>{['W1','W2','W3','W4'].map(x=><option key={x}>{x}</option>)}</select></label>
+        {!selectedMonth&&<label><span>Bulan</span><input type="month" value={draft.month} onChange={e=>patchDraft({month:e.target.value})}/></label>}
+        {!selectedWeek&&<label><span>Week</span><select value={draft.week} onChange={e=>patchDraft({week:e.target.value})}>{['W1','W2','W3','W4'].map(x=><option key={x}>{x}</option>)}</select></label>}
+        {selectedMonth&&selectedWeek&&<div className="monthly-period-chip"><span>Periode Aktif</span><strong>{draft.month} · {draft.week}</strong></div>}
         <label><span>Company</span><select value={draft.company} onChange={e=>patchDraft({company:e.target.value,farm:'',lines:draft.lines.map(line=>({...line,pid:'',activityId:''}))})}>{companies.map(x=><option key={x.id} value={x.code}>{x.code} — {x.name}</option>)}</select></label>
         <label><span>Farm</span><select value={draft.farm} onChange={e=>patchDraft({farm:e.target.value,lines:draft.lines.map(line=>({...line,pid:''}))})}><option value="">Semua Farm</option>{farms.map(x=><option key={x}>{x}</option>)}</select></label>
       </div></section>
