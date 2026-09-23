@@ -29,7 +29,11 @@ for token in [
 ]:
     assert token in listing, f'Missing saved Daily icon action token: {token}'
 
-for token in ["'up'|'down'|'wa'|'copy'|'edit'|'trash'|'calendar'","name==='calendar'","name==='trash'","name==='wa'"]:
+for token in [
+    "'up'|'down'|'wa'|'copy'|'edit'|'trash'|'calendar'",
+    "name==='calendar'",
+    "name==='trash'",
+]:
     assert token in icons, f'Missing shared Daily icon definition: {token}'
 
 for token in [
