@@ -20,7 +20,7 @@ for token in [
     assert token in monthly, f'Missing Monthly batch-input token: {token}'
 
 for token in [
-    "SINGLE FORM",
+    "DAILY PLAN",
     "writeBatch",
     "Multiple PID",
     "Jumlah HK",
