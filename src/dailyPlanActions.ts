@@ -22,7 +22,7 @@ export type DailyPlanTransfer={
 }
 
 function n(v:number){return new Intl.NumberFormat('id-ID',{maximumFractionDigits:2}).format(v)}
-function groupKey(row:DailyPlanTransfer){return row.workGroupId||row.dailyPlanId}
+function groupKey(row:DailyPlanTransfer){return row.date+'|'+(row.workGroupId||row.dailyPlanId)}
 function aggregateMaterials(rows:DailyPlanTransfer[]){
   const map=new Map<string,{material:string;dosePerHa:number;doseUnit:string;totalMaterial:number;unit:string}>()
   for(const row of rows)for(const m of row.materials){
