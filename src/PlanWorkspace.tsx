@@ -9,7 +9,7 @@ type Props={user:User}
 type Tab='monthly'|'daily'|'actual'|'reconciliation'
 
 export default function PlanWorkspace({user}:Props){
-  const[tab,setTab]=useState<Tab>('monthly')
+  const[tab,setTab]=useState<Tab>('monthly'),[actualPrefill,setActualPrefill]=useState<string[]>([])
   return <section>
     <div className="segmented" aria-label="Menu Plan" style={{marginBottom:18}}>
       <button type="button" className={tab==='monthly'?'active':''} onClick={()=>setTab('monthly')}>Monthly Plan</button>
@@ -17,6 +17,6 @@ export default function PlanWorkspace({user}:Props){
       <button type="button" className={tab==='actual'?'active':''} onClick={()=>setTab('actual')}>Actual Plan</button>
       <button type="button" className={tab==='reconciliation'?'active':''} onClick={()=>setTab('reconciliation')}>Rekonsiliasi</button>
     </div>
-    {tab==='monthly'?<MonthlyPlanWorkspace user={user}/>:tab==='daily'?<DailyPlanWorkspace user={user}/>:tab==='actual'?<ActualPlanWorkspace user={user}/>:<PlanReconciliationPanel/>}
+    {tab==='monthly'?<MonthlyPlanWorkspace user={user}/>:tab==='daily'?<DailyPlanWorkspace user={user} onCopyToActual={ids=>{setActualPrefill(ids);setTab('actual')}}/>:tab==='actual'?<ActualPlanWorkspace user={user} prefillDailyPlanIds={actualPrefill}/>:<PlanReconciliationPanel/>}
   </section>
 }
