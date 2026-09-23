@@ -16,6 +16,11 @@ for token in [
     "duplicateDraft(",
     "draftTransfers(",
     "writePlanDraft(draftKey,state)",
+    "moveDraft(",
+    "dropDraft(",
+    "↑ Naik",
+    "↓ Turun",
+    "planningOrder:state.works.findIndex",
 ]:
     assert token in daily, f'Missing single-form Daily draft token: {token}'
 
@@ -26,6 +31,8 @@ for token in [
     ".daily-draft-card",
     ".daily-draft-pids",
     ".daily-draft-materials",
+    ".daily-drag-handle",
+    ".daily-order-actions",
 ]:
     assert token in css, f'Missing single-form Daily draft style: {token}'
 
