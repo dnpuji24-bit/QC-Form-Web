@@ -8,7 +8,7 @@ utils = (root/'src'/'planInputUtils.ts').read_text(encoding='utf-8')
 css = (root/'src'/'field-ui.css').read_text(encoding='utf-8')
 
 for token in [
-    "MULTI PID",
+    "BATCH INPUT",
     "writeBatch",
     "Draft otomatis",
     "Tambah Pekerjaan",
@@ -34,7 +34,7 @@ for token in [
     assert token in daily, f'Missing Daily batch-input token: {token}'
 
 for token in [
-    "MULTI PID",
+    "BATCH INPUT",
     "writeBatch",
     "Daily → Actual",
     "Luas Actual",
