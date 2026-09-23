@@ -5,7 +5,7 @@ import { aggregateMaterials, clearPlanDraft, materialLinesFromComponents, planHa
 import type { User } from './types'
 
 type Props={user:User;prefillDailyPlanIds?:string[]}
-type Daily={id:string;dailyPlanId:string;date:string;shift:string;monthlyPlanLineId:string;sourceType:string;companyCode:string;farm:string;pid:string;activity:string;description:string;areaHa:number;componentsSnapshot:unknown[];materials:PlanMaterialLine[]}
+type Daily={id:string;dailyPlanId:string;date:string;shift:string;monthlyPlanLineId:string;sourceType:string;companyCode:string;farm:string;pid:string;activity:string;description:string;areaHa:number;manpower:number;unitName:string;unitReady:number;unitStandby:number;unitBreakdown:number;foreman:string;notes:string;componentsSnapshot:unknown[];materials:PlanMaterialLine[]}
 type ActualRef={actualReportId:string;dailyPlanId:string;date:string}
 type WorkDraft={id:string;dailyId:string;area:string;manpower:string;unitName:string;unitReady:string;unitStandby:string;unitBreakdown:string;notes:string}
 type Draft={date:string;foreman:string;works:WorkDraft[]}
@@ -20,14 +20,14 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[]}:Pr
   const[daily,setDaily]=useState<Daily[]>([]),[actuals,setActuals]=useState<ActualRef[]>([])
   const[draft,setDraft]=useState<Draft>(()=>({...initial,works:initial.works?.length?initial.works:[blankWork()]})),[query,setQuery]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
 
-  async function load(){if(!firestoreDb)return;setBusy(true);try{const[d,a]=await Promise.all([getDocs(collection(firestoreDb,'daily_plans')),getDocs(collection(firestoreDb,'daily_reports'))]);setDaily(d.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,dailyPlanId:planText(r.dailyPlanId||x.id),date:planText(r.date),shift:planText(r.shift),monthlyPlanLineId:planText(r.monthlyPlanLineId),sourceType:planText(r.sourceType),companyCode:planText(r.companyCode),farm:planText(r.farm),pid:planText(r.pid),activity:planText(r.activity),description:planText(r.description),areaHa:planNum(r.areaHa),componentsSnapshot:Array.isArray(r.componentsSnapshot)?r.componentsSnapshot:[],materials:materialsFromData(r.materials)}}).sort((a,b)=>b.date.localeCompare(a.date)||a.dailyPlanId.localeCompare(b.dailyPlanId)));setActuals(a.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{actualReportId:planText(r.actualReportId||x.id),dailyPlanId:planText(r.dailyPlanId),date:planText(r.date)}}))}catch(e){setMessage(e instanceof Error?e.message:'Daily Plan gagal dimuat.')}finally{setBusy(false)}}
+  async function load(){if(!firestoreDb)return;setBusy(true);try{const[d,a]=await Promise.all([getDocs(collection(firestoreDb,'daily_plans')),getDocs(collection(firestoreDb,'daily_reports'))]);setDaily(d.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,dailyPlanId:planText(r.dailyPlanId||x.id),date:planText(r.date),shift:planText(r.shift),monthlyPlanLineId:planText(r.monthlyPlanLineId),sourceType:planText(r.sourceType),companyCode:planText(r.companyCode),farm:planText(r.farm),pid:planText(r.pid),activity:planText(r.activity),description:planText(r.description),areaHa:planNum(r.areaHa),manpower:planNum(r.manpower),unitName:planText(r.unitName),unitReady:planNum(r.unitReady),unitStandby:planNum(r.unitStandby),unitBreakdown:planNum(r.unitBreakdown),foreman:planText(r.foreman),notes:planText(r.notes),componentsSnapshot:Array.isArray(r.componentsSnapshot)?r.componentsSnapshot:[],materials:materialsFromData(r.materials)}}).sort((a,b)=>b.date.localeCompare(a.date)||a.dailyPlanId.localeCompare(b.dailyPlanId)));setActuals(a.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{actualReportId:planText(r.actualReportId||x.id),dailyPlanId:planText(r.dailyPlanId),date:planText(r.date)}}))}catch(e){setMessage(e instanceof Error?e.message:'Daily Plan gagal dimuat.')}finally{setBusy(false)}}
   useEffect(()=>{void load()},[])
   useEffect(()=>{writePlanDraft(draftKey,draft)},[draft,draftKey])
   useEffect(()=>{
     if(!prefillDailyPlanIds.length||!daily.length)return
     const selected=daily.filter(row=>prefillDailyPlanIds.includes(row.dailyPlanId))
     if(!selected.length)return
-    setDraft(current=>({...current,date:selected[0]?.date||current.date,works:selected.map(row=>({id:planRowId('actual'),dailyId:row.id,area:String(row.areaHa),manpower:'0',unitName:'',unitReady:'0',unitStandby:'0',unitBreakdown:'0',notes:''}))}))
+    setDraft(current=>({...current,date:selected[0]?.date||current.date,foreman:selected[0]?.foreman||current.foreman,works:selected.map(row=>({id:planRowId('actual'),dailyId:row.id,area:String(row.areaHa),manpower:String(row.manpower||0),unitName:row.unitName||'',unitReady:String(row.unitReady||0),unitStandby:String(row.unitStandby||0),unitBreakdown:String(row.unitBreakdown||0),notes:row.notes||''}))}))
     setMessage(selected.length+' Daily Plan disiapkan dari Copy to Actual.')
   },[prefillDailyPlanIds.join('|'),daily.length])
 
