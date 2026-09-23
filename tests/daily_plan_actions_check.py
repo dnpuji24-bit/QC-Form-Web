@@ -8,13 +8,13 @@ actual=(root/'src'/'ActualPlanWebEntryPanel.tsx').read_text(encoding='utf-8')
 plan=(root/'src'/'PlanWorkspace.tsx').read_text(encoding='utf-8')
 
 for token in [
-    "Kegiatan, Mandor & Multiple PID",
+    "DAILY PLAN · SINGLE FORM",
     "Ketik G-007",
     "sourceType:'MONTHLY'",
     "ADHOC",
     "SUPPORT",
     "activitySearch",
-    "Bahan & dosis card kegiatan",
+    "BAHAN & DOSIS ACUAN",
 ]:
     assert token in web, f'Missing Daily smart/adhoc token: {token}'
 
