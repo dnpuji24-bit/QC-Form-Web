@@ -20,7 +20,7 @@ for token in [
     "dropDraft(",
     'aria-label="Naik"',
     'aria-label="Turun"',
-    "DraftActionIcon",
+    "DailyActionIcon",
     "planningOrder:state.works.findIndex",
 ]:
     assert token in daily, f'Missing single-form Daily draft token: {token}'
