@@ -13,7 +13,7 @@ for token in [
     "onDragStart",
     'aria-label="Naik"',
     'aria-label="Turun"',
-    "DraftActionIcon",
+    "DailyActionIcon",
 ]:
     assert token in web, f'Missing Daily draft ordering token: {token}'
 
@@ -24,9 +24,9 @@ for token in [
     assert token in actions, f'Missing WhatsApp planning-order token: {token}'
 
 for token in [
-    "planningOrder:number",
-    "planningOrder:num(data.planningOrder)",
-    "planningOrder:row.planningOrder",
+    "planningOrder:targetOrder",
+    "planningOrder:sourceOrder",
+    "groupSavedDailyRows",
 ]:
     assert token in listing, f'Missing persisted planning-order token: {token}'
 
