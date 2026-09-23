@@ -11,8 +11,9 @@ for token in [
     "dropDraft(targetId:string)",
     "draggable",
     "onDragStart",
-    "↑ Naik",
-    "↓ Turun",
+    'aria-label="Naik"',
+    'aria-label="Turun"',
+    "DraftActionIcon",
 ]:
     assert token in web, f'Missing Daily draft ordering token: {token}'
 
