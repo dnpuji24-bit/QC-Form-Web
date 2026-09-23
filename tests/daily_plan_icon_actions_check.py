@@ -30,7 +30,9 @@ for token in [
 ]:
     assert token in css, f'Missing 3x2 Daily icon-grid style: {token}'
 
-for old in [">↑ Naik<",">↓ Turun<",">WA<",">Duplikat<",">Edit<",">Hapus<"]:
+for old in [">↑ Naik<",">↓ Turun<",">WA<",">Duplikat<",">Edit<"]:
     assert old not in daily, f'Legacy large action text still present: {old}'
 
 print('Daily draft icon action check passed: six actions render as accessible 3x2 icon-only controls beside the activity title.')
+
+assert 'className="daily-icon-action danger" title="Hapus" aria-label="Hapus"' in daily
