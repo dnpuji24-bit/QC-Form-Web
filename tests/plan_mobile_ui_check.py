@@ -43,4 +43,4 @@ for token in [
 ]:
     assert token in field_css, f'Missing compact Plan/Daily CSS: {token}'
 
-print('Mobile Plan UI check passed: Data UnM uses compact shortcuts, Plan navigation scrolls horizontally, and Daily input is split into touch-friendly grouped sections.')
+print('Mobile Plan UI check passed: Data UnM uses compact shortcuts, all Plan workspaces use horizontal navigation, and Daily input is split into touch-friendly grouped sections.')
