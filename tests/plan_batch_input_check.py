@@ -66,7 +66,9 @@ for token in [
     assert token in css, f'Missing Plan batch style: {token}'
 
 assert "daily_plans" in daily and "monthly_plans" in monthly and "daily_reports" in actual
-assert "monthlyPlanLineId:selected.planLineId" in daily
+assert "monthlyPlanLineId:isMonthly?(selected?.planLineId||''):''" in daily
+assert "sourceType:info.work.sourceType" in daily
+assert "monthlyLinkStatus:isMonthly?'LINKED':'NOT_APPLICABLE'" in daily
 assert "dailyPlanId:selected.dailyPlanId" in actual
 assert "monthlyPlanLineId" in actual
 
