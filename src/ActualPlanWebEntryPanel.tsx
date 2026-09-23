@@ -4,7 +4,7 @@ import { firebaseAuth, firestoreDb } from './firebase'
 import { aggregateMaterials, clearPlanDraft, materialLinesFromComponents, planHa, planNum, planRowId, planText, readPlanDraft, writePlanDraft, type PlanMaterialLine } from './planInputUtils'
 import type { User } from './types'
 
-type Props={user:User}
+type Props={user:User;prefillDailyPlanIds?:string[]}
 type Daily={id:string;dailyPlanId:string;date:string;shift:string;monthlyPlanLineId:string;sourceType:string;companyCode:string;farm:string;pid:string;activity:string;description:string;areaHa:number;componentsSnapshot:unknown[];materials:PlanMaterialLine[]}
 type ActualRef={actualReportId:string;dailyPlanId:string;date:string}
 type WorkDraft={id:string;dailyId:string;area:string;manpower:string;unitName:string;unitReady:string;unitStandby:string;unitBreakdown:string;notes:string}
@@ -14,7 +14,7 @@ function blankWork():WorkDraft{return{id:planRowId('actual'),dailyId:'',area:'',
 function materialsFromData(value:unknown):PlanMaterialLine[]{if(!Array.isArray(value))return[];return value.map(item=>{const x=(item&&typeof item==='object'?item:{}) as Record<string,unknown>;return{material:planText(x.material),dosePerHa:planNum(x.dosePerHa),doseUnit:planText(x.doseUnit),totalMaterial:planNum(x.totalMaterial),unit:planText(x.unit)}}).filter(x=>x.material)}
 async function writer(appUser:User){const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.');const current=auth.currentUser;if(!current)throw new Error('Login Firebase tidak tersedia.');const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.');const p=snap.data() as Record<string,unknown>;if(p.active!==true||!['owner','asisten'].includes(planText(p.role))||!['owner','asisten'].includes(appUser.role))throw new Error('Role tidak memiliki izin membuat Actual Plan.');return{db,username:planText(p.username)||appUser.username}}
 
-export default function ActualPlanWebEntryPanel({user}:Props){
+export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[]}:Props){
   const draftKey='plan_actual_web_draft_'+user.username
   const initial=readPlanDraft<Draft>(draftKey,{date:new Date().toISOString().slice(0,10),foreman:'',works:[blankWork()]})
   const[daily,setDaily]=useState<Daily[]>([]),[actuals,setActuals]=useState<ActualRef[]>([])
@@ -23,6 +23,13 @@ export default function ActualPlanWebEntryPanel({user}:Props){
   async function load(){if(!firestoreDb)return;setBusy(true);try{const[d,a]=await Promise.all([getDocs(collection(firestoreDb,'daily_plans')),getDocs(collection(firestoreDb,'daily_reports'))]);setDaily(d.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,dailyPlanId:planText(r.dailyPlanId||x.id),date:planText(r.date),shift:planText(r.shift),monthlyPlanLineId:planText(r.monthlyPlanLineId),sourceType:planText(r.sourceType),companyCode:planText(r.companyCode),farm:planText(r.farm),pid:planText(r.pid),activity:planText(r.activity),description:planText(r.description),areaHa:planNum(r.areaHa),componentsSnapshot:Array.isArray(r.componentsSnapshot)?r.componentsSnapshot:[],materials:materialsFromData(r.materials)}}).sort((a,b)=>b.date.localeCompare(a.date)||a.dailyPlanId.localeCompare(b.dailyPlanId)));setActuals(a.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{actualReportId:planText(r.actualReportId||x.id),dailyPlanId:planText(r.dailyPlanId),date:planText(r.date)}}))}catch(e){setMessage(e instanceof Error?e.message:'Daily Plan gagal dimuat.')}finally{setBusy(false)}}
   useEffect(()=>{void load()},[])
   useEffect(()=>{writePlanDraft(draftKey,draft)},[draft,draftKey])
+  useEffect(()=>{
+    if(!prefillDailyPlanIds.length||!daily.length)return
+    const selected=daily.filter(row=>prefillDailyPlanIds.includes(row.dailyPlanId))
+    if(!selected.length)return
+    setDraft(current=>({...current,date:selected[0]?.date||current.date,works:selected.map(row=>({id:planRowId('actual'),dailyId:row.id,area:String(row.areaHa),manpower:'0',unitName:'',unitReady:'0',unitStandby:'0',unitBreakdown:'0',notes:''}))}))
+    setMessage(selected.length+' Daily Plan disiapkan dari Copy to Actual.')
+  },[prefillDailyPlanIds.join('|'),daily.length])
 
   const filtered=useMemo(()=>{const q=query.trim().toLowerCase();return daily.filter(x=>!q||[x.dailyPlanId,x.monthlyPlanLineId,x.pid,x.activity,x.description,x.companyCode,x.farm,x.date].join(' ').toLowerCase().includes(q)).slice(0,450)},[daily,query])
   const workInfo=useMemo(()=>draft.works.map(work=>{const selected=daily.find(x=>x.id===work.dailyId)||null,area=planNum(work.area),variance=selected?area-selected.areaHa:0,materials=selected?.componentsSnapshot.length?materialLinesFromComponents(selected.componentsSnapshot,area):(selected?.materials||[]).map(m=>({...m,totalMaterial:Number((m.dosePerHa*area).toFixed(4))}));return{work,selected,area,variance,materials}}),[draft.works,daily])
