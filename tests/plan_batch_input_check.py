@@ -15,12 +15,12 @@ for token in [
     "Total Planning",
     "materialsPreview",
     "componentsSnapshot",
-    "Reset Draft",
+    "Hapus Semua",
 ]:
     assert token in monthly, f'Missing Monthly batch-input token: {token}'
 
 for token in [
-    "MULTI PID",
+    "SINGLE FORM",
     "writeBatch",
     "Multiple PID",
     "Jumlah HK",
