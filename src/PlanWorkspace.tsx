@@ -10,8 +10,8 @@ type Tab='monthly'|'daily'|'actual'|'reconciliation'
 
 export default function PlanWorkspace({user}:Props){
   const[tab,setTab]=useState<Tab>('monthly'),[actualPrefill,setActualPrefill]=useState<string[]>([])
-  return <section>
-    <div className="segmented" aria-label="Menu Plan" style={{marginBottom:18}}>
+  return <section className="plan-workspace-shell">
+    <div className="segmented plan-primary-nav" aria-label="Menu Plan">
       <button type="button" className={tab==='monthly'?'active':''} onClick={()=>setTab('monthly')}>Monthly Plan</button>
       <button type="button" className={tab==='daily'?'active':''} onClick={()=>setTab('daily')}>Daily Plan</button>
       <button type="button" className={tab==='actual'?'active':''} onClick={()=>setTab('actual')}>Actual Plan</button>
