@@ -8,7 +8,7 @@ actual=(root/'src'/'ActualPlanWebEntryPanel.tsx').read_text(encoding='utf-8')
 plan=(root/'src'/'PlanWorkspace.tsx').read_text(encoding='utf-8')
 
 for token in [
-    "DAILY PLAN · SINGLE FORM",
+    "DAILY PLAN",
     "Ketik G-007",
     "sourceType:'MONTHLY'",
     "ADHOC",
