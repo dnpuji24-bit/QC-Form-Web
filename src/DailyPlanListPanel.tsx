@@ -1,111 +1,154 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { collection, doc, getDoc, getDocs, query as fsQuery, serverTimestamp, setDoc, where, writeBatch } from 'firebase/firestore'
+import { useEffect, useMemo, useState } from 'react'
+import { collection, doc, getDoc, getDocs, query as fsQuery, serverTimestamp, where, writeBatch } from 'firebase/firestore'
 import { firebaseAuth, firestoreDb } from './firebase'
+import DailyActionIcon from './DailyPlanActionIcon'
 import { dailyPlansToWhatsApp, type DailyPlanTransfer } from './dailyPlanActions'
+import { groupSavedDailyRows, type DailyComposerRequest, type SavedDailyGroup, type SavedDailyRow } from './dailyPlanWorkspaceTypes'
 import type { User } from './types'
 
-type Props={user:User;onCopyToActual?:(dailyPlanIds:string[])=>void;selectedDate?:string;compact?:boolean;refreshKey?:number}
-type MaterialLine={material:string;dosePerHa:number;doseUnit:string;totalMaterial:number;unit:string}
-type DailyRow={id:string;dailyPlanId:string;workGroupId:string;workGroupPidCount:number;planningOrder:number;sourcePlanIdRaw:string;sourceType:string;monthlyLinkStatus:string;monthlyPlanLineId:string;date:string;monthKey:string;shift:string;activity:string;description:string;paddockRaw:string;pid:string;areaHa:number;areaUnit:string;manpower:number;unitName:string;unitReady:number;unitStandby:number;unitBreakdown:number;foreman:string;notes:string;companyCode:string;farm:string;stage:string;masterVariety:string;masterPending:boolean;materials:MaterialLine[];lastModifiedSource:string}
-type MonthlyRef={id:string;planLineId:string;companyCode:string;farm:string;pid:string;description:string;activity:string;targetAreaHa:number;stage:string;masterVariety:string;type:string;activityCategory:string;componentsSnapshot:unknown[]}
-type ImportLog={id:string;sourceFileName:string;total:number;sourceRows:number;created:number;updated:number;unchanged:number;protected:number;monthly:number;adhoc:number;support:number;linked:number;masterPending:number;warnings:number;errors:number;importedBy:string;importedAt:string}
+type Props={
+  user:User
+  onCopyToActual?:(dailyPlanIds:string[])=>void
+  selectedDate?:string
+  compact?:boolean
+  refreshKey?:number
+  onEditGroup?:(group:SavedDailyGroup)=>void
+  onDuplicateGroup?:(group:SavedDailyGroup)=>void
+  onChanged?:()=>void
+}
+type DailyRow=SavedDailyRow
 
 function text(value:unknown){return value===null||value===undefined?'':String(value).trim()}
 function num(value:unknown){const n=Number(value||0);return Number.isFinite(n)?n:0}
-function dateValue(value:unknown){if(!value)return'';if(typeof value==='string')return value;if(typeof value==='object'&&value!==null&&'toDate' in value&&typeof (value as {toDate?:unknown}).toDate==='function'){try{return((value as {toDate:()=>Date}).toDate()).toISOString()}catch{return''}}return''}
-function materialsFromData(value:unknown):MaterialLine[]{if(!Array.isArray(value))return[];return value.map(item=>{const x=(item&&typeof item==='object'?item:{}) as Record<string,unknown>;return{material:text(x.material),dosePerHa:num(x.dosePerHa),doseUnit:text(x.doseUnit),totalMaterial:num(x.totalMaterial),unit:text(x.unit)}}).filter(x=>x.material||x.dosePerHa||x.totalMaterial)}
+function materialsFromData(value:unknown):DailyRow['materials']{if(!Array.isArray(value))return[];return value.map(item=>{const x=(item&&typeof item==='object'?item:{}) as Record<string,unknown>;return{material:text(x.material),dosePerHa:num(x.dosePerHa),doseUnit:text(x.doseUnit),totalMaterial:num(x.totalMaterial),unit:text(x.unit)}}).filter(x=>x.material||x.dosePerHa||x.totalMaterial)}
 function rowFromData(id:string,data:Record<string,unknown>):DailyRow{return{id,dailyPlanId:text(data.dailyPlanId||id),workGroupId:text(data.workGroupId),workGroupPidCount:num(data.workGroupPidCount),planningOrder:num(data.planningOrder),sourcePlanIdRaw:text(data.sourcePlanIdRaw),sourceType:text(data.sourceType),monthlyLinkStatus:text(data.monthlyLinkStatus),monthlyPlanLineId:text(data.monthlyPlanLineId),date:text(data.date),monthKey:text(data.monthKey),shift:text(data.shift),activity:text(data.activity),description:text(data.description),paddockRaw:text(data.paddockRaw),pid:text(data.pid),areaHa:num(data.areaHa),areaUnit:text(data.areaUnit)||'Ha',manpower:num(data.manpower),unitName:text(data.unitName),unitReady:num(data.unitReady),unitStandby:num(data.unitStandby),unitBreakdown:num(data.unitBreakdown),foreman:text(data.foreman),notes:text(data.notes),companyCode:text(data.companyCode).toUpperCase(),farm:text(data.farm),stage:text(data.stage),masterVariety:text(data.masterVariety),masterPending:data.masterPending===true,materials:materialsFromData(data.materials),lastModifiedSource:text(data.lastModifiedSource)}}
-function logFromData(id:string,data:Record<string,unknown>):ImportLog{return{id,sourceFileName:text(data.sourceFileName),total:num(data.total),sourceRows:num(data.sourceRows),created:num(data.created),updated:num(data.updated),unchanged:num(data.unchanged),protected:num(data.protected),monthly:num(data.monthly),adhoc:num(data.adhoc),support:num(data.support),linked:num(data.linked),masterPending:num(data.masterPending),warnings:num(data.warnings),errors:num(data.errors),importedBy:text(data.importedBy),importedAt:dateValue(data.importedAt)}}
 function formatHa(value:number,digits=2){return new Intl.NumberFormat('id-ID',{minimumFractionDigits:digits,maximumFractionDigits:digits}).format(value)+' Ha'}
-function formatDate(value:string){if(!value)return'-';const d=new Date(value+'T00:00:00');return Number.isNaN(d.getTime())?value:d.toLocaleDateString('id-ID',{day:'2-digit',month:'2-digit',year:'numeric'})}
-function formatDateTime(value:string){if(!value)return'-';const d=new Date(value);return Number.isNaN(d.getTime())?value:d.toLocaleString('id-ID',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}
-async function writerContext(appUser:User){const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.');const current=auth.currentUser;if(!current)throw new Error('Login Firebase tidak tersedia.');const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.');const p=snap.data() as Record<string,unknown>;if(p.active!==true||!['owner','asisten'].includes(text(p.role))||!['owner','asisten'].includes(appUser.role))throw new Error('Role tidak memiliki izin edit Daily Plan.');return{db,username:text(p.username)||appUser.username}}
+function groupArea(group:SavedDailyGroup){return group.rows.reduce((sum,row)=>sum+row.areaHa,0)}
+function groupKeySet(groups:SavedDailyGroup[]){return new Set(groups.map(group=>group.groupKey))}
+async function writerContext(appUser:User){const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.');const current=auth.currentUser;if(!current)throw new Error('Login Firebase tidak tersedia.');const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.');const p=snap.data() as Record<string,unknown>;if(p.active!==true||!['owner','asisten'].includes(text(p.role))||!['owner','asisten'].includes(appUser.role))throw new Error('Role tidak memiliki izin mengubah Daily Plan.');return{db,username:text(p.username)||appUser.username}}
+function asTransfer(row:DailyRow):DailyPlanTransfer{return{dailyPlanId:row.dailyPlanId,workGroupId:row.workGroupId,planningOrder:row.planningOrder,date:row.date,shift:row.shift,sourceType:row.sourceType,monthlyPlanLineId:row.monthlyPlanLineId,companyCode:row.companyCode,farm:row.farm,pid:row.pid,activity:row.activity,description:row.description,areaHa:row.areaHa,manpower:row.manpower,unitName:row.unitName,unitReady:row.unitReady,unitStandby:row.unitStandby,unitBreakdown:row.unitBreakdown,foreman:row.foreman,notes:row.notes,materials:row.materials}}
 
-export default function DailyPlanListPanel({user,onCopyToActual,selectedDate,compact=false,refreshKey=0}:Props){
-  const[rows,setRows]=useState<DailyRow[]>([]),[monthly,setMonthly]=useState<MonthlyRef[]>([]),[logs,setLogs]=useState<ImportLog[]>([]),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
-  const[month,setMonth]=useState('ALL'),[source,setSource]=useState('ALL'),[company,setCompany]=useState('ALL'),[farm,setFarm]=useState('ALL'),[shift,setShift]=useState('ALL'),[activity,setActivity]=useState('ALL'),[query,setQuery]=useState('')
-  const[selectedIds,setSelectedIds]=useState<string[]>([]),[copyDate,setCopyDate]=useState(new Date().toISOString().slice(0,10)),[editingId,setEditingId]=useState(''),[editDate,setEditDate]=useState(''),[editShift,setEditShift]=useState(''),[editArea,setEditArea]=useState(''),[editManpower,setEditManpower]=useState(''),[editUnit,setEditUnit]=useState(''),[editReady,setEditReady]=useState(''),[editStandby,setEditStandby]=useState(''),[editBreakdown,setEditBreakdown]=useState(''),[editForeman,setEditForeman]=useState(''),[editNotes,setEditNotes]=useState(''),[editMonthly,setEditMonthly]=useState(''),[monthlyQuery,setMonthlyQuery]=useState('')
+export default function DailyPlanListPanel({user,onCopyToActual,selectedDate,compact=true,refreshKey=0,onEditGroup,onDuplicateGroup,onChanged}:Props){
+  const[rows,setRows]=useState<DailyRow[]>([]),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
+  const[selectedGroupKeys,setSelectedGroupKeys]=useState<string[]>([])
+  const[copyDate,setCopyDate]=useState(new Date().toISOString().slice(0,10))
+  const[copyGroupKey,setCopyGroupKey]=useState(''),[groupCopyDate,setGroupCopyDate]=useState(new Date().toISOString().slice(0,10))
 
-  async function load(){if(!firestoreDb){setMessage('Firestore belum tersedia.');return}setBusy(true);setMessage('Memuat Daily Plan…');try{const dateFilter=selectedDate||new Date().toISOString().slice(0,10),monthKey=dateFilter.slice(0,7),[planSnap,monthlySnap,logSnap]=await Promise.all([getDocs(fsQuery(collection(firestoreDb,'daily_plans'),where('date','==',dateFilter))),getDocs(fsQuery(collection(firestoreDb,'monthly_plans'),where('monthKey','==',monthKey))),compact?Promise.resolve(null):getDocs(collection(firestoreDb,'daily_plan_import_logs'))]);const next=planSnap.docs.map(x=>rowFromData(x.id,x.data() as Record<string,unknown>)).sort((a,b)=>b.date.localeCompare(a.date)||a.shift.localeCompare(b.shift)||(a.planningOrder||9999)-(b.planningOrder||9999)||a.pid.localeCompare(b.pid,undefined,{numeric:true})||a.activity.localeCompare(b.activity));const nextMonthly=monthlySnap.docs.map(x=>{const d=x.data() as Record<string,unknown>;return{id:x.id,planLineId:text(d.planLineId||x.id),companyCode:text(d.companyCode),farm:text(d.farm),pid:text(d.pid),description:text(d.description),activity:text(d.activity),targetAreaHa:num(d.targetAreaHa),stage:text(d.stage),masterVariety:text(d.masterVariety),type:text(d.type),activityCategory:text(d.activityCategory),componentsSnapshot:Array.isArray(d.componentsSnapshot)?d.componentsSnapshot:[]}}).sort((a,b)=>a.planLineId.localeCompare(b.planLineId,undefined,{numeric:true}));const nextLogs=logSnap?logSnap.docs.map(x=>logFromData(x.id,x.data() as Record<string,unknown>)).sort((a,b)=>b.importedAt.localeCompare(a.importedAt)).slice(0,10):[];setRows(next);setMonthly(nextMonthly);setLogs(nextLogs);setSelectedIds([]);setMessage('Daily Plan '+dateFilter+': '+next.length+' pekerjaan.')}catch(error){setMessage(error instanceof Error?error.message:'Daily Plan gagal dimuat.')}finally{setBusy(false)}}
+  async function load(){
+    if(!firestoreDb){setMessage('Firestore belum tersedia.');return}
+    const dateFilter=selectedDate||new Date().toISOString().slice(0,10)
+    setBusy(true);setMessage('Memuat Daily Plan '+dateFilter+'…')
+    try{
+      const planSnap=await getDocs(fsQuery(collection(firestoreDb,'daily_plans'),where('date','==',dateFilter)))
+      const next=planSnap.docs.map(x=>rowFromData(x.id,x.data() as Record<string,unknown>)).sort((a,b)=>a.shift.localeCompare(b.shift,undefined,{numeric:true})||(a.planningOrder||999999)-(b.planningOrder||999999)||a.pid.localeCompare(b.pid,undefined,{numeric:true}))
+      setRows(next);setSelectedGroupKeys([]);setMessage('Daily Plan '+dateFilter+': '+next.length+' PID · '+groupSavedDailyRows(next).length+' kegiatan.')
+    }catch(error){setMessage(error instanceof Error?error.message:'Daily Plan gagal dimuat.')}finally{setBusy(false)}
+  }
   useEffect(()=>{void load()},[selectedDate,refreshKey])
 
-  const months=useMemo(()=>[...new Set(rows.map(x=>x.monthKey).filter(Boolean))].sort().reverse(),[rows])
-  const companies=useMemo(()=>[...new Set(rows.map(x=>x.companyCode).filter(Boolean))].sort(),[rows])
-  const farms=useMemo(()=>[...new Set(rows.filter(x=>company==='ALL'||x.companyCode===company).map(x=>x.farm).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[rows,company])
-  const shifts=useMemo(()=>[...new Set(rows.map(x=>x.shift).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[rows])
-  const activities=useMemo(()=>[...new Set(rows.map(x=>x.activity).filter(Boolean))].sort(),[rows])
-  const filtered=useMemo(()=>{const needle=query.trim().toLowerCase();return rows.filter(row=>(month==='ALL'||row.monthKey===month)&&(source==='ALL'||row.sourceType===source)&&(company==='ALL'||row.companyCode===company)&&(farm==='ALL'||row.farm===farm)&&(shift==='ALL'||row.shift===shift)&&(activity==='ALL'||row.activity===activity)&&(!needle||[row.dailyPlanId,row.sourcePlanIdRaw,row.monthlyPlanLineId,row.pid,row.paddockRaw,row.activity,row.description,row.foreman,row.unitName,row.notes,...row.materials.map(x=>x.material)].join(' ').toLowerCase().includes(needle)))},[rows,month,source,company,farm,shift,activity,query])
-  const totals=useMemo(()=>{const groups=new Set<string>();return filtered.reduce((acc,row)=>{const group=row.workGroupId||row.dailyPlanId,isNew=!groups.has(group);groups.add(group);return{area:acc.area+row.areaHa,manpower:acc.manpower+(isNew?row.manpower:0),monthly:acc.monthly+(row.sourceType==='MONTHLY'?1:0),adhoc:acc.adhoc+(row.sourceType==='ADHOC'?1:0),support:acc.support+(row.sourceType==='SUPPORT'?1:0),pending:acc.pending+(row.masterPending?1:0),groups:groups.size}}, {area:0,manpower:0,monthly:0,adhoc:0,support:0,pending:0,groups:0})},[filtered])
-  const monthlyChoices=useMemo(()=>{const q=monthlyQuery.trim().toLowerCase();return monthly.filter(x=>!q||[x.planLineId,x.pid,x.description,x.activity,x.companyCode,x.farm].join(' ').toLowerCase().includes(q)).slice(0,300)},[monthly,monthlyQuery])
-  const editing=rows.find(x=>x.id===editingId)||null
-  const selectedMonthly=monthly.find(x=>x.planLineId===editMonthly)||null
+  const groups=useMemo(()=>groupSavedDailyRows(rows),[rows])
+  const selectedGroups=useMemo(()=>{const keys=new Set(selectedGroupKeys);return groups.filter(group=>keys.has(group.groupKey))},[groups,selectedGroupKeys])
+  const shifts=useMemo(()=>[...new Set(groups.map(group=>group.shift||'-'))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[groups])
 
-  const selectedRows=useMemo(()=>rows.filter(row=>selectedIds.includes(row.id)),[rows,selectedIds])
-  function asTransfer(row:DailyRow):DailyPlanTransfer{return{dailyPlanId:row.dailyPlanId,workGroupId:row.workGroupId,planningOrder:row.planningOrder,date:row.date,shift:row.shift,sourceType:row.sourceType,monthlyPlanLineId:row.monthlyPlanLineId,companyCode:row.companyCode,farm:row.farm,pid:row.pid,activity:row.activity,description:row.description,areaHa:row.areaHa,manpower:row.manpower,unitName:row.unitName,unitReady:row.unitReady,unitStandby:row.unitStandby,unitBreakdown:row.unitBreakdown,foreman:row.foreman,notes:row.notes,materials:row.materials}}
-  function toggleSelected(id:string){setSelectedIds(current=>current.includes(id)?current.filter(x=>x!==id):[...current,id])}
-  function toggleAllFiltered(){const ids=filtered.map(row=>row.id),all=ids.length>0&&ids.every(id=>selectedIds.includes(id));setSelectedIds(current=>all?current.filter(id=>!ids.includes(id)):[...new Set([...current,...ids])])}
-  async function copyWa(){
-    if(!selectedRows.length){setMessage('Pilih minimal satu Daily Plan untuk Copy to WA.');return}
-    const wa=dailyPlansToWhatsApp(selectedRows.map(asTransfer))
+  function toggleGroup(groupKey:string){setSelectedGroupKeys(current=>current.includes(groupKey)?current.filter(x=>x!==groupKey):[...current,groupKey])}
+  function toggleAll(){const keys=groups.map(group=>group.groupKey),all=keys.length>0&&keys.every(key=>selectedGroupKeys.includes(key));setSelectedGroupKeys(all?[]:keys)}
+
+  async function copyWaGroups(targets:SavedDailyGroup[]){
+    if(!targets.length){setMessage('Pilih minimal satu kegiatan untuk Copy WA.');return}
+    const wa=dailyPlansToWhatsApp(targets.flatMap(group=>group.rows).map(asTransfer))
     try{await navigator.clipboard.writeText(wa);setMessage('Daily Planning disalin ke clipboard tanpa Plan ID. Tinggal paste ke WhatsApp.')}catch{window.prompt('Salin Daily Planning berikut:',wa)}
   }
+
   function copyToActual(){
-    if(!selectedRows.length){setMessage('Pilih minimal satu Daily Plan untuk Copy to Actual.');return}
-    onCopyToActual?.(selectedRows.map(row=>row.dailyPlanId))
+    if(!selectedGroups.length){setMessage('Pilih minimal satu kegiatan untuk Copy to Actual.');return}
+    onCopyToActual?.(selectedGroups.flatMap(group=>group.rows.map(row=>row.dailyPlanId)))
   }
-  async function copyToDate(){
-    if(!selectedRows.length){setMessage('Pilih minimal satu Daily Plan yang akan disalin.');return}
-    if(!copyDate){setMessage('Pilih tanggal tujuan Copy to Date.');return}
-    if(!window.confirm('Salin '+selectedRows.length+' Daily Plan ke tanggal '+copyDate+'?'))return
-    setBusy(true);setMessage('Menyalin Daily Plan ke '+copyDate+'…')
+
+  async function moveGroup(group:SavedDailyGroup,direction:-1|1){
+    const sameShift=groups.filter(x=>x.shift===group.shift),index=sameShift.findIndex(x=>x.groupKey===group.groupKey),target=sameShift[index+direction]
+    if(!target)return
+    setBusy(true)
     try{
-      const{db,username}=await writerContext(user),batch=writeBatch(db),prefix='DP-'+copyDate.replaceAll('-','')+'-'
-      let seq=rows.map(x=>x.dailyPlanId.startsWith(prefix)?Number(x.dailyPlanId.slice(prefix.length)):0).filter(Number.isFinite).reduce((m,x)=>Math.max(m,x),0)
-      const created:DailyRow[]=[]
-      for(const sourceRow of selectedRows){
-        seq++;const dailyPlanId=prefix+String(seq).padStart(4,'0'),id=dailyPlanId
-        const payload={...sourceRow,dailyPlanId,date:copyDate,year:Number(copyDate.slice(0,4)),monthKey:copyDate.slice(0,7),copiedFromDailyPlanId:sourceRow.dailyPlanId,sourceOrigin:'WEB',lastModifiedSource:'WEB',createdAt:serverTimestamp(),createdBy:username,updatedAt:serverTimestamp(),updatedBy:username}
-        delete (payload as Record<string,unknown>).id
-        batch.set(doc(db,'daily_plans',id),payload)
-        created.push({...sourceRow,id,dailyPlanId,date:copyDate,monthKey:copyDate.slice(0,7),lastModifiedSource:'WEB'})
+      const{db,username}=await writerContext(user),batch=writeBatch(db)
+      const sourceOrder=group.planningOrder<999999?group.planningOrder:index+1,targetIndex=index+direction,targetOrder=target.planningOrder<999999?target.planningOrder:targetIndex+1
+      group.rows.forEach(row=>batch.set(doc(db,'daily_plans',row.id),{planningOrder:targetOrder,lastModifiedSource:'WEB',updatedAt:serverTimestamp(),updatedBy:username},{merge:true}))
+      target.rows.forEach(row=>batch.set(doc(db,'daily_plans',row.id),{planningOrder:sourceOrder,lastModifiedSource:'WEB',updatedAt:serverTimestamp(),updatedBy:username},{merge:true}))
+      await batch.commit();setMessage('Urutan kegiatan diperbarui.');await load();onChanged?.()
+    }catch(error){setMessage(error instanceof Error?error.message:'Urutan Daily Plan gagal diperbarui.')}finally{setBusy(false)}
+  }
+
+  async function hasLinkedActual(group:SavedDailyGroup){
+    if(!firestoreDb)return false
+    const ids=group.rows.map(row=>row.dailyPlanId).filter(Boolean)
+    for(let i=0;i<ids.length;i+=30){
+      const snap=await getDocs(fsQuery(collection(firestoreDb,'daily_reports'),where('dailyPlanId','in',ids.slice(i,i+30))))
+      if(!snap.empty)return true
+    }
+    return false
+  }
+
+  async function deleteGroup(group:SavedDailyGroup){
+    if(await hasLinkedActual(group)){setMessage('Tidak dapat menghapus '+(group.description||group.activity)+'. Salah satu PID sudah memiliki Actual Plan terkait. Edit/hapus Actual terlebih dahulu.');return}
+    if(!window.confirm('Hapus kegiatan '+(group.description||group.activity)+' beserta '+group.rows.length+' PID dari Daily Plan?'))return
+    setBusy(true)
+    try{
+      const{db}=await writerContext(user),batch=writeBatch(db);group.rows.forEach(row=>batch.delete(doc(db,'daily_plans',row.id)));await batch.commit()
+      setMessage('Kegiatan berhasil dihapus.');await load();onChanged?.()
+    }catch(error){setMessage(error instanceof Error?error.message:'Hapus Daily Plan gagal.')}finally{setBusy(false)}
+  }
+
+  async function copyGroupsToDate(targets:SavedDailyGroup[],targetDate:string){
+    if(!targets.length){setMessage('Pilih minimal satu kegiatan yang akan disalin.');return}
+    if(!targetDate){setMessage('Pilih tanggal tujuan.');return}
+    if(!window.confirm('Salin '+targets.length+' kegiatan ke tanggal '+targetDate+'?'))return
+    setBusy(true)
+    try{
+      const{db,username}=await writerContext(user),existingSnap=await getDocs(fsQuery(collection(db,'daily_plans'),where('date','==',targetDate))),existing=existingSnap.docs.map(x=>rowFromData(x.id,x.data() as Record<string,unknown>))
+      const prefix='DP-'+targetDate.replaceAll('-','')+'-'
+      let seq=existing.map(x=>x.dailyPlanId.startsWith(prefix)?Number(x.dailyPlanId.slice(prefix.length)):0).filter(Number.isFinite).reduce((m,x)=>Math.max(m,x),0)
+      const orderByShift=new Map<string,number>()
+      for(const row of existing)orderByShift.set(row.shift,Math.max(orderByShift.get(row.shift)||0,row.planningOrder||0))
+      const batch=writeBatch(db)
+      for(const group of targets){
+        const workGroupId='WG-'+targetDate.replaceAll('-','')+'-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7)
+        const planningOrder=(orderByShift.get(group.shift)||0)+1;orderByShift.set(group.shift,planningOrder)
+        for(const sourceRow of group.rows){
+          seq++;const dailyPlanId=prefix+String(seq).padStart(4,'0'),payload:Record<string,unknown>={...sourceRow,dailyPlanId,workGroupId,workGroupPidCount:group.rows.length,planningOrder,date:targetDate,monthKey:targetDate.slice(0,7),copiedFromDailyPlanId:sourceRow.dailyPlanId,copiedFromWorkGroupId:group.workGroupId,sourceOrigin:'WEB',lastModifiedSource:'WEB',createdAt:serverTimestamp(),createdBy:username,updatedAt:serverTimestamp(),updatedBy:username}
+          delete payload.id
+          batch.set(doc(db,'daily_plans',dailyPlanId),payload)
+        }
       }
-      await batch.commit();setRows(current=>[...created,...current]);setSelectedIds(created.map(x=>x.id));setMessage(created.length+' Daily Plan berhasil disalin ke '+copyDate+'.')
+      await batch.commit();setMessage(targets.length+' kegiatan berhasil disalin ke '+targetDate+'.');setCopyGroupKey('');onChanged?.()
     }catch(error){setMessage(error instanceof Error?error.message:'Copy to Date gagal.')}finally{setBusy(false)}
   }
 
-  function startEdit(row:DailyRow){setEditingId(row.id);setEditDate(row.date);setEditShift(row.shift);setEditArea(String(row.areaHa));setEditManpower(String(row.manpower));setEditUnit(row.unitName);setEditReady(String(row.unitReady));setEditStandby(String(row.unitStandby));setEditBreakdown(String(row.unitBreakdown));setEditForeman(row.foreman);setEditNotes(row.notes);setEditMonthly(row.monthlyPlanLineId);setMonthlyQuery('');requestAnimationFrame(()=>document.getElementById('daily-edit-panel')?.scrollIntoView({behavior:'smooth',block:'start'}))}
-  function cancelEdit(){setEditingId('');setMonthlyQuery('')}
-  async function saveEdit(e:FormEvent){e.preventDefault();if(!editing)return;if(!editDate||num(editArea)<=0){setMessage('Tanggal dan luas Daily Plan wajib valid.');return}setBusy(true);try{const{db,username}=await writerContext(user),m=selectedMonthly,payload:Record<string,unknown>={date:editDate,year:Number(editDate.slice(0,4)),monthKey:editDate.slice(0,7),shift:editShift,areaHa:num(editArea),manpower:num(editManpower),unitName:editUnit,unitReady:num(editReady),unitStandby:num(editStandby),unitBreakdown:num(editBreakdown),foreman:editForeman,notes:editNotes,monthlyPlanLineId:editMonthly,monthlyLinkStatus:editMonthly?'LINKED':(editing.sourceType==='MONTHLY'?'NOT_FOUND':'NOT_APPLICABLE'),lastModifiedSource:'WEB',updatedAt:serverTimestamp(),updatedBy:username};if(m){Object.assign(payload,{companyCode:m.companyCode,farm:m.farm,pid:m.pid,paddockRaw:m.pid,description:m.description,activity:m.activity,stage:m.stage,masterVariety:m.masterVariety,type:m.type,activityCategory:m.activityCategory,componentsSnapshot:m.componentsSnapshot,masterPending:false})}await setDoc(doc(db,'daily_plans',editing.id),payload,{merge:true});
-      const reportSnap=await getDocs(fsQuery(collection(db,'daily_reports'),where('dailyPlanId','==',editing.dailyPlanId))),linkedReports=reportSnap.docs
-      for(let start=0;start<linkedReports.length;start+=400){const batch=writeBatch(db);linkedReports.slice(start,start+400).forEach(item=>{const data=item.data() as Record<string,unknown>,actualArea=num(data.actualAreaHa),reportPayload:Record<string,unknown>={monthlyPlanLineId:editMonthly,monthlyLinkStatus:editMonthly?'LINKED':'NOT_APPLICABLE',plannedDailyAreaHa:num(editArea),dailyVarianceHa:num(editArea)-actualArea,lastModifiedSource:'WEB',updatedAt:serverTimestamp(),updatedBy:username};if(m)Object.assign(reportPayload,{companyCode:m.companyCode,farm:m.farm,pid:m.pid,paddockRaw:m.pid,activity:m.activity,masterPending:false});batch.set(item.ref,reportPayload,{merge:true})});await batch.commit()}
-      setMessage('Daily Plan '+editing.dailyPlanId+' berhasil diperbarui. '+linkedReports.length+' Actual terkait ikut disinkronkan agar Monthly progress tetap konsisten. Perubahan ditandai WEB dan terlindungi dari overwrite Excel.');cancelEdit();await load()}catch(err){setMessage(err instanceof Error?err.message:'Daily Plan gagal diperbarui.')}finally{setBusy(false)}}
+  const totals=useMemo(()=>groups.reduce((acc,group)=>({groups:acc.groups+1,pids:acc.pids+group.rows.length,area:acc.area+groupArea(group),hk:acc.hk+group.manpower}),{groups:0,pids:0,area:0,hk:0}),[groups])
 
-  if(compact)return <section className="daily-period-saved">
-    <div className="section-head compact-saved-head"><div><div className="eyebrow">PLAN TERSIMPAN</div><h3>Daily Plan · {selectedDate||'-'}</h3><p className="muted">{filtered.length} pekerjaan pada tanggal ini. Pilih untuk Copy WA, Copy to Actual, Copy to Date, atau Edit.</p></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'…':'Refresh'}</button></div>
+  return <section className="daily-period-saved">
+    <div className="section-head compact-saved-head"><div><div className="eyebrow">PLAN TERSIMPAN</div><h3>Daily Plan · {selectedDate||'-'}</h3><p className="muted">{groups.length} kegiatan · {rows.length} PID. Edit dan duplikat menggunakan form utama di atas.</p></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'…':'Refresh'}</button></div>
     {message&&<div className="alert">{message}</div>}
-    <div className="panel daily-bulk-actions compact-bulk-actions"><div><strong>{selectedRows.length} dipilih</strong><span className="muted">{filtered.length} plan tanggal ini</span></div><div className="row-actions"><button type="button" onClick={toggleAllFiltered}>{filtered.length&&filtered.every(row=>selectedIds.includes(row.id))?'Batal Semua':'Pilih Semua'}</button><button type="button" onClick={copyToActual} disabled={!selectedRows.length}>Copy Actual</button><button type="button" onClick={()=>void copyWa()} disabled={!selectedRows.length}>Copy WA</button><label className="daily-copy-date"><span>Copy tanggal</span><input type="date" value={copyDate} onChange={e=>setCopyDate(e.target.value)}/></label><button type="button" onClick={()=>void copyToDate()} disabled={!selectedRows.length||busy}>Salin</button></div></div>
-    <div className="daily-saved-shifts">{[...new Set(filtered.map(r=>r.shift||'-'))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).map(s=><section key={s} className="daily-draft-shift"><div className="daily-draft-shift-title"><strong>SHIFT {s}</strong><span>{filtered.filter(r=>(r.shift||'-')===s).length} pekerjaan</span></div><div className="daily-draft-card-list">{filtered.filter(r=>(r.shift||'-')===s).map((row,index)=><article className={'daily-draft-card '+(selectedIds.includes(row.id)?'daily-saved-selected':'')} key={row.id}><div className="daily-draft-card-head"><div><span className="eyebrow"># {index+1} · {row.sourceType}</span><h4>{row.activity||row.description||'-'} <small>({formatHa(row.areaHa)})</small></h4></div><div className="daily-saved-actions"><label title="Pilih"><input type="checkbox" checked={selectedIds.includes(row.id)} onChange={()=>toggleSelected(row.id)}/></label><button type="button" title="Edit" onClick={()=>startEdit(row)}>✎</button></div></div><div className="daily-draft-pids"><span>📍 {row.pid} <b>{formatHa(row.areaHa)}</b></span></div><div className="daily-draft-details"><span>👷 Mandor <b>{row.foreman||'-'}</b></span><span>HK <b>{row.manpower}</b></span><span>🚜 Alat <b>{row.unitName||'-'}</b></span><span>⚙️ 🟢{row.unitReady} · 🔴{row.unitBreakdown} · 🟡{row.unitStandby}</span></div>{row.materials.length>0&&<div className="daily-draft-materials">{row.materials.map(m=><span key={m.material+'|'+m.unit}><b>{m.material}</b> · {m.dosePerHa} {m.doseUnit||m.unit}/Ha · Tot {m.totalMaterial} {m.unit}</span>)}</div>}</article>)}</div></section>)}</div>
-    {editing&&<form id="daily-edit-panel" className="panel daily-inline-edit" onSubmit={saveEdit}><div className="section-head"><div><div className="eyebrow">EDIT DAILY</div><h3>{editing.dailyPlanId}</h3></div><button type="button" onClick={cancelEdit}>Batal</button></div><div className="plan-grid"><label><span>Tanggal</span><input type="date" value={editDate} onChange={e=>setEditDate(e.target.value)}/></label><label><span>Shift</span><input value={editShift} onChange={e=>setEditShift(e.target.value)}/></label><label><span>Luas (Ha)</span><input type="number" min="0" step="0.0001" value={editArea} onChange={e=>setEditArea(e.target.value)}/></label><label><span>HK</span><input type="number" min="0" value={editManpower} onChange={e=>setEditManpower(e.target.value)}/></label><label><span>Unit</span><input value={editUnit} onChange={e=>setEditUnit(e.target.value)}/></label><label><span>Ready</span><input type="number" min="0" value={editReady} onChange={e=>setEditReady(e.target.value)}/></label><label><span>Breakdown</span><input type="number" min="0" value={editBreakdown} onChange={e=>setEditBreakdown(e.target.value)}/></label><label><span>Standby</span><input type="number" min="0" value={editStandby} onChange={e=>setEditStandby(e.target.value)}/></label><label><span>Mandor</span><input value={editForeman} onChange={e=>setEditForeman(e.target.value)}/></label><label className="plan-span-2"><span>Keterangan</span><input value={editNotes} onChange={e=>setEditNotes(e.target.value)}/></label></div><button type="submit" className="primary" disabled={busy}>Simpan Perubahan</button></form>}
-  </section>
+    <div className="plan-summary-grid daily-draft-summary"><div><span>Kegiatan</span><strong>{totals.groups}</strong></div><div><span>PID</span><strong>{totals.pids}</strong></div><div><span>Total Luas</span><strong>{formatHa(totals.area)}</strong></div><div><span>Total HK</span><strong>{totals.hk}</strong></div></div>
+    <div className="panel daily-bulk-actions compact-bulk-actions"><div><strong>{selectedGroups.length} kegiatan dipilih</strong><span className="muted">Aksi massal berdasarkan group kegiatan</span></div><div className="row-actions"><button type="button" onClick={toggleAll}>{groups.length&&groups.every(group=>selectedGroupKeys.includes(group.groupKey))?'Batal Semua':'Pilih Semua'}</button><button type="button" onClick={copyToActual} disabled={!selectedGroups.length}>Copy Actual</button><button type="button" onClick={()=>void copyWaGroups(selectedGroups)} disabled={!selectedGroups.length}>Copy WA</button><label className="daily-copy-date"><span>Copy tanggal</span><input type="date" value={copyDate} onChange={e=>setCopyDate(e.target.value)}/></label><button type="button" onClick={()=>void copyGroupsToDate(selectedGroups,copyDate)} disabled={!selectedGroups.length||busy}>Salin</button></div></div>
 
-  return <section>
-    <div className="section-head"><div><div className="eyebrow">DAILY PLAN</div><h2>Daftar Daily Plan</h2><p className="muted">Pilih satu atau beberapa plan untuk Copy to Actual, Copy to WA, atau Copy to Date. Plan ID tidak ikut pada pesan WhatsApp.</p></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'Memuat…':'Refresh'}</button></div>
-    {message&&<div className="alert">{message}</div>}
-    <div className="panel daily-bulk-actions"><div><strong>{selectedRows.length} dipilih</strong><span className="muted">Aksi massal Daily Plan</span></div><div className="row-actions"><button type="button" onClick={toggleAllFiltered}>{filtered.length&&filtered.every(row=>selectedIds.includes(row.id))?'Batal Pilih Semua':'Pilih Semua Filter'}</button><button type="button" onClick={copyToActual} disabled={!selectedRows.length}>Copy to Actual</button><button type="button" onClick={()=>void copyWa()} disabled={!selectedRows.length}>Copy to WA</button><label className="daily-copy-date"><span>Copy to Date</span><input type="date" value={copyDate} onChange={e=>setCopyDate(e.target.value)}/></label><button type="button" onClick={()=>void copyToDate()} disabled={!selectedRows.length||busy}>Salin ke Tanggal</button></div></div>
-    <div className="panel" style={{marginTop:18}}><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:12}}>
-      <label><span>Bulan</span><select value={month} onChange={e=>setMonth(e.target.value)}><option value="ALL">Semua Bulan</option>{months.map(x=><option key={x}>{x}</option>)}</select></label>
-      <label><span>Sumber</span><select value={source} onChange={e=>setSource(e.target.value)}><option value="ALL">Semua Sumber</option><option value="MONTHLY">MONTHLY</option><option value="ADHOC">ADHOC</option><option value="SUPPORT">SUPPORT</option></select></label>
-      <label><span>Company</span><select value={company} onChange={e=>{setCompany(e.target.value);setFarm('ALL')}}><option value="ALL">Semua Company</option>{companies.map(x=><option key={x}>{x}</option>)}</select></label>
-      <label><span>Farm</span><select value={farm} onChange={e=>setFarm(e.target.value)}><option value="ALL">Semua Farm</option>{farms.map(x=><option key={x}>{x}</option>)}</select></label>
-      <label><span>Shift</span><select value={shift} onChange={e=>setShift(e.target.value)}><option value="ALL">Semua Shift</option>{shifts.map(x=><option key={x}>{x}</option>)}</select></label>
-      <label><span>Kegiatan</span><select value={activity} onChange={e=>setActivity(e.target.value)}><option value="ALL">Semua Kegiatan</option>{activities.map(x=><option key={x}>{x}</option>)}</select></label>
-      <label><span>Cari</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Daily ID / Monthly ID / PID / bahan / mandor"/></label>
-    </div></div>
-    <div className="cards" style={{marginTop:18}}><div className="card"><span>PEKERJAAN</span><strong>{filtered.length}</strong></div><div className="card"><span>LUAS</span><strong>{formatHa(totals.area)}</strong></div><div className="card"><span>TENAGA</span><strong>{totals.manpower}</strong></div><div className="card"><span>MONTHLY</span><strong>{totals.monthly}</strong></div><div className="card"><span>ADHOC</span><strong>{totals.adhoc}</strong></div><div className="card"><span>SUPPORT</span><strong>{totals.support}</strong></div><div className="card"><span>MASTER PENDING</span><strong>{totals.pending}</strong></div></div>
-    <div className="panel" style={{marginTop:18}}><div className="table-wrap"><table><thead><tr><th>Pilih</th><th>Daily Plan ID</th><th>Tanggal / Shift</th><th>Sumber</th><th>Plan ID</th><th>Company / Farm</th><th>PID</th><th>Kegiatan</th><th>Luas</th><th>Tenaga</th><th>Unit</th><th>Mandor</th><th>Bahan & Dosis</th><th>Link Monthly</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody>{filtered.map(row=><tr key={row.id} className={selectedIds.includes(row.id)?'daily-selected-row':''}><td><input type="checkbox" checked={selectedIds.includes(row.id)} onChange={()=>toggleSelected(row.id)} aria-label={'Pilih '+row.dailyPlanId}/></td><td><strong>{row.dailyPlanId}</strong></td><td>{formatDate(row.date)}<br/><span className="muted">Shift {row.shift||'-'}</span></td><td>{row.sourceType}</td><td>{row.sourcePlanIdRaw||'-'}</td><td>{row.companyCode||'-'}<br/><span className="muted">{row.farm||'-'}</span></td><td>{row.pid}<br/><span className="muted">{row.masterPending?'MASTER PENDING':row.stage||'-'}</span></td><td>{row.activity}<br/><span className="muted">{row.description||'-'}</span></td><td>{formatHa(row.areaHa)}</td><td>{row.manpower}</td><td>{row.unitName||'-'}<br/><span className="muted">R {row.unitReady} / S {row.unitStandby} / B {row.unitBreakdown}</span></td><td>{row.foreman||'-'}</td><td>{row.materials.length?row.materials.map(m=><div key={m.material}><strong>{m.material}</strong><br/><span className="muted">{m.dosePerHa} {m.doseUnit||m.unit}/Ha · Tot {m.totalMaterial} {m.unit}</span></div>):'-'}</td><td>{row.monthlyLinkStatus}<br/><span className="muted">{row.monthlyPlanLineId||'-'}</span></td><td>{row.notes||'-'}</td><td><button type="button" onClick={()=>startEdit(row)}>Edit</button></td></tr>)}</tbody></table></div>{!filtered.length&&<p className="muted">Tidak ada Daily Plan sesuai filter.</p>}</div>
-    {editing&&<form id="daily-edit-panel" className="panel" style={{marginTop:18}} onSubmit={saveEdit}><div className="section-head"><div><div className="eyebrow">EDIT DAILY PLAN</div><h3>{editing.dailyPlanId}</h3><p className="muted">Monthly link boleh diperbaiki. Daily Plan ID tidak berubah.</p></div><button type="button" onClick={cancelEdit}>Batal</button></div><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:12}}>
-      <label><span>Tanggal</span><input type="date" value={editDate} onChange={e=>setEditDate(e.target.value)}/></label><label><span>Shift</span><input value={editShift} onChange={e=>setEditShift(e.target.value)}/></label><label><span>Luas Plan (Ha)</span><input type="number" min="0" step="0.0001" value={editArea} onChange={e=>setEditArea(e.target.value)}/></label><label><span>Tenaga Kerja</span><input type="number" min="0" value={editManpower} onChange={e=>setEditManpower(e.target.value)}/></label><label><span>Unit</span><input value={editUnit} onChange={e=>setEditUnit(e.target.value)}/></label><label><span>Ready</span><input type="number" min="0" value={editReady} onChange={e=>setEditReady(e.target.value)}/></label><label><span>Standby</span><input type="number" min="0" value={editStandby} onChange={e=>setEditStandby(e.target.value)}/></label><label><span>Breakdown</span><input type="number" min="0" value={editBreakdown} onChange={e=>setEditBreakdown(e.target.value)}/></label><label><span>Mandor</span><input value={editForeman} onChange={e=>setEditForeman(e.target.value)}/></label><label><span>Keterangan</span><input value={editNotes} onChange={e=>setEditNotes(e.target.value)}/></label><label><span>Cari Monthly Plan</span><input value={monthlyQuery} onChange={e=>setMonthlyQuery(e.target.value)} placeholder="Plan ID / PID / Activity"/></label><label><span>Link Monthly Plan</span><select value={editMonthly} onChange={e=>setEditMonthly(e.target.value)}><option value="">Tanpa Monthly Link</option>{monthlyChoices.map(x=><option key={x.id} value={x.planLineId}>{x.planLineId} — {x.pid} — {x.description}</option>)}</select></label>
-    </div>{selectedMonthly&&<div className="alert" style={{marginTop:12}}>Monthly: {selectedMonthly.planLineId} · {selectedMonthly.pid} · {selectedMonthly.description} · Target {formatHa(selectedMonthly.targetAreaHa)}</div>}<button type="submit" className="primary" disabled={busy} style={{marginTop:14}}>Simpan Perubahan Daily Plan</button></form>}
-    <div className="panel" style={{marginTop:18}}><h3>Riwayat Import Daily Plan</h3><p className="muted">10 import terakhir.</p><div className="table-wrap"><table><thead><tr><th>Waktu</th><th>File</th><th>Baris Excel</th><th>Daily Plan</th><th>C/U/N/P</th><th>M/A/S</th><th>Linked</th><th>Pending</th><th>W/E</th><th>Oleh</th></tr></thead><tbody>{logs.map(log=><tr key={log.id}><td>{formatDateTime(log.importedAt)}</td><td>{log.sourceFileName}</td><td>{log.sourceRows}</td><td>{log.total}</td><td>{log.created}/{log.updated}/{log.unchanged}/{log.protected}</td><td>{log.monthly}/{log.adhoc}/{log.support}</td><td>{log.linked}</td><td>{log.masterPending}</td><td>{log.warnings}/{log.errors}</td><td>{log.importedBy}</td></tr>)}</tbody></table></div>{!logs.length&&<p className="muted">Belum ada riwayat import.</p>}</div>
+    <div className="daily-saved-shifts">{shifts.map(shift=>{const shiftGroups=groups.filter(group=>(group.shift||'-')===shift);return <section key={shift} className="daily-draft-shift"><div className="daily-draft-shift-title"><strong>SHIFT {shift}</strong><span>{shiftGroups.length} kegiatan</span></div><div className="daily-draft-card-list">{shiftGroups.map((group,index)=><article className={'daily-draft-card '+(selectedGroupKeys.includes(group.groupKey)?'daily-saved-selected':'')} key={group.groupKey}>
+      <div className="daily-draft-card-head">
+        <div className="daily-draft-title-row"><label className="daily-saved-select" title="Pilih kegiatan"><input type="checkbox" checked={selectedGroupKeys.includes(group.groupKey)} onChange={()=>toggleGroup(group.groupKey)}/></label><div><span className="eyebrow"># {index+1} · {group.sourceType}</span><h4>{group.description||group.activity||'-'} <small>({formatHa(groupArea(group))})</small></h4></div></div>
+        <div className="daily-saved-group-actions" aria-label="Aksi Daily Plan tersimpan">
+          <button type="button" className="daily-icon-action" title="Naik" aria-label="Naik" disabled={index===0||busy} onClick={()=>void moveGroup(group,-1)}><DailyActionIcon name="up"/></button>
+          <button type="button" className="daily-icon-action" title="Turun" aria-label="Turun" disabled={index===shiftGroups.length-1||busy} onClick={()=>void moveGroup(group,1)}><DailyActionIcon name="down"/></button>
+          <button type="button" className="daily-icon-action wa" title="Copy WA" aria-label="Copy WA" onClick={()=>void copyWaGroups([group])}><DailyActionIcon name="wa"/></button>
+          <button type="button" className="daily-icon-action" title="Salin ke tanggal" aria-label="Salin ke tanggal" onClick={()=>{setCopyGroupKey(current=>current===group.groupKey?'':group.groupKey);setGroupCopyDate(selectedDate||new Date().toISOString().slice(0,10))}}><DailyActionIcon name="calendar"/></button>
+          <button type="button" className="daily-icon-action" title="Duplikat ke form" aria-label="Duplikat" onClick={()=>onDuplicateGroup?.(group)}><DailyActionIcon name="copy"/></button>
+          <button type="button" className="daily-icon-action" title="Edit di form utama" aria-label="Edit" onClick={()=>onEditGroup?.(group)}><DailyActionIcon name="edit"/></button>
+          <button type="button" className="daily-icon-action danger" title="Hapus kegiatan" aria-label="Hapus" disabled={busy} onClick={()=>void deleteGroup(group)}><DailyActionIcon name="trash"/></button>
+        </div>
+      </div>
+      {copyGroupKey===group.groupKey&&<div className="daily-card-copy-date"><label><span>Salin ke tanggal</span><input type="date" value={groupCopyDate} onChange={e=>setGroupCopyDate(e.target.value)}/></label><button type="button" onClick={()=>setCopyGroupKey('')}>Batal</button><button type="button" className="primary" onClick={()=>void copyGroupsToDate([group],groupCopyDate)}>Salin</button></div>}
+      <div className="daily-draft-pids">{group.rows.map(row=><span key={row.id}>📍 {row.pid||'-'} <b>{formatHa(row.areaHa)}</b></span>)}</div>
+      <div className="daily-draft-details"><span>👷 Mandor <b>{group.foreman||'-'}</b></span><span>HK <b>{group.manpower}</b></span><span>🚜 Alat <b>{group.unitName||'-'}</b></span><span>⚙️ 🟢{group.unitReady} · 🔴{group.unitBreakdown} · 🟡{group.unitStandby}</span></div>
+      {group.rows.some(row=>row.materials.length>0)&&<div className="daily-draft-materials">{Array.from(new Map(group.rows.flatMap(row=>row.materials).map(m=>[m.material+'|'+m.unit,m])).values()).map(m=>{const total=group.rows.flatMap(row=>row.materials).filter(x=>x.material===m.material&&x.unit===m.unit).reduce((sum,x)=>sum+x.totalMaterial,0);return <span key={m.material+'|'+m.unit}><b>{m.material}</b> · {m.dosePerHa} {m.doseUnit||m.unit}/Ha · Tot {total.toLocaleString('id-ID',{maximumFractionDigits:4})} {m.unit}</span>})}</div>}
+      {group.notes&&<div className="daily-draft-note">ℹ️ {group.notes}</div>}
+    </article>)}</div></section>})}</div>
+    {!groups.length&&<div className="daily-draft-empty">Belum ada Daily Plan pada tanggal ini.</div>}
   </section>
 }
