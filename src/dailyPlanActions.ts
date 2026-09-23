@@ -1,6 +1,7 @@
 export type DailyPlanTransfer={
   dailyPlanId:string
   workGroupId:string
+  planningOrder:number
   date:string
   shift:string
   sourceType:string
@@ -38,7 +39,7 @@ function materialLine(m:DailyPlanTransfer['materials'][number]){
 }
 
 export function dailyPlansToWhatsApp(rows:DailyPlanTransfer[]){
-  const sorted=[...rows].sort((a,b)=>a.date.localeCompare(b.date)||a.shift.localeCompare(b.shift,undefined,{numeric:true})||a.activity.localeCompare(b.activity)||a.pid.localeCompare(b.pid,undefined,{numeric:true}))
+  const sorted=[...rows].sort((a,b)=>a.date.localeCompare(b.date)||a.shift.localeCompare(b.shift,undefined,{numeric:true})||(a.planningOrder||0)-(b.planningOrder||0)||a.pid.localeCompare(b.pid,undefined,{numeric:true}))
   if(!sorted.length)return''
   const dates=[...new Set(sorted.map(x=>x.date))]
   const lines:string[]=['*DAILY PLANNING*',`📅 *Tanggal:* ${dates.length===1?dates[0]:dates.join(', ')}`,'────────────────────']
