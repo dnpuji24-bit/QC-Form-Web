@@ -13,6 +13,26 @@ type WorkDraft={id:string;sourceType:'MONTHLY'|'ADHOC'|'SUPPORT';search:string;m
 type Draft={date:string;shift:string;foreman:string;works:WorkDraft[]}
 
 function blankWork():WorkDraft{return{id:planRowId('daily'),sourceType:'MONTHLY',search:'',monthlyId:'',adhocActivity:'',adhocPid:'',area:'',manpower:'0',unitName:'',unitReady:'0',unitStandby:'0',unitBreakdown:'0',notes:''}}
+function searchKey(value:unknown){return planText(value).toLowerCase().replace(/\s+/g,' ').trim()}
+function paddockKey(value:unknown){return planText(value).toUpperCase().replace(/\s+/g,'').trim()}
+function shortPaddockCode(pid:string){const parts=paddockKey(pid).split('-').filter(Boolean);return parts.length>=2?parts.slice(-2).join('-'):parts.join('-')}
+function looksLikePaddockSearch(value:string){const q=paddockKey(value);return /-[0-9]+$/.test(q)}
+function smartMonthlyChoices(rows:Monthly[],input:string){
+  const q=searchKey(input)
+  if(!q)return rows.slice(0,120)
+  if(looksLikePaddockSearch(input)){
+    const code=paddockKey(input),shortQuery=code.split('-').length<=2
+    return rows.filter(row=>{
+      const full=paddockKey(row.pid),short=shortPaddockCode(row.pid)
+      return shortQuery?short.startsWith(code):full.startsWith(code)
+    }).slice(0,120)
+  }
+  return rows.filter(row=>{
+    const planId=searchKey(row.planLineId),activity=searchKey(row.activity),description=searchKey(row.description)
+    return planId.startsWith(q)||activity.startsWith(q)||description.startsWith(q)
+  }).slice(0,120)
+}
+
 async function writer(appUser:User){const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.');const current=auth.currentUser;if(!current)throw new Error('Login Firebase tidak tersedia.');const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.');const p=snap.data() as Record<string,unknown>;if(p.active!==true||!['owner','asisten'].includes(planText(p.role))||!['owner','asisten'].includes(appUser.role))throw new Error('Role tidak memiliki izin membuat Daily Plan.');return{db,username:planText(p.username)||appUser.username}}
 
 export default function DailyPlanWebEntryPanel({user}:Props){
@@ -25,7 +45,7 @@ export default function DailyPlanWebEntryPanel({user}:Props){
   useEffect(()=>{void load()},[])
   useEffect(()=>{writePlanDraft(draftKey,draft)},[draft,draftKey])
 
-  const workInfo=useMemo(()=>draft.works.map(work=>{const q=work.search.trim().toLowerCase(),choices=monthly.filter(x=>!q||[x.planLineId,x.pid,x.description,x.activity,x.companyCode,x.farm,x.monthKey].join(' ').toLowerCase().includes(q)).slice(0,120),selected=monthly.find(x=>x.id===work.monthlyId)||null,area=planNum(work.area),scheduled=selected?daily.filter(x=>x.monthlyPlanLineId===selected.planLineId).reduce((s,x)=>s+x.areaHa,0):0,remaining=selected?selected.targetAreaHa-scheduled:0,manualActivity=activities.find(a=>[a.activity,a.description].some(v=>v.toLowerCase()===work.adhocActivity.trim().toLowerCase()))||null,paddock=paddocks.find(p=>p.pid===work.adhocPid.toUpperCase())||null,materials=materialLinesFromComponents(work.sourceType==='MONTHLY'?(selected?.componentsSnapshot||[]):(manualActivity?.componentsSnapshot||[]),area);return{work,choices,selected,manualActivity,paddock,area,scheduled,remaining,materials}}),[draft.works,monthly,daily,activities,paddocks])
+  const workInfo=useMemo(()=>draft.works.map(work=>{const choices=smartMonthlyChoices(monthly,work.search),selected=monthly.find(x=>x.id===work.monthlyId)||null,area=planNum(work.area),scheduled=selected?daily.filter(x=>x.monthlyPlanLineId===selected.planLineId).reduce((s,x)=>s+x.areaHa,0):0,remaining=selected?selected.targetAreaHa-scheduled:0,manualActivity=activities.find(a=>[a.activity,a.description].some(v=>v.toLowerCase()===work.adhocActivity.trim().toLowerCase()))||null,paddock=paddocks.find(p=>p.pid===work.adhocPid.toUpperCase())||null,materials=materialLinesFromComponents(work.sourceType==='MONTHLY'?(selected?.componentsSnapshot||[]):(manualActivity?.componentsSnapshot||[]),area);return{work,choices,selected,manualActivity,paddock,area,scheduled,remaining,materials}}),[draft.works,monthly,daily,activities,paddocks])
   const totals=useMemo(()=>workInfo.reduce((acc,x)=>({area:acc.area+x.area,manpower:acc.manpower+planNum(x.work.manpower),ready:acc.ready+planNum(x.work.unitReady),standby:acc.standby+planNum(x.work.unitStandby),breakdown:acc.breakdown+planNum(x.work.unitBreakdown)}),{area:0,manpower:0,ready:0,standby:0,breakdown:0}),[workInfo])
   const totalMaterials=aggregateMaterials(workInfo.map(x=>x.materials))
 
@@ -68,7 +88,7 @@ export default function DailyPlanWebEntryPanel({user}:Props){
       <section className="panel plan-section"><div className="plan-section-title"><div><span className="eyebrow">PEKERJAAN HARIAN</span><h3>Monthly → Daily</h3></div><button type="button" onClick={()=>addWork()}>+ Tambah Pekerjaan</button></div>
         <div className="plan-work-list">{workInfo.map((info,index)=><div className="plan-work-card" key={info.work.id}><div className="plan-work-head"><strong>Pekerjaan {index+1}</strong><div className="row-actions">{info.selected&&<button type="button" onClick={()=>addWork(info.work)}>Duplikat</button>}<button type="button" className="danger" onClick={()=>removeWork(info.work.id)}>Hapus</button></div></div><div className="plan-grid">
           <label><span>Sumber</span><select value={info.work.sourceType} onChange={e=>patchWork(info.work.id,{sourceType:e.target.value as WorkDraft['sourceType'],monthlyId:'',search:''})}><option value="MONTHLY">MONTHLY</option><option value="ADHOC">ADHOC</option><option value="SUPPORT">SUPPORT</option></select></label>
-          {info.work.sourceType==='MONTHLY'?<><label><span>Smart Search Monthly</span><input value={info.work.search} onChange={e=>patchWork(info.work.id,{search:e.target.value,monthlyId:''})} placeholder="A-007 / pre / top dressing"/></label><label className="plan-span-2"><span>Monthly Plan</span><select value={info.work.monthlyId} onChange={e=>patchWork(info.work.id,{monthlyId:e.target.value})}><option value="">Pilih Monthly Plan ({info.choices.length} hasil)</option>{info.choices.map(x=><option key={x.id} value={x.id}>{x.planLineId} — {x.pid} — {x.description}</option>)}</select></label></>:<><label><span>Nama Kegiatan</span><input list={'daily-activities-'+info.work.id} value={info.work.adhocActivity} onChange={e=>patchWork(info.work.id,{adhocActivity:e.target.value})} placeholder="Contoh: Repair Road"/><datalist id={'daily-activities-'+info.work.id}>{activities.map(a=><option key={a.id} value={a.activity||a.description}/>)}</datalist></label><label className="plan-span-2"><span>Paddock</span><input list={'daily-paddocks-'+info.work.id} value={info.work.adhocPid} onChange={e=>patchWork(info.work.id,{adhocPid:e.target.value.toUpperCase()})} placeholder="Contoh: JAGF-2-A-007"/><datalist id={'daily-paddocks-'+info.work.id}>{paddocks.map(p=><option key={p.pid} value={p.pid}/>)}</datalist></label></>}
+          {info.work.sourceType==='MONTHLY'?<><label><span>Smart Search Monthly</span><input value={info.work.search} onChange={e=>patchWork(info.work.id,{search:e.target.value,monthlyId:''})} placeholder="G-007 / pre / top dressing"/></label><label className="plan-span-2"><span>Monthly Plan</span><select value={info.work.monthlyId} onChange={e=>patchWork(info.work.id,{monthlyId:e.target.value})}><option value="">Pilih Monthly Plan ({info.choices.length} hasil)</option>{info.choices.map(x=><option key={x.id} value={x.id}>{x.planLineId} — {x.pid} — {x.description||x.activity}</option>)}</select></label></>:<><label><span>Nama Kegiatan</span><input list={'daily-activities-'+info.work.id} value={info.work.adhocActivity} onChange={e=>patchWork(info.work.id,{adhocActivity:e.target.value})} placeholder="Contoh: Repair Road"/><datalist id={'daily-activities-'+info.work.id}>{activities.map(a=><option key={a.id} value={a.activity||a.description}/>)}</datalist></label><label className="plan-span-2"><span>Paddock</span><input list={'daily-paddocks-'+info.work.id} value={info.work.adhocPid} onChange={e=>patchWork(info.work.id,{adhocPid:e.target.value.toUpperCase()})} placeholder="Contoh: JAGF-2-A-007"/><datalist id={'daily-paddocks-'+info.work.id}>{paddocks.map(p=><option key={p.pid} value={p.pid}/>)}</datalist></label></>}
           <label><span>Luas Plan Harian (Ha)</span><input type="number" min="0" step="0.0001" value={info.work.area} onChange={e=>patchWork(info.work.id,{area:e.target.value})}/></label>
           <label><span>Jumlah HK</span><input type="number" min="0" step="1" value={info.work.manpower} onChange={e=>patchWork(info.work.id,{manpower:e.target.value})}/></label>
           <label><span>Kode / Nama Unit</span><input value={info.work.unitName} onChange={e=>patchWork(info.work.id,{unitName:e.target.value})} placeholder="Opsional"/></label>
