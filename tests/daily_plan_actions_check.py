@@ -9,7 +9,7 @@ plan=(root/'src'/'PlanWorkspace.tsx').read_text(encoding='utf-8')
 
 for token in [
     "Smart Search Monthly",
-    "A-007 / pre / top dressing",
+    "G-007 / pre / top dressing",
     "sourceType:'MONTHLY'",
     "ADHOC",
     "SUPPORT",
