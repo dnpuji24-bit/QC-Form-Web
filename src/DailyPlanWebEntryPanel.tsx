@@ -109,8 +109,8 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
   function patchActivePid(pidId:string,patch:Partial<PidDraft>){setState(current=>({...current,active:{...current.active,pids:current.active.pids.map(pid=>pid.id===pidId?{...pid,...patch}:pid)}}))}
   function addActivePid(){setState(current=>({...current,active:{...current.active,pids:[...current.active.pids,blankPid()]}}))}
   function removeActivePid(pidId:string){setState(current=>({...current,active:{...current.active,pids:current.active.pids.length>1?current.active.pids.filter(pid=>pid.id!==pidId):[blankPid()]}}))}
-  function resetInput(preservePeople=true){setState(current=>({...current,active:blankWork(preservePeople?{shift:current.active.shift,foreman:current.active.foreman}:undefined),editingId:''}))}
-  function clearAll(){if(!window.confirm('Hapus semua input dan draft Daily Plan pada perangkat ini?'))return;clearPlanDraft(draftKey);setState({date:new Date().toISOString().slice(0,10),active:blankWork(),works:[],editingId:''});setMessage('Input dan draft Daily Plan dikosongkan.')}
+  function resetInput(preservePeople=true){setPersistedEdit(null);setState(current=>({...current,active:blankWork(preservePeople?{shift:current.active.shift,foreman:current.active.foreman}:undefined),editingId:''}))}
+  function clearAll(){if(!window.confirm('Hapus semua input dan draft Daily Plan pada perangkat ini?'))return;clearPlanDraft(draftKey);setPersistedEdit(null);setState({date:new Date().toISOString().slice(0,10),active:blankWork(),works:[],editingId:''});setMessage('Input dan draft Daily Plan dikosongkan.')}
 
   function validateGroup(info:WorkInfo,checkExisting=false){
     if(!state.date)return'Tanggal Daily Plan wajib diisi.'
@@ -134,6 +134,55 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
       return{...current,works:nextWorks,active:blankWork({shift:current.active.shift,foreman:current.active.foreman}),editingId:''}
     })
     setMessage(state.editingId?'Draft kegiatan diperbarui.':'Kegiatan ditambahkan ke Draft Daily Planning. Silakan input kegiatan berikutnya.')
+  }
+
+  async function savePersistedEdit(e:FormEvent){
+    e.preventDefault()
+    if(!persistedEdit)return
+    const error=validateGroup(activeInfo)
+    if(error){setMessage(error);return}
+    const retainedIds=new Set(activeInfo.pids.map(row=>row.pid.persistedDocId).filter(Boolean) as string[])
+    const removed=persistedEdit.originalRows.filter(row=>!retainedIds.has(row.id))
+    setBusy(true);setMessage('Menyimpan perubahan Daily Plan tersimpan…')
+    try{
+      const{db,username}=await writer(user)
+      if(removed.length){
+        const removedDailyIds=removed.map(row=>row.dailyPlanId).filter(Boolean)
+        for(let i=0;i<removedDailyIds.length;i+=30){
+          const linked=await getDocs(fsQuery(collection(db,'daily_reports'),where('dailyPlanId','in',removedDailyIds.slice(i,i+30))))
+          if(!linked.empty){setMessage('PID tidak dapat dihapus karena sudah memiliki Actual Plan terkait. Edit atau hapus Actual terlebih dahulu.');setBusy(false);return}
+        }
+      }
+      const targetSnap=await getDocs(fsQuery(collection(db,'daily_plans'),where('date','==',state.date))),prefix='DP-'+state.date.replaceAll('-','')+'-'
+      let seq=targetSnap.docs.map(item=>{const data=item.data() as Record<string,unknown>,id=planText(data.dailyPlanId||item.id);return id.startsWith(prefix)?Number(id.slice(prefix.length)):0}).filter(Number.isFinite).reduce((m,x)=>Math.max(m,x),0)
+      const batch=writeBatch(db),pidCount=activeInfo.pids.length
+      for(const row of activeInfo.pids){
+        const isMonthly=activeInfo.work.sourceType==='MONTHLY',selected=row.selected,paddock=row.paddock
+        const dailyPlanId=row.pid.persistedDailyPlanId||prefix+String(++seq).padStart(4,'0'),docId=row.pid.persistedDocId||dailyPlanId
+        const pid=isMonthly?(selected?.pid||row.pid.pid.toUpperCase()):row.pid.pid.toUpperCase()
+        const activity=isMonthly?(selected?.activity||activeInfo.work.activitySearch):activeInfo.work.activitySearch.trim()
+        const description=isMonthly?(selected?.description||activeInfo.work.activitySearch):activeInfo.work.activitySearch.trim()
+        const components=isMonthly?(selected?.componentsSnapshot||[]):(activeInfo.manualActivity?.componentsSnapshot||[])
+        const payload={dailyPlanId,workGroupId:persistedEdit.workGroupId,workGroupPidCount:pidCount,planningOrder:persistedEdit.planningOrder,sourcePlanIdRaw:isMonthly?(selected?.planLineId||''):'',sourceType:activeInfo.work.sourceType,monthlyLinkStatus:isMonthly?(selected?'LINKED':'NOT_FOUND'):'NOT_APPLICABLE',monthlyPlanLineId:isMonthly?(selected?.planLineId||''):'',date:state.date,year:Number(state.date.slice(0,4)),monthKey:state.date.slice(0,7),shift:activeInfo.work.shift,activity,description,paddockRaw:pid,pid,areaHa:row.area,areaUnit:'Ha',manpower:planNum(activeInfo.work.manpower),unitName:activeInfo.work.unitName,unitReady:planNum(activeInfo.work.unitReady),unitStandby:planNum(activeInfo.work.unitStandby),unitBreakdown:planNum(activeInfo.work.unitBreakdown),foreman:activeInfo.work.foreman,notes:activeInfo.work.notes,companyCode:isMonthly?(selected?.companyCode||''):(paddock?.companyCode||''),farm:isMonthly?(selected?.farm||''):(paddock?.farm||''),stage:isMonthly?(selected?.stage||''):(paddock?.stage||''),masterVariety:isMonthly?(selected?.masterVariety||''):(paddock?.variety||''),masterPending:!isMonthly&&!paddock,materials:row.materials,componentsSnapshot:components,type:isMonthly?(selected?.type||''):'',activityCategory:isMonthly?(selected?.activityCategory||''):'',sourceOrigin:'WEB',lastModifiedSource:'WEB',updatedAt:serverTimestamp(),updatedBy:username}
+        if(row.pid.persistedDocId)batch.set(doc(db,'daily_plans',docId),payload,{merge:true})
+        else batch.set(doc(db,'daily_plans',docId),{...payload,createdAt:serverTimestamp(),createdBy:username})
+      }
+      removed.forEach(row=>batch.delete(doc(db,'daily_plans',row.id)))
+      await batch.commit()
+
+      for(const row of activeInfo.pids){
+        if(!row.pid.persistedDailyPlanId)continue
+        const linked=await getDocs(fsQuery(collection(db,'daily_reports'),where('dailyPlanId','==',row.pid.persistedDailyPlanId)))
+        if(linked.empty)continue
+        const isMonthly=activeInfo.work.sourceType==='MONTHLY',selected=row.selected,pid=isMonthly?(selected?.pid||row.pid.pid.toUpperCase()):row.pid.pid.toUpperCase(),syncBatch=writeBatch(db)
+        linked.docs.forEach(item=>{const data=item.data() as Record<string,unknown>,actualArea=planNum(data.actualAreaHa),reportPayload:Record<string,unknown>={monthlyPlanLineId:isMonthly?(selected?.planLineId||''):'',monthlyLinkStatus:isMonthly?(selected?'LINKED':'NOT_APPLICABLE'):'NOT_APPLICABLE',plannedDailyAreaHa:row.area,dailyVarianceHa:row.area-actualArea,lastModifiedSource:'WEB',updatedAt:serverTimestamp(),updatedBy:username,pid,paddockRaw:pid,activity:isMonthly?(selected?.activity||activeInfo.work.activitySearch):activeInfo.work.activitySearch};if(selected)Object.assign(reportPayload,{companyCode:selected.companyCode,farm:selected.farm});syncBatch.set(item.ref,reportPayload,{merge:true})})
+        await syncBatch.commit()
+      }
+      const savedDate=state.date
+      setPersistedEdit(null);setState(current=>({...current,active:blankWork({shift:current.active.shift,foreman:current.active.foreman}),editingId:''}))
+      setMessage('Daily Plan tersimpan berhasil diperbarui. Daily ID existing tetap dipertahankan dan Actual terkait disinkronkan.')
+      await loadPeriod(savedDate);onDateChange?.(savedDate);onSaved?.()
+    }catch(err){setMessage(err instanceof Error?err.message:'Daily Plan tersimpan gagal diperbarui.')}finally{setBusy(false)}
   }
 
   function editDraft(work:WorkDraft){setState(current=>({...current,active:cloneWork(work,false),editingId:work.id}));setMessage('Draft dimuat ke form untuk diedit.');setTimeout(()=>document.getElementById('daily-active-form')?.scrollIntoView({behavior:'smooth',block:'start'}),0)}
