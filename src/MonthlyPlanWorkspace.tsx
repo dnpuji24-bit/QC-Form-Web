@@ -13,7 +13,7 @@ export default function MonthlyPlanWorkspace({user}:Props){
   return <section>
     <div className="segmented" aria-label="Menu Monthly Plan">
       <button type="button" className={view==='list'?'active':''} onClick={()=>setView('list')}>Daftar Plan</button>
-      <button type="button" className={view==='web'?'active':''} onClick={()=>setView('web')}>Tambah via Web</button>
+      <button type="button" className={view==='web'?'active':''} onClick={()=>setView('web')}>Input Monthly</button>
       <button type="button" className={view==='import'?'active':''} onClick={()=>setView('import')}>Update / Import Excel</button>
       <button type="button" className={view==='sync'?'active':''} onClick={()=>setView('sync')}>Sinkron Master Paddock</button>
     </div>
