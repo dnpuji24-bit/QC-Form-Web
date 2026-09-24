@@ -249,7 +249,7 @@ export default function MasterPaddockImportPanelV2({user}:Props){
     <div className="section-head"><div><div className="eyebrow">MASTER DATA</div><h2>Import Master Paddock</h2></div><span className="badge">Company scoped</span></div>
     <div className="panel form-stack">
       <h3>Scope Upload</h3>
-      <p className="muted">Pilih Company terlebih dahulu. Farm dapat dipilih setelah file dibaca. <strong>Area Plan = Area Paddock (Ha) Area Plant.</strong> Kolom Progres disimpan terpisah sebagai riwayat progress per tanggal.</p>
+      <p className="muted">Pilih Company terlebih dahulu. Farm dapat dipilih setelah file dibaca. <strong>Total Paddock = Area Paddock (Ha) Area Plant.</strong> Luas per variety dihitung dari penjumlahan <strong>Progres (Ha)</strong> masing-masing variety pada crop cycle aktif.</p>
       <div className="form-grid">
         <label>Company<select value={selectedCode} disabled={busy||Boolean(parsed)} onChange={e=>{setSelectedCode(e.target.value);setParsed(null);setPreview([])}}>{companies.map(company=><option key={company.id} value={company.code}>{company.code} - {company.name}</option>)}</select></label>
         <label>Farm<select value={farmScope} disabled={busy||!parsed} onChange={e=>setFarmScope(e.target.value)}><option value="ALL">Semua Farm</option>{farmOptions.map(farm=><option key={farm} value={farm}>Farm {farm}</option>)}</select></label>
