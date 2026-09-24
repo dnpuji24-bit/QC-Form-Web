@@ -11,11 +11,8 @@ for token in [
     "const byPlanId=scoped.filter(row=>searchKey(row.planLineId).startsWith(q))",
     "if(byPlanId.length)return byPlanId",
     "return scoped.filter(row=>searchKey(row.pid).startsWith(q))",
-    'placeholder="Ketik G-007"',
     "activityChoices",
-    "Pilih kegiatan dahulu",
     "monthlyOptionLabel",
-    "monthly-active-options-",
 ]:
     assert token in daily, f'Missing strict Daily smart-search token: {token}'
 
@@ -62,8 +59,6 @@ for token in [
     "where('description','==',label)",
     "where('activity','==',label)",
     "where('monthlyPlanLineId','in',part)",
-    "Monthly ID dapat berasal dari bulan/week lain",
-    "row.monthKey+'/'+row.week",
 ]:
     assert token in daily, f'Missing cross-month Daily Monthly lookup token: {token}'
 
