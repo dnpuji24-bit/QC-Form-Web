@@ -9,7 +9,7 @@ compact_app = ''.join(app.split())
 
 required_form_tokens = [
     'FERTILIZER DAILY SESSION','sessionId','initialRecords','recordId','pengisianKe','jenisPupuk','statusHose','dosisAktual','pemerataanPupuk','downtimeList',
-    "uploaded?'finalizeRecord':'syncRecord'",'num(f.jumlah)/num(f.hasilKerja)','averageActualDosage','weightedActualDosage','Rata-rata Dosis Aktual','Dosis Total/Ha','Simpan Koreksi Uploaded','PhotoPicker','unit-tab-rail','activeCardId','Tambah Unit','HOLD • ISSUE / DOWNTIME','Clear Input','clearInput(','Form input sudah dibersihkan','!editing&&<button type="button" className="danger" onClick={()=>removeCard(card)}>Hapus Unit</button>'
+    "uploaded?'finalizeRecord':'syncRecord'",'num(f.jumlah)/num(f.hasilKerja)','averageActualDosage','weightedActualDosage','Rata-rata Dosis Aktual','Dosis Total/Ha','Simpan Koreksi Uploaded','PhotoPicker','unit-tab-rail','activeCardId','Tambah Unit','HOLD • ISSUE / DOWNTIME','Clear Input','clearInput(','form input sudah dibersihkan','!editing&&<button type="button" className="danger" onClick={()=>removeCard(card)}>Hapus Unit</button>'
 ]
 for token in required_form_tokens:
     assert token in form, f'Missing Fertilizer form token: {token}'
