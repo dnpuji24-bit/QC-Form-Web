@@ -4,6 +4,7 @@ import { firestoreDb } from './firebase'
 import { FALLBACK_COMPANIES, type CompanyRecord } from './companyMaster'
 
 type ProgressEntry={date:string;areaHa:number;stage?:string}
+type VarietyArea={variety:string;areaHa:number}
 type PaddockRow={
   pid:string
   companyCode:string
@@ -12,6 +13,8 @@ type PaddockRow={
   block:string
   paddock:string
   variety:string
+  varietyBreakdown:VarietyArea[]
+  varietyAreaTotalHa:number
   blockLc:string
   areaPlantedHa:number
   currentStage:string
@@ -58,9 +61,14 @@ function progressFromData(value:unknown):ProgressEntry[]{
     return{date:String(row.date||''),areaHa:numberValue(row.areaHa),stage:row.stage?String(row.stage):undefined}
   }).filter(item=>item.date&&item.areaHa>=0).sort((a,b)=>a.date.localeCompare(b.date))
 }
+function varietyFromData(value:unknown):VarietyArea[]{
+  if(!Array.isArray(value))return[]
+  return value.map(item=>{const row=(item&&typeof item==='object'?item:{}) as Record<string,unknown>;return{variety:String(row.variety||'').trim(),areaHa:numberValue(row.areaHa)}}).filter(item=>item.variety&&item.areaHa>=0).sort((a,b)=>b.areaHa-a.areaHa||a.variety.localeCompare(b.variety,undefined,{numeric:true}))
+}
 function paddockFromData(id:string,data:Record<string,unknown>):PaddockRow{
+  const varietyBreakdown=varietyFromData(data.varietyBreakdown),varietyAreaTotalHa=numberValue(data.varietyAreaTotalHa)||varietyBreakdown.reduce((sum,item)=>sum+item.areaHa,0)
   return{
-    pid:String(data.pid||id),companyCode:String(data.companyCode||''),companyPrefix:String(data.companyPrefix||''),farm:String(data.farm||''),block:String(data.block||''),paddock:String(data.paddock||''),variety:String(data.variety||''),blockLc:String(data.blockLc||''),areaPlantedHa:numberValue(data.areaPlantedHa),currentStage:String(data.currentStage||'PC'),harvestedCurrentStageHa:numberValue(data.harvestedCurrentStageHa),remainingHarvestCurrentStageHa:numberValue(data.remainingHarvestCurrentStageHa),lastHarvestDate:data.lastHarvestDate?String(data.lastHarvestDate):null,active:data.active!==false,sourceFileName:String(data.sourceFileName||''),lastImportBatchId:String(data.lastImportBatchId||''),plantProgress:progressFromData(data.plantProgress),harvestProgress:progressFromData(data.harvestProgress)
+    pid:String(data.pid||id),companyCode:String(data.companyCode||''),companyPrefix:String(data.companyPrefix||''),farm:String(data.farm||''),block:String(data.block||''),paddock:String(data.paddock||''),variety:String(data.variety||''),varietyBreakdown,varietyAreaTotalHa,blockLc:String(data.blockLc||''),areaPlantedHa:numberValue(data.areaPlantedHa),currentStage:String(data.currentStage||'PC'),harvestedCurrentStageHa:numberValue(data.harvestedCurrentStageHa),remainingHarvestCurrentStageHa:numberValue(data.remainingHarvestCurrentStageHa),lastHarvestDate:data.lastHarvestDate?String(data.lastHarvestDate):null,active:data.active!==false,sourceFileName:String(data.sourceFileName||''),lastImportBatchId:String(data.lastImportBatchId||''),plantProgress:progressFromData(data.plantProgress),harvestProgress:progressFromData(data.harvestProgress)
   }
 }
 function logFromData(id:string,data:Record<string,unknown>):ImportLog{
@@ -99,13 +107,13 @@ export default function MasterPaddockListPanel(){
   const searchSuggestions=useMemo(()=>{
     const source=rows.filter(row=>(company==='ALL'||row.companyCode===company)&&(farm==='ALL'||row.farm===farm)&&(stage==='ALL'||row.currentStage===stage))
     const values=new Set<string>()
-    source.forEach(row=>{values.add(row.pid);if(row.variety)values.add(row.variety);if(row.block)values.add(row.block);if(row.paddock)values.add(row.paddock)})
+    source.forEach(row=>{values.add(row.pid);if(row.variety)values.add(row.variety);row.varietyBreakdown.forEach(item=>values.add(item.variety));if(row.block)values.add(row.block);if(row.paddock)values.add(row.paddock)})
     return[...values].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).slice(0,800)
   },[rows,company,farm,stage])
   const filtered=useMemo(()=>{
     const needle=query.trim().toLowerCase(),hasDate=Boolean(dateFrom||dateTo)
     return rows.filter(row=>{
-      const base=(company==='ALL'||row.companyCode===company)&&(farm==='ALL'||row.farm===farm)&&(stage==='ALL'||row.currentStage===stage)&&(!needle||`${row.pid} ${row.companyCode} ${row.farm} ${row.block} ${row.paddock} ${row.variety}`.toLowerCase().includes(needle))
+      const base=(company==='ALL'||row.companyCode===company)&&(farm==='ALL'||row.farm===farm)&&(stage==='ALL'||row.currentStage===stage)&&(!needle||`${row.pid} ${row.companyCode} ${row.farm} ${row.block} ${row.paddock} ${row.variety} ${row.varietyBreakdown.map(item=>item.variety).join(' ')}`.toLowerCase().includes(needle))
       if(!base)return false
       if(!hasDate)return true
       return row.plantProgress.some(item=>inRange(item.date,dateFrom,dateTo))||row.harvestProgress.some(item=>inRange(item.date,dateFrom,dateTo))
@@ -161,8 +169,8 @@ export default function MasterPaddockListPanel(){
       <div className="table-wrap"><table><thead><tr><th>Company</th><th>Farm</th><th>PID</th><th>Area Plan</th><th>Plant Progress</th><th>Harvest Progress</th><th>PC</th><th>R1</th><th>R2</th></tr></thead><tbody>{farmSummary.map(item=><tr key={`${item.company}-${item.farm}`}><td>{item.company}</td><td>{item.farm||'-'}</td><td>{item.pids}</td><td>{formatHa(item.area,4)}</td><td>{formatHa(item.plantRange,4)}</td><td>{formatHa(item.harvestRange,4)}</td><td>{item.pc}</td><td>{item.r1}</td><td>{item.r2}</td></tr>)}{!farmSummary.length&&<tr><td colSpan={9} className="empty">Belum ada Master Paddock sesuai filter.</td></tr>}</tbody></table></div>
     </div>
     <div className="panel">
-      <div className="section-head"><div><h3>Detail Master Paddock</h3><p className="muted">{filtered.length} paddock ditampilkan.</p></div></div>
-      <div className="table-wrap"><table><thead><tr><th>Company</th><th>Farm</th><th>PID</th><th>Block</th><th>Paddock</th><th>Variety</th><th>Area Plan</th><th>Plant Progress</th><th>Harvest Progress</th><th>Stage</th><th>Harvest Stage</th><th>Sisa Stage</th><th>Last Harvest</th><th>Source</th></tr></thead><tbody>{filtered.map(row=><tr key={row.pid}><td>{row.companyCode}</td><td>{row.farm||'-'}</td><td><strong>{row.pid}</strong></td><td>{row.block||'-'}</td><td>{row.paddock||'-'}</td><td>{row.variety||'-'}</td><td>{formatHa(row.areaPlantedHa,4)}</td><td>{formatHa(progressInRange(row.plantProgress,dateFrom,dateTo),4)}</td><td>{formatHa(progressInRange(row.harvestProgress,dateFrom,dateTo),4)}</td><td><span className="badge">{row.currentStage}</span></td><td>{formatHa(row.harvestedCurrentStageHa,4)}</td><td>{formatHa(row.remainingHarvestCurrentStageHa,4)}</td><td>{formatDate(row.lastHarvestDate)}</td><td>{row.sourceFileName||'-'}</td></tr>)}{!filtered.length&&<tr><td colSpan={14} className="empty">Belum ada Master Paddock tersimpan atau tidak ada data sesuai filter.</td></tr>}</tbody></table></div>
+      <div className="section-head"><div><h3>Detail Master Paddock</h3><p className="muted">{filtered.length} paddock ditampilkan. Luas per variety dihitung dari Progres (Ha) Area Plant pada crop cycle aktif; Total Paddock tetap memakai Area Paddock (Ha).</p></div></div>
+      <div className="table-wrap"><table><thead><tr><th>Company</th><th>Farm</th><th>PID</th><th>Block</th><th>Paddock</th><th>Variety / Luas Tertanam</th><th>Total Variety</th><th>Total Paddock</th><th>Sisa ke Total</th><th>Plant Progress</th><th>Harvest Progress</th><th>Stage</th><th>Harvest Stage</th><th>Sisa Stage</th><th>Last Harvest</th><th>Source</th></tr></thead><tbody>{filtered.map(row=>{const varietyTotal=row.varietyAreaTotalHa||row.varietyBreakdown.reduce((sum,item)=>sum+item.areaHa,0),areaGap=Math.max(row.areaPlantedHa-varietyTotal,0);return <tr key={row.pid}><td>{row.companyCode}</td><td>{row.farm||'-'}</td><td><strong>{row.pid}</strong></td><td>{row.block||'-'}</td><td>{row.paddock||'-'}</td><td>{row.varietyBreakdown.length?<div className="status-stack">{row.varietyBreakdown.map(item=><span key={item.variety}><strong>{item.variety}</strong> · {formatHa(item.areaHa,4)}</span>)}</div>:<div className="status-stack"><span><strong>{row.variety||'-'}</strong></span>{row.variety&&<small>Upload ulang Master Paddock untuk merekam luas per variety.</small>}</div>}</td><td>{varietyTotal>0?formatHa(varietyTotal,4):'-'}</td><td><strong>{formatHa(row.areaPlantedHa,4)}</strong></td><td>{varietyTotal>0?formatHa(areaGap,4):'-'}</td><td>{formatHa(progressInRange(row.plantProgress,dateFrom,dateTo),4)}</td><td>{formatHa(progressInRange(row.harvestProgress,dateFrom,dateTo),4)}</td><td><span className="badge">{row.currentStage}</span></td><td>{formatHa(row.harvestedCurrentStageHa,4)}</td><td>{formatHa(row.remainingHarvestCurrentStageHa,4)}</td><td>{formatDate(row.lastHarvestDate)}</td><td>{row.sourceFileName||'-'}</td></tr>})}{!filtered.length&&<tr><td colSpan={16} className="empty">Belum ada Master Paddock tersimpan atau tidak ada data sesuai filter.</td></tr>}</tbody></table></div>
     </div>
     <div className="panel">
       <div className="section-head"><div><h3>Riwayat Import Terakhir</h3><p className="muted">20 batch Master Paddock terbaru.</p></div></div>
