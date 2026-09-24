@@ -153,10 +153,18 @@ export async function queuedRecords(){const username=currentUsername();return(aw
 export async function discardQueuedRecord(recordId:string){const username=currentUsername();await replaceItems((await allItems()).filter(item=>item.record.id!==recordId||!belongsToCurrentUser(item,username)))}
 export async function enqueue(action:QueueAction,record:QcRecord){await enqueueInternal(action,record)}
 
-export async function retryQueuedRecord(recordId:string,token:string):Promise<boolean>{
+export async function retryQueuedRecord(recordOrId:QcRecord|string,token:string):Promise<boolean>{
+  const recordId=typeof recordOrId==='string'?recordOrId:recordOrId.id
   const running=manualRetryLocks.get(recordId);if(running)return running
   const task=(async()=>{
-    let item=await findFinalizeItem(recordId);if(!item)return false
+    let item=await findFinalizeItem(recordId)
+    if(!item&&typeof recordOrId!=='string'){
+      const source:QcRecord={...recordOrId,saveType:'ready',uploadState:'queued',uploadLastError:'',uploadNextRetryAt:'',uploadStateUpdatedAt:nowIso()}
+      item=await enqueueInternal('finalizeRecord',source)
+      await mirrorSafely(source,'Antrean upload lama berhasil direkonstruksi lokal, tetapi status Firestore belum terbarui.')
+      emitUploadState(source)
+    }
+    if(!item)return false
     item=await recoverInterruptedItem(item)
     const queued=uploadRecord(item.record,'queued');item={...item,ownerUsername:item.ownerUsername||String(item.record.inputtedBy||currentUsername()||'').toLowerCase(),record:queued,lastError:'',nextAttemptAt:0}
     await putItem(item);await mirrorSafely(queued,'Status retry upload belum dapat dimirror ke Firestore.');emitUploadState(queued)
@@ -168,7 +176,6 @@ export async function retryQueuedRecord(recordId:string,token:string):Promise<bo
   manualRetryLocks.set(recordId,task)
   try{return await task}finally{if(manualRetryLocks.get(recordId)===task)manualRetryLocks.delete(recordId)}
 }
-
 export async function saveRecordFirestoreFirst(token:string,record:QcRecord):Promise<SaveTransportResult>{
   if(!navigator.onLine){await enqueueInternal('syncRecord',record);return{queued:true,firestoreFirst:false,spreadsheetPending:true}}
   try{
