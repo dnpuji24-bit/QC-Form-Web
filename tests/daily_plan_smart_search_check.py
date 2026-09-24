@@ -35,6 +35,20 @@ for token in [
 assert ".slice(0,120)" not in daily, 'Daily Monthly selector must not hide valid IDs behind a fixed 120-row cap.'
 
 for token in [
+    "type Actual=",
+    "monthlyStatusClosed",
+    "actualByMonthlyId",
+    "selectableMonthly",
+    "where('monthlyPlanLineId','in',part)",
+    "daily_reports",
+    "actualAreaHa:planNum(r.actualAreaHa)",
+    "smartMonthlyChoices(selectableMonthly",
+    "DONE, selesai, over actual, dan cancelled disembunyikan",
+    "0 pilihan aktif — DONE/selesai disembunyikan",
+]:
+    assert token in daily, f'Missing Daily completed-plan filtering token: {token}'
+
+for token in [
     "useRef",
     "activityMonthly",
     "availableMonthly",
@@ -48,4 +62,4 @@ for token in [
     assert token in daily, f'Missing cross-month Daily Monthly lookup token: {token}'
 
 
-print('Daily Monthly smart search check passed: activity-scoped Monthly IDs can be loaded across planning months without a fixed option cap, while Plan ID and paddock matching stay strict.')
+print('Daily Monthly smart search check passed: activity-scoped Monthly IDs load across periods, while DONE/complete/over-actual/cancelled plans are hidden and only unfinished IDs remain selectable.')
