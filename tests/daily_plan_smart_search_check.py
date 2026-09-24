@@ -34,4 +34,18 @@ for token in [
 
 assert ".slice(0,120)" not in daily, 'Daily Monthly selector must not hide valid IDs behind a fixed 120-row cap.'
 
-print('Daily Monthly smart search check passed: all IDs in the selected month remain available across weeks, Plan ID search wins before paddock heuristics, and activity/paddock scoping stays intact.')
+for token in [
+    "useRef",
+    "activityMonthly",
+    "availableMonthly",
+    "loadMonthlyActivity",
+    "where('description','==',label)",
+    "where('activity','==',label)",
+    "where('monthlyPlanLineId','in',part)",
+    "Monthly ID dapat berasal dari bulan/week lain",
+    "row.monthKey+'/'+row.week",
+]:
+    assert token in daily, f'Missing cross-month Daily Monthly lookup token: {token}'
+
+
+print('Daily Monthly smart search check passed: activity-scoped Monthly IDs can be loaded across planning months without a fixed option cap, while Plan ID and paddock matching stay strict.')
