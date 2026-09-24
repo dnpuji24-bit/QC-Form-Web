@@ -10,7 +10,7 @@ import type { User } from './types'
 type Props={user:User;selectedDate?:string;onDateChange?:(date:string)=>void;onSaved?:()=>void;composerRequest?:DailyComposerRequest;onComposerRequestHandled?:()=>void}
 type Monthly={id:string;planLineId:string;monthKey:string;week:string;companyCode:string;farm:string;pid:string;description:string;activity:string;targetAreaHa:number;sourceStatus:string;status:string;type:string;activityCategory:string;stage:string;masterVariety:string;componentsSnapshot:unknown[]}
 type Daily={dailyPlanId:string;monthlyPlanLineId:string;date:string;shift:string;areaHa:number}
-type Actual={monthlyPlanLineId:string;actualAreaHa:number}
+type Actual={id:string;monthlyPlanLineId:string;actualAreaHa:number}
 type MasterPaddock={pid:string;companyCode:string;farm:string;stage:string;variety:string}
 type MasterActivity={id:string;description:string;activity:string;componentsSnapshot:unknown[]}
 type PidDraft={id:string;search:string;monthlyId:string;pid:string;area:string;persistedDocId?:string;persistedDailyPlanId?:string}
@@ -75,7 +75,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
   const activityLookupRef=useRef(0),loadedActivityKeysRef=useRef(new Set<string>())
   const availableMonthly=useMemo(()=>{const map=new Map<string,Monthly>();[...monthly,...activityMonthly].forEach(row=>map.set(row.id,row));return[...map.values()].sort((a,b)=>a.monthKey.localeCompare(b.monthKey)||a.week.localeCompare(b.week,undefined,{numeric:true})||a.planLineId.localeCompare(b.planLineId,undefined,{numeric:true}))},[monthly,activityMonthly])
   const availableDaily=useMemo(()=>{const map=new Map<string,Daily>();[...daily,...linkedDaily].forEach(row=>map.set(row.dailyPlanId,row));return[...map.values()]},[daily,linkedDaily])
-  const actualByMonthlyId=useMemo(()=>{const map=new Map<string,number>();[...actuals,...linkedActuals].forEach(row=>{if(row.monthlyPlanLineId)map.set(row.monthlyPlanLineId,(map.get(row.monthlyPlanLineId)||0)+row.actualAreaHa)});return map},[actuals,linkedActuals])
+  const actualByMonthlyId=useMemo(()=>{const reports=new Map<string,Actual>(),map=new Map<string,number>();[...actuals,...linkedActuals].forEach(row=>reports.set(row.id,row));reports.forEach(row=>{if(row.monthlyPlanLineId)map.set(row.monthlyPlanLineId,(map.get(row.monthlyPlanLineId)||0)+row.actualAreaHa)});return map},[actuals,linkedActuals])
   const selectableMonthly=useMemo(()=>availableMonthly.filter(row=>!monthlyStatusClosed(row)&&(actualByMonthlyId.get(row.planLineId)||0)<row.targetAreaHa-0.0001),[availableMonthly,actualByMonthlyId])
 
   async function loadMasters(){if(!firestoreDb)return;try{const[p,a]=await Promise.all([getDocs(collection(firestoreDb,'master_paddocks')),getDocs(collection(firestoreDb,'master_activities'))]);setPaddocks(p.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{pid:planText(r.pid||x.id).toUpperCase(),companyCode:planText(r.companyCode).toUpperCase(),farm:planText(r.farm),stage:planText(r.currentStage||r.stage),variety:planText(r.variety)}}));setActivities(a.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,description:planText(r.description),activity:planText(r.activity),componentsSnapshot:Array.isArray(r.components)?r.components:[]}}).filter(x=>x.activity||x.description))}catch(e){setMessage(e instanceof Error?e.message:'Master data gagal dimuat.')}}
@@ -93,7 +93,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
       ;[...byMonthKey.docs,...byStartDate.docs].forEach(item=>mergedMonthly.set(item.id,item))
       const monthlyRows=[...mergedMonthly.values()].map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,planLineId:planText(r.planLineId||x.id),monthKey:planText(r.monthKey),week:planText(r.week),companyCode:planText(r.companyCode),farm:planText(r.farm),pid:planText(r.pid),description:planText(r.description),activity:planText(r.activity),targetAreaHa:planNum(r.targetAreaHa),sourceStatus:planText(r.sourceStatus),status:planText(r.status),type:planText(r.type),activityCategory:planText(r.activityCategory),stage:planText(r.stage),masterVariety:planText(r.masterVariety),componentsSnapshot:Array.isArray(r.componentsSnapshot)?r.componentsSnapshot:[]}}).sort((a,b)=>a.week.localeCompare(b.week,undefined,{numeric:true})||a.planLineId.localeCompare(b.planLineId,undefined,{numeric:true}))
       const ids=[...new Set(monthlyRows.map(row=>row.planLineId).filter(Boolean))],periodActuals:Actual[]=[]
-      for(let i=0;i<ids.length;i+=30){const part=ids.slice(i,i+30),snap=await getDocs(fsQuery(collection(firestoreDb,'daily_reports'),where('monthlyPlanLineId','in',part)));snap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;periodActuals.push({monthlyPlanLineId:planText(r.monthlyPlanLineId),actualAreaHa:planNum(r.actualAreaHa)})})}
+      for(let i=0;i<ids.length;i+=30){const part=ids.slice(i,i+30),snap=await getDocs(fsQuery(collection(firestoreDb,'daily_reports'),where('monthlyPlanLineId','in',part)));snap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;periodActuals.push({id:x.id,monthlyPlanLineId:planText(r.monthlyPlanLineId),actualAreaHa:planNum(r.actualAreaHa)})})}
       setMonthly(monthlyRows)
       setActuals(periodActuals)
       setDaily(d.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{dailyPlanId:planText(r.dailyPlanId||x.id),monthlyPlanLineId:planText(r.monthlyPlanLineId),date:planText(r.date),shift:planText(r.shift),areaHa:planNum(r.areaHa)}}))
@@ -124,7 +124,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
           getDocs(fsQuery(collection(firestoreDb,'daily_reports'),where('monthlyPlanLineId','in',part))),
         ])
         dailySnap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;linked.push({dailyPlanId:planText(r.dailyPlanId||x.id),monthlyPlanLineId:planText(r.monthlyPlanLineId),date:planText(r.date),shift:planText(r.shift),areaHa:planNum(r.areaHa)})})
-        actualSnap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;linkedActual.push({monthlyPlanLineId:planText(r.monthlyPlanLineId),actualAreaHa:planNum(r.actualAreaHa)})})
+        actualSnap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;linkedActual.push({id:x.id,monthlyPlanLineId:planText(r.monthlyPlanLineId),actualAreaHa:planNum(r.actualAreaHa)})})
       }
       if(token!==activityLookupRef.current)return
       if(linked.length)setLinkedDaily(current=>{const merged=new Map<string,Daily>();[...current,...linked].forEach(row=>merged.set(row.dailyPlanId,row));return[...merged.values()]})
