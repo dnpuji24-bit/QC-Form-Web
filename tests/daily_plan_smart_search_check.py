@@ -16,7 +16,6 @@ for token in [
     "Pilih kegiatan dahulu",
     "monthlyOptionLabel",
     "monthly-active-options-",
-    "pilihan cocok",
 ]:
     assert token in daily, f'Missing strict Daily smart-search token: {token}'
 
@@ -34,6 +33,15 @@ for token in [
 
 assert ".slice(0,120)" not in daily, 'Daily Monthly selector must not hide valid IDs behind a fixed 120-row cap.'
 
+# Assert behavior/logic, not mutable UI copy. This avoids false CI failures when labels are reworded.
+for token in [
+    "['cancel','done','selesai','complete']",
+    "!monthlyStatusClosed(row)",
+    "(actualByMonthlyId.get(row.planLineId)||0)<row.targetAreaHa-0.0001",
+    "smartMonthlyChoices(selectableMonthly",
+]:
+    assert token in daily, f'Missing Daily Monthly availability behavior token: {token}'
+
 for token in [
     "type Actual=",
     "monthlyStatusClosed",
@@ -43,8 +51,6 @@ for token in [
     "daily_reports",
     "actualAreaHa:planNum(r.actualAreaHa)",
     "smartMonthlyChoices(selectableMonthly",
-    "DONE, selesai, over actual, dan cancelled disembunyikan",
-    "0 pilihan aktif — DONE/selesai disembunyikan",
 ]:
     assert token in daily, f'Missing Daily completed-plan filtering token: {token}'
 
