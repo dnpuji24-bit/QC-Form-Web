@@ -40,19 +40,22 @@ function normalizeDraft(raw:unknown):DraftState{
 }
 function cloneWork(work:WorkDraft,newId=true):WorkDraft{return{...work,id:newId?planRowId('daily'):work.id,pids:work.pids.map(pid=>({...pid,id:newId?planRowId('pid'):pid.id}))}}
 function searchKey(value:unknown){return planText(value).toLowerCase().replace(/\s+/g,' ').trim()}
-function monthlyOptionLabel(row:Monthly){return row.pid+' — '+row.planLineId+' — '+(row.description||row.activity)}
+function monthlyOptionLabel(row:Monthly){return row.pid+' — '+row.planLineId+' — '+row.week+' — '+(row.description||row.activity)}
+function monthBounds(date:string){const monthKey=date.slice(0,7),[year,month]=monthKey.split('-').map(Number),nextMonth=month===12?`${year+1}-01`:`${year}-${String(month+1).padStart(2,'0')}`;return{monthKey,startDate:monthKey+'-01',nextStartDate:nextMonth+'-01'}}
 function activityLabel(row:Monthly){return planText(row.description||row.activity)}
 function paddockKey(value:unknown){return planText(value).toUpperCase().replace(/\s+/g,'').trim()}
 function shortPaddockCode(pid:string){const parts=paddockKey(pid).split('-').filter(Boolean);return parts.length>=2?parts.slice(-2).join('-'):parts.join('-')}
 function looksLikePaddockSearch(value:string){const q=paddockKey(value);return /-[0-9]+$/.test(q)}
 function smartMonthlyChoices(rows:Monthly[],input:string,activity:string){
   const activityKey=searchKey(activity),scoped=activityKey?rows.filter(row=>searchKey(activityLabel(row))===activityKey):rows,q=searchKey(input)
-  if(!q)return scoped.slice(0,120)
+  if(!q)return scoped
+  const byPlanId=scoped.filter(row=>searchKey(row.planLineId).startsWith(q))
+  if(byPlanId.length)return byPlanId
   if(looksLikePaddockSearch(input)){
     const code=paddockKey(input),shortQuery=code.split('-').length<=2,complete=/-\d{3,4}$/.test(code)
-    return scoped.filter(row=>{const full=paddockKey(row.pid),short=shortPaddockCode(row.pid),target=shortQuery?short:full;return complete?target===code:target.startsWith(code)}).slice(0,120)
+    return scoped.filter(row=>{const full=paddockKey(row.pid),short=shortPaddockCode(row.pid),target=shortQuery?short:full;return complete?target===code:target.startsWith(code)})
   }
-  return scoped.filter(row=>searchKey(row.planLineId).startsWith(q)||searchKey(row.pid).startsWith(q)).slice(0,120)
+  return scoped.filter(row=>searchKey(row.pid).startsWith(q))
 }
 function activityChoices(rows:Monthly[],input:string){
   const q=searchKey(input),seen=new Set<string>(),out:string[]=[]
@@ -69,7 +72,23 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
   const[state,setState]=useState<DraftState>(initial),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[draggingId,setDraggingId]=useState(''),[persistedEdit,setPersistedEdit]=useState<PersistedEditContext|null>(null)
 
   async function loadMasters(){if(!firestoreDb)return;try{const[p,a]=await Promise.all([getDocs(collection(firestoreDb,'master_paddocks')),getDocs(collection(firestoreDb,'master_activities'))]);setPaddocks(p.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{pid:planText(r.pid||x.id).toUpperCase(),companyCode:planText(r.companyCode).toUpperCase(),farm:planText(r.farm),stage:planText(r.currentStage||r.stage),variety:planText(r.variety)}}));setActivities(a.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,description:planText(r.description),activity:planText(r.activity),componentsSnapshot:Array.isArray(r.components)?r.components:[]}}).filter(x=>x.activity||x.description))}catch(e){setMessage(e instanceof Error?e.message:'Master data gagal dimuat.')}}
-  async function loadPeriod(date=state.date){if(!firestoreDb||!date)return;setBusy(true);try{const monthKey=date.slice(0,7),[m,d]=await Promise.all([getDocs(fsQuery(collection(firestoreDb,'monthly_plans'),where('monthKey','==',monthKey))),getDocs(fsQuery(collection(firestoreDb,'daily_plans'),where('monthKey','==',monthKey)))]);setMonthly(m.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,planLineId:planText(r.planLineId||x.id),monthKey:planText(r.monthKey),week:planText(r.week),companyCode:planText(r.companyCode),farm:planText(r.farm),pid:planText(r.pid),description:planText(r.description),activity:planText(r.activity),targetAreaHa:planNum(r.targetAreaHa),type:planText(r.type),activityCategory:planText(r.activityCategory),stage:planText(r.stage),masterVariety:planText(r.masterVariety),componentsSnapshot:Array.isArray(r.componentsSnapshot)?r.componentsSnapshot:[]}}).sort((a,b)=>a.planLineId.localeCompare(b.planLineId,undefined,{numeric:true})));setDaily(d.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{dailyPlanId:planText(r.dailyPlanId||x.id),monthlyPlanLineId:planText(r.monthlyPlanLineId),date:planText(r.date),shift:planText(r.shift),areaHa:planNum(r.areaHa)}}));}catch(e){setMessage(e instanceof Error?e.message:'Data periode Daily gagal dimuat.')}finally{setBusy(false)}}
+  async function loadPeriod(date=state.date){
+    if(!firestoreDb||!date)return
+    setBusy(true)
+    try{
+      const{monthKey,startDate,nextStartDate}=monthBounds(date),monthlyCollection=collection(firestoreDb,'monthly_plans')
+      const[byMonthKey,byStartDate,d]=await Promise.all([
+        getDocs(fsQuery(monthlyCollection,where('monthKey','==',monthKey))),
+        getDocs(fsQuery(monthlyCollection,where('startDate','>=',startDate),where('startDate','<',nextStartDate))),
+        getDocs(fsQuery(collection(firestoreDb,'daily_plans'),where('monthKey','==',monthKey))),
+      ])
+      const mergedMonthly=new Map<string,(typeof byMonthKey.docs)[number]>()
+      ;[...byMonthKey.docs,...byStartDate.docs].forEach(item=>mergedMonthly.set(item.id,item))
+      const monthlyRows=[...mergedMonthly.values()].map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,planLineId:planText(r.planLineId||x.id),monthKey:planText(r.monthKey),week:planText(r.week),companyCode:planText(r.companyCode),farm:planText(r.farm),pid:planText(r.pid),description:planText(r.description),activity:planText(r.activity),targetAreaHa:planNum(r.targetAreaHa),type:planText(r.type),activityCategory:planText(r.activityCategory),stage:planText(r.stage),masterVariety:planText(r.masterVariety),componentsSnapshot:Array.isArray(r.componentsSnapshot)?r.componentsSnapshot:[]}}).sort((a,b)=>a.week.localeCompare(b.week,undefined,{numeric:true})||a.planLineId.localeCompare(b.planLineId,undefined,{numeric:true}))
+      setMonthly(monthlyRows)
+      setDaily(d.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{dailyPlanId:planText(r.dailyPlanId||x.id),monthlyPlanLineId:planText(r.monthlyPlanLineId),date:planText(r.date),shift:planText(r.shift),areaHa:planNum(r.areaHa)}}))
+    }catch(e){setMessage(e instanceof Error?e.message:'Data periode Daily gagal dimuat.')}finally{setBusy(false)}
+  }
   useEffect(()=>{void loadMasters()},[])
   useEffect(()=>{void loadPeriod(state.date);onDateChange?.(state.date)},[state.date])
   useEffect(()=>{if(selectedDate&&selectedDate!==state.date)setState(current=>({...current,date:selectedDate}))},[selectedDate])
