@@ -2,15 +2,15 @@ name: React migration checks
 
 on:
   pull_request:
-    branches: [main, migrate/react-typescript-vite]
+    branches: [main]
   push:
-    branches: [migrate/react-typescript-vite]
+    branches: [main]
 
 permissions:
   contents: read
 
-# Runtime smoke writes to the production Apps Script/Spreadsheet.
-# Serialize push workflows so two commits never finalize/delete QC rows at the same time.
+# Feature-branch commits are verified once through the PR, avoiding duplicate push + pull_request runs.
+# Runtime smoke stays on main pushes because it writes to the production Apps Script/Spreadsheet.
 concurrency:
   group: react-ci-${{ github.event_name }}-${{ github.event_name == 'push' && github.ref || github.run_id }}
   cancel-in-progress: false
