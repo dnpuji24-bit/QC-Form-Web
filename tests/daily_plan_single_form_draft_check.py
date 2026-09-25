@@ -41,4 +41,14 @@ assert "dailyPlansToWhatsApp" in daily
 assert "workGroupId:group.work.id" in daily
 assert "workGroupPidCount:group.pids.length" in daily
 
-print('Daily single-form draft composer check passed: one active form feeds editable shift-grouped draft cards with WhatsApp preview and final Firestore batch save.')
+for token in [
+    "firebaseAuthPersistenceReady",
+    "auth.authStateReady",
+    "showSaveFeedback(",
+    "daily-save-feedback",
+    "aria-live=\"polite\"",
+    "Sesi Firebase belum aktif di perangkat ini",
+]:
+    assert token in daily, f'Missing mobile Daily save resilience token: {token}'
+
+print('Daily single-form draft composer check passed: final save waits for Firebase auth hydration and shows mobile-visible feedback beside the save action.')
