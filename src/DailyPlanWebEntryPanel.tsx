@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { collection, doc, getDoc, getDocs, query as fsQuery, serverTimestamp, where, writeBatch } from 'firebase/firestore'
-import { firebaseAuth, firestoreDb } from './firebase'
+import { firebaseAuth, firebaseAuthPersistenceReady, firestoreDb } from './firebase'
 import DailyActionIcon from './DailyPlanActionIcon'
 import { dailyPlansToWhatsApp, type DailyPlanTransfer } from './dailyPlanActions'
 import type { DailyComposerRequest } from './dailyPlanWorkspaceTypes'
@@ -64,7 +64,7 @@ function activityChoices(rows:Monthly[],input:string){
   for(const row of rows){const label=activityLabel(row),key=searchKey(label);if(!label||seen.has(key)||q&&!key.startsWith(q))continue;seen.add(key);out.push(label)}
   return out.sort((a,b)=>a.localeCompare(b)).slice(0,80)
 }
-async function writer(appUser:User){const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.');const current=auth.currentUser;if(!current)throw new Error('Login Firebase tidak tersedia.');const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.');const p=snap.data() as Record<string,unknown>;if(p.active!==true||!['owner','asisten'].includes(planText(p.role))||!['owner','asisten'].includes(appUser.role))throw new Error('Role tidak memiliki izin membuat Daily Plan.');return{db,username:planText(p.username)||appUser.username}}
+async function writer(appUser:User){const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.');await firebaseAuthPersistenceReady;if(typeof auth.authStateReady==='function')await auth.authStateReady();const current=auth.currentUser;if(!current)throw new Error('Sesi Firebase belum aktif di perangkat ini. Buka ulang halaman atau login ulang, lalu coba Simpan Semua Daily Plan.');const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.');const p=snap.data() as Record<string,unknown>;if(p.active!==true||!['owner','asisten'].includes(planText(p.role))||!['owner','asisten'].includes(appUser.role))throw new Error('Role tidak memiliki izin membuat Daily Plan.');return{db,username:planText(p.username)||appUser.username}}
 
 export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,onSaved,composerRequest,onComposerRequestHandled}:Props){
   const draftKey='plan_daily_web_draft_'+user.username
@@ -72,6 +72,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
   const initial={...storedInitial,date:selectedDate||storedInitial.date}
   const[monthly,setMonthly]=useState<Monthly[]>([]),[activityMonthly,setActivityMonthly]=useState<Monthly[]>([]),[daily,setDaily]=useState<Daily[]>([]),[linkedDaily,setLinkedDaily]=useState<Daily[]>([]),[actuals,setActuals]=useState<Actual[]>([]),[linkedActuals,setLinkedActuals]=useState<Actual[]>([]),[paddocks,setPaddocks]=useState<MasterPaddock[]>([]),[activities,setActivities]=useState<MasterActivity[]>([])
   const[state,setState]=useState<DraftState>(initial),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[draggingId,setDraggingId]=useState(''),[persistedEdit,setPersistedEdit]=useState<PersistedEditContext|null>(null)
+  const saveFeedbackRef=useRef<HTMLDivElement|null>(null)
   const activityLookupRef=useRef(0),loadedActivityKeysRef=useRef(new Set<string>())
   const availableMonthly=useMemo(()=>{const map=new Map<string,Monthly>();[...monthly,...activityMonthly].forEach(row=>map.set(row.id,row));return[...map.values()].sort((a,b)=>a.monthKey.localeCompare(b.monthKey)||a.week.localeCompare(b.week,undefined,{numeric:true})||a.planLineId.localeCompare(b.planLineId,undefined,{numeric:true}))},[monthly,activityMonthly])
   const availableDaily=useMemo(()=>{const map=new Map<string,Daily>();[...daily,...linkedDaily].forEach(row=>map.set(row.dailyPlanId,row));return[...map.values()]},[daily,linkedDaily])
@@ -167,6 +168,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
   const totals=useMemo(()=>draftInfos.reduce((acc,g)=>({groups:acc.groups+1,pids:acc.pids+g.pids.length,area:acc.area+g.area,manpower:acc.manpower+planNum(g.work.manpower),ready:acc.ready+planNum(g.work.unitReady),standby:acc.standby+planNum(g.work.unitStandby),breakdown:acc.breakdown+planNum(g.work.unitBreakdown)}),{groups:0,pids:0,area:0,manpower:0,ready:0,standby:0,breakdown:0}),[draftInfos])
   const shifts=useMemo(()=>[...new Set(draftInfos.map(g=>g.work.shift||'-'))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[draftInfos])
 
+  function showSaveFeedback(text:string){setMessage(text);requestAnimationFrame(()=>saveFeedbackRef.current?.scrollIntoView({behavior:'smooth',block:'nearest'}))}
   function patchActive(patch:Partial<WorkDraft>){setState(current=>({...current,active:{...current.active,...patch}}))}
   function patchActivePid(pidId:string,patch:Partial<PidDraft>){setState(current=>({...current,active:{...current.active,pids:current.active.pids.map(pid=>pid.id===pidId?{...pid,...patch}:pid)}}))}
   function addActivePid(){setState(current=>({...current,active:{...current.active,pids:[...current.active.pids,blankPid()]}}))}
@@ -274,13 +276,13 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
   async function copyWa(infos=draftInfos){if(!infos.length){setMessage('Belum ada draft untuk disalin ke WhatsApp.');return}const wa=dailyPlansToWhatsApp(draftTransfers(infos));try{await navigator.clipboard.writeText(wa);setMessage('Draft Daily Planning disalin ke clipboard. Tinggal paste ke WhatsApp.')}catch{window.prompt('Salin Daily Planning berikut:',wa)}}
 
   async function saveAll(){
-    if(!draftInfos.length){setMessage('Belum ada Draft Daily Planning yang akan disimpan.');return}
-    for(const info of draftInfos){const error=validateGroup(info);if(error){setMessage('Periksa draft '+(info.work.activitySearch||'-')+': '+error);return}}
+    if(!draftInfos.length){showSaveFeedback('Belum ada Draft Daily Planning yang akan disimpan. Tambahkan kegiatan dengan tombol Simpan ke Draft terlebih dahulu.');return}
+    for(const info of draftInfos){const error=validateGroup(info);if(error){showSaveFeedback('Periksa draft '+(info.work.activitySearch||'-')+': '+error);return}}
     const allPidRows=draftInfos.flatMap(g=>g.pids.map(p=>({g,p}))),over=allPidRows.filter(({g,p})=>g.work.sourceType==='MONTHLY'&&p.selected&&p.area>p.remaining+0.0001)
     if(over.length&&!window.confirm(over.length+' PID melebihi sisa Monthly Plan. Tetap simpan?'))return
     const existing=allPidRows.filter(({g,p})=>g.work.sourceType==='MONTHLY'&&p.selected&&availableDaily.some(d=>d.date===state.date&&d.shift===g.work.shift&&d.monthlyPlanLineId===p.selected?.planLineId))
     if(existing.length&&!window.confirm(existing.length+' PID sudah memiliki Daily Plan pada tanggal/shift yang sama. Tetap buat Daily Plan baru?'))return
-    setBusy(true);setMessage('Menyimpan '+allPidRows.length+' Daily Plan dari '+draftInfos.length+' draft kegiatan…')
+    setBusy(true);showSaveFeedback('Menyimpan '+allPidRows.length+' Daily Plan dari '+draftInfos.length+' draft kegiatan…')
     try{
       const{db,username}=await writer(user),batch=writeBatch(db),prefix='DP-'+state.date.replaceAll('-','')+'-'
       let seq=daily.map(x=>x.dailyPlanId.startsWith(prefix)?Number(x.dailyPlanId.slice(prefix.length)):0).filter(Number.isFinite).reduce((m,x)=>Math.max(m,x),0)
@@ -289,8 +291,8 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
         batch.set(doc(db,'daily_plans',dailyPlanId),{dailyPlanId,workGroupId:group.work.id,workGroupPidCount:group.pids.length,planningOrder:state.works.findIndex(work=>work.id===group.work.id)+1,sourcePlanIdRaw:isMonthly?(selected?.planLineId||''):'',sourceType:group.work.sourceType,monthlyLinkStatus:isMonthly?'LINKED':'NOT_APPLICABLE',monthlyPlanLineId:isMonthly?(selected?.planLineId||''):'',date:state.date,year:Number(state.date.slice(0,4)),monthKey:state.date.slice(0,7),shift:group.work.shift,activity,description,paddockRaw:pid,pid,areaHa:row.area,areaUnit:'Ha',manpower:planNum(group.work.manpower),unitName:group.work.unitName,unitReady:planNum(group.work.unitReady),unitStandby:planNum(group.work.unitStandby),unitBreakdown:planNum(group.work.unitBreakdown),foreman:group.work.foreman,notes:group.work.notes,companyCode:isMonthly?(selected?.companyCode||''):(paddock?.companyCode||''),farm:isMonthly?(selected?.farm||''):(paddock?.farm||''),stage:isMonthly?(selected?.stage||''):(paddock?.stage||''),masterVariety:isMonthly?(selected?.masterVariety||''):(paddock?.variety||''),masterPending:!isMonthly&&!paddock,materials:row.materials,componentsSnapshot:components,type:isMonthly?(selected?.type||''):'',activityCategory:isMonthly?(selected?.activityCategory||''):'',sourceOrigin:'WEB',lastModifiedSource:'WEB',createdAt:serverTimestamp(),createdBy:username,updatedAt:serverTimestamp(),updatedBy:username})
         created.push({dailyPlanId,monthlyPlanLineId:isMonthly?(selected?.planLineId||''):'',date:state.date,shift:group.work.shift,areaHa:row.area})
       }}
-      await batch.commit();setDaily(rows=>[...rows,...created]);clearPlanDraft(draftKey);setState(current=>({date:current.date,active:blankWork(),works:[],editingId:''}));setMessage(created.length+' Daily Plan berhasil disimpan. Draft lokal sudah dibersihkan.');onSaved?.()
-    }catch(err){setMessage(err instanceof Error?err.message:'Gagal menyimpan Daily Plan.')}finally{setBusy(false)}
+      await batch.commit();setDaily(rows=>[...rows,...created]);clearPlanDraft(draftKey);setState(current=>({date:current.date,active:blankWork(),works:[],editingId:''}));showSaveFeedback(created.length+' Daily Plan berhasil disimpan. Draft lokal sudah dibersihkan.');onSaved?.()
+    }catch(err){showSaveFeedback(err instanceof Error?err.message:'Gagal menyimpan Daily Plan.')}finally{setBusy(false)}
   }
 
   return <section className="plan-entry-screen daily-mobile-workspace">
@@ -332,6 +334,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
 
     <section className="panel plan-section daily-draft-board">
       <div className="plan-section-title"><div><span className="eyebrow">DRAFT DAILY PLANNING</span><h3>Periksa Hasil Plan</h3><p className="muted">Belum disimpan ke database. Susun urutan dengan drag card atau tombol Naik/Turun; urutan ini dipakai pada Copy WA.</p></div><div className="row-actions"><button type="button" onClick={()=>void copyWa()} disabled={!draftInfos.length}>Copy WA Semua</button><button type="button" className="primary" onClick={()=>void saveAll()} disabled={!draftInfos.length||busy}>{busy?'Menyimpan…':'Simpan Semua Daily Plan'}</button></div></div>
+      {message&&<div ref={saveFeedbackRef} className="alert daily-save-feedback" role="status" aria-live="polite">{message}</div>}
       {!draftInfos.length?<div className="daily-draft-empty">Belum ada draft. Isi form di atas lalu klik <strong>Simpan ke Draft</strong>.</div>:<>
         <div className="plan-summary-grid daily-draft-summary"><div><span>Kegiatan</span><strong>{totals.groups}</strong></div><div><span>Total PID</span><strong>{totals.pids}</strong></div><div><span>Total Luas</span><strong>{planHa(totals.area)}</strong></div><div><span>Total HK</span><strong>{totals.manpower}</strong></div><div><span>Ready / BD / SB</span><strong>{totals.ready} / {totals.breakdown} / {totals.standby}</strong></div></div>
         {totalMaterials.length>0&&<div className="plan-material-summary">{totalMaterials.map(m=><span key={m.material+'|'+m.unit}>{m.material}<strong>{m.totalMaterial.toLocaleString('id-ID',{maximumFractionDigits:4})} {m.unit}</strong></span>)}</div>}
