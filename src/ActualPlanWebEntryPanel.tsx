@@ -84,7 +84,7 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
   }
   const activeInfo=useMemo(()=>buildInfo(state.active),[state.active,daily,actualByDaily,actuals])
   const draftInfos=useMemo(()=>state.works.map(buildInfo),[state.works,daily,actualByDaily,actuals])
-  const totalMaterials=aggregateMaterials(draftInfos.flatMap(info=>info.materials))
+  const totalMaterials=aggregateMaterials(draftInfos.map(info=>info.materials))
   const totals=useMemo(()=>draftInfos.reduce((acc,x)=>({records:acc.records+1,area:acc.area+x.area,planned:acc.planned+(x.selected?.areaHa||0),manpower:acc.manpower+planNum(x.work.manpower),ready:acc.ready+planNum(x.work.unitReady),standby:acc.standby+planNum(x.work.unitStandby),breakdown:acc.breakdown+planNum(x.work.unitBreakdown)}),{records:0,area:0,planned:0,manpower:0,ready:0,standby:0,breakdown:0}),[draftInfos])
   const shifts=useMemo(()=>[...new Set(draftInfos.map(info=>info.selected?.shift||'-'))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[draftInfos])
   const activeDailyChoices=useMemo(()=>{
