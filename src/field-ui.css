@@ -270,3 +270,29 @@
   }
   .summary-paddock-table-scroll{padding-bottom:62px}
 }
+
+
+/* Keep paddock matrix viewport size stable while filtering */
+.summary-paddock-table-scroll{
+  height:650px;
+  min-height:650px;
+  max-height:650px;
+  overflow:auto;
+}
+.summary-paddock-activity-table{
+  min-height:max-content;
+}
+@media(max-width:800px){
+  .summary-paddock-table-scroll{
+    height:520px;
+    min-height:520px;
+    max-height:520px;
+  }
+}
+@media(max-width:430px){
+  .summary-paddock-table-scroll{
+    height:500px;
+    min-height:500px;
+    max-height:500px;
+  }
+}
