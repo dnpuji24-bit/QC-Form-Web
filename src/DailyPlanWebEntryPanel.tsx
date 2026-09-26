@@ -295,7 +295,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
     }catch(err){showSaveFeedback(err instanceof Error?err.message:'Gagal menyimpan Daily Plan.')}finally{setBusy(false)}
   }
 
-  return <section className="plan-entry-screen daily-mobile-workspace">
+  return <section className="plan-entry-screen daily-mobile-workspace daily-plan-entry">
     <div className="section-head daily-entry-head"><div><div className="eyebrow">DAILY PLAN</div><h2>Input Daily</h2><p className="muted">Tambah satu kegiatan lalu cek hasilnya di draft.</p></div><div className="row-actions"><button type="button" onClick={()=>void Promise.all([loadMasters(),loadPeriod(),loadMonthlyActivity(state.active.activitySearch,true)])} disabled={busy}>Refresh</button><button type="button" className="danger" onClick={clearAll} disabled={busy}>Hapus Semua</button></div></div>
     {message&&<div className="alert">{message}</div>}
 
