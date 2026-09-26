@@ -158,13 +158,13 @@ export default function PlanReconciliationPanel(){
       </div>
       {!errors&&!warnings&&<div className="alert" style={{marginTop:14}}><strong>Struktur link sehat.</strong> Tidak ditemukan link rusak, orphan, mismatch, atau over-target pada data saat ini.</div>}
     </div>
-    <div className="panel" style={{marginTop:18}}>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:12}}>
-        <label><span>Severity</span><select value={severity} onChange={e=>setSeverity(e.target.value as 'ALL'|Severity)}><option value="ALL">Semua</option><option value="ERROR">ERROR</option><option value="WARNING">WARNING</option><option value="INFO">INFO</option></select></label>
-        <label><span>Bulan</span><select value={month} onChange={e=>setMonth(e.target.value)}><option value="ALL">Semua Bulan</option>{months.map(x=><option key={x}>{x}</option>)}</select></label>
-        <label><span>Company</span><select value={company} onChange={e=>setCompany(e.target.value)}><option value="ALL">Semua Company</option>{companies.map(x=><option key={x}>{x}</option>)}</select></label>
-        <label><span>Jenis Temuan</span><select value={code} onChange={e=>setCode(e.target.value)}><option value="ALL">Semua Jenis</option>{codes.map(x=><option key={x}>{x}</option>)}</select></label>
-        <label><span>Cari</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Plan ID / Daily ID / PID / activity"/>{query!==deferredQuery&&<span className="muted">Memfilter…</span>}</label>
+    <div className="panel premium-filter-panel compact-filter-panel" style={{marginTop:18}}>
+      <div className="premium-filter-grid filter-grid-auto">
+        <label className="premium-filter-field"><span>Severity</span><select value={severity} onChange={e=>setSeverity(e.target.value as 'ALL'|Severity)}><option value="ALL">Semua</option><option value="ERROR">ERROR</option><option value="WARNING">WARNING</option><option value="INFO">INFO</option></select></label>
+        <label className="premium-filter-field"><span>Bulan</span><select value={month} onChange={e=>setMonth(e.target.value)}><option value="ALL">Semua Bulan</option>{months.map(x=><option key={x}>{x}</option>)}</select></label>
+        <label className="premium-filter-field"><span>Company</span><select value={company} onChange={e=>setCompany(e.target.value)}><option value="ALL">Semua Company</option>{companies.map(x=><option key={x}>{x}</option>)}</select></label>
+        <label className="premium-filter-field"><span>Jenis Temuan</span><select value={code} onChange={e=>setCode(e.target.value)}><option value="ALL">Semua Jenis</option>{codes.map(x=><option key={x}>{x}</option>)}</select></label>
+        <label className="premium-filter-field"><span>Cari</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Plan ID / Daily ID / PID / activity"/>{query!==deferredQuery&&<small>Memfilter…</small>}</label>
       </div>
     </div>
     <div className="panel" style={{marginTop:18}}>
