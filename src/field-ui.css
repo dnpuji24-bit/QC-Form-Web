@@ -219,3 +219,54 @@
   .summary-paddock-activity-table th:not(.summary-sticky-col),
   .summary-paddock-activity-table td:not(.summary-sticky-col){min-width:68px}
 }
+
+
+/* Stable paddock matrix widths while filtering */
+.summary-paddock-activity-table{
+  --summary-paddock-first-col:180px;
+  --summary-paddock-second-col:120px;
+  --summary-activity-area-col:90px;
+  --summary-activity-date-col:112px;
+  table-layout:fixed;
+  width:max-content!important;
+  min-width:max-content!important;
+}
+.summary-paddock-activity-table col.summary-col-paddock{width:var(--summary-paddock-first-col)}
+.summary-paddock-activity-table col.summary-col-paddock-area{width:var(--summary-paddock-second-col)}
+.summary-paddock-activity-table col.summary-col-activity-area{width:var(--summary-activity-area-col)}
+.summary-paddock-activity-table col.summary-col-activity-date{width:var(--summary-activity-date-col)}
+.summary-paddock-activity-table .summary-sticky-col.first{
+  width:var(--summary-paddock-first-col)!important;
+  min-width:var(--summary-paddock-first-col)!important;
+  max-width:var(--summary-paddock-first-col)!important;
+}
+.summary-paddock-activity-table .summary-sticky-col.second{
+  left:var(--summary-paddock-first-col)!important;
+  width:var(--summary-paddock-second-col)!important;
+  min-width:var(--summary-paddock-second-col)!important;
+  max-width:var(--summary-paddock-second-col)!important;
+}
+.summary-paddock-activity-table .summary-activity-head{min-width:0!important}
+.summary-paddock-table-scroll{
+  overflow-x:auto;
+  overscroll-behavior-x:contain;
+  scrollbar-gutter:stable both-edges;
+}
+@media(max-width:640px){
+  .summary-paddock-activity-table{
+    --summary-paddock-first-col:108px;
+    --summary-paddock-second-col:76px;
+    --summary-activity-area-col:76px;
+    --summary-activity-date-col:96px;
+  }
+  .summary-paddock-table-scroll{padding-bottom:58px}
+}
+@media(max-width:430px){
+  .summary-paddock-activity-table{
+    --summary-paddock-first-col:100px;
+    --summary-paddock-second-col:70px;
+    --summary-activity-area-col:72px;
+    --summary-activity-date-col:92px;
+  }
+  .summary-paddock-table-scroll{padding-bottom:62px}
+}
