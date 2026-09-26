@@ -20,8 +20,8 @@ for token in [
     "matrixShift",
     "matrixForeman",
     "dayMatrixDays",
-    "Plan</th><th",
-    "Report</th>",
+    "<th>Plan</th>",
+    "<th>Report</th>",
     "summary-report-good",
     "summary-report-low",
 ]:
