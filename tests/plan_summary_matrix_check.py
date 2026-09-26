@@ -43,5 +43,17 @@ assert "selectedWeek==='ALL'||weekFromDate(row.date)===selectedWeek" in summary
 assert "shift==='ALL'||row.shift===shift" in summary
 assert "foreman==='ALL'||row.foreman===foreman" in summary
 assert "dailyScope.filter(x=>x.activity===activityName&&x.date===date)" in summary
+
+for token in [
+    "paddockFilter",
+    "filteredPaddockActivityMatrix",
+    "Filter Paddock / PID",
+    "summary-paddock-filter-options",
+    "Reset Paddock",
+]:
+    assert token in summary, f'Missing Summary Paddock filter token: {token}'
+
+assert ".summary-paddock-filter" in css, 'Missing Summary Paddock filter style.'
+assert "row.pid.includes(needle)" in summary, 'Paddock filter must support partial PID such as A-007.'
 assert "actualScope.filter(x=>x.activity===activityName&&x.date===date)" in summary
-print('Plan Summary spreadsheet matrix check passed: all activities remain visible, Report is renamed Aktual, and the shared filters drive the date matrix.')
+print('Plan Summary spreadsheet matrix check passed: all activities remain visible, Aktual wording and shared filters drive the date matrix, and Summary Paddock supports partial PID filtering.')
