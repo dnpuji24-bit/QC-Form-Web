@@ -14,35 +14,42 @@ for token in [
     assert token in workspace, f'Missing Plan Summary navigation token: {token}'
 
 for token in [
-    "SUMMARY PLAN",
-    "Dashboard Planning & Pencapaian",
+    "Dashboard Daily Plan & Aktual",
+    "Produktivitas Harian",
+    "Progress Monthly Plan",
+    "DailyProductivityChart",
+    "MonthlyProgressDonut",
+    "selectedYear",
+    "selectedMonth",
+    "selectedWeek",
+    "Semua Shift",
+    "Semua Mandor",
+    "where('monthKey','==',monthKey)",
+    "manualActualAreaHa",
+]:
+    assert token in summary, f'Missing refocused Summary dashboard token: {token}'
+
+for removed in [
     "TRACKING BY PADDOCK",
     "Dashboard Paddock",
     "Riwayat Pekerjaan Paddock",
-    "collection(firestoreDb,'monthly_plans')",
-    "collection(firestoreDb,'daily_plans')",
-    "collection(firestoreDb,'daily_reports')",
-    "where('monthKey','==',month)",
-    "Tracking Paddock / PID",
-    "Pencapaian per Activity",
     "Grafik Pencapaian Kumulatif",
-    "manualActualAreaHa",
-    "Target Efektif",
+    "MONTHLY TARGET",
+    "TARGET EFEKTIF",
     "ADHOC / SUPPORT DAILY",
 ]:
-    assert token in summary, f'Missing Plan Summary dashboard token: {token}'
+    assert removed not in summary, f'Legacy Summary section should be removed: {removed}'
 
 for token in [
-    ".plan-summary-dashboard",
-    ".summary-filter-grid",
-    ".summary-line-chart",
-    ".summary-activity-bars",
-    ".summary-paddock-panel",
-    ".summary-timeline-panel",
+    ".summary-productivity-chart",
+    ".summary-productivity-plan",
+    ".summary-productivity-actual",
+    ".summary-donut-chart",
+    ".summary-pie-stats",
 ]:
-    assert token in css, f'Missing Plan Summary style token: {token}'
+    assert token in css, f'Missing refocused Summary style token: {token}'
 
-assert "getDocs(collection(firestoreDb,'monthly_plans'))" not in summary, 'Summary should stay month-scoped instead of loading all Monthly data.'
-assert "getDocs(collection(firestoreDb,'daily_plans'))" not in summary, 'Summary should stay month-scoped instead of loading all Daily data.'
-assert "getDocs(collection(firestoreDb,'daily_reports'))" not in summary, 'Summary should stay month-scoped instead of loading all Actual data.'
-print('Plan Summary dashboard check passed: Summary submenu, month-scoped KPI/chart queries, activity progress, and paddock tracking are wired.')
+assert "getDocs(collection(firestoreDb,'monthly_plans'))" not in summary
+assert "getDocs(collection(firestoreDb,'daily_plans'))" not in summary
+assert "getDocs(collection(firestoreDb,'daily_reports'))" not in summary
+print('Plan Summary dashboard check passed: legacy paddock/history KPI blocks removed, shared year/month/week/shift/foreman filters added, and Daily-vs-Actual plus Monthly progress charts are wired.')
