@@ -52,4 +52,24 @@ for token in [
 assert "getDocs(collection(firestoreDb,'monthly_plans'))" not in summary
 assert "getDocs(collection(firestoreDb,'daily_plans'))" not in summary
 assert "getDocs(collection(firestoreDb,'daily_reports'))" not in summary
-print('Plan Summary dashboard check passed: legacy paddock/history KPI blocks removed, shared year/month/week/shift/foreman filters added, and Daily-vs-Actual plus Monthly progress charts are wired.')
+
+for token in [
+    "premium-filter-panel",
+    "premium-filter-head",
+    "premium-filter-field",
+    "premium-filter-reset",
+    "premium-filter-chips",
+    "FILTER DASHBOARD",
+]:
+    assert token in summary, f'Missing premium Summary filter token: {token}'
+
+for token in [
+    "Premium Summary filters",
+    ".premium-filter-panel",
+    ".premium-filter-field:hover",
+    ".premium-filter-field:focus-within",
+    ".premium-filter-reset:hover",
+    ".premium-filter-chips",
+]:
+    assert token in css, f'Missing premium Summary filter style: {token}'
+print('Plan Summary dashboard check passed: premium responsive filters, Daily-vs-Actual productivity, and Monthly progress are wired.')
