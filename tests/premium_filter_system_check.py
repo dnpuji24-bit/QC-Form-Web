@@ -36,8 +36,7 @@ for token in [
     assert token in css, f'Missing premium filter system token: {token}'
 
 assert "@media(max-width:760px)" in css
-assert ".premium-filter-grid,
-  .filter-grid-auto" in css
+assert ".premium-filter-grid,\n  .filter-grid-auto" in css
 assert ".monthly-quick-search-row{flex-direction:row!important" in css
 
 print("Premium filter system check passed: Summary, Monthly, Actual, Reconciliation, Master Paddock, Master Activity, and import filters share a modern UI with compact mobile sizing.")
