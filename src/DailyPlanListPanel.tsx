@@ -15,6 +15,9 @@ type Props={
   onEditGroup?:(group:SavedDailyGroup)=>void
   onDuplicateGroup?:(group:SavedDailyGroup)=>void
   onChanged?:()=>void
+  focusMonthlyPlanLineId?:string
+  focusPid?:string
+  onClearMonthlyFocus?:()=>void
 }
 type DailyRow=SavedDailyRow
 
@@ -28,7 +31,7 @@ function groupKeySet(groups:SavedDailyGroup[]){return new Set(groups.map(group=>
 async function writerContext(appUser:User){const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.');const current=auth.currentUser;if(!current)throw new Error('Login Firebase tidak tersedia.');const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.');const p=snap.data() as Record<string,unknown>;if(p.active!==true||!['owner','asisten'].includes(text(p.role))||!['owner','asisten'].includes(appUser.role))throw new Error('Role tidak memiliki izin mengubah Daily Plan.');return{db,username:text(p.username)||appUser.username}}
 function asTransfer(row:DailyRow):DailyPlanTransfer{return{dailyPlanId:row.dailyPlanId,workGroupId:row.workGroupId,planningOrder:row.planningOrder,date:row.date,shift:row.shift,sourceType:row.sourceType,monthlyPlanLineId:row.monthlyPlanLineId,companyCode:row.companyCode,farm:row.farm,pid:row.pid,activity:row.activity,description:row.description,areaHa:row.areaHa,manpower:row.manpower,unitName:row.unitName,unitReady:row.unitReady,unitStandby:row.unitStandby,unitBreakdown:row.unitBreakdown,foreman:row.foreman,notes:row.notes,materials:row.materials}}
 
-export default function DailyPlanListPanel({user,onCopyToActual,selectedDate,compact=true,refreshKey=0,onEditGroup,onDuplicateGroup,onChanged}:Props){
+export default function DailyPlanListPanel({user,onCopyToActual,selectedDate,compact=true,refreshKey=0,onEditGroup,onDuplicateGroup,onChanged,focusMonthlyPlanLineId='',focusPid='',onClearMonthlyFocus}:Props){
   const[rows,setRows]=useState<DailyRow[]>([]),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
   const[selectedGroupKeys,setSelectedGroupKeys]=useState<string[]>([])
   const[copyDate,setCopyDate]=useState(new Date().toISOString().slice(0,10))
@@ -47,11 +50,12 @@ export default function DailyPlanListPanel({user,onCopyToActual,selectedDate,com
   useEffect(()=>{void load()},[selectedDate,refreshKey])
 
   const groups=useMemo(()=>groupSavedDailyRows(rows),[rows])
-  const selectedGroups=useMemo(()=>{const keys=new Set(selectedGroupKeys);return groups.filter(group=>keys.has(group.groupKey))},[groups,selectedGroupKeys])
-  const shifts=useMemo(()=>[...new Set(groups.map(group=>group.shift||'-'))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[groups])
+  const visibleGroups=useMemo(()=>focusMonthlyPlanLineId?groups.filter(group=>group.rows.some(row=>row.monthlyPlanLineId===focusMonthlyPlanLineId)):groups,[groups,focusMonthlyPlanLineId])
+  const selectedGroups=useMemo(()=>{const keys=new Set(selectedGroupKeys);return visibleGroups.filter(group=>keys.has(group.groupKey))},[visibleGroups,selectedGroupKeys])
+  const shifts=useMemo(()=>[...new Set(visibleGroups.map(group=>group.shift||'-'))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[visibleGroups])
 
   function toggleGroup(groupKey:string){setSelectedGroupKeys(current=>current.includes(groupKey)?current.filter(x=>x!==groupKey):[...current,groupKey])}
-  function toggleAll(){const keys=groups.map(group=>group.groupKey),all=keys.length>0&&keys.every(key=>selectedGroupKeys.includes(key));setSelectedGroupKeys(all?[]:keys)}
+  function toggleAll(){const keys=visibleGroups.map(group=>group.groupKey),all=keys.length>0&&keys.every(key=>selectedGroupKeys.includes(key));setSelectedGroupKeys(all?[]:keys)}
 
   async function copyWaGroups(targets:SavedDailyGroup[]){
     if(!targets.length){setMessage('Pilih minimal satu kegiatan untuk Copy WA.');return}
@@ -122,15 +126,16 @@ export default function DailyPlanListPanel({user,onCopyToActual,selectedDate,com
     }catch(error){setMessage(error instanceof Error?error.message:'Copy to Date gagal.')}finally{setBusy(false)}
   }
 
-  const totals=useMemo(()=>groups.reduce((acc,group)=>({groups:acc.groups+1,pids:acc.pids+group.rows.length,area:acc.area+groupArea(group),hk:acc.hk+group.manpower}),{groups:0,pids:0,area:0,hk:0}),[groups])
+  const totals=useMemo(()=>visibleGroups.reduce((acc,group)=>({groups:acc.groups+1,pids:acc.pids+group.rows.filter(row=>!focusMonthlyPlanLineId||row.monthlyPlanLineId===focusMonthlyPlanLineId).length,area:acc.area+group.rows.filter(row=>!focusMonthlyPlanLineId||row.monthlyPlanLineId===focusMonthlyPlanLineId).reduce((sum,row)=>sum+row.areaHa,0),hk:acc.hk+group.manpower}),{groups:0,pids:0,area:0,hk:0}),[visibleGroups,focusMonthlyPlanLineId])
 
   return <section className="daily-period-saved">
-    <div className="section-head compact-saved-head"><div><div className="eyebrow">PLAN TERSIMPAN</div><h3>Daily Plan · {selectedDate||'-'}</h3><p className="muted">{groups.length} kegiatan · {rows.length} PID. Edit dan duplikat menggunakan form utama di atas.</p></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'…':'Refresh'}</button></div>
+    <div className="section-head compact-saved-head"><div><div className="eyebrow">PLAN TERSIMPAN</div><h3>Daily Plan · {selectedDate||'-'}</h3><p className="muted">{visibleGroups.length} kegiatan · {focusMonthlyPlanLineId?visibleGroups.reduce((sum,group)=>sum+group.rows.filter(row=>row.monthlyPlanLineId===focusMonthlyPlanLineId).length,0):rows.length} PID. Edit dan duplikat menggunakan form utama di atas.</p></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'…':'Refresh'}</button></div>
     {message&&<div className="alert">{message}</div>}
+    {focusMonthlyPlanLineId&&<div className="alert daily-monthly-focus"><div><strong>Dibuka dari Monthly Plan</strong><span>{focusPid||'-'} · {focusMonthlyPlanLineId} · tanggal {selectedDate||'-'}</span></div><button type="button" onClick={onClearMonthlyFocus}>Tampilkan Semua Daily</button></div>}
     <div className="plan-summary-grid daily-draft-summary"><div><span>Kegiatan</span><strong>{totals.groups}</strong></div><div><span>PID</span><strong>{totals.pids}</strong></div><div><span>Total Luas</span><strong>{formatHa(totals.area)}</strong></div><div><span>Total HK</span><strong>{totals.hk}</strong></div></div>
-    <div className="panel daily-bulk-actions compact-bulk-actions"><div><strong>{selectedGroups.length} kegiatan dipilih</strong><span className="muted">Aksi massal berdasarkan group kegiatan</span></div><div className="row-actions"><button type="button" onClick={toggleAll}>{groups.length&&groups.every(group=>selectedGroupKeys.includes(group.groupKey))?'Batal Semua':'Pilih Semua'}</button><button type="button" onClick={copyToActual} disabled={!selectedGroups.length}>Copy Actual</button><button type="button" onClick={()=>void copyWaGroups(selectedGroups)} disabled={!selectedGroups.length}>Copy WA</button><label className="daily-copy-date"><span>Copy tanggal</span><input type="date" value={copyDate} onChange={e=>setCopyDate(e.target.value)}/></label><button type="button" onClick={()=>void copyGroupsToDate(selectedGroups,copyDate)} disabled={!selectedGroups.length||busy}>Salin</button></div></div>
+    <div className="panel daily-bulk-actions compact-bulk-actions"><div><strong>{selectedGroups.length} kegiatan dipilih</strong><span className="muted">Aksi massal berdasarkan group kegiatan</span></div><div className="row-actions"><button type="button" onClick={toggleAll}>{visibleGroups.length&&visibleGroups.every(group=>selectedGroupKeys.includes(group.groupKey))?'Batal Semua':'Pilih Semua'}</button><button type="button" onClick={copyToActual} disabled={!selectedGroups.length}>Copy Actual</button><button type="button" onClick={()=>void copyWaGroups(selectedGroups)} disabled={!selectedGroups.length}>Copy WA</button><label className="daily-copy-date"><span>Copy tanggal</span><input type="date" value={copyDate} onChange={e=>setCopyDate(e.target.value)}/></label><button type="button" onClick={()=>void copyGroupsToDate(selectedGroups,copyDate)} disabled={!selectedGroups.length||busy}>Salin</button></div></div>
 
-    <div className="daily-saved-shifts">{shifts.map(shift=>{const shiftGroups=groups.filter(group=>(group.shift||'-')===shift);return <section key={shift} className="daily-draft-shift"><div className="daily-draft-shift-title"><strong>SHIFT {shift}</strong><span>{shiftGroups.length} kegiatan</span></div><div className="daily-draft-card-list">{shiftGroups.map((group,index)=><article className={'daily-draft-card '+(selectedGroupKeys.includes(group.groupKey)?'daily-saved-selected':'')} key={group.groupKey}>
+    <div className="daily-saved-shifts">{shifts.map(shift=>{const shiftGroups=visibleGroups.filter(group=>(group.shift||'-')===shift);return <section key={shift} className="daily-draft-shift"><div className="daily-draft-shift-title"><strong>SHIFT {shift}</strong><span>{shiftGroups.length} kegiatan</span></div><div className="daily-draft-card-list">{shiftGroups.map((group,index)=><article className={'daily-draft-card '+(selectedGroupKeys.includes(group.groupKey)?'daily-saved-selected':'')} key={group.groupKey}>
       <div className="daily-draft-card-head">
         <div className="daily-draft-title-row"><label className="daily-saved-select" title="Pilih kegiatan"><input type="checkbox" checked={selectedGroupKeys.includes(group.groupKey)} onChange={()=>toggleGroup(group.groupKey)}/></label><div><span className="eyebrow"># {index+1} · {group.sourceType}</span><h4>{group.description||group.activity||'-'} <small>({formatHa(groupArea(group))})</small></h4></div></div>
         <div className="daily-saved-group-actions" aria-label="Aksi Daily Plan tersimpan">
@@ -144,11 +149,11 @@ export default function DailyPlanListPanel({user,onCopyToActual,selectedDate,com
         </div>
       </div>
       {copyGroupKey===group.groupKey&&<div className="daily-card-copy-date"><label><span>Salin ke tanggal</span><input type="date" value={groupCopyDate} onChange={e=>setGroupCopyDate(e.target.value)}/></label><button type="button" onClick={()=>setCopyGroupKey('')}>Batal</button><button type="button" className="primary" onClick={()=>void copyGroupsToDate([group],groupCopyDate)}>Salin</button></div>}
-      <div className="daily-draft-pids">{group.rows.map(row=><span key={row.id}>📍 {row.pid||'-'} <b>{formatHa(row.areaHa)}</b></span>)}</div>
+      <div className="daily-draft-pids">{group.rows.map(row=><span key={row.id} className={focusMonthlyPlanLineId&&row.monthlyPlanLineId===focusMonthlyPlanLineId?'daily-linked-pid-match':''}>📍 {row.pid||'-'} <b>{formatHa(row.areaHa)}</b>{focusMonthlyPlanLineId&&row.monthlyPlanLineId===focusMonthlyPlanLineId&&<small>Monthly match</small>}</span>)}</div>
       <div className="daily-draft-details"><span>👷 Mandor <b>{group.foreman||'-'}</b></span><span>HK <b>{group.manpower}</b></span><span>🚜 Alat <b>{group.unitName||'-'}</b></span><span>⚙️ 🟢{group.unitReady} · 🔴{group.unitBreakdown} · 🟡{group.unitStandby}</span></div>
       {group.rows.some(row=>row.materials.length>0)&&<div className="daily-draft-materials">{Array.from(new Map(group.rows.flatMap(row=>row.materials).map(m=>[m.material+'|'+m.unit,m])).values()).map(m=>{const total=group.rows.flatMap(row=>row.materials).filter(x=>x.material===m.material&&x.unit===m.unit).reduce((sum,x)=>sum+x.totalMaterial,0);return <span key={m.material+'|'+m.unit}><b>{m.material}</b> · {m.dosePerHa} {m.doseUnit||m.unit}/Ha · Tot {total.toLocaleString('id-ID',{maximumFractionDigits:4})} {m.unit}</span>})}</div>}
       {group.notes&&<div className="daily-draft-note">ℹ️ {group.notes}</div>}
     </article>)}</div></section>})}</div>
-    {!groups.length&&<div className="daily-draft-empty">Belum ada Daily Plan pada tanggal ini.</div>}
+    {!visibleGroups.length&&<div className="daily-draft-empty">{focusMonthlyPlanLineId?'Daily Plan terkait Monthly ini tidak ditemukan pada tanggal '+(selectedDate||'-')+'.':'Belum ada Daily Plan pada tanggal ini.'}</div>}
   </section>
 }
