@@ -68,6 +68,7 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
     }catch(e){setMessage(e instanceof Error?e.message:'Data Actual periode gagal dimuat.')}finally{setBusy(false)}
   }
   useEffect(()=>{void loadActivityResourceDefaults().then(setActivityDefaults).catch(()=>setActivityDefaults([]))},[])
+  useEffect(()=>{if(!activityDefaults.length)return;setDaily(rows=>rows.map(row=>{const resource=findActivityResourceDefault(activityDefaults,row.activity,row.description);return{...row,shift:row.shift||resource?.defaultShift||'',unitName:row.unitName||resource?.defaultUnitName||'',foreman:row.foreman||resource?.defaultForeman||''}}))},[activityDefaults])
   useEffect(()=>{void load(state.date);onDateChange?.(state.date)},[state.date])
   useEffect(()=>{if(selectedDate&&selectedDate!==state.date)setState(current=>({...current,date:selectedDate}))},[selectedDate])
   useEffect(()=>{writePlanDraft(draftKey,state)},[state,draftKey])
