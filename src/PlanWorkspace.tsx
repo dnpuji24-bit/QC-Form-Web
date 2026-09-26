@@ -10,7 +10,7 @@ type Props={user:User}
 type Tab='summary'|'monthly'|'daily'|'actual'|'reconciliation'
 
 export default function PlanWorkspace({user}:Props){
-  const[tab,setTab]=useState<Tab>('summary'),[actualPrefill,setActualPrefill]=useState<string[]>([])
+  const[tab,setTab]=useState<Tab>('monthly'),[actualPrefill,setActualPrefill]=useState<string[]>([])
   return <section className="plan-workspace-shell">
     <div className="segmented plan-primary-nav" aria-label="Menu Plan">
       <button type="button" className={tab==='summary'?'active':''} onClick={()=>setTab('summary')}>Summary</button>
