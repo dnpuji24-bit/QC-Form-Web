@@ -66,8 +66,12 @@ assert "<colgroup>" in summary and "summary-col-activity-area" in summary and "s
 assert "Stable paddock matrix widths while filtering" in css, 'Missing invariant paddock matrix width rules.'
 assert "table-layout:fixed" in css and "min-width:max-content!important" in css, 'Paddock matrix width must stay independent of filtered row contents.'
 assert "Keep paddock matrix viewport size stable while filtering" in css, 'Filtered Paddock results must keep the original table viewport height.'
+assert "Desktop/mobile split for paddock matrix scrolling" in css, 'Missing separate desktop/mobile Paddock matrix behavior.'
+assert "@media(min-width:801px)" in css and "overflow-y:visible!important" in css, 'Desktop must use page vertical scrolling instead of an internal sticky-header viewport.'
+assert "thead th:not(.summary-sticky-col)" in css and "position:static!important" in css, 'Desktop activity headers must not float over the app header while page scrolling.'
+assert "@media(max-width:800px)" in css and "height:520px!important" in css, 'Mobile/tablet must retain the internal scroll viewport and sticky headers.'
 assert "height:520px" in css and "min-height:520px" in css, 'Mobile filtered Paddock table should retain the same scrollable viewport size.'
 assert ".summary-paddock-table-scroll{padding-bottom:58px}" in css, 'Mobile table needs safe space so the floating scroll-to-top button does not cover the horizontal scroll area.'
 assert "Setiap activity menjadi pasangan kolom Luas dan Tanggal. Gunakan filter Paddock" not in summary, 'Summary Paddock description should be removed so the filter follows the title directly.'
 assert "actualScope.filter(x=>x.activity===activityName&&x.date===date)" in summary
-print('Plan Summary spreadsheet matrix check passed: Paddock filter changes rows only while table width, height, and mobile scroll viewport remain stable.')
+print('Plan Summary spreadsheet matrix check passed: filtering keeps table geometry stable, desktop uses natural page scroll, and mobile keeps an internal sticky-header viewport.')
