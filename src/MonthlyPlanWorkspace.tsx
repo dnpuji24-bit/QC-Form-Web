@@ -25,7 +25,7 @@ export default function MonthlyPlanWorkspace({user,onOpenDailyPlan}:Props){
       <button type="button" className={view==='sync'?'active':''} onClick={()=>setView('sync')}>Sinkron Master</button>
     </div>
     {view==='plan'?<div className="period-workspace">
-      <section className="panel monthly-period-selector">
+      <section className="panel monthly-period-selector premium-period-selector">
         <div><span className="eyebrow">PERIODE AKTIF</span><h3>Monthly Planning</h3></div>
         <label><span>Tahun</span><input type="number" min="2020" max="2100" value={year} onChange={e=>setYear(Number(e.target.value)||now.getFullYear())}/></label>
         <label><span>Bulan</span><select value={monthNumber} onChange={e=>setMonthNumber(Number(e.target.value))}>{monthNames.map((name,i)=><option key={name} value={i+1}>{String(i+1).padStart(2,'0')} · {name}</option>)}</select></label>
