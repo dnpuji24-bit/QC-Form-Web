@@ -146,16 +146,26 @@ export default function PlanSummaryDashboard(){
     <div className="section-head"><div><div className="eyebrow">SUMMARY PLAN</div><h2>Dashboard Daily Plan & Aktual</h2><p className="muted">Produktivitas harian, pencapaian Monthly Plan, dan Summary Activity per tanggal dalam satu filter.</p></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'Memuat…':'Refresh Summary'}</button></div>
     {message&&<div className="alert">{message}</div>}
 
-    <section className="panel summary-filter-panel">
-      <div className="summary-filter-grid summary-filter-grid-main">
-        <label><span>Tahun</span><select value={selectedYear} onChange={e=>setSelectedYear(e.target.value)}>{yearOptions.map(year=><option key={year} value={year}>{year}</option>)}</select></label>
-        <label><span>Bulan</span><select value={selectedMonth} onChange={e=>setSelectedMonth(e.target.value)}>{MONTHS.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
-        <label><span>Week</span><select value={selectedWeek} onChange={e=>setSelectedWeek(e.target.value)}><option value="ALL">Semua Week</option>{['W1','W2','W3','W4'].map(week=><option key={week} value={week}>{week}</option>)}</select></label>
-        <label><span>Company</span><select value={company} onChange={e=>{setCompany(e.target.value);setFarm('ALL')}}><option value="ALL">Semua Company</option>{companies.map(x=><option key={x} value={x}>{x}</option>)}</select></label>
-        <label><span>Farm</span><select value={farm} onChange={e=>setFarm(e.target.value)}><option value="ALL">Semua Farm</option>{farms.map(x=><option key={x} value={x}>{x}</option>)}</select></label>
-        <label><span>Shift</span><select value={shift} onChange={e=>setShift(e.target.value)}><option value="ALL">Semua Shift</option>{shiftOptions.map(x=><option key={x} value={x}>Shift {x}</option>)}</select></label>
-        <label><span>Mandor</span><select value={foreman} onChange={e=>setForeman(e.target.value)}><option value="ALL">Semua Mandor</option>{foremanOptions.map(x=><option key={x} value={x}>{x}</option>)}</select></label>
-        <button type="button" onClick={resetFilters}>Reset Filter</button>
+    <section className="panel summary-filter-panel premium-filter-panel">
+      <div className="premium-filter-head">
+        <div>
+          <span className="premium-filter-kicker">FILTER DASHBOARD</span>
+          <strong>Atur tampilan data</strong>
+          <small>Periode, area kerja, shift, dan mandor.</small>
+        </div>
+        <button type="button" className="premium-filter-reset" onClick={resetFilters}>Reset Filter</button>
+      </div>
+      <div className="summary-filter-grid summary-filter-grid-main premium-filter-grid">
+        <label className="premium-filter-field"><span>Tahun</span><select value={selectedYear} onChange={e=>setSelectedYear(e.target.value)}>{yearOptions.map(year=><option key={year} value={year}>{year}</option>)}</select></label>
+        <label className="premium-filter-field"><span>Bulan</span><select value={selectedMonth} onChange={e=>setSelectedMonth(e.target.value)}>{MONTHS.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
+        <label className="premium-filter-field"><span>Week</span><select value={selectedWeek} onChange={e=>setSelectedWeek(e.target.value)}><option value="ALL">Semua Week</option>{['W1','W2','W3','W4'].map(week=><option key={week} value={week}>{week}</option>)}</select></label>
+        <label className="premium-filter-field"><span>Company</span><select value={company} onChange={e=>{setCompany(e.target.value);setFarm('ALL')}}><option value="ALL">Semua Company</option>{companies.map(x=><option key={x} value={x}>{x}</option>)}</select></label>
+        <label className="premium-filter-field"><span>Farm</span><select value={farm} onChange={e=>setFarm(e.target.value)}><option value="ALL">Semua Farm</option>{farms.map(x=><option key={x} value={x}>{x}</option>)}</select></label>
+        <label className="premium-filter-field"><span>Shift</span><select value={shift} onChange={e=>setShift(e.target.value)}><option value="ALL">Semua Shift</option>{shiftOptions.map(x=><option key={x} value={x}>Shift {x}</option>)}</select></label>
+        <label className="premium-filter-field"><span>Mandor</span><select value={foreman} onChange={e=>setForeman(e.target.value)}><option value="ALL">Semua Mandor</option>{foremanOptions.map(x=><option key={x} value={x}>{x}</option>)}</select></label>
+      </div>
+      <div className="premium-filter-chips" aria-label="Filter aktif">
+        <span>{selectedYear}</span><span>{MONTHS.find(([value])=>value===selectedMonth)?.[1]||selectedMonth}</span><span>{selectedWeek==='ALL'?'Semua Week':selectedWeek}</span><span>{company==='ALL'?'Semua Company':company}</span><span>{farm==='ALL'?'Semua Farm':farm}</span><span>{shift==='ALL'?'Semua Shift':'Shift '+shift}</span><span>{foreman==='ALL'?'Semua Mandor':foreman}</span>
       </div>
     </section>
 
