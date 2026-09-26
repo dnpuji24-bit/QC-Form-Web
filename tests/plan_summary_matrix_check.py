@@ -54,6 +54,9 @@ for token in [
     assert token in summary, f'Missing Summary Paddock filter token: {token}'
 
 assert ".summary-paddock-filter" in css, 'Missing Summary Paddock filter style.'
+assert "Mobile paddock sticky header alignment" in css, 'Missing mobile paddock sticky-header fix.'
+assert ".summary-paddock-activity-table .summary-sticky-col.second{position:sticky!important" in css, 'Luas Paddock must remain sticky on mobile so the Paddock header does not float alone.'
+assert "--summary-paddock-first-col:135px" in css, 'Mobile paddock sticky columns need a fixed shared offset.'
 assert "row.pid.includes(needle)" in summary, 'Paddock filter must support partial PID such as A-007.'
 assert "actualScope.filter(x=>x.activity===activityName&&x.date===date)" in summary
-print('Plan Summary spreadsheet matrix check passed: all activities remain visible, Aktual wording and shared filters drive the date matrix, and Summary Paddock supports partial PID filtering.')
+print('Plan Summary spreadsheet matrix check passed: paddock filtering works and mobile Paddock/Luas Paddock sticky headers stay aligned.')
