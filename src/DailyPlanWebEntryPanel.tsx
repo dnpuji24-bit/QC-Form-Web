@@ -45,19 +45,20 @@ function monthlyOptionLabel(row:Monthly){return row.pid+' — '+row.planLineId+'
 function monthBounds(date:string){const monthKey=date.slice(0,7),[year,month]=monthKey.split('-').map(Number),nextMonth=month===12?`${year+1}-01`:`${year}-${String(month+1).padStart(2,'0')}`;return{monthKey,startDate:monthKey+'-01',nextStartDate:nextMonth+'-01'}}
 function activityLabel(row:Monthly){return planText(row.description||row.activity)}
 function paddockKey(value:unknown){return planText(value).toUpperCase().replace(/\s+/g,'').trim()}
+function compactPaddockKey(value:unknown){return paddockKey(value).replace(/[^A-Z0-9]/g,'')}
 function shortPaddockCode(pid:string){const parts=paddockKey(pid).split('-').filter(Boolean);return parts.length>=2?parts.slice(-2).join('-'):parts.join('-')}
-function looksLikePaddockSearch(value:string){const q=paddockKey(value);return /-[0-9]+$/.test(q)}
 function monthlyStatusClosed(row:Monthly){const status=searchKey(row.sourceStatus+' '+row.status);return ['cancel','done','selesai','complete'].some(token=>status.includes(token))}
 function smartMonthlyChoices(rows:Monthly[],input:string,activity:string){
   const activityKey=searchKey(activity),scoped=activityKey?rows.filter(row=>searchKey(activityLabel(row))===activityKey):rows,q=searchKey(input)
   if(!q)return scoped
   const byPlanId=scoped.filter(row=>searchKey(row.planLineId).startsWith(q))
   if(byPlanId.length)return byPlanId
-  if(looksLikePaddockSearch(input)){
-    const code=paddockKey(input),shortQuery=code.split('-').length<=2,complete=/-\d{3,4}$/.test(code)
-    return scoped.filter(row=>{const full=paddockKey(row.pid),short=shortPaddockCode(row.pid),target=shortQuery?short:full;return complete?target===code:target.startsWith(code)})
-  }
-  return scoped.filter(row=>searchKey(row.pid).startsWith(q))
+  const code=paddockKey(input),compact=compactPaddockKey(input)
+  if(!code)return scoped
+  return scoped.filter(row=>{
+    const full=paddockKey(row.pid),short=shortPaddockCode(row.pid),fullCompact=compactPaddockKey(full),shortCompact=compactPaddockKey(short)
+    return full.startsWith(code)||short.startsWith(code)||fullCompact.startsWith(compact)||shortCompact.startsWith(compact)
+  })
 }
 function activityChoices(rows:Monthly[],input:string){
   const q=searchKey(input),seen=new Set<string>(),out:string[]=[]
