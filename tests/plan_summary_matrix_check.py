@@ -61,5 +61,11 @@ assert "--summary-paddock-first-col:108px" in css, 'Mobile Paddock column should
 assert "width:76px" in css and "min-width:76px" in css, 'Mobile Luas Paddock column should be compact.'
 assert "overflow-wrap:anywhere" in css, 'Long PID values should wrap instead of widening the sticky Paddock column.'
 assert "row.pid.includes(needle)" in summary, 'Paddock filter must support partial PID such as A-007.'
+assert "paddockTableScrollRef" in summary, 'Paddock filter should control only row filtering and reset horizontal scroll without rebuilding columns.'
+assert "<colgroup>" in summary and "summary-col-activity-area" in summary and "summary-col-activity-date" in summary, 'Paddock matrix needs fixed column definitions so filtering does not change widths.'
+assert "Stable paddock matrix widths while filtering" in css, 'Missing invariant paddock matrix width rules.'
+assert "table-layout:fixed" in css and "min-width:max-content!important" in css, 'Paddock matrix width must stay independent of filtered row contents.'
+assert ".summary-paddock-table-scroll{padding-bottom:58px}" in css, 'Mobile table needs safe space so the floating scroll-to-top button does not cover the horizontal scroll area.'
+assert "Setiap activity menjadi pasangan kolom Luas dan Tanggal. Gunakan filter Paddock" not in summary, 'Summary Paddock description should be removed so the filter follows the title directly.'
 assert "actualScope.filter(x=>x.activity===activityName&&x.date===date)" in summary
-print('Plan Summary spreadsheet matrix check passed: paddock filtering works, mobile sticky headers stay aligned, and Paddock/Luas columns are compact for activity visibility.')
+print('Plan Summary spreadsheet matrix check passed: paddock filtering changes rows only, fixed column widths remain stable, and mobile scroll controls stay readable.')
