@@ -5,7 +5,7 @@ import { firestoreDb } from './firebase'
 type ActivityComponent={sequence:number;label:string;activeIngredient:string;dosePerHa:number;unit:string}
 type ActivityRow={
   id:string;activityCode:string;description:string;activity:string;type:string;activityCategory:string
-  companyScope:string;active:boolean;components:ActivityComponent[];sourceFileName:string
+  companyScope:string;defaultUnitName:string;defaultShift:string;defaultForeman:string;active:boolean;components:ActivityComponent[];sourceFileName:string
 }
 type MaterialRow={id:string;materialName:string;activeIngredient:string;unit:string;category:string;active:boolean}
 type ImportLog={batchId:string;companyScope:string;sourceFileName:string;activityCreated:number;activityUpdated:number;activityUnchanged:number;materialCreated:number;materialUpdated:number;materialUnchanged:number;warnings:number;importedBy:string;importedAt:string}
@@ -17,7 +17,7 @@ function componentFromData(value:unknown):ActivityComponent[]{
   if(!Array.isArray(value))return[]
   return value.map((item,index)=>{const row=(item&&typeof item==='object'?item:{}) as Record<string,unknown>;return{sequence:numberValue(row.sequence)||index+1,label:text(row.label),activeIngredient:text(row.activeIngredient),dosePerHa:numberValue(row.dosePerHa),unit:text(row.unit)}}).filter(item=>item.activeIngredient&&item.dosePerHa>0).sort((a,b)=>a.sequence-b.sequence)
 }
-function activityFromData(id:string,data:Record<string,unknown>):ActivityRow{return{id,activityCode:text(data.activityCode),description:text(data.description),activity:text(data.activity),type:text(data.type).toUpperCase(),activityCategory:text(data.activityCategory).toUpperCase(),companyScope:text(data.companyScope)||'GLOBAL',active:data.active===true,components:componentFromData(data.components),sourceFileName:text(data.sourceFileName)}}
+function activityFromData(id:string,data:Record<string,unknown>):ActivityRow{return{id,activityCode:text(data.activityCode),description:text(data.description),activity:text(data.activity),type:text(data.type).toUpperCase(),activityCategory:text(data.activityCategory).toUpperCase(),companyScope:text(data.companyScope)||'GLOBAL',defaultUnitName:text(data.defaultUnitName||data.unitName||data.defaultUnit),defaultShift:text(data.defaultShift||data.shift),defaultForeman:text(data.defaultForeman||data.foreman||data.mandor),active:data.active===true,components:componentFromData(data.components),sourceFileName:text(data.sourceFileName)}}
 function materialFromData(id:string,data:Record<string,unknown>):MaterialRow{return{id,materialName:text(data.materialName),activeIngredient:text(data.activeIngredient),unit:text(data.unit),category:text(data.category).toUpperCase(),active:data.active!==false}}
 function timestampValue(value:unknown){if(value&&typeof value==='object'&&'toDate' in value&&typeof (value as {toDate?:unknown}).toDate==='function'){try{return((value as {toDate:()=>Date}).toDate()).toISOString()}catch{return''}}return text(value)}
 function logFromData(id:string,data:Record<string,unknown>):ImportLog{return{batchId:text(data.batchId)||id,companyScope:text(data.companyScope)||'GLOBAL',sourceFileName:text(data.sourceFileName),activityCreated:numberValue(data.activityCreated),activityUpdated:numberValue(data.activityUpdated),activityUnchanged:numberValue(data.activityUnchanged),materialCreated:numberValue(data.materialCreated),materialUpdated:numberValue(data.materialUpdated),materialUnchanged:numberValue(data.materialUnchanged),warnings:numberValue(data.warnings),importedBy:text(data.importedBy),importedAt:timestampValue(data.importedAt)}}
@@ -70,7 +70,7 @@ export default function MasterActivityListPanel(){
       if(status!=='ALL'&&(status==='ACTIVE'?item.active:!item.active))return false
       if(!needle)return true
       const products=item.components.flatMap(component=>(ingredientProducts.get(normalize(component.activeIngredient))||[]).map(product=>product.materialName))
-      return normalize(`${item.activityCode} ${item.description} ${item.activity} ${item.type} ${item.activityCategory} ${item.components.map(component=>component.activeIngredient).join(' ')} ${products.join(' ')}`).includes(needle)
+      return normalize(`${item.activityCode} ${item.description} ${item.activity} ${item.type} ${item.activityCategory} ${item.defaultUnitName} ${item.defaultShift} ${item.defaultForeman} ${item.components.map(component=>component.activeIngredient).join(' ')} ${products.join(' ')}`).includes(needle)
     })
   },[activities,ingredientProducts,query,type,category,status,scope])
   const counts=useMemo(()=>({active:activities.filter(item=>item.active).length,inactive:activities.filter(item=>!item.active).length,spray:activities.filter(item=>item.type==='SPRAY').length,fertilizer:activities.filter(item=>item.type==='FERTILIZER').length}),[activities])
@@ -108,18 +108,19 @@ export default function MasterActivityListPanel(){
 
     <div className="panel">
       <div className="section-head"><div><h3>Daftar Activity</h3><p className="muted">Tabel dibuat ringkas. Klik <strong>Lihat Komposisi</strong> untuk melihat bahan, dosis, dan produk yang tersedia secara lengkap.</p></div><span className="badge">{filtered.length} activity</span></div>
-      <div className="table-wrap"><table><thead><tr><th>Code</th><th>Deskripsi</th><th>Activity</th><th>Type / Category</th><th>Scope</th><th>Status</th><th>Bahan</th><th>Detail</th></tr></thead><tbody>
+      <div className="table-wrap"><table><thead><tr><th>Code</th><th>Deskripsi</th><th>Activity</th><th>Type / Category</th><th>Scope</th><th>Default Resource</th><th>Status</th><th>Bahan</th><th>Detail</th></tr></thead><tbody>
         {filtered.map(row=><tr key={row.id}>
           <td><strong>{row.activityCode||'-'}</strong></td>
           <td><strong>{row.description}</strong></td>
           <td>{row.activity}</td>
           <td><div><strong>{row.type}</strong></div><div className="muted">{row.activityCategory}</div></td>
           <td>{row.companyScope}</td>
+          <td><div><strong>{row.defaultUnitName||'-'}</strong></div><div className="muted">Shift {row.defaultShift||'-'} · {row.defaultForeman||'-'}</div></td>
           <td><span className="badge">{row.active?'ACTIVE':'INACTIVE'}</span><div className="muted">{row.active?'Siap Plan':'Tidak dipilih Plan'}</div></td>
           <td>{row.components.length?<><strong>{row.components.length} bahan</strong><div className="muted">{row.components.map(component=>component.activeIngredient).join(' • ')}</div></>:<span className="muted">Belum ada komposisi</span>}</td>
           <td><button type="button" onClick={()=>selectAndScroll(row.id)}>{selectedId===row.id?'Sedang dilihat':'Lihat Komposisi'}</button></td>
         </tr>)}
-        {!filtered.length&&<tr><td colSpan={8} className="empty">Belum ada Activity sesuai filter.</td></tr>}
+        {!filtered.length&&<tr><td colSpan={9} className="empty">Belum ada Activity sesuai filter.</td></tr>}
       </tbody></table></div>
     </div>
 
@@ -131,11 +132,12 @@ export default function MasterActivityListPanel(){
           <div className="stat"><span>Status</span><strong style={{fontSize:'1.1rem'}}>{selected.active?'ACTIVE':'INACTIVE'}</strong><small>{selected.active?'Siap dipakai Plan':'Tidak muncul di Plan'}</small></div>
           <div className="stat"><span>Type</span><strong style={{fontSize:'1.1rem'}}>{selected.type}</strong><small>{selected.activityCategory}</small></div>
           <div className="stat"><span>Scope</span><strong style={{fontSize:'1.1rem'}}>{selected.companyScope}</strong><small>{selected.activity}</small></div>
+          <div className="stat"><span>Default Unit</span><strong style={{fontSize:'1rem'}}>{selected.defaultUnitName||'-'}</strong><small>Shift {selected.defaultShift||'-'} · {selected.defaultForeman||'-'}</small></div>
           <div className="stat"><span>Jumlah Bahan</span><strong>{selected.components.length}</strong><small>komponen / Ha</small></div>
           <div className="stat"><span>Produk Tersedia</span><strong>{selectedProducts}</strong><small>produk ACTIVE yang cocok</small></div>
         </div>
         {selected.components.length?<div className="table-wrap"><table><thead><tr><th>Urutan</th><th>Bahan Aktif / Komposisi Utama</th><th>Dosis / Ha</th><th>Satuan</th><th>Produk ACTIVE yang dapat digunakan</th><th>Kesiapan</th></tr></thead><tbody>{selected.components.map((component,index)=>{const products=ingredientProducts.get(normalize(component.activeIngredient))||[];return <tr key={`${selected.id}-${component.sequence}-${component.activeIngredient}`}><td><strong>{index+1}</strong></td><td><strong>{component.activeIngredient}</strong></td><td><strong>{formatDose(component.dosePerHa)}</strong></td><td>{component.unit}/Ha</td><td>{products.length?products.map(product=><div key={product.id}>{product.materialName}<span className="muted"> — {product.category}</span></div>):<span className="muted">Belum ada produk ACTIVE yang cocok</span>}</td><td><span className="badge">{products.length?'SIAP':'REVIEW'}</span></td></tr>})}</tbody></table></div>:<div className="alert">Activity ini belum mempunyai komposisi bahan/dosis sehingga tetap INACTIVE dan tidak akan muncul pada pilihan Plan.</div>}
-        <div className="panel" style={{marginTop:12}}><strong>Preview saat dipilih di Plan</strong><div style={{marginTop:8}}><div><strong>{selected.description}</strong> — {selected.activity} · {selected.type} · {selected.activityCategory}</div>{selected.components.length?selected.components.map((component,index)=><div key={`preview-${index}`} className="muted">{index+1}. {component.activeIngredient} — {formatDose(component.dosePerHa)} {component.unit}/Ha</div>):<div className="muted">Tidak ada komposisi.</div>}</div></div>
+        <div className="panel" style={{marginTop:12}}><strong>Preview saat dipilih di Plan</strong><div style={{marginTop:8}}><div><strong>{selected.description}</strong> — {selected.activity} · {selected.type} · {selected.activityCategory}</div><div className="muted">Resource default: {selected.defaultUnitName||'-'} · Shift {selected.defaultShift||'-'} · {selected.defaultForeman||'-'}</div>{selected.components.length?selected.components.map((component,index)=><div key={`preview-${index}`} className="muted">{index+1}. {component.activeIngredient} — {formatDose(component.dosePerHa)} {component.unit}/Ha</div>):<div className="muted">Tidak ada komposisi.</div>}</div></div>
       </>}
     </div>
 
