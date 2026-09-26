@@ -813,3 +813,449 @@
   .premium-filter-field select,.premium-filter-field input{font-size:.7rem!important;min-height:25px!important}
   .premium-record-filters input,.premium-record-filters select,.premium-record-filters button{min-height:32px!important;font-size:.7rem!important}
 }
+
+
+/* Precision Plan UI system */
+:root{
+  --plan-control-h:40px;
+  --plan-control-h-mobile:36px;
+  --plan-control-radius:10px;
+  --plan-card-radius:15px;
+  --plan-ui-border:#dbe3ef;
+  --plan-ui-soft:#f8fbff;
+  --plan-ui-text:#0f172a;
+  --plan-ui-muted:#64748b;
+}
+
+/* Shared precision for Plan entry controls */
+.plan-entry-screen .plan-grid label,
+.daily-mobile-workspace .daily-pid-row label{
+  min-width:0;
+}
+.plan-entry-screen .plan-grid input,
+.plan-entry-screen .plan-grid select,
+.daily-mobile-workspace .daily-pid-row input,
+.monthly-period-selector input,
+.monthly-period-selector select{
+  min-height:var(--plan-control-h)!important;
+  height:var(--plan-control-h);
+  padding:8px 10px!important;
+  border:1px solid #cbd5e1!important;
+  border-radius:var(--plan-control-radius)!important;
+  background:#fff!important;
+  color:var(--plan-ui-text)!important;
+  font-size:.86rem!important;
+  font-weight:700!important;
+  line-height:1.15!important;
+  box-shadow:none!important;
+  outline:none!important;
+}
+.plan-entry-screen .plan-grid input:focus,
+.plan-entry-screen .plan-grid select:focus,
+.daily-mobile-workspace .daily-pid-row input:focus,
+.monthly-period-selector input:focus,
+.monthly-period-selector select:focus{
+  border-color:#93c5fd!important;
+  box-shadow:0 0 0 3px rgba(59,130,246,.11)!important;
+}
+.plan-entry-screen .plan-grid label>span,
+.daily-mobile-workspace .daily-pid-row label>span,
+.monthly-period-selector label>span{
+  color:#475569;
+  font-size:.73rem;
+  font-weight:850;
+  line-height:1.15;
+}
+
+/* Monthly active-period filter: premium, compact and aligned */
+.premium-period-selector{
+  position:relative;
+  display:grid;
+  grid-template-columns:minmax(190px,1.05fr) repeat(3,minmax(120px,.72fr)) minmax(150px,.78fr)!important;
+  gap:9px!important;
+  align-items:stretch!important;
+  padding:12px 13px!important;
+  border:1px solid var(--plan-ui-border)!important;
+  border-radius:16px!important;
+  background:
+    radial-gradient(circle at top right,rgba(59,130,246,.07),transparent 34%),
+    linear-gradient(180deg,#fff,#f8fbff)!important;
+  box-shadow:0 8px 22px rgba(15,23,42,.045)!important;
+}
+.premium-period-selector>div:first-child{
+  align-self:center!important;
+  padding:2px 4px;
+}
+.premium-period-selector>div:first-child .eyebrow{font-size:.62rem}
+.premium-period-selector>div:first-child h3{
+  margin:2px 0!important;
+  font-size:1.02rem;
+}
+.premium-period-selector>label{
+  display:grid!important;
+  gap:3px!important;
+  align-content:center;
+  padding:7px 9px;
+  border:1px solid #e2e8f0;
+  border-radius:11px;
+  background:rgba(255,255,255,.94);
+}
+.premium-period-selector>label>span{
+  color:#64748b!important;
+  font-size:.64rem!important;
+  font-weight:900!important;
+  letter-spacing:.045em;
+  text-transform:uppercase;
+}
+.premium-period-selector input,
+.premium-period-selector select{
+  min-height:30px!important;
+  height:30px!important;
+  padding:2px 22px 2px 0!important;
+  border:0!important;
+  border-radius:0!important;
+  background-color:transparent!important;
+  font-size:.82rem!important;
+  box-shadow:none!important;
+}
+.premium-period-selector .monthly-period-badge{
+  align-self:stretch;
+  display:grid;
+  align-content:center;
+  gap:2px;
+  min-width:0;
+  padding:7px 10px!important;
+  border:1px solid #c7d2fe;
+  border-radius:11px;
+  background:linear-gradient(135deg,#eef2ff,#e7efff);
+}
+.premium-period-selector .monthly-period-badge span{
+  font-size:.61rem!important;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+}
+.premium-period-selector .monthly-period-badge strong{
+  font-size:.86rem;
+  white-space:nowrap;
+}
+
+/* Daily + Actual entry panels: same geometry and spacing */
+.daily-mobile-workspace .daily-single-form{
+  display:grid;
+  gap:9px;
+  padding:12px!important;
+  border-radius:var(--plan-card-radius)!important;
+}
+.daily-mobile-workspace .daily-form-toolbar{
+  min-height:0;
+  margin:0;
+  padding:0 1px 2px;
+}
+.daily-mobile-workspace .daily-form-toolbar h3{
+  margin:2px 0!important;
+  font-size:1.02rem;
+}
+.daily-mobile-workspace .daily-form-toolbar .eyebrow{font-size:.62rem}
+.daily-mobile-workspace .daily-form-group{
+  margin-top:0!important;
+  padding:10px!important;
+  border-radius:12px!important;
+  background:#fafcff!important;
+}
+.daily-mobile-workspace .daily-form-group-title{
+  margin-bottom:7px!important;
+  gap:8px;
+}
+.daily-mobile-workspace .daily-form-group-title>span{
+  width:26px!important;
+  height:26px!important;
+  border-radius:8px!important;
+}
+.daily-mobile-workspace .daily-form-group-title strong{font-size:.84rem!important}
+.daily-mobile-workspace .daily-form-group-title small{font-size:.66rem!important}
+.daily-mobile-workspace .plan-grid{
+  gap:8px!important;
+}
+.daily-mobile-workspace .daily-form-group label{
+  gap:4px!important;
+  font-size:.74rem!important;
+}
+.daily-mobile-workspace .daily-form-group input,
+.daily-mobile-workspace .daily-form-group select{
+  min-height:38px!important;
+  height:38px;
+  padding:7px 9px!important;
+  border-radius:9px!important;
+  font-size:.82rem!important;
+}
+.daily-mobile-workspace .daily-status-field input{
+  text-align:center;
+  font-size:.84rem!important;
+}
+
+/* Actual uses the same grid system as Daily; avoid label/input overlap */
+.actual-plan-entry .actual-schedule-grid{
+  grid-template-columns:minmax(150px,.72fr) minmax(190px,.9fr) minmax(280px,1.35fr) minmax(180px,.85fr)!important;
+}
+.actual-plan-entry .actual-resource-grid{
+  grid-template-columns:minmax(120px,.6fr) minmax(220px,1.25fr) repeat(3,minmax(105px,.62fr))!important;
+}
+.actual-plan-entry .actual-resource-grid .daily-notes-field{
+  grid-column:1/-1!important;
+}
+.actual-plan-entry .daily-pid-section{
+  margin-top:0;
+}
+
+/* Compact Draft summary / descriptions */
+.daily-draft-board{
+  gap:10px!important;
+  padding:13px!important;
+}
+.daily-draft-board .plan-section-title{
+  margin-bottom:4px!important;
+  gap:10px!important;
+}
+.daily-draft-board .plan-section-title h3{
+  margin:2px 0!important;
+  font-size:1rem;
+}
+.daily-draft-board .plan-section-title p{
+  margin:3px 0 0!important;
+  max-width:760px;
+  font-size:.73rem!important;
+  line-height:1.35!important;
+}
+.daily-draft-board .plan-section-title .row-actions{
+  gap:6px!important;
+}
+.daily-draft-board .plan-section-title .row-actions button{
+  min-height:36px;
+  padding:7px 10px;
+  border-radius:9px;
+  font-size:.74rem;
+}
+.daily-draft-summary{
+  display:grid!important;
+  grid-template-columns:repeat(5,minmax(0,1fr))!important;
+  gap:6px!important;
+  margin:0!important;
+}
+.daily-draft-summary>div{
+  min-height:0!important;
+  gap:2px!important;
+  padding:8px 9px!important;
+  border-radius:10px!important;
+}
+.daily-draft-summary span{
+  font-size:.66rem!important;
+  line-height:1.15;
+}
+.daily-draft-summary strong{
+  font-size:.88rem!important;
+  line-height:1.2;
+}
+.daily-draft-shifts{
+  gap:10px!important;
+  margin-top:2px!important;
+}
+
+/* Compact action bar: same size on Daily and Actual */
+.daily-single-form-actions{
+  grid-template-columns:minmax(0,1fr) minmax(130px,.34fr)!important;
+  gap:7px!important;
+  margin-top:2px!important;
+  padding:6px!important;
+}
+.daily-single-form-actions button{
+  min-height:38px!important;
+  padding:7px 10px!important;
+  border-radius:9px!important;
+  font-size:.8rem!important;
+}
+
+/* Keep descriptive/preview boxes concise */
+.daily-activity-material-preview,
+.daily-pid-section{
+  border-radius:12px!important;
+}
+.daily-material-preview-head,
+.daily-pid-head{
+  padding-top:0;
+}
+.daily-material-empty{
+  padding:10px!important;
+  font-size:.72rem!important;
+  line-height:1.35!important;
+}
+.daily-pid-head>div>span{
+  font-size:.68rem!important;
+  line-height:1.3!important;
+}
+
+/* Mobile precision: smaller fields, fixed alignment, no giant empty cards */
+@media(max-width:760px){
+  .premium-period-selector{
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+    grid-template-areas:
+      "period period badge"
+      "year month week";
+    gap:6px!important;
+    padding:8px!important;
+    border-radius:13px!important;
+  }
+  .premium-period-selector>div:first-child{grid-area:period;padding:1px 2px}
+  .premium-period-selector>label:nth-of-type(1){grid-area:year}
+  .premium-period-selector>label:nth-of-type(2){grid-area:month}
+  .premium-period-selector>label:nth-of-type(3){grid-area:week}
+  .premium-period-selector .monthly-period-badge{grid-area:badge!important;padding:5px 7px!important}
+  .premium-period-selector>div:first-child .eyebrow{font-size:.54rem}
+  .premium-period-selector>div:first-child h3{font-size:.88rem!important}
+  .premium-period-selector>label{padding:5px 6px!important;border-radius:9px}
+  .premium-period-selector>label>span{font-size:.55rem!important}
+  .premium-period-selector input,
+  .premium-period-selector select{
+    min-height:27px!important;
+    height:27px!important;
+    font-size:.72rem!important;
+    padding:1px 17px 1px 0!important;
+  }
+  .premium-period-selector .monthly-period-badge span{font-size:.52rem!important}
+  .premium-period-selector .monthly-period-badge strong{font-size:.68rem!important;white-space:normal}
+
+  .daily-mobile-workspace .daily-single-form{
+    padding:9px!important;
+    gap:7px!important;
+    border-radius:13px!important;
+  }
+  .daily-mobile-workspace .daily-form-toolbar h3{font-size:.94rem!important}
+  .daily-mobile-workspace .daily-form-toolbar .status-pill{font-size:.61rem!important;padding:5px 7px!important}
+  .daily-mobile-workspace .daily-form-group{
+    padding:8px!important;
+    border-radius:10px!important;
+  }
+  .daily-mobile-workspace .daily-form-group-title{
+    margin-bottom:6px!important;
+  }
+  .daily-mobile-workspace .daily-form-group-title>span{
+    width:24px!important;
+    height:24px!important;
+    font-size:.66rem!important;
+  }
+  .daily-mobile-workspace .daily-form-group-title strong{font-size:.78rem!important}
+  .daily-mobile-workspace .daily-form-group-title small{font-size:.61rem!important}
+  .daily-mobile-workspace .plan-grid{gap:6px!important}
+  .daily-mobile-workspace .daily-form-group label{
+    gap:3px!important;
+    font-size:.68rem!important;
+  }
+  .daily-mobile-workspace .daily-form-group input,
+  .daily-mobile-workspace .daily-form-group select,
+  .daily-mobile-workspace .daily-pid-row input{
+    min-height:var(--plan-control-h-mobile)!important;
+    height:var(--plan-control-h-mobile)!important;
+    padding:6px 8px!important;
+    border-radius:8px!important;
+    font-size:.78rem!important;
+  }
+
+  .daily-schedule-grid{
+    grid-template-columns:1fr 1fr!important;
+    gap:6px!important;
+  }
+  .daily-schedule-grid .daily-date-field{grid-column:1!important}
+  .daily-schedule-grid label:nth-child(2){grid-column:2!important}
+  .daily-schedule-grid label:nth-child(3),
+  .daily-schedule-grid label:nth-child(4),
+  .daily-schedule-grid .daily-activity-field{grid-column:1/-1!important}
+
+  .daily-resource-grid{
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+    gap:6px!important;
+  }
+  .daily-resource-grid>label:first-child{grid-column:1!important}
+  .daily-resource-grid .daily-unit-field{grid-column:2/4!important}
+  .daily-resource-grid .daily-status-field{grid-column:auto!important}
+  .daily-resource-grid .daily-notes-field{grid-column:1/-1!important}
+
+  .actual-plan-entry .actual-schedule-grid,
+  .actual-plan-entry .actual-resource-grid{
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  }
+  .actual-plan-entry .actual-schedule-grid .daily-date-field{grid-column:1!important}
+  .actual-plan-entry .actual-schedule-grid label:nth-child(2){grid-column:2/4!important}
+  .actual-plan-entry .actual-schedule-grid .daily-activity-field,
+  .actual-plan-entry .actual-schedule-grid label:nth-child(4){grid-column:1/-1!important}
+  .actual-plan-entry .actual-resource-grid>label:first-child{grid-column:1!important}
+  .actual-plan-entry .actual-resource-grid .daily-unit-field{grid-column:2/4!important}
+  .actual-plan-entry .actual-resource-grid .daily-status-field{grid-column:auto!important}
+  .actual-plan-entry .actual-resource-grid .daily-notes-field{grid-column:1/-1!important}
+
+  .daily-single-form-actions{
+    position:sticky!important;
+    bottom:7px!important;
+    grid-template-columns:1fr 1fr!important;
+    gap:6px!important;
+    margin:5px -1px 0!important;
+    padding:6px!important;
+    border-radius:10px!important;
+  }
+  .daily-single-form-actions button{
+    min-height:36px!important;
+    padding:6px 7px!important;
+    font-size:.73rem!important;
+  }
+
+  .daily-draft-board{
+    padding:10px!important;
+    gap:8px!important;
+  }
+  .daily-draft-board .plan-section-title{
+    align-items:flex-start!important;
+    flex-direction:column!important;
+    margin-bottom:1px!important;
+  }
+  .daily-draft-board .plan-section-title p{
+    font-size:.66rem!important;
+    line-height:1.28!important;
+  }
+  .daily-draft-board .plan-section-title .row-actions{
+    width:100%!important;
+    display:grid!important;
+    grid-template-columns:1fr 1.45fr!important;
+  }
+  .daily-draft-board .plan-section-title .row-actions button{
+    width:100%!important;
+    min-height:34px!important;
+    padding:6px 7px!important;
+    font-size:.69rem!important;
+  }
+  .daily-draft-summary{
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+    gap:5px!important;
+  }
+  .daily-draft-summary>div{
+    padding:7px!important;
+    border-radius:9px!important;
+  }
+  .daily-draft-summary>div:last-child{grid-column:span 2}
+  .daily-draft-summary span{font-size:.59rem!important}
+  .daily-draft-summary strong{font-size:.78rem!important}
+  .daily-draft-shifts{gap:8px!important}
+  .daily-draft-shift-title{padding:8px 10px!important}
+  .daily-draft-shift-title strong{font-size:.8rem!important}
+  .daily-draft-shift-title span{font-size:.67rem!important}
+}
+
+@media(max-width:380px){
+  .premium-period-selector{
+    grid-template-areas:
+      "period period badge"
+      "year month week";
+  }
+  .premium-period-selector>div:first-child h3{font-size:.8rem!important}
+  .premium-period-selector .monthly-period-badge strong{font-size:.62rem!important}
+  .daily-draft-summary{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .daily-draft-summary>div:last-child{grid-column:1/-1}
+}
