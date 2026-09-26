@@ -115,6 +115,39 @@ export default function PlanSummaryDashboard(){
   const maxActivity=Math.max(...activitySummary.map(x=>Math.max(x.target,x.daily,x.actual)),1)
   const pidOptions=useMemo(()=>[...new Set([...monthly.map(x=>x.pid),...daily.map(x=>x.pid),...actual.map(x=>x.pid)].filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[monthly,daily,actual])
 
+  const matrixMonthly=useMemo(()=>monthly.filter(row=>(company==='ALL'||row.companyCode===company)&&(farm==='ALL'||row.farm===farm)&&(!q||row.pid.includes(q))),[monthly,company,farm,q])
+  const matrixDailyBase=useMemo(()=>daily.filter(row=>(company==='ALL'||row.companyCode===company)&&(farm==='ALL'||row.farm===farm)&&(!q||row.pid.includes(q))),[daily,company,farm,q])
+  const matrixActualBase=useMemo(()=>actual.filter(row=>(company==='ALL'||row.companyCode===company)&&(farm==='ALL'||row.farm===farm)&&(!q||row.pid.includes(q))),[actual,company,farm,q])
+  const matrixActivities=useMemo(()=>[...new Set([...matrixMonthly.map(x=>x.activity),...matrixDailyBase.map(x=>x.activity),...matrixActualBase.map(x=>x.activity)].filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[matrixMonthly,matrixDailyBase,matrixActualBase])
+  const masterByPid=useMemo(()=>new Map(masterPaddocks.map(row=>[row.pid,row])),[masterPaddocks])
+  const paddockActivityMatrix=useMemo<PaddockActivityMatrixRow[]>(()=>{
+    const pids=[...new Set([...matrixMonthly.map(x=>x.pid),...matrixDailyBase.map(x=>x.pid),...matrixActualBase.map(x=>x.pid)].filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}))
+    return pids.map(pid=>{
+      const mm=matrixMonthly.filter(x=>x.pid===pid),aa=matrixActualBase.filter(x=>x.pid===pid),meta=masterByPid.get(pid),fallbackArea=Math.max(0,...mm.map(x=>x.targetAreaHa))
+      const cells=matrixActivities.map(activityName=>{
+        const actualRows=aa.filter(x=>x.activity===activityName),manual=mm.filter(x=>x.activity===activityName).reduce((sum,x)=>sum+x.manualActualAreaHa,0),area=actualRows.reduce((sum,x)=>sum+x.actualAreaHa,0)+manual,dates=[...new Set(actualRows.map(x=>x.date).filter(Boolean))].sort()
+        return{activity:activityName,area,dates,manual}
+      })
+      const source=meta||mm[0]||matrixDailyBase.find(x=>x.pid===pid)||aa[0]
+      return{pid,companyCode:source?.companyCode||'',farm:source?.farm||'',paddockAreaHa:meta?.areaPlantedHa||fallbackArea,cells}
+    })
+  },[matrixMonthly,matrixDailyBase,matrixActualBase,matrixActivities,masterByPid])
+
+  const matrixShiftOptions=useMemo(()=>[...new Set([...daily.map(x=>x.shift),...actual.map(x=>x.shift)].filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[daily,actual])
+  const matrixForemanOptions=useMemo(()=>[...new Set([...daily.map(x=>x.foreman),...actual.map(x=>x.foreman)].filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[daily,actual])
+  const dayMatrixDaily=useMemo(()=>daily.filter(row=>(company==='ALL'||row.companyCode===company)&&(farm==='ALL'||row.farm===farm)&&(matrixShift==='ALL'||row.shift===matrixShift)&&(matrixForeman==='ALL'||row.foreman===matrixForeman)),[daily,company,farm,matrixShift,matrixForeman])
+  const dayMatrixActual=useMemo(()=>actual.filter(row=>(company==='ALL'||row.companyCode===company)&&(farm==='ALL'||row.farm===farm)&&(matrixShift==='ALL'||row.shift===matrixShift)&&(matrixForeman==='ALL'||row.foreman===matrixForeman)),[actual,company,farm,matrixShift,matrixForeman])
+  const dayMatrixActivities=useMemo(()=>[...new Set([...monthly.filter(row=>(company==='ALL'||row.companyCode===company)&&(farm==='ALL'||row.farm===farm)).map(x=>x.activity),...dayMatrixDaily.map(x=>x.activity),...dayMatrixActual.map(x=>x.activity)].filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[monthly,company,farm,dayMatrixDaily,dayMatrixActual])
+  const dayMatrixDays=useMemo(()=>monthDays(month),[month])
+  const dayMatrixRows=useMemo(()=>dayMatrixActivities.map(activityName=>({
+    activity:activityName,
+    days:dayMatrixDays.map(date=>{
+      const plan=dayMatrixDaily.filter(x=>x.activity===activityName&&x.date===date).reduce((sum,x)=>sum+x.areaHa,0)
+      const report=dayMatrixActual.filter(x=>x.activity===activityName&&x.date===date).reduce((sum,x)=>sum+x.actualAreaHa,0)
+      return{date,plan,report}
+    })
+  })),[dayMatrixActivities,dayMatrixDays,dayMatrixDaily,dayMatrixActual])
+
   return <section className="plan-summary-dashboard">
     <div className="section-head"><div><div className="eyebrow">SUMMARY PLAN</div><h2>Dashboard Planning & Pencapaian</h2><p className="muted">Ringkasan Monthly Target → Daily Plan → Actual, plus tracking riwayat pekerjaan per paddock.</p></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'Memuat…':'Refresh Summary'}</button></div>
     {message&&<div className="alert">{message}</div>}
@@ -142,6 +175,20 @@ export default function PlanSummaryDashboard(){
       <section className="panel summary-chart-panel"><div className="section-head"><div><h3>Grafik Pencapaian Kumulatif</h3><p className="muted">Daily Plan dan Actual per tanggal dibandingkan target efektif Monthly.</p></div></div><CumulativeChart monthKey={month} daily={fd.filter(x=>x.monthlyPlanLineId)} actual={fa} target={overall.effectiveTarget}/></section>
       <section className="panel summary-progress-panel"><div className="section-head"><div><h3>Pencapaian per Activity</h3><p className="muted">Maksimal 20 activity berdasarkan target.</p></div></div><div className="summary-activity-bars">{activitySummary.map(row=><div className="summary-activity-row" key={row.activity}><div className="summary-activity-label"><strong>{row.activity}</strong><span>T {fmtHa(row.target)} · D {fmtHa(row.daily)} · A {fmtHa(row.actual)}</span></div><div className="summary-bar-track"><span className="target" style={{width:(row.target/maxActivity*100)+'%'}}/><span className="daily" style={{width:(row.daily/maxActivity*100)+'%'}}/><span className="actual" style={{width:(row.actual/maxActivity*100)+'%'}}/></div></div>)}</div>{!activitySummary.length&&<div className="daily-draft-empty">Belum ada activity pada filter ini.</div>}</section>
     </div>
+
+    <section className="panel summary-matrix-panel">
+      <div className="section-head"><div><div className="eyebrow">PADDOCK × ACTIVITY</div><h3>Summary Paddock per Kegiatan</h3><p className="muted">Format mengikuti tabel Anda: setiap activity menjadi pasangan kolom <strong>Luas</strong> dan <strong>Tanggal</strong>. Semua activity pada bulan terpilih ditampilkan.</p></div><strong>{paddockActivityMatrix.length} paddock · {matrixActivities.length} activity</strong></div>
+      <div className="summary-wide-table"><table className="summary-paddock-activity-table"><thead><tr><th rowSpan={2} className="summary-sticky-col first">Paddock</th><th rowSpan={2} className="summary-sticky-col second">Luas Paddock</th>{matrixActivities.map(name=><th key={name} colSpan={2} className="summary-activity-head">{name}</th>)}</tr><tr>{matrixActivities.map(name=><><th key={name+'-area'}>Luas</th><th key={name+'-date'}>Tanggal</th></>)}</tr></thead><tbody>{paddockActivityMatrix.map(row=><tr key={row.pid}><td className="summary-sticky-col first"><strong>{row.pid}</strong><br/><span className="muted">{row.farm||'-'}</span></td><td className="summary-sticky-col second"><strong>{row.paddockAreaHa?fmtHa(row.paddockAreaHa):'-'}</strong></td>{row.cells.map(cell=><><td key={row.pid+'|'+cell.activity+'|area'} className={cell.area>0?'summary-worked-cell':''}>{cell.area>0?fmtHa(cell.area):'-'}{cell.manual>0&&<small className="summary-manual-tag">Manual {fmtHa(cell.manual)}</small>}</td><td key={row.pid+'|'+cell.activity+'|date'}>{cell.dates.length?cell.dates.map(shortDate).join(', '):cell.manual>0?'Manual':'-'}</td></>)}</tr>)}</tbody></table></div>
+      {!paddockActivityMatrix.length&&<div className="daily-draft-empty">Tidak ada paddock sesuai filter.</div>}
+    </section>
+
+    <section className="panel summary-day-matrix-panel">
+      <div className="section-head"><div><div className="eyebrow">PLAN VS REPORT HARIAN</div><h3>Summary Activity per Tanggal</h3><p className="muted">Format mengikuti tabel Plan / Report. Bulan mengikuti filter Summary; tampilan dapat difilter lagi berdasarkan <strong>Shift</strong> dan <strong>Mandor</strong>.</p></div><strong>{dayMatrixActivities.length} activity</strong></div>
+      <div className="summary-day-matrix-filters"><label><span>Shift</span><select value={matrixShift} onChange={e=>setMatrixShift(e.target.value)}><option value="ALL">Semua Shift</option>{matrixShiftOptions.map(x=><option key={x} value={x}>Shift {x}</option>)}</select></label><label><span>Mandor</span><select value={matrixForeman} onChange={e=>setMatrixForeman(e.target.value)}><option value="ALL">Semua Mandor</option>{matrixForemanOptions.map(x=><option key={x} value={x}>{x}</option>)}</select></label><button type="button" onClick={()=>{setMatrixShift('ALL');setMatrixForeman('ALL')}}>Reset Filter</button><div className="summary-matrix-scope"><span>Bulan</span><strong>{month}</strong><small>{company==='ALL'?'Semua Company':company} · {farm==='ALL'?'Semua Farm':farm}</small></div></div>
+      <div className="summary-wide-table"><table className="summary-plan-report-table"><thead><tr><th rowSpan={2} className="summary-sticky-col first">Kegiatan / Activity</th>{dayMatrixDays.map(date=><th key={date} colSpan={2}>{dayLabel(date)}</th>)}</tr><tr>{dayMatrixDays.map(date=><><th key={date+'-plan'}>Plan</th><th key={date+'-report'}>Report</th></>)}</tr></thead><tbody>{dayMatrixRows.map(row=><tr key={row.activity}><td className="summary-sticky-col first"><strong>{row.activity}</strong></td>{row.days.map(cell=><><td key={row.activity+'|'+cell.date+'|plan'} className={cell.plan>0?'summary-plan-cell':''}>{cell.plan>0?new Intl.NumberFormat('id-ID',{maximumFractionDigits:2}).format(cell.plan):'-'}</td><td key={row.activity+'|'+cell.date+'|report'} className={cell.report<=0&&cell.plan>0?'summary-report-low':cell.report>0&&cell.plan>0&&cell.report>=cell.plan?'summary-report-good':cell.report>0?'summary-report-only':''}>{cell.report>0?new Intl.NumberFormat('id-ID',{maximumFractionDigits:2}).format(cell.report):cell.plan>0?'0':'-'}</td></>)}</tr>)}</tbody></table></div>
+      {!dayMatrixRows.length&&<div className="daily-draft-empty">Belum ada activity pada kombinasi filter ini.</div>}
+      <div className="summary-matrix-note"><span className="good">Hijau</span> Report ≥ Plan · <span className="low">Merah</span> Report &lt; Plan · Progress manual/historis tidak dimasukkan ke tanggal karena tidak memiliki tanggal kerja asli.</div>
+    </section>
 
     <section className="panel summary-paddock-panel">
       <div className="section-head"><div><div className="eyebrow">TRACKING BY PADDOCK</div><h3>Dashboard Paddock</h3><p className="muted">Cari PID seperti <strong>A-007</strong> untuk melihat target, rencana harian, actual, tanggal pekerjaan, dan luas yang sudah dikerjakan.</p></div><strong>{paddockSummaries.length} paddock</strong></div>
