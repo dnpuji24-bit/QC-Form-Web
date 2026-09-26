@@ -5,6 +5,7 @@ import DailyActionIcon from './DailyPlanActionIcon'
 import { actualPlansToWhatsApp } from './actualPlanActions'
 import type { ActualComposerRequest, SavedActualRow } from './actualPlanWorkspaceTypes'
 import { aggregateMaterials, clearPlanDraft, materialLinesFromComponents, planHa, planNum, planRowId, planText, readPlanDraft, writePlanDraft, type PlanMaterialLine } from './planInputUtils'
+import { findActivityResourceDefault, loadActivityResourceDefaults, type ActivityResourceDefault } from './masterActivityDefaults'
 import type { User } from './types'
 
 type Props={
@@ -50,7 +51,7 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
   const draftKey='plan_actual_web_draft_'+user.username
   const storedInitial=normalizeDraft(readPlanDraft<unknown>(draftKey,null))
   const initial={...storedInitial,date:selectedDate||storedInitial.date}
-  const[daily,setDaily]=useState<Daily[]>([]),[actuals,setActuals]=useState<ActualRef[]>([])
+  const[daily,setDaily]=useState<Daily[]>([]),[actuals,setActuals]=useState<ActualRef[]>([]),[activityDefaults,setActivityDefaults]=useState<ActivityResourceDefault[]>([])
   const[state,setState]=useState<DraftState>(initial),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[draggingId,setDraggingId]=useState(''),[persistedEdit,setPersistedEdit]=useState<PersistedEditContext|null>(null)
   const saveFeedbackRef=useRef<HTMLDivElement|null>(null),prefillHandledRef=useRef('')
 
@@ -66,6 +67,7 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
       setActuals(a.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,actualReportId:planText(r.actualReportId||x.id),dailyPlanId:planText(r.dailyPlanId),date:planText(r.date),actualAreaHa:planNum(r.actualAreaHa),planningOrder:planNum(r.planningOrder),workGroupId:planText(r.workGroupId)}}))
     }catch(e){setMessage(e instanceof Error?e.message:'Data Actual periode gagal dimuat.')}finally{setBusy(false)}
   }
+  useEffect(()=>{void loadActivityResourceDefaults().then(setActivityDefaults).catch(()=>setActivityDefaults([]))},[])
   useEffect(()=>{void load(state.date);onDateChange?.(state.date)},[state.date])
   useEffect(()=>{if(selectedDate&&selectedDate!==state.date)setState(current=>({...current,date:selectedDate}))},[selectedDate])
   useEffect(()=>{writePlanDraft(draftKey,state)},[state,draftKey])
@@ -119,9 +121,9 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
   function showSaveFeedback(text:string){setMessage(text);requestAnimationFrame(()=>saveFeedbackRef.current?.scrollIntoView({behavior:'smooth',block:'nearest'}))}
   function patchActive(patch:Partial<WorkDraft>){setState(current=>({...current,active:{...current.active,...patch}}))}
   function chooseDailyValue(value:string){
-    const pool=persistedEdit?daily:openDaily,found=pool.find(row=>dailyLabel(row)===value||row.dailyPlanId===value||row.id===value)
-    patchActive({dailySearch:value,dailyId:found?.id||'',...(found?{area:state.active.area||String(Math.max(found.areaHa-(actualByDaily.get(found.dailyPlanId)||0),0)),manpower:state.active.manpower==='0'?String(found.manpower||0):state.active.manpower,unitName:state.active.unitName||found.unitName,unitReady:state.active.unitReady==='0'?String(found.unitReady||0):state.active.unitReady,unitStandby:state.active.unitStandby==='0'?String(found.unitStandby||0):state.active.unitStandby,unitBreakdown:state.active.unitBreakdown==='0'?String(found.unitBreakdown||0):state.active.unitBreakdown}:{})})
-    if(found&&!state.foreman)setState(current=>({...current,foreman:found.foreman||current.foreman}))
+    const pool=persistedEdit?daily:openDaily,found=pool.find(row=>dailyLabel(row)===value||row.dailyPlanId===value||row.id===value),masterDefault=found?findActivityResourceDefault(activityDefaults,found.activity,found.description):null
+    patchActive({dailySearch:value,dailyId:found?.id||'',...(found?{area:state.active.area||String(Math.max(found.areaHa-(actualByDaily.get(found.dailyPlanId)||0),0)),manpower:state.active.manpower==='0'?String(found.manpower||0):state.active.manpower,unitName:state.active.unitName||found.unitName||masterDefault?.defaultUnitName||'',unitReady:state.active.unitReady==='0'?String(found.unitReady||0):state.active.unitReady,unitStandby:state.active.unitStandby==='0'?String(found.unitStandby||0):state.active.unitStandby,unitBreakdown:state.active.unitBreakdown==='0'?String(found.unitBreakdown||0):state.active.unitBreakdown}:{})})
+    if(found&&!state.foreman)setState(current=>({...current,foreman:found.foreman||masterDefault?.defaultForeman||current.foreman}))
   }
   function resetInput(){setPersistedEdit(null);setState(current=>({...current,active:blankWork(),editingId:''}))}
   function clearAll(){if(!window.confirm('Hapus semua input dan Draft Actual pada perangkat ini?'))return;clearPlanDraft(draftKey);setPersistedEdit(null);setState({date:new Date().toISOString().slice(0,10),foreman:'',active:blankWork(),works:[],editingId:''});setMessage('Input dan Draft Actual dikosongkan.')}
