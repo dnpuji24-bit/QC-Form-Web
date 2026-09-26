@@ -11,35 +11,37 @@ for token in [
     "PaddockActivityMatrixRow",
     "master_paddocks",
     "areaPlantedHa",
-    "matrixActivities",
-    "cell.dates.map(shortDate)",
-    "PLAN VS REPORT HARIAN",
+    "PLAN VS AKTUAL HARIAN",
     "Summary Activity per Tanggal",
-    "Semua Shift",
-    "Semua Mandor",
-    "matrixShift",
-    "matrixForeman",
-    "dayMatrixDays",
     "<th>Plan</th>",
-    "<th>Report</th>",
-    "summary-report-good",
-    "summary-report-low",
+    "<th>Aktual</th>",
+    "summary-actual-good",
+    "summary-actual-low",
+    "selectedDays",
+    "dayMatrixRows",
 ]:
     assert token in summary, f'Missing Summary matrix token: {token}'
 
 for token in [
     ".summary-wide-table",
     ".summary-paddock-activity-table",
-    ".summary-day-matrix-filters",
     ".summary-plan-report-table",
-    ".summary-report-good",
-    ".summary-report-low",
+    ".summary-actual-good",
+    ".summary-actual-low",
 ]:
     assert token in css, f'Missing Summary matrix style token: {token}'
 
-assert "where('monthKey','==',month)" in summary
-assert "matrixShift==='ALL'||row.shift===matrixShift" in summary
-assert "matrixForeman==='ALL'||row.foreman===matrixForeman" in summary
-assert "dayMatrixDaily.filter(x=>x.activity===activityName&&x.date===date)" in summary
-assert "dayMatrixActual.filter(x=>x.activity===activityName&&x.date===date)" in summary
-print('Plan Summary spreadsheet matrix check passed: paddock-by-activity Luas/Tanggal and date-by-date Plan/Report with Shift and Mandor filters are wired.')
+for removed in [
+    "<th>Report</th>",
+    "PLAN VS REPORT HARIAN",
+    "Report ≥ Plan",
+    "Report < Plan",
+]:
+    assert removed not in summary, f'Legacy Report wording must be replaced with Aktual: {removed}'
+
+assert "selectedWeek==='ALL'||weekFromDate(row.date)===selectedWeek" in summary
+assert "shift==='ALL'||row.shift===shift" in summary
+assert "foreman==='ALL'||row.foreman===foreman" in summary
+assert "dailyScope.filter(x=>x.activity===activityName&&x.date===date)" in summary
+assert "actualScope.filter(x=>x.activity===activityName&&x.date===date)" in summary
+print('Plan Summary spreadsheet matrix check passed: all activities remain visible, Report is renamed Aktual, and the shared filters drive the date matrix.')
