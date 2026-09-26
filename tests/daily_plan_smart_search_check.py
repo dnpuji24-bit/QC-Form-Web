@@ -34,7 +34,7 @@ assert ".slice(0,120)" not in daily, 'Daily Monthly selector must not hide valid
 for token in [
     "['cancel','done','selesai','complete']",
     "!monthlyStatusClosed(row)",
-    "(actualByMonthlyId.get(row.planLineId)||0)<row.targetAreaHa-0.0001",
+    "((actualByMonthlyId.get(row.planLineId)||0)+row.manualActualAreaHa)<row.targetAreaHa-0.0001",
     "smartMonthlyChoices(selectableMonthly",
 ]:
     assert token in daily, f'Missing Daily Monthly availability behavior token: {token}'
@@ -63,4 +63,4 @@ for token in [
     assert token in daily, f'Missing cross-month Daily Monthly lookup token: {token}'
 
 
-print('Daily Monthly smart search check passed: activity-scoped Monthly IDs load across periods, while DONE/complete/over-actual/cancelled plans are hidden and only unfinished IDs remain selectable.')
+print('Daily Monthly smart search check passed: activity-scoped Monthly IDs load across periods, and availability respects linked Actual plus manual/historical progress.')
