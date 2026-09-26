@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { collection, getDocs, query as fsQuery, where } from 'firebase/firestore'
 import { firestoreDb } from './firebase'
 
@@ -76,7 +76,6 @@ export default function PlanSummaryDashboard(){
   const[monthly,setMonthly]=useState<MonthlyRow[]>([]),[daily,setDaily]=useState<DailyRow[]>([]),[actual,setActual]=useState<ActualRow[]>([]),[masterPaddocks,setMasterPaddocks]=useState<MasterPaddockRow[]>([])
   const[busy,setBusy]=useState(false),[message,setMessage]=useState('')
   const[company,setCompany]=useState('ALL'),[farm,setFarm]=useState('ALL'),[shift,setShift]=useState('ALL'),[foreman,setForeman]=useState('ALL'),[paddockFilter,setPaddockFilter]=useState('')
-  const paddockTableScrollRef=useRef<HTMLDivElement|null>(null)
   const monthKey=selectedYear+'-'+selectedMonth
   const yearOptions=useMemo(()=>Array.from({length:7},(_,i)=>String(currentYear-4+i)),[currentYear])
 
@@ -141,8 +140,6 @@ export default function PlanSummaryDashboard(){
   const paddockOptions=useMemo(()=>paddockActivityMatrix.map(row=>row.pid).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[paddockActivityMatrix])
   const filteredPaddockActivityMatrix=useMemo(()=>{const needle=paddockFilter.trim().toUpperCase();return needle?paddockActivityMatrix.filter(row=>row.pid.includes(needle)):paddockActivityMatrix},[paddockActivityMatrix,paddockFilter])
 
-  function changePaddockFilter(value:string){setPaddockFilter(value.toUpperCase());requestAnimationFrame(()=>{if(paddockTableScrollRef.current)paddockTableScrollRef.current.scrollLeft=0})}
-  function resetPaddockFilter(){setPaddockFilter('');requestAnimationFrame(()=>{if(paddockTableScrollRef.current)paddockTableScrollRef.current.scrollLeft=0})}
   function resetFilters(){setSelectedWeek('ALL');setCompany('ALL');setFarm('ALL');setShift('ALL');setForeman('ALL')}
 
   return <section className="plan-summary-dashboard">
@@ -177,8 +174,8 @@ export default function PlanSummaryDashboard(){
 
     <section className="panel summary-matrix-panel">
       <div className="section-head"><div><div className="eyebrow">PADDOCK × ACTIVITY</div><h3>Summary Paddock per Kegiatan</h3></div><strong>{filteredPaddockActivityMatrix.length} / {paddockActivityMatrix.length} paddock · {matrixActivities.length} activity</strong></div>
-      <div className="summary-paddock-filter"><label><span>Filter Paddock / PID</span><input list="summary-paddock-filter-options" value={paddockFilter} onChange={e=>changePaddockFilter(e.target.value)} placeholder="Contoh: A-007 / JAGF-1-A-007"/><datalist id="summary-paddock-filter-options">{paddockOptions.map(pid=><option key={pid} value={pid}/>)}</datalist><small>Bisa ketik kode pendek seperti A-007 atau PID lengkap.</small></label>{paddockFilter&&<button type="button" onClick={resetPaddockFilter}>Reset Paddock</button>}</div>
-      <div ref={paddockTableScrollRef} className="summary-wide-table summary-paddock-table-scroll"><table className="summary-paddock-activity-table"><colgroup><col className="summary-col-paddock"/><col className="summary-col-paddock-area"/>{matrixActivities.map(name=><Fragment key={name}><col className="summary-col-activity-area"/><col className="summary-col-activity-date"/></Fragment>)}</colgroup><thead><tr><th rowSpan={2} className="summary-sticky-col first">Paddock</th><th rowSpan={2} className="summary-sticky-col second">Luas Paddock</th>{matrixActivities.map(name=><th key={name} colSpan={2} className="summary-activity-head">{name}</th>)}</tr><tr>{matrixActivities.map(name=><Fragment key={name}><th>Luas</th><th>Tanggal</th></Fragment>)}</tr></thead><tbody>{filteredPaddockActivityMatrix.map(row=><tr key={row.pid}><td className="summary-sticky-col first"><strong>{row.pid}</strong><br/><span className="muted">{row.farm||'-'}</span></td><td className="summary-sticky-col second"><strong>{row.paddockAreaHa?fmtHa(row.paddockAreaHa):'-'}</strong></td>{row.cells.map(cell=><Fragment key={row.pid+'|'+cell.activity}><td className={cell.area>0?'summary-worked-cell':''}>{cell.area>0?fmtHa(cell.area):'-'}{cell.manual>0&&<small className="summary-manual-tag">Manual {fmtHa(cell.manual)}</small>}</td><td>{cell.dates.length?cell.dates.map(shortDate).join(', '):cell.manual>0?'Manual':'-'}</td></Fragment>)}</tr>)}</tbody></table></div>
+      <div className="summary-paddock-filter"><label><span>Filter Paddock / PID</span><input list="summary-paddock-filter-options" value={paddockFilter} onChange={e=>setPaddockFilter(e.target.value.toUpperCase())} placeholder="Contoh: A-007 / JAGF-1-A-007"/><datalist id="summary-paddock-filter-options">{paddockOptions.map(pid=><option key={pid} value={pid}/>)}</datalist><small>Bisa ketik kode pendek seperti A-007 atau PID lengkap.</small></label>{paddockFilter&&<button type="button" onClick={()=>setPaddockFilter('')}>Reset Paddock</button>}</div>
+      <div className="summary-wide-table summary-paddock-table-scroll"><table className="summary-paddock-activity-table"><colgroup><col className="summary-col-paddock"/><col className="summary-col-paddock-area"/>{matrixActivities.map(name=><Fragment key={name}><col className="summary-col-activity-area"/><col className="summary-col-activity-date"/></Fragment>)}</colgroup><thead><tr><th rowSpan={2} className="summary-sticky-col first">Paddock</th><th rowSpan={2} className="summary-sticky-col second">Luas Paddock</th>{matrixActivities.map(name=><th key={name} colSpan={2} className="summary-activity-head">{name}</th>)}</tr><tr>{matrixActivities.map(name=><Fragment key={name}><th>Luas</th><th>Tanggal</th></Fragment>)}</tr></thead><tbody>{filteredPaddockActivityMatrix.map(row=><tr key={row.pid}><td className="summary-sticky-col first"><strong>{row.pid}</strong><br/><span className="muted">{row.farm||'-'}</span></td><td className="summary-sticky-col second"><strong>{row.paddockAreaHa?fmtHa(row.paddockAreaHa):'-'}</strong></td>{row.cells.map(cell=><Fragment key={row.pid+'|'+cell.activity}><td className={cell.area>0?'summary-worked-cell':''}>{cell.area>0?fmtHa(cell.area):'-'}{cell.manual>0&&<small className="summary-manual-tag">Manual {fmtHa(cell.manual)}</small>}</td><td>{cell.dates.length?cell.dates.map(shortDate).join(', '):cell.manual>0?'Manual':'-'}</td></Fragment>)}</tr>)}</tbody></table></div>
       {!filteredPaddockActivityMatrix.length&&<div className="daily-draft-empty">Tidak ada paddock yang cocok dengan filter <strong>{paddockFilter||'-'}</strong>.</div>}
     </section>
   </section>
