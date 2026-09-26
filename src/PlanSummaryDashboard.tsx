@@ -8,6 +8,9 @@ type ActualRow={actualReportId:string;date:string;monthKey:string;shift:string;c
 type PaddockSummary={pid:string;companyCode:string;farm:string;variety:string;stage:string;target:number;cancelledTarget:number;daily:number;actualLinked:number;manual:number;actual:number;balance:number;lastActual:string}
 type ActivitySummary={activity:string;target:number;daily:number;actual:number}
 type TimelineRow={key:string;date:string;pid:string;activity:string;daily:number;actual:number;foremen:string[];dailyIds:number;actualIds:number}
+type MasterPaddockRow={pid:string;companyCode:string;farm:string;areaPlantedHa:number}
+type PaddockActivityCell={activity:string;area:number;dates:string[];manual:number}
+type PaddockActivityMatrixRow={pid:string;companyCode:string;farm:string;paddockAreaHa:number;cells:PaddockActivityCell[]}
 
 function text(value:unknown){return value===null||value===undefined?'':String(value).trim()}
 function num(value:unknown){const n=Number(value||0);return Number.isFinite(n)?n:0}
@@ -19,6 +22,8 @@ function fmtPct(value:number){return new Intl.NumberFormat('id-ID',{minimumFract
 function cancelled(row:MonthlyRow){return row.cancelled||row.sourceStatus.toUpperCase().includes('CANCEL')}
 function shortDate(value:string){if(!value)return'-';const d=new Date(value+'T00:00:00');return Number.isNaN(d.getTime())?value:d.toLocaleDateString('id-ID',{day:'2-digit',month:'short'})}
 function monthDays(monthKey:string){if(!/^\d{4}-\d{2}$/.test(monthKey))return[];const[y,m]=monthKey.split('-').map(Number),last=new Date(y,m,0).getDate();return Array.from({length:last},(_,i)=>monthKey+'-'+String(i+1).padStart(2,'0'))}
+function masterPaddockFromData(data:Record<string,unknown>):MasterPaddockRow{return{pid:text(data.pid).toUpperCase(),companyCode:text(data.companyCode).toUpperCase(),farm:text(data.farm),areaPlantedHa:num(data.areaPlantedHa)}}
+function dayLabel(value:string){return String(Number(value.slice(-2)))}
 
 function CumulativeChart({monthKey,daily,actual,target}:{monthKey:string;daily:DailyRow[];actual:ActualRow[];target:number}){
   const data=useMemo(()=>{const dMap=new Map<string,number>(),aMap=new Map<string,number>();daily.forEach(row=>dMap.set(row.date,(dMap.get(row.date)||0)+row.areaHa));actual.forEach(row=>aMap.set(row.date,(aMap.get(row.date)||0)+row.actualAreaHa));let d=0,a=0;return monthDays(monthKey).map(date=>{d+=dMap.get(date)||0;a+=aMap.get(date)||0;return{date,daily:d,actual:a}})},[monthKey,daily,actual])
@@ -42,24 +47,27 @@ function CumulativeChart({monthKey,daily,actual,target}:{monthKey:string;daily:D
 
 export default function PlanSummaryDashboard(){
   const now=new Date(),defaultMonth=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')
-  const[month,setMonth]=useState(defaultMonth),[monthly,setMonthly]=useState<MonthlyRow[]>([]),[daily,setDaily]=useState<DailyRow[]>([]),[actual,setActual]=useState<ActualRow[]>([])
+  const[month,setMonth]=useState(defaultMonth),[monthly,setMonthly]=useState<MonthlyRow[]>([]),[daily,setDaily]=useState<DailyRow[]>([]),[actual,setActual]=useState<ActualRow[]>([]),[masterPaddocks,setMasterPaddocks]=useState<MasterPaddockRow[]>([])
   const[busy,setBusy]=useState(false),[message,setMessage]=useState('')
   const[company,setCompany]=useState('ALL'),[farm,setFarm]=useState('ALL'),[activity,setActivity]=useState('ALL'),[paddockQuery,setPaddockQuery]=useState('')
+  const[matrixShift,setMatrixShift]=useState('ALL'),[matrixForeman,setMatrixForeman]=useState('ALL')
   const deferredPaddock=useDeferredValue(paddockQuery)
 
   async function load(){
     if(!firestoreDb){setMessage('Firestore belum tersedia.');return}
     setBusy(true);setMessage('Memuat Summary '+month+'…')
     try{
-      const[m,d,a]=await Promise.all([
+      const[m,d,a,p]=await Promise.all([
         getDocs(fsQuery(collection(firestoreDb,'monthly_plans'),where('monthKey','==',month))),
         getDocs(fsQuery(collection(firestoreDb,'daily_plans'),where('monthKey','==',month))),
         getDocs(fsQuery(collection(firestoreDb,'daily_reports'),where('monthKey','==',month))),
+        getDocs(collection(firestoreDb,'master_paddocks')),
       ])
       setMonthly(m.docs.map(x=>monthlyFromData(x.data() as Record<string,unknown>)))
       setDaily(d.docs.map(x=>dailyFromData(x.data() as Record<string,unknown>,x.id)))
       setActual(a.docs.map(x=>actualFromData(x.data() as Record<string,unknown>,x.id)))
-      setMessage('Summary '+month+' siap. Gunakan filter Company, Farm, Activity, atau cari PID/Paddock.')
+      setMasterPaddocks(p.docs.map(x=>masterPaddockFromData(x.data() as Record<string,unknown>)).filter(x=>x.pid))
+      setMessage('Summary '+month+' siap. Gunakan filter Company, Farm, Activity, PID/Paddock, Shift, atau Mandor.')
     }catch(error){setMessage(error instanceof Error?error.message:'Summary Plan gagal dimuat.')}finally{setBusy(false)}
   }
   useEffect(()=>{void load()},[month])
