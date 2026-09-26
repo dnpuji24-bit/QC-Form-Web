@@ -447,3 +447,151 @@
     min-height:0!important;
   }
 }
+
+
+/* Premium Summary filters */
+.premium-filter-panel{
+  display:grid;
+  gap:14px;
+  padding:16px 18px!important;
+  border:1px solid #dbe4f0!important;
+  border-radius:18px!important;
+  background:
+    radial-gradient(circle at top right,rgba(59,130,246,.08),transparent 34%),
+    linear-gradient(180deg,#ffffff 0%,#f8fbff 100%)!important;
+  box-shadow:0 10px 28px rgba(15,23,42,.06)!important;
+}
+.premium-filter-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding-bottom:2px;
+}
+.premium-filter-head>div{
+  display:grid;
+  gap:2px;
+}
+.premium-filter-kicker{
+  color:#2563eb;
+  font-size:.66rem;
+  font-weight:900;
+  letter-spacing:.14em;
+}
+.premium-filter-head strong{
+  color:#0f172a;
+  font-size:.98rem;
+  font-weight:900;
+}
+.premium-filter-head small{
+  color:#64748b;
+  font-size:.74rem;
+  font-weight:600;
+}
+.premium-filter-grid{
+  grid-template-columns:repeat(7,minmax(0,1fr))!important;
+  gap:10px!important;
+  align-items:end;
+}
+.premium-filter-field{
+  display:grid!important;
+  gap:6px!important;
+  min-width:0;
+  padding:9px 10px;
+  border:1px solid #e2e8f0;
+  border-radius:13px;
+  background:rgba(255,255,255,.9);
+  transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease,background .16s ease;
+}
+.premium-filter-field:hover{
+  border-color:#bfdbfe;
+  background:#fff;
+  box-shadow:0 5px 14px rgba(37,99,235,.06);
+  transform:translateY(-1px);
+}
+.premium-filter-field:focus-within{
+  border-color:#93c5fd;
+  background:#fff;
+  box-shadow:0 0 0 3px rgba(59,130,246,.11),0 6px 16px rgba(37,99,235,.08);
+}
+.premium-filter-field>span{
+  color:#64748b!important;
+  font-size:.67rem!important;
+  font-weight:900!important;
+  letter-spacing:.055em;
+  text-transform:uppercase;
+}
+.premium-filter-field select,
+.premium-filter-field input{
+  width:100%;
+  min-width:0;
+  min-height:34px;
+  padding:4px 26px 4px 0!important;
+  border:0!important;
+  border-radius:0!important;
+  background-color:transparent!important;
+  color:#0f172a!important;
+  font-size:.86rem!important;
+  font-weight:850!important;
+  box-shadow:none!important;
+  outline:none!important;
+}
+.premium-filter-field select{
+  cursor:pointer;
+}
+.premium-filter-reset{
+  flex:0 0 auto;
+  min-height:38px;
+  padding:8px 14px!important;
+  border:1px solid #dbe3ef!important;
+  border-radius:11px!important;
+  background:#fff!important;
+  color:#475569!important;
+  font-size:.78rem!important;
+  font-weight:850!important;
+  box-shadow:0 3px 10px rgba(15,23,42,.04)!important;
+  transition:background .16s ease,color .16s ease,border-color .16s ease,transform .16s ease,box-shadow .16s ease;
+}
+.premium-filter-reset:hover{
+  background:#eff6ff!important;
+  color:#1d4ed8!important;
+  border-color:#93c5fd!important;
+  box-shadow:0 6px 14px rgba(37,99,235,.10)!important;
+  transform:translateY(-1px);
+}
+.premium-filter-chips{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  padding-top:1px;
+}
+.premium-filter-chips span{
+  display:inline-flex;
+  align-items:center;
+  min-height:26px;
+  padding:4px 9px;
+  border:1px solid #dbeafe;
+  border-radius:999px;
+  background:#eff6ff;
+  color:#1e40af;
+  font-size:.67rem;
+  font-weight:800;
+  line-height:1;
+}
+@media(max-width:1300px){
+  .premium-filter-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+}
+@media(max-width:820px){
+  .premium-filter-panel{padding:13px!important;border-radius:15px!important}
+  .premium-filter-head{align-items:stretch;flex-direction:column;gap:9px}
+  .premium-filter-reset{width:100%}
+  .premium-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+  .premium-filter-field{padding:8px 9px}
+  .premium-filter-chips{gap:5px}
+}
+@media(max-width:480px){
+  .premium-filter-grid{grid-template-columns:1fr 1fr!important}
+  .premium-filter-field>span{font-size:.63rem!important}
+  .premium-filter-field select,.premium-filter-field input{font-size:.82rem!important;min-height:32px}
+  .premium-filter-chips{display:none}
+}
