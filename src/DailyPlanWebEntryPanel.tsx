@@ -12,7 +12,7 @@ type Monthly={id:string;planLineId:string;monthKey:string;week:string;companyCod
 type Daily={dailyPlanId:string;monthlyPlanLineId:string;date:string;shift:string;areaHa:number}
 type Actual={id:string;monthlyPlanLineId:string;actualAreaHa:number}
 type MasterPaddock={pid:string;companyCode:string;farm:string;stage:string;variety:string}
-type MasterActivity={id:string;description:string;activity:string;componentsSnapshot:unknown[]}
+type MasterActivity={id:string;description:string;activity:string;defaultUnitName:string;defaultShift:string;defaultForeman:string;componentsSnapshot:unknown[]}
 type PidDraft={id:string;search:string;monthlyId:string;pid:string;area:string;persistedDocId?:string;persistedDailyPlanId?:string}
 type WorkDraft={id:string;sourceType:'MONTHLY'|'ADHOC'|'SUPPORT';shift:string;foreman:string;activitySearch:string;manpower:string;unitName:string;unitReady:string;unitStandby:string;unitBreakdown:string;notes:string;pids:PidDraft[]}
 type DraftState={date:string;active:WorkDraft;works:WorkDraft[];editingId:string}
@@ -60,6 +60,14 @@ function smartMonthlyChoices(rows:Monthly[],input:string,activity:string){
     return full.startsWith(code)||short.startsWith(code)||fullCompact.startsWith(compact)||shortCompact.startsWith(compact)
   })
 }
+function masterActivityDefault(rows:MasterActivity[],value:string){
+  const wanted=searchKey(value);if(!wanted)return null
+  const byDescription=rows.find(row=>searchKey(row.description)===wanted);if(byDescription)return byDescription
+  const matches=rows.filter(row=>searchKey(row.activity)===wanted)
+  if(matches.length===1)return matches[0]
+  if(matches.length>1){const signatures=new Set(matches.map(row=>[row.defaultUnitName,row.defaultShift,row.defaultForeman].map(searchKey).join('|')));if(signatures.size===1)return matches[0]}
+  return null
+}
 function activityChoices(rows:Monthly[],input:string){
   const q=searchKey(input),seen=new Set<string>(),out:string[]=[]
   for(const row of rows){const label=activityLabel(row),key=searchKey(label);if(!label||seen.has(key)||q&&!key.startsWith(q))continue;seen.add(key);out.push(label)}
@@ -80,7 +88,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
   const actualByMonthlyId=useMemo(()=>{const reports=new Map<string,Actual>(),map=new Map<string,number>();[...actuals,...linkedActuals].forEach(row=>reports.set(row.id,row));reports.forEach(row=>{if(row.monthlyPlanLineId)map.set(row.monthlyPlanLineId,(map.get(row.monthlyPlanLineId)||0)+row.actualAreaHa)});return map},[actuals,linkedActuals])
   const selectableMonthly=useMemo(()=>availableMonthly.filter(row=>!monthlyStatusClosed(row)&&((actualByMonthlyId.get(row.planLineId)||0)+row.manualActualAreaHa)<row.targetAreaHa-0.0001),[availableMonthly,actualByMonthlyId])
 
-  async function loadMasters(){if(!firestoreDb)return;try{const[p,a]=await Promise.all([getDocs(collection(firestoreDb,'master_paddocks')),getDocs(collection(firestoreDb,'master_activities'))]);setPaddocks(p.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{pid:planText(r.pid||x.id).toUpperCase(),companyCode:planText(r.companyCode).toUpperCase(),farm:planText(r.farm),stage:planText(r.currentStage||r.stage),variety:planText(r.variety)}}));setActivities(a.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,description:planText(r.description),activity:planText(r.activity),componentsSnapshot:Array.isArray(r.components)?r.components:[]}}).filter(x=>x.activity||x.description))}catch(e){setMessage(e instanceof Error?e.message:'Master data gagal dimuat.')}}
+  async function loadMasters(){if(!firestoreDb)return;try{const[p,a]=await Promise.all([getDocs(collection(firestoreDb,'master_paddocks')),getDocs(collection(firestoreDb,'master_activities'))]);setPaddocks(p.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{pid:planText(r.pid||x.id).toUpperCase(),companyCode:planText(r.companyCode).toUpperCase(),farm:planText(r.farm),stage:planText(r.currentStage||r.stage),variety:planText(r.variety)}}));setActivities(a.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,description:planText(r.description),activity:planText(r.activity),defaultUnitName:planText(r.defaultUnitName||r.unitName||r.defaultUnit),defaultShift:planText(r.defaultShift||r.shift),defaultForeman:planText(r.defaultForeman||r.foreman||r.mandor),componentsSnapshot:Array.isArray(r.components)?r.components:[]}}).filter(x=>x.activity||x.description))}catch(e){setMessage(e instanceof Error?e.message:'Master data gagal dimuat.')}}
   async function loadPeriod(date=state.date){
     if(!firestoreDb||!date)return
     setBusy(true)
@@ -310,7 +318,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
           <label><span>Shift</span><input value={state.active.shift} onChange={e=>patchActive({shift:e.target.value})} placeholder="1 / 2 / 3"/></label>
           <label><span>Mandor / Foreman</span><input value={state.active.foreman} onChange={e=>patchActive({foreman:e.target.value})} placeholder="Nama mandor"/></label>
           <label><span>Sumber</span><select value={state.active.sourceType} disabled={!!persistedEdit} onChange={e=>patchActive({sourceType:e.target.value as WorkDraft['sourceType'],activitySearch:'',pids:[blankPid()]})}><option value="MONTHLY">MONTHLY</option><option value="ADHOC">ADHOC</option><option value="SUPPORT">SUPPORT</option></select></label>
-          <label className="daily-activity-field"><span>Kegiatan</span><input list="daily-active-activities" value={state.active.activitySearch} onChange={e=>patchActive({activitySearch:e.target.value,pids:state.active.pids.map(pid=>({...pid,search:'',monthlyId:''}))})} placeholder="Ketik top dressing / pre"/><datalist id="daily-active-activities">{activeInfo.activityOptions.map(x=><option key={x} value={x}/>)}</datalist></label>
+          <label className="daily-activity-field"><span>Kegiatan</span><input list="daily-active-activities" value={state.active.activitySearch} onChange={e=>{const value=e.target.value,masterDefault=masterActivityDefault(activities,value);patchActive({activitySearch:value,pids:state.active.pids.map(pid=>({...pid,search:'',monthlyId:''})),...(masterDefault?.defaultShift?{shift:masterDefault.defaultShift}:{}),...(masterDefault?.defaultForeman?{foreman:masterDefault.defaultForeman}:{}),...(masterDefault?.defaultUnitName?{unitName:masterDefault.defaultUnitName}:{})})}} placeholder="Ketik top dressing / pre"/><datalist id="daily-active-activities">{activeInfo.activityOptions.map(x=><option key={x} value={x}/>)}</datalist>{masterActivityDefault(activities,state.active.activitySearch)&&<small className="plan-search-hint">Master default: Unit {masterActivityDefault(activities,state.active.activitySearch)?.defaultUnitName||'-'} · Shift {masterActivityDefault(activities,state.active.activitySearch)?.defaultShift||'-'} · {masterActivityDefault(activities,state.active.activitySearch)?.defaultForeman||'-'}</small>}</label>
         </div>
       </section>
 
