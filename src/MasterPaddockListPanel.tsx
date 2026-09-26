@@ -138,17 +138,17 @@ export default function MasterPaddockListPanel(){
   return <section>
     <div className="section-head"><div><div className="eyebrow">FIRESTORE MASTER</div><h2>Daftar Paddock</h2><p className="muted">Rekapan Master Paddock yang sudah benar-benar tersimpan di Firestore. Area Plan mengambil <strong>Area Paddock (Ha)</strong> dari sheet Area Plant, sedangkan progres tanggal mengambil kolom Progres.</p></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'Memuat…':'Refresh'}</button></div>
     {message&&<div className="alert">{message}</div>}
-    <div className="panel">
-      <div className="record-filters">
+    <div className="panel premium-filter-panel master-filter-panel">
+      <div className="record-filters premium-record-filters">
         <div><input list="paddock-smart-search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Smart search PID / variety / block…"/><datalist id="paddock-smart-search">{searchSuggestions.map(item=><option key={item} value={item}/>)}</datalist></div>
         <select value={company} onChange={e=>chooseCompany(e.target.value)}><option value="ALL">Semua Company</option>{companies.map(item=><option key={item.id} value={item.code}>{item.code} - {item.name}</option>)}</select>
         <select value={farm} onChange={e=>setFarm(e.target.value)}><option value="ALL">Semua Farm</option>{farmOptions.map(item=><option key={item} value={item}>Farm {item}</option>)}</select>
         <select value={stage} onChange={e=>setStage(e.target.value)}><option value="ALL">Semua Stage</option>{stageOptions.map(item=><option key={item} value={item}>{item}</option>)}</select>
         <button type="button" onClick={reset}>Reset</button>
       </div>
-      <div className="form-grid">
-        <label>Progress dari tanggal<input type="date" value={dateFrom} max={dateTo||undefined} onChange={e=>setDateFrom(e.target.value)}/></label>
-        <label>Progress sampai tanggal<input type="date" value={dateTo} min={dateFrom||undefined} onChange={e=>setDateTo(e.target.value)}/></label>
+      <div className="form-grid premium-date-filters">
+        <label className="premium-filter-field"><span>Progress dari tanggal</span><input type="date" value={dateFrom} max={dateTo||undefined} onChange={e=>setDateFrom(e.target.value)}/></label>
+        <label className="premium-filter-field"><span>Progress sampai tanggal</span><input type="date" value={dateTo} min={dateFrom||undefined} onChange={e=>setDateTo(e.target.value)}/></label>
         <div><strong>Filter Progress Date</strong><p className="muted" style={{margin:'7px 0 0'}}>Rentang ini menghitung Progres (Ha) Area Plant dan Progres (Ha) Area Geometri Area Harvest pada tanggal yang dipilih.</p></div>
       </div>
       {!hasProgressHistory&&<div className="alert">Riwayat progress per tanggal belum tersimpan pada Master Paddock lama. Upload ulang file Administrasi melalui tab Update / Import agar filter tanggal dapat digunakan.</div>}
