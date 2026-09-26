@@ -86,8 +86,8 @@ export default function MasterActivityListPanel(){
     <div className="section-head"><div><div className="eyebrow">FIRESTORE MASTER</div><h2>Daftar Master Activity</h2><p className="muted">Daftar ini menunjukkan tepat apa yang akan dibaca Plan: pilih Activity sekali, lalu komposisi bahan aktif dan dosis/Ha mengikuti otomatis.</p></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'Memuat…':'Refresh'}</button></div>
     {message&&<div className="alert">{message}</div>}
 
-    <div className="panel">
-      <div className="record-filters">
+    <div className="panel premium-filter-panel master-filter-panel">
+      <div className="record-filters premium-record-filters">
         <div><input list="master-activity-search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Cari Activity / bahan aktif / produk…"/><datalist id="master-activity-search">{searchSuggestions.map(item=><option key={item} value={item}/>)}</datalist></div>
         <select value={type} onChange={e=>setType(e.target.value)}><option value="ALL">Semua Type</option>{typeOptions.map(item=><option key={item} value={item}>{item}</option>)}</select>
         <select value={category} onChange={e=>setCategory(e.target.value)}><option value="ALL">Semua Category</option>{categoryOptions.map(item=><option key={item} value={item}>{item}</option>)}</select>
