@@ -176,21 +176,21 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
     }catch(err){showSaveFeedback(err instanceof Error?err.message:'Gagal menyimpan Actual.')}finally{setBusy(false)}
   }
 
-  return <section className="plan-entry-screen daily-mobile-workspace">
+  return <section className="plan-entry-screen daily-mobile-workspace actual-plan-entry">
     <div className="section-head daily-entry-head"><div><div className="eyebrow">ACTUAL PLAN · BATCH INPUT</div><h2>Input Actual Plan</h2><p className="muted">Alur dibuat sama seperti Daily Plan: isi satu hasil → Simpan ke Draft → periksa card → Simpan Semua Actual.</p></div><div className="row-actions"><button type="button" onClick={()=>void load()} disabled={busy}>Refresh</button><button type="button" className="danger" onClick={clearAll} disabled={busy}>Reset Draft</button></div></div>
     {message&&<div className="alert">{message}</div>}
 
-    <form id="actual-active-form" onSubmit={persistedEdit?savePersistedEdit:saveToDraft} className="panel plan-section daily-single-form">
+    <form id="actual-active-form" onSubmit={persistedEdit?savePersistedEdit:saveToDraft} className="panel plan-section daily-single-form actual-single-form">
       <div className="daily-form-toolbar"><div><span className="eyebrow">{persistedEdit?'EDIT ACTUAL TERSIMPAN':state.editingId?'EDIT DRAFT ACTUAL':'INPUT ACTUAL'}</span><h3>{persistedEdit?'Edit Actual Tersimpan':state.editingId?'Edit Hasil':'Tambah Hasil Pekerjaan'}</h3></div><div className="daily-form-toolbar-actions"><span className="status-pill">{persistedEdit?'Actual ID tetap':'Draft otomatis'}</span>{(persistedEdit||state.editingId)&&<button type="button" onClick={resetInput}>Batal Edit</button>}</div></div>
 
-      <div className="daily-form-group"><div className="daily-form-group-head"><span>01</span><div><strong>Jadwal & Kegiatan</strong><small>Daily → Actual</small></div></div><div className="daily-schedule-grid">
-        <label><span>Tanggal Actual</span><input type="date" value={state.date} onChange={e=>setState(current=>({...current,date:e.target.value}))}/></label>
+      <div className="daily-form-group"><div className="daily-form-group-title"><span>01</span><div><strong>Jadwal & Kegiatan</strong><small>Daily → Actual</small></div></div><div className="plan-grid daily-schedule-grid actual-schedule-grid">
+        <label className="daily-date-field"><span>Tanggal Actual</span><input type="date" value={state.date} onChange={e=>setState(current=>({...current,date:e.target.value}))}/></label>
         <label><span>Mandor / Foreman</span><input value={state.foreman} onChange={e=>setState(current=>({...current,foreman:e.target.value}))} placeholder="Nama mandor"/></label>
         <label className="daily-activity-field"><span>Daily Plan / PID</span><input list="actual-active-daily-options" value={state.active.dailySearch} onFocus={e=>e.currentTarget.select()} onChange={e=>chooseDailyValue(e.target.value)} placeholder="Ketik PID / Daily ID / kegiatan"/><datalist id="actual-active-daily-options">{activeDailyChoices.map(row=><option key={row.id} value={dailyLabel(row)}/>)}</datalist><small className="plan-search-hint">{activeInfo.selected?'Terpilih: '+dailyLabel(activeInfo.selected):state.active.dailySearch?(activeDailyChoices.length?activeDailyChoices.length+' pilihan aktif':'0 pilihan aktif — Daily yang sudah selesai disembunyikan'):'Ketik PID / Daily ID'}</small></label>
         <label><span>Kegiatan</span><input value={activeInfo.selected?.activity||''} readOnly placeholder="Mengikuti Daily Plan"/></label>
       </div></div>
 
-      <div className="daily-form-group"><div className="daily-form-group-head"><span>02</span><div><strong>Tenaga & Alat</strong><small>Resource untuk hasil pekerjaan ini</small></div></div><div className="daily-resource-grid">
+      <div className="daily-form-group"><div className="daily-form-group-title"><span>02</span><div><strong>Tenaga & Alat</strong><small>Resource untuk hasil pekerjaan ini</small></div></div><div className="plan-grid daily-resource-grid actual-resource-grid">
         <label><span>Jumlah HK</span><input type="number" min="0" step="1" value={state.active.manpower} onChange={e=>patchActive({manpower:e.target.value})}/></label>
         <label className="daily-unit-field"><span>Kode / Nama Unit</span><input value={state.active.unitName} onChange={e=>patchActive({unitName:e.target.value})} placeholder="Opsional"/></label>
         <label className="daily-status-field ready"><span>Unit Ready</span><input type="number" min="0" step="1" value={state.active.unitReady} onChange={e=>patchActive({unitReady:e.target.value})}/></label>
