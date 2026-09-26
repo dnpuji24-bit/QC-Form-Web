@@ -5,12 +5,12 @@ import MonthlyPlanMasterSyncPanel from './MonthlyPlanMasterSyncPanel'
 import MonthlyPlanWebEntryPanel from './MonthlyPlanWebEntryPanel'
 import type { User } from './types'
 
-type Props={user:User}
+type Props={user:User;onOpenDailyPlan?:(request:{date:string;monthlyPlanLineId:string;pid:string})=>void}
 type View='plan'|'import'|'sync'
 const monthNames=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des']
 function currentWeek(day:number){return day<=7?'W1':day<=15?'W2':day<=22?'W3':'W4'}
 
-export default function MonthlyPlanWorkspace({user}:Props){
+export default function MonthlyPlanWorkspace({user,onOpenDailyPlan}:Props){
   const now=new Date()
   const[view,setView]=useState<View>('plan')
   const[year,setYear]=useState(now.getFullYear())
@@ -33,7 +33,7 @@ export default function MonthlyPlanWorkspace({user}:Props){
         <div className="monthly-period-badge"><span>Aktif</span><strong>{monthKey} · {week}</strong></div>
       </section>
       <MonthlyPlanWebEntryPanel user={user} selectedMonth={monthKey} selectedWeek={week} onSaved={()=>setRefreshKey(x=>x+1)}/>
-      <MonthlyPlanListPanel user={user} selectedMonth={monthKey} selectedWeek={week} compact refreshKey={refreshKey}/>
+      <MonthlyPlanListPanel user={user} selectedMonth={monthKey} selectedWeek={week} compact refreshKey={refreshKey} onOpenDailyPlan={onOpenDailyPlan}/>
     </div>:view==='import'?<MonthlyPlanImportPanel user={user}/>:<MonthlyPlanMasterSyncPanel user={user}/>}
   </section>
 }
