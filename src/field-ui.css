@@ -296,3 +296,62 @@
     max-height:500px;
   }
 }
+
+
+/* Desktop/mobile split for paddock matrix scrolling */
+/* Desktop: let the page handle vertical scrolling so table headers never float over the app header.
+   Keep only horizontal scrolling and horizontal sticky Paddock/Luas columns. */
+@media(min-width:801px){
+  .summary-matrix-panel{position:relative;isolation:isolate;z-index:0}
+  .summary-paddock-table-scroll{
+    height:auto!important;
+    min-height:0!important;
+    max-height:none!important;
+    overflow-x:auto!important;
+    overflow-y:visible!important;
+    padding-bottom:10px!important;
+  }
+  .summary-paddock-activity-table thead th:not(.summary-sticky-col){
+    position:static!important;
+    top:auto!important;
+  }
+  .summary-paddock-activity-table thead .summary-sticky-col{
+    top:auto!important;
+    position:sticky!important;
+    z-index:7!important;
+  }
+  .summary-paddock-activity-table tbody .summary-sticky-col{
+    top:auto!important;
+    position:sticky!important;
+    z-index:5!important;
+  }
+}
+
+/* Mobile/tablet: keep the internal vertical viewport and sticky header because it is easier
+   to follow activity columns on a small screen. */
+@media(max-width:800px){
+  .summary-paddock-table-scroll{
+    height:520px!important;
+    min-height:520px!important;
+    max-height:520px!important;
+    overflow:auto!important;
+  }
+  .summary-paddock-activity-table thead th{
+    position:sticky!important;
+    top:0!important;
+    z-index:8!important;
+  }
+  .summary-paddock-activity-table thead tr:nth-child(2) th{
+    top:32px!important;
+  }
+  .summary-paddock-activity-table thead .summary-sticky-col{
+    z-index:10!important;
+  }
+}
+@media(max-width:430px){
+  .summary-paddock-table-scroll{
+    height:500px!important;
+    min-height:500px!important;
+    max-height:500px!important;
+  }
+}
