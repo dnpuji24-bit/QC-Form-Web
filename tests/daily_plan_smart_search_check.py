@@ -5,12 +5,14 @@ daily=(root/'src'/'DailyPlanWebEntryPanel.tsx').read_text(encoding='utf-8')
 
 for token in [
     "function smartMonthlyChoices",
-    "looksLikePaddockSearch",
+    "compactPaddockKey",
     "shortPaddockCode",
-    "complete?target===code:target.startsWith(code)",
     "const byPlanId=scoped.filter(row=>searchKey(row.planLineId).startsWith(q))",
     "if(byPlanId.length)return byPlanId",
-    "return scoped.filter(row=>searchKey(row.pid).startsWith(q))",
+    "full.startsWith(code)",
+    "short.startsWith(code)",
+    "fullCompact.startsWith(compact)",
+    "shortCompact.startsWith(compact)",
     "activityChoices",
     "monthlyOptionLabel",
 ]:
@@ -63,4 +65,4 @@ for token in [
     assert token in daily, f'Missing cross-month Daily Monthly lookup token: {token}'
 
 
-print('Daily Monthly smart search check passed: activity-scoped Monthly IDs load across periods, and availability respects linked Actual plus manual/historical progress.')
+print('Daily Monthly smart search check passed: short PID prefixes such as O, O003, or O-003 resolve active Monthly IDs while availability still respects Actual/manual progress.')
