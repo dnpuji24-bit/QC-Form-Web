@@ -2,23 +2,27 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
 app = (root/'src'/'App.tsx').read_text(encoding='utf-8')
+portal = (root/'src'/'PortalRouter.tsx').read_text(encoding='utf-8')
 api = (root/'src'/'api.ts').read_text(encoding='utf-8')
 admin = (root/'src'/'AdminPages.tsx').read_text(encoding='utf-8')
 dash = (root/'src'/'OperationalDashboard.tsx').read_text(encoding='utf-8')
 backend = (root/'Code.gs').read_text(encoding='utf-8')
-compact = ''.join(app.split())
 
-for token in ["'users'", "'logs'", 'UsersApproval', 'ActivityLogs', 'OperationalDashboard', 'canLogs(user)']:
-    assert token in app, f'Missing App integration: {token}'
-assert "user.role==='owner'" in compact, 'Owner-only Users navigation missing'
+for token in ["'logs'", 'ActivityLogs', 'OperationalDashboard', 'canLogs(user)', 'canViewAccess']:
+    assert token in app, f'Missing QC App integration: {token}'
+assert "UsersApproval" not in app, 'Users administration must live on Operational Portal, not QC tabs.'
 
-for token in ['users:', 'approveUser:', 'rejectUser:', 'logs:']:
+for token in ["'users'", 'UsersApproval', 'Users & Access', 'Pengguna & Hak Akses', "user?.role==='owner'"]:
+    assert token in portal, f'Missing Operational Portal Users integration: {token}'
+
+for token in ['users:', 'approveUser:', 'rejectUser:', 'updateUserRole:', 'updateUserPermissions:', 'logs:']:
     assert token in api, f'Missing API wrapper: {token}'
-for token in ['Users & Approval', 'Menunggu Persetujuan', 'Activity Logs', 'AUDIT TRAIL']:
-    assert token in admin, f'Missing admin UI: {token}'
+for token in ['Users & Approval', 'Menunggu Persetujuan', 'Activity Logs', 'AUDIT TRAIL', 'HAK AKSES DETAIL', 'Simpan Hak Akses']:
+    assert token in admin, f'Missing admin/access UI: {token}'
 for token in ['Dashboard QC', 'Luas yang Sudah Dikerjakan', 'Spray area', 'Fertilizer area', 'Pupuk tercatat', 'Total area dikerjakan', 'worked-paddocks', 'onOpenRecords']:
     assert token in dash, f'Missing dashboard metric or navigation: {token}'
 assert 'Total luas pada Plan' not in dash
-assert "requireRole_(session,['owner'])" in backend
-assert "requireRole_(session,['owner','manager','admin','asisten'])" in backend
-print('Admin, logs, and operational dashboard React check: OK')
+assert "if (action === 'users') { requireRole_(session,['owner'])" in backend
+assert "if (action === 'updateUserPermissions') { requireRole_(session,['owner'])" in backend
+assert "requirePermission_(session,'qc_logs',false)" in backend
+print('Portal Users, granular access, logs, and operational dashboard React check: OK')
