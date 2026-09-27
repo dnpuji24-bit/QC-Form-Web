@@ -5,6 +5,7 @@ import MasterPaddockWorkspace from './MasterPaddockWorkspace'
 import PlanWorkspace from './PlanWorkspace'
 import { UsersApproval } from './AdminPages'
 import { canOpenDataUnm, canOpenQc, canViewAccess } from './accessControl'
+import { hydrateUserAccess } from './userAccess'
 import { GROUP_BRAND } from './groupConfig'
 import type { User } from './types'
 import './portal.css'
@@ -42,9 +43,23 @@ export default function PortalRouter(){
     return()=>{window.clearInterval(timer);window.removeEventListener('focus',sync)}
   },[])
 
+  useEffect(()=>{
+    if(!loggedIn||!user)return
+    let cancelled=false
+    void hydrateUserAccess(user).then(hydrated=>{
+      if(cancelled)return
+      const before=JSON.stringify(user.permissions||{}),after=JSON.stringify(hydrated.permissions||{})
+      if(before===after&&user.firebaseUid===hydrated.firebaseUid)return
+      setUser(hydrated)
+      sessionStorage.setItem(USER_KEY,JSON.stringify(hydrated))
+      localStorage.setItem(USER_KEY,JSON.stringify(hydrated))
+    })
+    return()=>{cancelled=true}
+  },[loggedIn,user?.username])
+
   const canData=useMemo(()=>dataUnmAllowed(user),[user])
   const canQc=useMemo(()=>qcAllowed(user),[user])
-  const canUsers=user.role==='owner'
+  const canUsers=user?.role==='owner'
   if(!loggedIn||!user)return null
 
   function choose(next:PortalMode){
