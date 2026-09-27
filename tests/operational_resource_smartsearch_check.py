@@ -46,13 +46,17 @@ for token in [
 
 for source,name,prefix in [(spray,"Spraying","spray"),(fert,"Fertilizer","fert")]:
     for token in [
-        f'list="{prefix}-resource-shifts"',
         f'list="{prefix}-resource-foremen"',
         f'list="{prefix}-resource-units"',
         'unitNumbersForUnit',
         'assistantOptions',
+        'resourceShifts',
+        'shiftOptions',
+        'qcShiftValue',
     ]:
         assert token in source, f"QC {name} Firestore master integration missing: {token}"
+    assert '<label>Shift<select value={shift} onChange={e=>changeShift(e.target.value)}>' in source, f"QC {name} Shift selector regression"
+    assert "mergeResourceNames(['1','2'],dailyPlanRows.map(p=>qcShiftValue(p.shift)).filter(Boolean),resourceShifts" in source, f"QC {name} Daily Plan + Master Shift merge regression"
 
 for token in ['nozzleOptions','dropperOptions','waterQualityOptions','weatherConditionOptions']:
     assert token in spray, f"QC Spraying grouped master source missing: {token}"
