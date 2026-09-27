@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { collection, doc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore'
 import { qcApi } from './api'
 import FirestoreMigrationPanel from './FirestoreMigrationPanel'
 import { firebaseAuth, firestoreDb } from './firebase'
@@ -31,20 +31,26 @@ export function UsersApproval({ token }: UsersProps) {
     try {
       const userResult = await qcApi.users(token)
       let list = (userResult.users || userResult.data || []) as User[]
+      const requestedRoleByUsername=new Map<string,string>()
       if(firestoreDb){
         try{
-          const [profileSnap,accessSnap]=await Promise.all([getDocs(collection(firestoreDb,'users')),getDocs(collection(firestoreDb,'user_access'))])
+          const [profileSnap,accessSnap,registrationSnap]=await Promise.all([
+            getDocs(collection(firestoreDb,'users')),
+            getDocs(collection(firestoreDb,'user_access')),
+            getDocs(collection(firestoreDb,'registration_requests')),
+          ])
           const profileByUsername=new Map(profileSnap.docs.map(item=>[String(item.data().username||'').toLowerCase(),{uid:item.id,data:item.data()}]))
           const accessByUid=new Map(accessSnap.docs.map(item=>[item.id,item.data()]))
+          registrationSnap.docs.forEach(item=>{const data=item.data(),username=String(data.username||'').toLowerCase(),role=String(data.requestedRole||'');if(username&&ROLES.includes(role as Role))requestedRoleByUsername.set(username,role)})
           list=list.map(user=>{
             const profile=profileByUsername.get(user.username.toLowerCase()),uid=user.firebaseUid||profile?.uid||'',override=uid?accessByUid.get(uid):undefined
             const rawPermissions=override?.permissions&&typeof override.permissions==='object'?override.permissions:user.permissions
             return{...user,firebaseUid:uid||user.firebaseUid,permissions:rawPermissions as User['permissions']}
           })
-        }catch(error){console.info('User access override belum dapat dibaca; memakai default role/API.',error)}
+        }catch(error){console.info('User access/registration override belum dapat dibaca; memakai default role/API.',error)}
       }
       setUsers(list)
-      setRoleDraft(Object.fromEntries(list.map((u) => [u.username, u.role])))
+      setRoleDraft(Object.fromEntries(list.map((u) => [u.username, requestedRoleByUsername.get(u.username.toLowerCase())||u.role])))
       setPermissionDraft(Object.fromEntries(list.map((u)=>[u.username,{...defaultPermissionsForRole(u.role),...(u.permissions||{})}])))
       try {
         const requestResult = await qcApi.accountChangeRequests(token)
@@ -66,6 +72,7 @@ export function UsersApproval({ token }: UsersProps) {
     try {
       if (action === 'approve') await qcApi.approveUser(token, user.username, role)
       else await qcApi.rejectUser(token, user.username, role)
+      if(firestoreDb&&user.firebaseUid){try{await deleteDoc(doc(firestoreDb,'registration_requests',user.firebaseUid))}catch(error){console.info('Cleanup role request dilewati.',error)}}
       setMessage(action === 'approve' ? `${user.fullName} disetujui sebagai ${role}.` : `${user.fullName} ditolak.`)
       await load()
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Proses approval gagal') }
