@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
+import { collection, doc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore'
 import { qcApi } from './api'
 import FirestoreMigrationPanel from './FirestoreMigrationPanel'
+import { firebaseAuth, firestoreDb } from './firebase'
 import type { AccountChangeRequest, Role, User } from './types'
 import { defaultPermissionsForRole, PERMISSION_CATALOG, type AccessMode, type PermissionKey, type UserPermissions } from './accessControl'
 
@@ -28,7 +30,19 @@ export function UsersApproval({ token }: UsersProps) {
     setBusy(true); setMessage('')
     try {
       const userResult = await qcApi.users(token)
-      const list = (userResult.users || userResult.data || []) as User[]
+      let list = (userResult.users || userResult.data || []) as User[]
+      if(firestoreDb){
+        try{
+          const [profileSnap,accessSnap]=await Promise.all([getDocs(collection(firestoreDb,'users')),getDocs(collection(firestoreDb,'user_access'))])
+          const profileByUsername=new Map(profileSnap.docs.map(item=>[String(item.data().username||'').toLowerCase(),{uid:item.id,data:item.data()}]))
+          const accessByUid=new Map(accessSnap.docs.map(item=>[item.id,item.data()]))
+          list=list.map(user=>{
+            const profile=profileByUsername.get(user.username.toLowerCase()),uid=user.firebaseUid||profile?.uid||'',override=uid?accessByUid.get(uid):undefined
+            const rawPermissions=override?.permissions&&typeof override.permissions==='object'?override.permissions:user.permissions
+            return{...user,firebaseUid:uid||user.firebaseUid,permissions:rawPermissions as User['permissions']}
+          })
+        }catch(error){console.info('User access override belum dapat dibaca; memakai default role/API.',error)}
+      }
       setUsers(list)
       setRoleDraft(Object.fromEntries(list.map((u) => [u.username, u.role])))
       setPermissionDraft(Object.fromEntries(list.map((u)=>[u.username,{...defaultPermissionsForRole(u.role),...(u.permissions||{})}])))
@@ -64,7 +78,11 @@ export function UsersApproval({ token }: UsersProps) {
     setBusy(true); setMessage('')
     try {
       const result = await qcApi.updateUserRole(token, user.username, role)
-      setMessage(result.message || `Role ${user.fullName} diperbarui menjadi ${role.replaceAll('_',' ')}. Perubahan berlaku setelah user login ulang.`)
+      const permissions=defaultPermissionsForRole(role as Role)
+      if(firestoreDb&&user.firebaseUid){
+        await setDoc(doc(firestoreDb,'user_access',user.firebaseUid),{username:user.username,role,permissions,updatedAt:serverTimestamp(),updatedBy:firebaseAuth?.currentUser?.email||'owner'},{merge:true})
+      }
+      setMessage(result.message || `Role ${user.fullName} diperbarui menjadi ${role.replaceAll('_',' ')}. Hak akses direset mengikuti default role; berlaku setelah user login ulang.`)
       await load()
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Perubahan role gagal') }
     finally { setBusy(false) }
@@ -82,14 +100,16 @@ export function UsersApproval({ token }: UsersProps) {
     setMessage('Draft hak akses '+user.fullName+' direset mengikuti default role '+role.replaceAll('_',' ')+'. Klik Simpan Hak Akses untuk menerapkan.')
   }
   async function savePermissions(user:User){
-    if(user.role==='owner'&&user.username===users.find(u=>u.role==='owner')?.username){
-      // Owner tetap dapat disimpan; backend memastikan akses Owner tidak terkunci.
-    }
     setBusy(true);setMessage('')
     try{
-      const permissions=permissionDraft[user.username]||defaultPermissionsForRole((roleDraft[user.username]||user.role) as Role)
-      const result=await qcApi.updateUserPermissions(token,user.username,permissions as Record<string,string>)
-      setMessage(result.message||('Hak akses '+user.fullName+' berhasil diperbarui. Berlaku setelah user login ulang.'))
+      const role=(roleDraft[user.username]||user.role) as Role
+      const permissions=role==='owner'?defaultPermissionsForRole('owner'):(permissionDraft[user.username]||defaultPermissionsForRole(role))
+      if(!firestoreDb)throw new Error('Firestore belum tersedia untuk menyimpan hak akses.')
+      if(!user.firebaseUid)throw new Error('Firebase UID user belum tersedia. Login user tersebut minimal sekali atau refresh Users setelah provisioning Firebase.')
+      await setDoc(doc(firestoreDb,'user_access',user.firebaseUid),{username:user.username,role,permissions,updatedAt:serverTimestamp(),updatedBy:firebaseAuth?.currentUser?.email||'owner'},{merge:true})
+      let mirrored=false
+      try{await qcApi.updateUserPermissions(token,user.username,permissions as Record<string,string>);mirrored=true}catch(error){console.info('Mirror hak akses ke Apps Script belum tersedia; Firestore override tetap aktif.',error)}
+      setMessage('Hak akses '+user.fullName+' berhasil disimpan ke Firestore.'+(mirrored?' Sinkron Apps Script juga berhasil.':' Perubahan sudah aktif melalui Firestore; sinkron Apps Script menunggu deployment backend terbaru.')+' User perlu login ulang.')
       await load()
     }catch(error){setMessage(error instanceof Error?error.message:'Hak akses gagal disimpan')}finally{setBusy(false)}
   }
