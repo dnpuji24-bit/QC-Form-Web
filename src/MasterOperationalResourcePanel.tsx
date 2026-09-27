@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore'
 import { firebaseAuth, firestoreDb } from './firebase'
 import type { User } from './types'
+import { canEditAccess } from './accessControl'
 import type { OperationalResourceKind } from './masterOperationalResources'
 
 type Props={user:User}
@@ -26,7 +27,7 @@ async function writerContext(appUser:User){
   if(!snap.exists())throw new Error('Profil Firebase user tidak ditemukan.')
   const profile=snap.data() as Profile
   if(profile.active!==true)throw new Error('Profil Firebase tidak aktif.')
-  if(!['owner','asisten'].includes(profile.role||'')||!['owner','asisten'].includes(appUser.role))throw new Error('Hanya Owner/Asisten yang dapat mengubah Master Resource.')
+  if(!canEditAccess(appUser,'data_master_activity_resources'))throw new Error('Hak akses Edit Master Resource belum diberikan.')
   return{db,username:profile.username||appUser.username}
 }
 
