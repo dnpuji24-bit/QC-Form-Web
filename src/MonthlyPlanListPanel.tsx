@@ -29,7 +29,7 @@ export default function MonthlyPlanListPanel({user,selectedMonth,selectedWeek,co
   const[rows,setRows]=useState<PlanRow[]>([]),[daily,setDaily]=useState<DailyRef[]>([]),[actuals,setActuals]=useState<ActualRef[]>([]),[logs,setLogs]=useState<ImportLog[]>([]),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
   const[month,setMonth]=useState('ALL'),[week,setWeek]=useState('ALL'),[company,setCompany]=useState('ALL'),[farm,setFarm]=useState('ALL'),[status,setStatus]=useState('ALL'),[query,setQuery]=useState('')
   const[editMode,setEditMode]=useState<'details'|'progress'|''>(''),[editingId,setEditingId]=useState('')
-  const[editTarget,setEditTarget]=useState(''),[editVariety,setEditVariety]=useState(''),[editMasterVariety,setEditMasterVariety]=useState(''),[editStage,setEditStage]=useState(''),[editFarm,setEditFarm]=useState(''),[editWeek,setEditWeek]=useState('W1'),[editNotes,setEditNotes]=useState('')
+  const[editTarget,setEditTarget]=useState(''),[editMonth,setEditMonth]=useState(''),[editVariety,setEditVariety]=useState(''),[editMasterVariety,setEditMasterVariety]=useState(''),[editStage,setEditStage]=useState(''),[editFarm,setEditFarm]=useState(''),[editWeek,setEditWeek]=useState('W1'),[editNotes,setEditNotes]=useState('')
   const[progressManual,setProgressManual]=useState(''),[progressNote,setProgressNote]=useState(''),[expandedDailyPlanId,setExpandedDailyPlanId]=useState('')
   const isOwner=user.role==='owner',canWrite=['owner','asisten'].includes(user.role)
 
@@ -58,13 +58,14 @@ export default function MonthlyPlanListPanel({user,selectedMonth,selectedWeek,co
   const hasActiveFilter=month!=='ALL'||week!=='ALL'||company!=='ALL'||farm!=='ALL'||status!=='ALL'||query.trim()!==''
   const editing=viewRows.find(row=>row.id===editingId)||null
 
-  function startDetails(row:ViewRow){setEditingId(row.id);setEditMode('details');setEditTarget(String(row.targetAreaHa));setEditVariety(row.variety);setEditMasterVariety(row.masterVariety);setEditStage(row.stage);setEditFarm(row.farm);setEditWeek(row.week||'W1');setEditNotes(row.notes);requestAnimationFrame(()=>document.getElementById('monthly-edit-panel')?.scrollIntoView({behavior:'smooth',block:'start'}))}
+  function startDetails(row:ViewRow){setEditingId(row.id);setEditMode('details');setEditTarget(String(row.targetAreaHa));setEditMonth(row.monthKey);setEditVariety(row.variety);setEditMasterVariety(row.masterVariety);setEditStage(row.stage);setEditFarm(row.farm);setEditWeek(row.week||'W1');setEditNotes(row.notes);requestAnimationFrame(()=>document.getElementById('monthly-edit-panel')?.scrollIntoView({behavior:'smooth',block:'start'}))}
   function startProgress(row:ViewRow){setEditingId(row.id);setEditMode('progress');setProgressManual(String(row.manualActualAreaHa||0));setProgressNote(row.manualProgressNote);requestAnimationFrame(()=>document.getElementById('monthly-edit-panel')?.scrollIntoView({behavior:'smooth',block:'start'}))}
   function closeEdit(){setEditingId('');setEditMode('')}
 
-  async function saveDetails(e:FormEvent){e.preventDefault();if(!editing)return;const target=num(editTarget);if(target<=0){setMessage('Target harus lebih dari 0 Ha.');return}if(target<editing.systemActualAreaHa-0.0001&&!window.confirm('Target baru lebih kecil dari total Actual saat ini ('+formatHa(editing.systemActualAreaHa)+'). Status akan menjadi OVER ACTUAL. Tetap simpan?'))return
+  async function saveDetails(e:FormEvent){e.preventDefault();if(!editing)return;const target=num(editTarget);if(target<=0){setMessage('Target harus lebih dari 0 Ha.');return}if(!/^\d{4}-\d{2}$/.test(editMonth)){setMessage('Bulan Monthly Plan tidak valid.');return}if(target<editing.systemActualAreaHa-0.0001&&!window.confirm('Target baru lebih kecil dari total Actual saat ini ('+formatHa(editing.systemActualAreaHa)+'). Status akan menjadi OVER ACTUAL. Tetap simpan?'))return
+    if(editMonth!==editing.monthKey&&editing.scheduledAreaHa>0&&!window.confirm('Monthly Plan ini sudah mempunyai Daily Plan '+formatHa(editing.scheduledAreaHa)+'. Memindahkan bulan tidak mengubah tanggal Daily yang sudah dibuat dan link tetap dipertahankan. Tetap pindahkan ke '+editMonth+'?'))return
     setBusy(true)
-    try{const{db,username}=await writerContext(user),dates=weekDates(editing.monthKey,editWeek);await setDoc(doc(db,'monthly_plans',editing.id),{targetAreaHa:target,variety:editVariety,masterVariety:editMasterVariety||editVariety,stage:editStage,farm:editFarm,week:editWeek,startDate:dates.start,endDate:dates.end,notes:editNotes,balanceHa:Math.max(target-editing.systemActualAreaHa,0),calculatedBalanceHa:target-editing.systemActualAreaHa,lastModifiedSource:'WEB',updatedAt:serverTimestamp(),updatedBy:username},{merge:true});setMessage('Monthly '+editing.planLineId+' berhasil diedit. Plan ID/PID/Activity tetap agar link Daily dan Actual tidak putus.');closeEdit();await load()}catch(error){setMessage(error instanceof Error?error.message:'Edit Monthly Plan gagal.')}finally{setBusy(false)}}
+    try{const{db,username}=await writerContext(user),dates=weekDates(editMonth,editWeek),[nextYear,nextMonthNumber]=editMonth.split('-').map(Number),nextMonthLabel=new Date(nextYear,nextMonthNumber-1,1).toLocaleString('id-ID',{month:'short'});await setDoc(doc(db,'monthly_plans',editing.id),{targetAreaHa:target,year:nextYear,monthNumber:nextMonthNumber,monthKey:editMonth,monthLabel:nextMonthLabel,variety:editVariety,masterVariety:editMasterVariety||editVariety,stage:editStage,farm:editFarm,week:editWeek,startDate:dates.start,endDate:dates.end,notes:editNotes,balanceHa:Math.max(target-editing.systemActualAreaHa,0),calculatedBalanceHa:target-editing.systemActualAreaHa,lastModifiedSource:'WEB',updatedAt:serverTimestamp(),updatedBy:username},{merge:true});setMessage('Monthly '+editing.planLineId+' berhasil diedit'+(editMonth!==editing.monthKey?' dan dipindahkan ke '+editMonth+' · '+editWeek:'')+'. Plan ID/PID/Activity tetap agar link Daily dan Actual tidak putus.');closeEdit();await load()}catch(error){setMessage(error instanceof Error?error.message:'Edit Monthly Plan gagal.')}finally{setBusy(false)}}
 
   async function saveProgress(e:FormEvent){e.preventDefault();if(!editing)return;const manual=num(progressManual);if(manual<0){setMessage('Progress manual tidak boleh negatif.');return}const total=editing.linkedActualAreaHa+manual;if(total>editing.targetAreaHa+0.0001&&!window.confirm('Total Actual setelah update menjadi '+formatHa(total)+', melebihi target '+formatHa(editing.targetAreaHa)+'. Tetap simpan?'))return
     setBusy(true)
@@ -88,25 +89,32 @@ export default function MonthlyPlanListPanel({user,selectedMonth,selectedWeek,co
     try{for(let start=0;start<targets.length;start+=450){const batch=writeBatch(firestoreDb);targets.slice(start,start+450).forEach(row=>batch.delete(doc(firestoreDb!,'monthly_plans',row.id)));await batch.commit()}const deletedIds=new Set(targets.map(row=>row.id));setRows(current=>current.filter(row=>!deletedIds.has(row.id)));setMessage('Hapus selesai: '+targets.length+' Monthly Plan dihapus. Daily/Actual downstream tidak dihapus.')}catch(error){setMessage(error instanceof Error?error.message:'Monthly Plan gagal dihapus.')}finally{setBusy(false)}
   }
 
-  const editPanel=editing&&editMode?<form id="monthly-edit-panel" className="panel" style={{marginTop:18}} onSubmit={editMode==='details'?saveDetails:saveProgress}>
-    <div className="section-head"><div><div className="eyebrow">{editMode==='details'?'EDIT MONTHLY PLAN':'UPDATE PROGRESS MANUAL'}</div><h3>{editing.planLineId} · {editing.pid}</h3><p className="muted">{editMode==='details'?'Plan ID, PID, dan Activity dikunci agar link Daily/Actual tidak putus.':'Progress manual adalah progress historis/eksternal yang belum memiliki Actual Plan. Nilai ini ditambahkan ke Actual Plan terhubung.'}</p></div><button type="button" onClick={closeEdit}>Batal</button></div>
-    {editMode==='details'?<div className="plan-grid">
-      <label><span>Target Luas (Ha)</span><input type="number" min="0.0001" step="0.0001" value={editTarget} onChange={e=>setEditTarget(e.target.value)}/></label>
-      <label><span>Week</span><select value={editWeek} onChange={e=>setEditWeek(e.target.value)}>{['W1','W2','W3','W4'].map(x=><option key={x}>{x}</option>)}</select></label>
-      <label><span>Variety</span><input value={editVariety} onChange={e=>setEditVariety(e.target.value)}/></label>
-      <label><span>Master Variety</span><input value={editMasterVariety} onChange={e=>setEditMasterVariety(e.target.value)}/></label>
-      <label><span>Stage</span><input value={editStage} onChange={e=>setEditStage(e.target.value)}/></label>
-      <label><span>Farm</span><input value={editFarm} onChange={e=>setEditFarm(e.target.value)}/></label>
-      <label className="plan-span-2"><span>Keterangan</span><input value={editNotes} onChange={e=>setEditNotes(e.target.value)}/></label>
-      <label><span>Plan ID</span><input value={editing.planLineId} readOnly/></label><label><span>PID</span><input value={editing.pid} readOnly/></label><label><span>Activity</span><input value={editing.activity||editing.description} readOnly/></label>
-    </div>:<div className="plan-grid">
+  const editPanel=editing&&editMode?<form id="monthly-edit-panel" className="panel daily-single-form monthly-inline-edit-panel" onSubmit={editMode==='details'?saveDetails:saveProgress}>
+    <div className="daily-form-toolbar"><div><div className="eyebrow">{editMode==='details'?'EDIT MONTHLY PLAN':'UPDATE PROGRESS MANUAL'}</div><h3>{editing.planLineId} · {editing.pid}</h3><p className="muted">{editMode==='details'?'Periode, target dan atribut dapat diubah. Plan ID, PID, dan Activity tetap dikunci agar link Daily/Actual tidak putus.':'Progress manual adalah progress historis/eksternal yang belum memiliki Actual Plan.'}</p></div><button type="button" onClick={closeEdit}>Batal</button></div>
+    {editMode==='details'?<>
+      <div className="daily-form-group"><div className="daily-form-group-title"><span>01</span><div><strong>Periode & Target</strong><small>Pindahkan Monthly Plan antar bulan tanpa memutus Plan ID.</small></div></div><div className="plan-grid monthly-edit-period-grid">
+        <label><span>Bulan</span><input type="month" value={editMonth} onChange={e=>setEditMonth(e.target.value)}/></label>
+        <label><span>Week</span><select value={editWeek} onChange={e=>setEditWeek(e.target.value)}>{['W1','W2','W3','W4'].map(x=><option key={x}>{x}</option>)}</select></label>
+        <label><span>Target Luas (Ha)</span><input type="number" min="0.0001" step="0.0001" value={editTarget} onChange={e=>setEditTarget(e.target.value)}/></label>
+      </div></div>
+      <div className="daily-form-group"><div className="daily-form-group-title"><span>02</span><div><strong>Detail Paddock</strong><small>Variety, stage, farm dan keterangan.</small></div></div><div className="plan-grid monthly-edit-detail-grid">
+        <label><span>Variety</span><input value={editVariety} onChange={e=>setEditVariety(e.target.value)}/></label>
+        <label><span>Master Variety</span><input value={editMasterVariety} onChange={e=>setEditMasterVariety(e.target.value)}/></label>
+        <label><span>Stage</span><input value={editStage} onChange={e=>setEditStage(e.target.value)}/></label>
+        <label><span>Farm</span><input value={editFarm} onChange={e=>setEditFarm(e.target.value)}/></label>
+        <label className="plan-span-2"><span>Keterangan</span><input value={editNotes} onChange={e=>setEditNotes(e.target.value)}/></label>
+      </div></div>
+      <div className="daily-form-group monthly-edit-locked"><div className="daily-form-group-title"><span>03</span><div><strong>Identitas Terkunci</strong><small>Dipertahankan agar Daily dan Actual tetap terhubung.</small></div></div><div className="plan-grid">
+        <label><span>Plan ID</span><input value={editing.planLineId} readOnly/></label><label><span>PID</span><input value={editing.pid} readOnly/></label><label><span>Activity</span><input value={editing.activity||editing.description} readOnly/></label>
+      </div></div>
+    </>:<div className="daily-form-group"><div className="daily-form-group-title"><span>01</span><div><strong>Progress Manual</strong><small>Ditambahkan ke Actual Plan terhubung.</small></div></div><div className="plan-grid">
       <label><span>Actual dari Actual Plan</span><input value={formatHa(editing.linkedActualAreaHa)} readOnly/></label>
       <label><span>Progress Manual / Historis (Ha)</span><input type="number" min="0" step="0.0001" value={progressManual} onChange={e=>setProgressManual(e.target.value)}/></label>
       <label><span>Total Actual setelah update</span><input value={formatHa(editing.linkedActualAreaHa+num(progressManual))} readOnly/></label>
       <label><span>Target</span><input value={formatHa(editing.targetAreaHa)} readOnly/></label>
       <label className="plan-span-2"><span>Catatan Progress</span><input value={progressNote} onChange={e=>setProgressNote(e.target.value)} placeholder="Contoh: progress sebelum penggunaan Actual Plan web"/></label>
-    </div>}
-    <button type="submit" className="primary" disabled={busy} style={{marginTop:14}}>{busy?'Menyimpan…':editMode==='details'?'Simpan Perubahan Monthly':'Simpan Update Progress'}</button>
+    </div></div>}
+    <div className="daily-single-form-actions"><button type="submit" className="primary" disabled={busy}>{busy?'Menyimpan…':editMode==='details'?'Simpan Perubahan Monthly':'Simpan Update Progress'}</button><button type="button" onClick={closeEdit}>Batal</button></div>
   </form>:null
 
   if(compact)return <section className="monthly-period-list">
