@@ -10,12 +10,22 @@ spray=(root/'src'/'SprayForm.tsx').read_text(encoding='utf-8')
 fert=(root/'src'/'FertilizerForm.tsx').read_text(encoding='utf-8')
 manage=(root/'src'/'MasterActivityManagePanel.tsx').read_text(encoding='utf-8')
 
-for token in ["master_units","master_shifts","master_foremen","loadAllOperationalResources"]:
-    assert token in resource_helper, f"Missing separate resource master token: {token}"
+collections=[
+    'master_units','master_unit_numbers','master_nozzles','master_droppers',
+    'master_shifts','master_foremen','master_assistants',
+    'master_water_qualities','master_weather_conditions',
+]
+for token in collections+['loadAllOperationalResources','unitNumbersForUnit']:
+    assert token in resource_helper, f"Missing Firestore resource master token: {token}"
 
-for token in ["Master Resource Operasional","Master Unit","Master Shift","Master Mandor / Foreman"]:
-    assert token in resource_panel, f"Missing resource management UI token: {token}"
+for token in [
+    'Master Resource Operasional','Unit & Equipment','Supervisi','Kondisi Lapangan',
+    'Jenis Unit / Equipment','No. Unit','Nozzle','Dropper','Mandor / Foreman',
+    'Asisten','Water Quality','Weather Condition',
+]:
+    assert token in resource_panel, f"Missing grouped resource management UI token: {token}"
 
+assert "parentUnitId" in resource_panel and "parentUnitName" in resource_panel
 assert "Master Resource" in workspace
 
 for token in [
@@ -37,10 +47,15 @@ for source,name,prefix in [(spray,"Spraying","spray"),(fert,"Fertilizer","fert")
         f'list="{prefix}-resource-shifts"',
         f'list="{prefix}-resource-foremen"',
         f'list="{prefix}-resource-units"',
+        'unitNumbersForUnit',
+        'assistantOptions',
     ]:
-        assert token in source, f"QC {name} smartsearch missing: {token}"
+        assert token in source, f"QC {name} Firestore master integration missing: {token}"
+
+for token in ['nozzleOptions','dropperOptions','waterQualityOptions','weatherConditionOptions']:
+    assert token in spray, f"QC Spraying grouped master source missing: {token}"
 
 for forbidden in ["Default Unit","Default Shift","Default Mandor / Foreman"]:
     assert forbidden not in manage, f"Activity should not own operational resource field: {forbidden}"
 
-print("Operational resource smartsearch check passed: Unit, Shift, and Foreman are separate masters and are reused by Daily, Actual, Spraying QC, and Fertilizer QC.")
+print("Operational resource smartsearch check passed: grouped Firestore masters feed Unit/No Unit, supervision and field-condition inputs.")
