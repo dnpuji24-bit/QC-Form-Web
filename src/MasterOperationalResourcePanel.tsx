@@ -93,6 +93,10 @@ export default function MasterOperationalResourcePanel({user}:Props){
       const payload:Record<string,unknown>={name,active:true,updatedAt:serverTimestamp(),updatedBy:context.username,source:'WEB_MANUAL'}
       if(kind==='unit_number'){payload.parentUnitId=selectedParent?.id||'';payload.parentUnitName=selectedParent?.name||''}
       await setDoc(doc(context.db,collectionName,targetId),payload,{merge:true})
+      if(kind==='unit'&&editingId){
+        const numberSnap=await getDocs(collection(context.db,OPERATIONAL_RESOURCE_COLLECTIONS.unit_number))
+        await Promise.all(numberSnap.docs.filter(item=>text((item.data() as Record<string,unknown>).parentUnitId)===editingId).map(item=>setDoc(doc(context.db,OPERATIONAL_RESOURCE_COLLECTIONS.unit_number,item.id),{parentUnitId:targetId,parentUnitName:name,updatedAt:serverTimestamp(),updatedBy:context.username},{merge:true})))
+      }
       if(editingId&&editingId!==targetId)await deleteDoc(doc(context.db,collectionName,editingId))
       setValue('');setParentUnitId('');setEditingId('')
       await load(meta.singular+' berhasil disimpan.')
