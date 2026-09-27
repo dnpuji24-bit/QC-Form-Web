@@ -64,6 +64,19 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
   function addUnit(){const card=emptyCard();setCards(old=>[...old,card]);setActiveCardId(card.id)}
   function duplicateCard(card:SprayCard){const copy:SprayCard={...card,id:uid(),recordId:undefined,createdAt:undefined,saveType:undefined,noUnit:'',area:'',actualUsage:'',actUsageAdjuvant:'',actualMaterials:{},holds:[],noted:'',photo:undefined,photoDriveUrl:undefined,removePhoto:false};setCards(old=>[...old,copy]);setActiveCardId(copy.id)}
   function removeCard(card:SprayCard){const remaining=cards.filter(c=>c.id!==card.id);setCards(remaining);setActiveCardId(remaining[Math.max(0,activeIndex-1)]?.id||remaining[0]?.id||'')}
+  async function clearInput(confirmFirst=true){
+    if(confirmFirst&&cards.some(hasCardInput)&&!window.confirm('Bersihkan seluruh draft/input Spraying pada form ini? Data yang sudah tersimpan di Data QC tidak ikut dihapus.'))return
+    await clearDraft(draftKey)
+    const fresh=emptyCard()
+    setSessionId(`spraysession_${Date.now()}_${Math.random().toString(36).slice(2,7)}`)
+    setDate(today())
+    setShift('1')
+    setMandor('')
+    setAssistant('')
+    setCards([fresh])
+    setActiveCardId(fresh.id)
+    setMessage('Draft/input Spraying sudah dibersihkan. Form baru siap digunakan.')
+  }
   function validateReady(activeCards:SprayCard[]){if(!date||!mandor)return{message:'Tanggal dan Mandor wajib diisi.',cardId:activeCards[0]?.id||''};if(!activeCards.length)return{message:'Isi minimal satu Unit Card sebelum disimpan.',cardId:''};const seen=new Set<string>();for(let i=0;i<activeCards.length;i++){const c=activeCards[i];if(!c.unit||!c.noUnit||!c.paddock)return{message:`Unit ${i+1}: lengkapi Jenis Unit, No. Unit, dan Paddock.`,cardId:c.id};const key=`${c.unit}|${c.noUnit}`.toLowerCase();if(seen.has(key))return{message:`Unit ${i+1}: ${c.noUnit} sudah digunakan pada unit lain.`,cardId:c.id};seen.add(key);if(!c.activity||!c.deskripsi||!c.variety||!c.type)return{message:`Unit ${c.noUnit}: lengkapi Activity, Deskripsi, Variety, dan Type.`,cardId:c.id};if(!editing&&!sprayDailyPlans.some(plan=>plan.dailyPlanId===c.dailyPlanId))return{message:`Unit ${c.noUnit}: pilih pekerjaan yang tersedia dari Daily Plan tanggal/shift aktif.`,cardId:c.id};if(n(c.area)<=0)return{message:`Unit ${c.noUnit}: Luas aktual wajib lebih dari 0.`,cardId:c.id};const timing=timingFor(c);if(!timing.ready)return{message:`Unit ${c.noUnit}: ${timing.error}`,cardId:c.id}}return null}
   function showProblem(problem:{message:string;cardId:string}){if(problem.cardId)setActiveCardId(problem.cardId);setMessage(problem.message);window.setTimeout(()=>document.querySelector('.active-unit-card')?.scrollIntoView({behavior:'smooth',block:'start'}),60)}
   async function saveAll(saveType:'draft'|'ready'){
@@ -105,7 +118,7 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
   const estimatedAdjuvant=card?((n(card.adjuvantDosage)*n(card.waterRate)*n(card.area))/1000).toFixed(2):'0.00'
 
   return <section>
-    <div className="section-head"><div><div className="eyebrow">SPRAYING DAILY SESSION</div><h2>{editingUploaded?'Koreksi Spraying Uploaded':editing?'Edit Daily Session Spraying':'Input Spraying per Unit'}</h2></div><span className="badge">Unit-centric</span></div>
+    <div className="section-head"><div><div className="eyebrow">SPRAYING DAILY SESSION</div><h2>{editingUploaded?'Koreksi Spraying Uploaded':editing?'Edit Daily Session Spraying':'Input Spraying per Unit'}</h2></div><div className="row-actions">{!editing&&<button type="button" className="secondary" disabled={busy} onClick={()=>void clearInput(true)}>Clean Draft</button>}<span className="badge">Unit-centric</span></div></div>
     <div className="panel session-bar"><label>Tanggal<input type="date" value={date} onChange={e=>setDate(e.target.value)}/></label><label>Shift<input list="spray-resource-shifts" value={shift} onChange={e=>setShift(e.target.value)} placeholder="Ketik shift"/><datalist id="spray-resource-shifts">{shiftOptions.map(x=><option key={x} value={x}/>)}</datalist></label><label>Mandor<input list="spray-resource-foremen" value={mandor} onChange={e=>setMandor(e.target.value)} placeholder="Ketik nama mandor"/><datalist id="spray-resource-foremen">{foremanOptions.map(x=><option key={x} value={x}/>)}</datalist></label><label>Asisten<select value={assistant} onChange={e=>setAssistant(e.target.value)}><option value="">Pilih…</option>{assistantOptions.map(x=><option key={x}>{x}</option>)}</select></label></div>
     <div className={'alert qc-daily-source-status '+(dailyPlanLoading?'is-loading':'')}><strong>Sumber pekerjaan: Daily Plan</strong><span>{dailyPlanLoading?'Memuat Daily Plan…':dailyPlanMessage}</span></div>
     <div className="unit-tab-shell"><div className="unit-tab-rail" role="tablist" aria-label="Daftar unit spraying">{cards.map((c,i)=><button type="button" role="tab" aria-selected={c.id===card?.id} className={`unit-tab ${c.id===card?.id?'active':''}`} key={c.id} onClick={()=>setActiveCardId(c.id)}><span>UNIT {i+1}</span><strong>{c.noUnit||'Belum dipilih'}</strong><small>{c.paddock||'Paddock -'}</small></button>)}<button type="button" className="unit-tab add-tab" onClick={addUnit}><span>+</span><strong>Tambah Unit</strong><small>Unit baru</small></button></div></div>
