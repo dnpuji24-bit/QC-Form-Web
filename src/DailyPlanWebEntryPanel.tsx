@@ -6,6 +6,7 @@ import { dailyPlansToWhatsApp, type DailyPlanTransfer } from './dailyPlanActions
 import type { DailyComposerRequest } from './dailyPlanWorkspaceTypes'
 import { aggregateMaterials, clearPlanDraft, materialLinesFromComponents, planHa, planNum, planRowId, planText, readPlanDraft, writePlanDraft } from './planInputUtils'
 import type { User } from './types'
+import { canEditAccess } from './accessControl'
 import { loadAllOperationalResources } from './masterOperationalResources'
 
 type Props={user:User;selectedDate?:string;onDateChange?:(date:string)=>void;onSaved?:()=>void;composerRequest?:DailyComposerRequest;onComposerRequestHandled?:()=>void}
@@ -66,7 +67,7 @@ function activityChoices(rows:Monthly[],input:string){
   for(const row of rows){const label=activityLabel(row),key=searchKey(label);if(!label||seen.has(key)||q&&!key.startsWith(q))continue;seen.add(key);out.push(label)}
   return out.sort((a,b)=>a.localeCompare(b)).slice(0,80)
 }
-async function writer(appUser:User){const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.');await firebaseAuthPersistenceReady;if(typeof auth.authStateReady==='function')await auth.authStateReady();const current=auth.currentUser;if(!current)throw new Error('Sesi Firebase belum aktif di perangkat ini. Buka ulang halaman atau login ulang, lalu coba Simpan Semua Daily Plan.');const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.');const p=snap.data() as Record<string,unknown>;if(p.active!==true||!['owner','asisten'].includes(planText(p.role))||!['owner','asisten'].includes(appUser.role))throw new Error('Role tidak memiliki izin membuat Daily Plan.');return{db,username:planText(p.username)||appUser.username}}
+async function writer(appUser:User){const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.');await firebaseAuthPersistenceReady;if(typeof auth.authStateReady==='function')await auth.authStateReady();const current=auth.currentUser;if(!current)throw new Error('Sesi Firebase belum aktif di perangkat ini. Buka ulang halaman atau login ulang, lalu coba Simpan Semua Daily Plan.');const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.');const p=snap.data() as Record<string,unknown>;if(p.active!==true||!canEditAccess(appUser,'data_plan_daily'))throw new Error('Hak akses Edit Daily Plan belum diberikan.');return{db,username:planText(p.username)||appUser.username}}
 
 export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,onSaved,composerRequest,onComposerRequestHandled}:Props){
   const draftKey='plan_daily_web_draft_'+user.username
