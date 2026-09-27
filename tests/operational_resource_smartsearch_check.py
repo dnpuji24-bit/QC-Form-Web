@@ -26,6 +26,8 @@ for token in [
     assert token in resource_panel, f"Missing grouped resource management UI token: {token}"
 
 assert "parentUnitId" in resource_panel and "parentUnitName" in resource_panel
+assert "OPERATIONAL_RESOURCE_COLLECTIONS.unit_number" in resource_panel
+assert "parentUnitId===unit.id" in resource_helper
 assert "Master Resource" in workspace
 
 for token in [
