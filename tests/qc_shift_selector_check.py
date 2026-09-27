@@ -8,6 +8,6 @@ assert "export function qcShiftValue(value:unknown)" in source
 for form in [spray,fert]:
     assert "mergeResourceNames(['1','2'],dailyPlanRows.map(p=>qcShiftValue(p.shift)).filter(Boolean)" in form
     assert "<label>Shift<select value={shift} onChange={e=>changeShift(e.target.value)}>" in form
-    assert "function changeShift(value:string)" in form
-    assert "allowed=new Set(nextPlans.map(p=>p.dailyPlanId))" in form
-print("QC shift selector + Daily Plan shift options checks: OK")
+    assert "function changeShift(value:string){setShift(qcShiftValue(value)||value)}" in form
+    assert "allowed=new Set(nextPlans.map(p=>p.dailyPlanId))" not in form
+print("QC shift selector independent from Paddock filtering: OK")

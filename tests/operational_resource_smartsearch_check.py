@@ -57,6 +57,7 @@ for source,name,prefix in [(spray,"Spraying","spray"),(fert,"Fertilizer","fert")
         assert token in source, f"QC {name} Firestore master integration missing: {token}"
     assert '<label>Shift<select value={shift} onChange={e=>changeShift(e.target.value)}>' in source, f"QC {name} Shift selector regression"
     assert "mergeResourceNames(['1','2'],dailyPlanRows.map(p=>qcShiftValue(p.shift)).filter(Boolean),resourceShifts" in source, f"QC {name} Daily Plan + Master Shift merge regression"
+    assert "allowed=new Set(nextPlans.map(p=>p.dailyPlanId))" not in source, f"QC {name}: shift must remain metadata only"
 
 for token in ['nozzleOptions','dropperOptions','waterQualityOptions','weatherConditionOptions']:
     assert token in spray, f"QC Spraying grouped master source missing: {token}"

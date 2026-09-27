@@ -19,7 +19,7 @@ for token in [
 
 for form,name,kind in [(spray,'Spraying','spray'),(fert,'Fertilizer','fertilizer')]:
     assert "loadQcDailyPlans(date)" in form, f"{name}: date-scoped Daily Plan load missing"
-    assert f"dailyPlansForQc(dailyPlanRows,'{kind}',shift)" in form, f"{name}: shift/category Daily Plan filter missing"
+    assert f"dailyPlansForQc(dailyPlanRows,'{kind}','')" in form, f"{name}: date-wide/category Daily Plan source missing"
     assert "Sumber pekerjaan: Daily Plan" in form, f"{name}: Daily Plan source status missing"
     assert "Daily Plan ID" in form and "Monthly Plan ID" in form, f"{name}: automatic linkage display missing"
     assert "dailyPlanId:" in form and "monthlyPlanLineId:" in form, f"{name}: linkage persistence missing"
@@ -30,8 +30,8 @@ assert "linkedDailyPlan.materials" in spray
 assert "cardDailyPlan?.materials" in spray
 assert "matchingPlan?.materials.find" in fert
 assert "resolveQcDailyPlan(fertDailyPlans" in fert
-assert "pilih pekerjaan yang tersedia dari Daily Plan tanggal/shift aktif" in spray
-assert "pilih pekerjaan yang tersedia dari Daily Plan tanggal/shift aktif" in fert
+assert "pilih pekerjaan yang tersedia dari Daily Plan tanggal aktif" in spray
+assert "pilih pekerjaan yang tersedia dari Daily Plan tanggal aktif" in fert
 
 for token in ["dailyPlanId?: string","monthlyPlanLineId?: string","dailyPlanLinkStatus?: string","plannedDailyAreaHa?: number | string"]:
     assert token in types, f"Missing QcRecord linkage type: {token}"
@@ -52,6 +52,6 @@ for form,name in [(spray,'Spraying'),(fert,'Fertilizer')]:
     assert "dailyPlanRows.map(p=>qcShiftValue(p.shift)).filter(Boolean)" in form, f"{name}: Daily Plan shift options not included"
     assert "mergeResourceNames(['1','2']" in form, f"{name}: Shift 1/2 fallback missing"
     assert "<label>Shift<select value={shift} onChange={e=>changeShift(e.target.value)}>" in form, f"{name}: Shift must be explicit mobile select"
-    assert "function changeShift(value:string)" in form, f"{name}: shift-change reset/link guard missing"
+    assert "function changeShift(value:string){setShift(qcShiftValue(value)||value)}" in form, f"{name}: Shift must not filter Paddock"
 
 print("QC Daily Plan source check passed.")
