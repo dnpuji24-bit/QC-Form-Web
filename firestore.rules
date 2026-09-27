@@ -6,11 +6,17 @@ service cloud.firestore {
     function activeUser() { return signedIn() && profile().data.active == true; }
     function role() { return profile().data.role; }
     function username() { return profile().data.username; }
-    function hasPermissionMap() { return profile().data.keys().hasAny(['permissions']); }
+    function accessOverridePath() { return /databases/$(database)/documents/user_access/$(request.auth.uid); }
+    function hasAccessOverride() { return signedIn() && exists(accessOverridePath()); }
+    function accessOverride() { return get(accessOverridePath()); }
+    function hasProfilePermissionMap() { return profile().data.keys().hasAny(['permissions']); }
+    function hasOverridePermissionMap() { return hasAccessOverride() && accessOverride().data.keys().hasAny(['permissions']); }
     function permission(key) {
-      return hasPermissionMap() && profile().data.permissions.keys().hasAny([key])
-        ? profile().data.permissions[key]
-        : '';
+      return hasOverridePermissionMap() && accessOverride().data.permissions.keys().hasAny([key])
+        ? accessOverride().data.permissions[key]
+        : hasProfilePermissionMap() && profile().data.permissions.keys().hasAny([key])
+          ? profile().data.permissions[key]
+          : '';
     }
     function canViewKey(key, fallbackRoles) {
       return permission(key) in ['view','edit'] || (permission(key) == '' && role() in fallbackRoles);
@@ -30,9 +36,14 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if activeUser() && (request.auth.uid == uid || role() == 'owner');
-      allow update: if activeUser() && role() == 'owner'
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['permissions','updatedAt','updatedBy']);
-      allow create, delete: if false;
+      allow write: if false;
+    }
+
+    match /user_access/{uid} {
+      allow read: if activeUser() && (request.auth.uid == uid || role() == 'owner');
+      allow create, update: if activeUser() && role() == 'owner'
+        && request.resource.data.keys().hasAll(['username','permissions','updatedAt','updatedBy']);
+      allow delete: if activeUser() && role() == 'owner';
     }
 
     match /qc_records/{recordId} {
