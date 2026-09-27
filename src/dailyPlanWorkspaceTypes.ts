@@ -32,6 +32,7 @@ export type SavedDailyRow={
   unitBreakdown:number
   foreman:string
   notes:string
+  pidNotes:string
   companyCode:string
   farm:string
   stage:string
