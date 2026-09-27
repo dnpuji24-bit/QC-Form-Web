@@ -22,3 +22,77 @@
 .role-access-tabs button.active{background:#e0e7ff;border-color:#818cf8;color:#3730a3;box-shadow:0 0 0 2px rgba(99,102,241,.08)}
 .role-access-editor{margin-top:14px}
 @media(max-width:700px){.role-access-tabs{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.role-access-tabs button{padding:9px 10px;border-radius:11px}.role-access-tabs button strong{font-size:.76rem}.role-access-tabs button span{font-size:.64rem}}
+
+
+/* Premium compact Master Activity */
+.master-activity-workspace{min-width:0}
+.master-activity-segmented{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:0 0 14px;padding:5px;border:1px solid #dbe5f1;border-radius:16px;background:#f3f6fb;box-shadow:0 8px 24px rgba(15,23,42,.04)}
+.master-activity-segmented button{min-width:0;padding:10px 9px;border-radius:11px;font-size:.82rem;line-height:1.15;transition:.18s ease}
+.master-activity-segmented button.active{background:linear-gradient(135deg,#2457dc,#356ff0);color:#fff;box-shadow:0 7px 16px rgba(37,87,220,.22)}
+.master-activity-list{min-width:0}
+.master-activity-list .master-activity-titlebar{align-items:center;margin:4px 0 10px}
+.master-activity-list .master-activity-titlebar h2{margin:3px 0 0;font-size:1.45rem;letter-spacing:-.025em}
+.master-activity-list .master-activity-titlebar>button{width:auto;min-width:100px;padding:9px 14px;border:1px solid #dbe5f1;background:#f8fafc}
+.master-activity-list>.alert{margin:7px 0 10px;padding:9px 12px;border:1px solid #d7e3ff;border-radius:11px;font-size:.78rem;line-height:1.35}
+.master-activity-list .master-filter-panel{margin-top:10px;padding:11px;border-radius:16px;border-color:#dbe5f1;box-shadow:0 8px 24px rgba(15,23,42,.04)}
+.master-activity-list .master-filter-panel .record-filters{margin:0;gap:7px}
+.master-activity-list .master-filter-panel input,
+.master-activity-list .master-filter-panel select{min-height:38px;padding:8px 10px;border-radius:10px;font-size:.78rem;background:#fbfdff}
+.master-activity-list .master-filter-panel button{min-height:38px;padding:8px 12px;border-radius:10px;font-size:.76rem}
+.master-activity-list>.stats-grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-top:10px}
+.master-activity-list>.stats-grid .stat{min-width:0;padding:11px 12px;border-radius:14px;box-shadow:0 7px 20px rgba(15,23,42,.045)}
+.master-activity-list>.stats-grid .stat span{font-size:.67rem;font-weight:800;letter-spacing:.055em;text-transform:uppercase}
+.master-activity-list>.stats-grid .stat strong{font-size:1.42rem;line-height:1;margin-top:6px}
+.master-activity-list>.stats-grid .stat small{font-size:.65rem;line-height:1.2;margin-top:6px}
+.master-activity-table-panel{padding:13px!important;margin-top:12px!important;border-radius:17px!important}
+.master-activity-table-head{align-items:center!important;flex-direction:row!important;margin:0 0 9px!important}
+.master-activity-table-head h3{margin:0!important;font-size:1.02rem}
+.master-activity-table-head .badge{padding:5px 8px;font-size:.68rem}
+.master-activity-table-wrap{border-radius:13px}
+.master-activity-table-wrap table{min-width:820px;font-size:.78rem}
+.master-activity-table-wrap th{padding:9px 10px;font-size:.67rem;letter-spacing:.045em}
+.master-activity-table-wrap td{padding:9px 10px;line-height:1.3;vertical-align:middle}
+.master-activity-table-wrap td .muted{font-size:.7rem;line-height:1.25}
+.master-activity-table-wrap td button{white-space:nowrap;padding:7px 9px;border-radius:9px;border:1px solid #dbe5f1;background:#f8fafc;font-weight:750;font-size:.7rem}
+.master-activity-list #activity-composition-detail{margin-top:12px;padding:14px;border-radius:17px}
+.master-activity-list #activity-composition-detail .section-head{margin-bottom:10px}
+
+@media(max-width:900px){
+  .master-activity-segmented{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .master-activity-list>.stats-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:700px){
+  .master-activity-segmented{gap:4px;margin-bottom:12px;padding:4px;border-radius:14px}
+  .master-activity-segmented button{min-height:40px;padding:7px 6px;font-size:.72rem;border-radius:10px}
+  .master-activity-list .master-activity-titlebar{display:flex;flex-direction:row;align-items:center;gap:10px;margin:0 0 8px}
+  .master-activity-list .master-activity-titlebar>div{min-width:0;flex:1}
+  .master-activity-list .master-activity-titlebar .eyebrow{font-size:.61rem;letter-spacing:.12em}
+  .master-activity-list .master-activity-titlebar h2{font-size:1.08rem;white-space:nowrap}
+  .master-activity-list .master-activity-titlebar>button{width:auto;min-width:78px;padding:7px 10px;font-size:.72rem;border-radius:10px}
+  .master-activity-list>.alert{margin:6px 0 8px;padding:8px 10px;font-size:.7rem}
+  .master-activity-list .master-filter-panel{padding:8px;margin-top:8px;border-radius:14px}
+  .master-activity-list .master-filter-panel .record-filters{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+  .master-activity-list .master-filter-panel .record-filters>div:first-child{grid-column:1/-1}
+  .master-activity-list .master-filter-panel input,
+  .master-activity-list .master-filter-panel select,
+  .master-activity-list .master-filter-panel button{min-height:34px;padding:6px 8px;font-size:.68rem;border-radius:9px}
+  .master-activity-list>.stats-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:8px}
+  .master-activity-list>.stats-grid .stat{padding:9px 8px;border-radius:12px}
+  .master-activity-list>.stats-grid .stat span{font-size:.57rem;letter-spacing:.035em}
+  .master-activity-list>.stats-grid .stat strong{font-size:1.15rem;margin-top:5px}
+  .master-activity-list>.stats-grid .stat small{font-size:.56rem;margin-top:4px}
+  .master-activity-table-panel{padding:10px!important;margin-top:10px!important;border-radius:15px!important}
+  .master-activity-table-head{margin-bottom:7px!important}
+  .master-activity-table-head h3{font-size:.92rem}
+  .master-activity-table-head .badge{font-size:.61rem;padding:4px 7px}
+  .master-activity-table-wrap{border-radius:11px;-webkit-overflow-scrolling:touch}
+  .master-activity-table-wrap table{min-width:760px;font-size:.7rem}
+  .master-activity-table-wrap th{padding:7px 8px;font-size:.59rem}
+  .master-activity-table-wrap td{padding:8px;line-height:1.2}
+  .master-activity-table-wrap td .muted{font-size:.62rem}
+  .master-activity-table-wrap td button{padding:6px 7px;font-size:.62rem}
+  .master-activity-list #activity-composition-detail{padding:10px;margin-top:10px}
+}
+@media(max-width:360px){
+  .master-activity-list>.stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
