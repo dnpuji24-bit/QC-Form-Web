@@ -6,6 +6,7 @@ import { actualPlansToWhatsApp } from './actualPlanActions'
 import type { SavedActualRow } from './actualPlanWorkspaceTypes'
 import type { PlanMaterialLine } from './planInputUtils'
 import type { User } from './types'
+import { canEditAccess } from './accessControl'
 
 type Props={
   user:User
@@ -28,7 +29,7 @@ function log(id:string,d:Record<string,unknown>):Log{return{id,sourceFileName:te
 function ha(v:number){return new Intl.NumberFormat('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2}).format(v)+' Ha'}
 function date(v:string){if(!v)return'-';const d=new Date(v+'T00:00:00');return Number.isNaN(d.getTime())?v:d.toLocaleDateString('id-ID')}
 function dateTime(v:string){if(!v)return'-';const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleString('id-ID')}
-async function writerContext(appUser:User){const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.');await firebaseAuthPersistenceReady;if(typeof auth.authStateReady==='function')await auth.authStateReady();const current=auth.currentUser;if(!current)throw new Error('Sesi Firebase belum aktif. Login ulang lalu coba lagi.');const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.');const p=snap.data() as Record<string,unknown>;if(p.active!==true||!['owner','asisten'].includes(text(p.role))||!['owner','asisten'].includes(appUser.role))throw new Error('Role tidak memiliki izin mengubah Actual Plan.');return{db,username:text(p.username)||appUser.username}}
+async function writerContext(appUser:User){const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.');await firebaseAuthPersistenceReady;if(typeof auth.authStateReady==='function')await auth.authStateReady();const current=auth.currentUser;if(!current)throw new Error('Sesi Firebase belum aktif. Login ulang lalu coba lagi.');const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.');const p=snap.data() as Record<string,unknown>;if(p.active!==true||!canEditAccess(appUser,'data_plan_actual'))throw new Error('Hak akses Edit Actual Plan belum diberikan.');return{db,username:text(p.username)||appUser.username}}
 
 export default function ActualPlanListPanel({user,selectedDate,compact=false,refreshKey=0,onEditActual,onDuplicateActual,onChanged}:Props){
   const[rows,setRows]=useState<Row[]>([]),[logs,setLogs]=useState<Log[]>([]),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
