@@ -9,14 +9,11 @@ service cloud.firestore {
     function roleAccessPath() { return /databases/$(database)/documents/role_access/$(role()); }
     function hasRoleAccess() { return signedIn() && exists(roleAccessPath()); }
     function roleAccess() { return get(roleAccessPath()); }
-    function hasProfilePermissionMap() { return profile().data.keys().hasAny(['permissions']); }
     function hasRolePermissionMap() { return hasRoleAccess() && roleAccess().data.keys().hasAny(['permissions']); }
     function permission(key) {
       return hasRolePermissionMap() && roleAccess().data.permissions.keys().hasAny([key])
         ? roleAccess().data.permissions[key]
-        : hasProfilePermissionMap() && profile().data.permissions.keys().hasAny([key])
-          ? profile().data.permissions[key]
-          : '';
+        : '';
     }
     function canViewKey(key, fallbackRoles) {
       return permission(key) in ['view','edit'] || (permission(key) == '' && role() in fallbackRoles);
