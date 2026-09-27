@@ -5,7 +5,7 @@ import DailyActionIcon from './DailyPlanActionIcon'
 import { actualPlansToWhatsApp } from './actualPlanActions'
 import type { ActualComposerRequest, SavedActualRow } from './actualPlanWorkspaceTypes'
 import { aggregateMaterials, clearPlanDraft, materialLinesFromComponents, planHa, planNum, planRowId, planText, readPlanDraft, writePlanDraft, type PlanMaterialLine } from './planInputUtils'
-import { findActivityResourceDefault, loadActivityResourceDefaults, type ActivityResourceDefault } from './masterActivityDefaults'
+import { loadAllOperationalResources } from './masterOperationalResources'
 import type { User } from './types'
 
 type Props={
@@ -51,7 +51,8 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
   const draftKey='plan_actual_web_draft_'+user.username
   const storedInitial=normalizeDraft(readPlanDraft<unknown>(draftKey,null))
   const initial={...storedInitial,date:selectedDate||storedInitial.date}
-  const[daily,setDaily]=useState<Daily[]>([]),[actuals,setActuals]=useState<ActualRef[]>([]),[activityDefaults,setActivityDefaults]=useState<ActivityResourceDefault[]>([])
+  const[daily,setDaily]=useState<Daily[]>([]),[actuals,setActuals]=useState<ActualRef[]>([])
+  const[resourceUnits,setResourceUnits]=useState<string[]>([]),[resourceForemen,setResourceForemen]=useState<string[]>([])
   const[state,setState]=useState<DraftState>(initial),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[draggingId,setDraggingId]=useState(''),[persistedEdit,setPersistedEdit]=useState<PersistedEditContext|null>(null)
   const saveFeedbackRef=useRef<HTMLDivElement|null>(null),prefillHandledRef=useRef('')
 
@@ -67,8 +68,7 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
       setActuals(a.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,actualReportId:planText(r.actualReportId||x.id),dailyPlanId:planText(r.dailyPlanId),date:planText(r.date),actualAreaHa:planNum(r.actualAreaHa),planningOrder:planNum(r.planningOrder),workGroupId:planText(r.workGroupId)}}))
     }catch(e){setMessage(e instanceof Error?e.message:'Data Actual periode gagal dimuat.')}finally{setBusy(false)}
   }
-  useEffect(()=>{void loadActivityResourceDefaults().then(setActivityDefaults).catch(()=>setActivityDefaults([]))},[])
-  useEffect(()=>{if(!activityDefaults.length)return;setDaily(rows=>rows.map(row=>{const resource=findActivityResourceDefault(activityDefaults,row.activity,row.description);return{...row,shift:row.shift||resource?.defaultShift||'',unitName:row.unitName||resource?.defaultUnitName||'',foreman:row.foreman||resource?.defaultForeman||''}}))},[activityDefaults])
+  useEffect(()=>{void loadAllOperationalResources().then(resources=>{setResourceUnits(resources.units.map(x=>x.name));setResourceForemen(resources.foremen.map(x=>x.name))}).catch(()=>{})},[])
   useEffect(()=>{void load(state.date);onDateChange?.(state.date)},[state.date])
   useEffect(()=>{if(selectedDate&&selectedDate!==state.date)setState(current=>({...current,date:selectedDate}))},[selectedDate])
   useEffect(()=>{writePlanDraft(draftKey,state)},[state,draftKey])
@@ -122,9 +122,9 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
   function showSaveFeedback(text:string){setMessage(text);requestAnimationFrame(()=>saveFeedbackRef.current?.scrollIntoView({behavior:'smooth',block:'nearest'}))}
   function patchActive(patch:Partial<WorkDraft>){setState(current=>({...current,active:{...current.active,...patch}}))}
   function chooseDailyValue(value:string){
-    const pool=persistedEdit?daily:openDaily,found=pool.find(row=>dailyLabel(row)===value||row.dailyPlanId===value||row.id===value),masterDefault=found?findActivityResourceDefault(activityDefaults,found.activity,found.description):null
-    patchActive({dailySearch:value,dailyId:found?.id||'',...(found?{area:state.active.area||String(Math.max(found.areaHa-(actualByDaily.get(found.dailyPlanId)||0),0)),manpower:state.active.manpower==='0'?String(found.manpower||0):state.active.manpower,unitName:state.active.unitName||found.unitName||masterDefault?.defaultUnitName||'',unitReady:state.active.unitReady==='0'?String(found.unitReady||0):state.active.unitReady,unitStandby:state.active.unitStandby==='0'?String(found.unitStandby||0):state.active.unitStandby,unitBreakdown:state.active.unitBreakdown==='0'?String(found.unitBreakdown||0):state.active.unitBreakdown}:{})})
-    if(found&&!state.foreman)setState(current=>({...current,foreman:found.foreman||masterDefault?.defaultForeman||current.foreman}))
+    const pool=persistedEdit?daily:openDaily,found=pool.find(row=>dailyLabel(row)===value||row.dailyPlanId===value||row.id===value)
+    patchActive({dailySearch:value,dailyId:found?.id||'',...(found?{area:state.active.area||String(Math.max(found.areaHa-(actualByDaily.get(found.dailyPlanId)||0),0)),manpower:state.active.manpower==='0'?String(found.manpower||0):state.active.manpower,unitName:state.active.unitName||found.unitName,unitReady:state.active.unitReady==='0'?String(found.unitReady||0):state.active.unitReady,unitStandby:state.active.unitStandby==='0'?String(found.unitStandby||0):state.active.unitStandby,unitBreakdown:state.active.unitBreakdown==='0'?String(found.unitBreakdown||0):state.active.unitBreakdown}:{})})
+    if(found&&!state.foreman)setState(current=>({...current,foreman:found.foreman||current.foreman}))
   }
   function resetInput(){setPersistedEdit(null);setState(current=>({...current,active:blankWork(),editingId:''}))}
   function clearAll(){if(!window.confirm('Hapus semua input dan Draft Actual pada perangkat ini?'))return;clearPlanDraft(draftKey);setPersistedEdit(null);setState({date:new Date().toISOString().slice(0,10),foreman:'',active:blankWork(),works:[],editingId:''});setMessage('Input dan Draft Actual dikosongkan.')}
@@ -188,14 +188,14 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
 
       <div className="daily-form-group"><div className="daily-form-group-title"><span>01</span><div><strong>Jadwal & Kegiatan</strong><small>Daily → Actual</small></div></div><div className="plan-grid daily-schedule-grid actual-schedule-grid">
         <label className="daily-date-field"><span>Tanggal Actual</span><input type="date" value={state.date} onChange={e=>setState(current=>({...current,date:e.target.value}))}/></label>
-        <label><span>Mandor / Foreman</span><input value={state.foreman} onChange={e=>setState(current=>({...current,foreman:e.target.value}))} placeholder="Nama mandor"/></label>
+        <label><span>Mandor / Foreman</span><input list="actual-resource-foremen" value={state.foreman} onChange={e=>setState(current=>({...current,foreman:e.target.value}))} placeholder="Ketik nama mandor"/><datalist id="actual-resource-foremen">{resourceForemen.map(x=><option key={x} value={x}/>)}</datalist></label>
         <label className="daily-activity-field"><span>Daily Plan / PID</span><input list="actual-active-daily-options" value={state.active.dailySearch} onFocus={e=>e.currentTarget.select()} onChange={e=>chooseDailyValue(e.target.value)} placeholder="Ketik PID / Daily ID / kegiatan"/><datalist id="actual-active-daily-options">{activeDailyChoices.map(row=><option key={row.id} value={dailyLabel(row)}/>)}</datalist><small className="plan-search-hint">{activeInfo.selected?'Terpilih: '+dailyLabel(activeInfo.selected):state.active.dailySearch?(activeDailyChoices.length?activeDailyChoices.length+' pilihan aktif':'0 pilihan aktif — Daily yang sudah selesai disembunyikan'):'Ketik PID / Daily ID'}</small></label>
         <label><span>Kegiatan</span><input value={activeInfo.selected?.activity||''} readOnly placeholder="Mengikuti Daily Plan"/></label>
       </div></div>
 
       <div className="daily-form-group"><div className="daily-form-group-title"><span>02</span><div><strong>Tenaga & Alat</strong><small>Resource untuk hasil pekerjaan ini</small></div></div><div className="plan-grid daily-resource-grid actual-resource-grid">
         <label><span>Jumlah HK</span><input type="number" min="0" step="1" value={state.active.manpower} onChange={e=>patchActive({manpower:e.target.value})}/></label>
-        <label className="daily-unit-field"><span>Kode / Nama Unit</span><input value={state.active.unitName} onChange={e=>patchActive({unitName:e.target.value})} placeholder="Opsional"/></label>
+        <label className="daily-unit-field"><span>Kode / Nama Unit</span><input list="actual-resource-units" value={state.active.unitName} onChange={e=>patchActive({unitName:e.target.value})} placeholder="Ketik S untuk Stool Splitter"/><datalist id="actual-resource-units">{resourceUnits.map(x=><option key={x} value={x}/>)}</datalist></label>
         <label className="daily-status-field ready"><span>Unit Ready</span><input type="number" min="0" step="1" value={state.active.unitReady} onChange={e=>patchActive({unitReady:e.target.value})}/></label>
         <label className="daily-status-field breakdown"><span>Unit Breakdown</span><input type="number" min="0" step="1" value={state.active.unitBreakdown} onChange={e=>patchActive({unitBreakdown:e.target.value})}/></label>
         <label className="daily-status-field standby"><span>Unit Standby</span><input type="number" min="0" step="1" value={state.active.unitStandby} onChange={e=>patchActive({unitStandby:e.target.value})}/></label>
