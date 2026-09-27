@@ -1259,3 +1259,30 @@
   .daily-draft-summary{grid-template-columns:repeat(2,minmax(0,1fr))!important}
   .daily-draft-summary>div:last-child{grid-column:1/-1}
 }
+
+
+/* Activity composition inline editor */
+.activity-recipe-inline-input{
+  width:100%;
+  min-width:90px;
+  min-height:36px;
+  padding:7px 9px;
+  border:1px solid #cbd5e1;
+  border-radius:9px;
+  background:#fff;
+  color:#0f172a;
+  font-size:.82rem;
+  font-weight:750;
+  outline:none;
+}
+.activity-recipe-inline-input:focus{
+  border-color:#93c5fd;
+  box-shadow:0 0 0 3px rgba(59,130,246,.11);
+}
+@media(max-width:760px){
+  .activity-recipe-inline-input{
+    min-height:34px;
+    padding:6px 8px;
+    font-size:.76rem;
+  }
+}
