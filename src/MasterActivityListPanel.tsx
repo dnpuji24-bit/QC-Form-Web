@@ -84,7 +84,8 @@ export default function MasterActivityListPanel(){
       if(type!=='ALL'&&item.type!==type)return false
       if(category!=='ALL'&&item.activityCategory!==category)return false
       if(scope!=='ALL'&&item.companyScope!==scope)return false
-      if(status!=='ALL'&&(status==='ACTIVE'?item.active:!item.active))return false
+      if(status==='ACTIVE'&&!item.active)return false
+      if(status==='INACTIVE'&&item.active)return false
       if(!needle)return true
       const products=item.components.flatMap(component=>(ingredientProducts.get(normalize(component.activeIngredient))||[]).map(product=>product.materialName))
       return normalize(`${item.activityCode} ${item.description} ${item.activity} ${item.type} ${item.activityCategory} ${item.components.map(component=>component.activeIngredient).join(' ')} ${products.join(' ')}`).includes(needle)
