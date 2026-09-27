@@ -24,6 +24,7 @@ for form,name,kind in [(spray,'Spraying','spray'),(fert,'Fertilizer','fertilizer
     assert "Daily Plan ID" in form and "Monthly Plan ID" in form, f"{name}: automatic linkage display missing"
     assert "dailyPlanId:" in form and "monthlyPlanLineId:" in form, f"{name}: linkage persistence missing"
     assert "dailyPlanLinkStatus:" in form and "plannedDailyAreaHa:" in form, f"{name}: QC linkage metadata missing"
+    assert "setCards(old=>old.map(card=>" in form, f"{name}: automatic link hydration missing"
 
 assert "linkedDailyPlan.materials" in spray
 assert "cardDailyPlan?.materials" in spray
