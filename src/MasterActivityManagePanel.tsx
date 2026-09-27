@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { collection, doc, getDoc, getDocs, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { firebaseAuth, firestoreDb } from './firebase'
 import type { User } from './types'
+import { canEditAccess } from './accessControl'
 
 type Props={user:User}
 type View='VALIDATION'|'COMPOSITION'|'MATERIAL'
@@ -35,8 +36,7 @@ async function writerContext(appUser:User){
   const current=auth.currentUser;if(!current)throw new Error('Firebase Auth belum terhubung. Login ulang lalu coba lagi.')
   const snapshot=await getDoc(doc(db,'users',current.uid));if(!snapshot.exists())throw new Error('Profil Firebase user tidak ditemukan.')
   const profile=snapshot.data() as FirestoreProfile;if(profile.active!==true)throw new Error('Profil Firebase tidak aktif.')
-  if(!['owner','asisten'].includes(profile.role||''))throw new Error('Hanya Owner/Asisten yang dapat mengubah Master Activity.')
-  if(!['owner','asisten'].includes(appUser.role))throw new Error('Role web tidak memiliki izin mengubah Master Activity.')
+  if(!canEditAccess(appUser,'data_master_activity_manage'))throw new Error('Hak akses Edit Kelola Master Activity belum diberikan.')
   return{db,username:profile.username||appUser.username,role:profile.role||appUser.role}
 }
 
