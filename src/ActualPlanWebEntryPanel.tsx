@@ -7,6 +7,7 @@ import type { ActualComposerRequest, SavedActualRow } from './actualPlanWorkspac
 import { aggregateMaterials, clearPlanDraft, materialLinesFromComponents, planHa, planNum, planRowId, planText, readPlanDraft, writePlanDraft, type PlanMaterialLine } from './planInputUtils'
 import { loadAllOperationalResources } from './masterOperationalResources'
 import type { User } from './types'
+import { canEditAccess } from './accessControl'
 
 type Props={
   user:User
@@ -43,7 +44,7 @@ async function writer(appUser:User){
   if(typeof auth.authStateReady==='function')await auth.authStateReady()
   const current=auth.currentUser;if(!current)throw new Error('Sesi Firebase belum aktif di perangkat ini. Buka ulang halaman atau login ulang, lalu coba simpan Actual Plan.')
   const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.')
-  const p=snap.data() as Record<string,unknown>;if(p.active!==true||!['owner','asisten'].includes(planText(p.role))||!['owner','asisten'].includes(appUser.role))throw new Error('Role tidak memiliki izin membuat Actual Plan.')
+  const p=snap.data() as Record<string,unknown>;if(p.active!==true||!['owner','asisten'].includes(planText(p.role))||!canEditAccess(appUser,'data_plan_actual'))throw new Error('Role tidak memiliki izin membuat Actual Plan.')
   return{db,username:planText(p.username)||appUser.username}
 }
 
