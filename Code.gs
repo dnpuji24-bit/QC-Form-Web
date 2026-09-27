@@ -9,7 +9,7 @@
  * - Permissions are enforced here; the browser UI is not trusted.
  */
 var QC = {
-  VERSION: '46.4.0',
+  VERSION: '46.5.0',
   SESSION_SECONDS: 21600,
   SHEETS: {
     USERS: 'Users', LOGS: 'Activity_Logs', CLOUD: 'Cloud_Monitoring', REQUESTS: 'Account_Change_Requests',
@@ -54,6 +54,7 @@ function route_(req, method) {
     if (action === 'rejectUser') { requireRole_(session,['owner']); return output_(rejectUser_(session,req)); }
     if (action === 'updateUserRole') { requireRole_(session,['owner']); return output_(updateUserRole_(session,req)); }
     if (action === 'updateUserPermissions') { requireRole_(session,['owner']); return output_(updateUserPermissions_(session,req)); }
+    if (action === 'updateRolePermissions') { requireRole_(session,['owner']); return output_(updateRolePermissions_(session,req)); }
     if (action === 'deleteUser') { requireRole_(session,['owner']); return output_(deleteUserAccount_(session,req)); }
     if (action === 'accountChangeRequest') return output_(requestAccountChange_(session,req));
     if (action === 'accountChangeRequests') { requireRole_(session,['owner']); return output_({ok:true,requests:listAccountChangeRequests_()}); }
@@ -121,7 +122,7 @@ function register_(req) {
   setBy_(row,map,'FullName',fullName); setBy_(row,map,'Role',requested); setBy_(row,map,'Status','PENDING');
   setBy_(row,map,'Notes','Pendaftaran dari web'); setBy_(row,map,'Email',email);
   setBy_(row,map,'PasswordHash',hashPassword_(password,salt)); setBy_(row,map,'Salt',salt);
-  setBy_(row,map,'AllowedForm',allowedForm_(requested)); setBy_(row,map,'UpdatedAt',new Date()); setBy_(row,map,'Permissions',JSON.stringify(defaultPermissionsForRole_(requested)));
+  setBy_(row,map,'AllowedForm',allowedForm_(requested)); setBy_(row,map,'UpdatedAt',new Date()); setBy_(row,map,'Permissions',JSON.stringify(rolePermissions_(requested)));
   sh.appendRow(row);
   var firebaseState={ok:false,status:'pending'};
   try { firebaseState=ensureFirebaseIdentity_(findUser_(username),password,false); }
@@ -135,7 +136,9 @@ function requireSession_(token) {
   if (!raw) throw new Error('AUTH_EXPIRED');
   var session = JSON.parse(raw);
   if (cache.get('revoked:' + String(session.username || '').toLowerCase())) { cache.remove('session:' + token); throw new Error('AUTH_EXPIRED'); }
-  cache.put('session:' + token, raw, QC.SESSION_SECONDS);
+  session.permissions=rolePermissions_(session.role);
+  var refreshed=JSON.stringify(session);
+  cache.put('session:' + token, refreshed, QC.SESSION_SECONDS);
   return session;
 }
 function requireRole_(user, roles) { if (roles.indexOf(normalizeRole_(user.role)) < 0) throw new Error('AUTH_FORBIDDEN'); }
@@ -157,6 +160,13 @@ function normalizePermissions_(raw,role){
   QC.PERMISSION_KEYS.forEach(function(k){var mode=String(source[k]||'').toLowerCase();if(['none','view','edit'].indexOf(mode)>=0)p[k]=mode;});
   if(normalizeRole_(role)==='owner')QC.PERMISSION_KEYS.forEach(function(k){p[k]='edit';});
   return p;
+}
+function rolePermissions_(role){
+  role=normalizeRole_(role);
+  if(role==='owner')return defaultPermissionsForRole_('owner');
+  var raw='';
+  try{raw=PropertiesService.getScriptProperties().getProperty('ROLE_ACCESS_'+role)||'';}catch(e){raw='';}
+  return normalizePermissions_(raw,role);
 }
 function permissionMode_(u,key){var p=normalizePermissions_(u&&u.permissions,u&&u.role);return String(p[key]||'none');}
 function canViewPermission_(u,key){return ['view','edit'].indexOf(permissionMode_(u,key))>=0;}
@@ -211,7 +221,7 @@ function updateApproval_(admin,req,status) {
   var role=normalizeRole_(req.role || found.data.Role); if(QC.ROLES.indexOf(role)<0) role='pengunjung';
   var map=found.map,sh=found.sheet,row=found.row;
   sh.getRange(row,map.Role).setValue(role); sh.getRange(row,map.Status).setValue(status); sh.getRange(row,map.ApprovedBy).setValue(admin.username);
-  sh.getRange(row,map.ApprovedAt).setValue(new Date()); if(map.AllowedForm) sh.getRange(row,map.AllowedForm).setValue(allowedForm_(role)); if(map.Permissions) sh.getRange(row,map.Permissions).setValue(JSON.stringify(defaultPermissionsForRole_(role))); if(map.UpdatedAt) sh.getRange(row,map.UpdatedAt).setValue(new Date());
+  sh.getRange(row,map.ApprovedAt).setValue(new Date()); if(map.AllowedForm) sh.getRange(row,map.AllowedForm).setValue(allowedForm_(role)); if(map.Permissions) sh.getRange(row,map.Permissions).setValue(JSON.stringify(rolePermissions_(role))); if(map.UpdatedAt) sh.getRange(row,map.UpdatedAt).setValue(new Date());
   var firebaseSynced=safeSyncFirebaseProfile_(findUser_(String(found.data.Username||'')));
   log_(null,admin,status+'_USER',status+' @'+found.data.Username+' sebagai '+role+' | Firebase '+(firebaseSynced?'OK':'pending'),''); return {ok:true,firebaseSynced:firebaseSynced};
 }
@@ -223,7 +233,7 @@ function updateUserRole_(admin,req) {
   if(username===admin.username && role!=='owner') return {ok:false,error:'VALIDATION',message:'Owner tidak dapat menurunkan role akun Owner yang sedang digunakan.'};
   found.sheet.getRange(found.row,found.map.Role).setValue(role);
   if(found.map.AllowedForm) found.sheet.getRange(found.row,found.map.AllowedForm).setValue(allowedForm_(role));
-  if(found.map.Permissions) found.sheet.getRange(found.row,found.map.Permissions).setValue(JSON.stringify(defaultPermissionsForRole_(role)));
+  if(found.map.Permissions) found.sheet.getRange(found.row,found.map.Permissions).setValue(JSON.stringify(rolePermissions_(role)));
   if(found.map.UpdatedAt) found.sheet.getRange(found.row,found.map.UpdatedAt).setValue(new Date());
   var firebaseSynced=safeSyncFirebaseProfile_(findUser_(username));
   log_(null,admin,'CHANGE_ROLE','Role @'+username+' diubah menjadi '+role+' | Firebase '+(firebaseSynced?'OK':'pending'),'');
@@ -242,6 +252,23 @@ function updateUserPermissions_(admin,req){
   var firebaseSynced=safeSyncFirebaseProfile_(findUser_(username));
   log_(null,admin,'CHANGE_ACCESS','Hak akses @'+username+' diperbarui | Firebase '+(firebaseSynced?'OK':'pending'),'');
   return{ok:true,message:'Hak akses @'+username+' berhasil diperbarui. User perlu login ulang agar izin baru berlaku.',permissions:permissions,firebaseSynced:firebaseSynced};
+}
+
+function updateRolePermissions_(admin,req){
+  var role=normalizeRole_(req.role);
+  if(QC.ROLES.indexOf(role)<0)return{ok:false,error:'VALIDATION',message:'Role tidak valid.'};
+  var permissions=role==='owner'?defaultPermissionsForRole_('owner'):normalizePermissions_(req.permissions,role);
+  PropertiesService.getScriptProperties().setProperty('ROLE_ACCESS_'+role,JSON.stringify(permissions));
+  var sh=getSheet_(QC.SHEETS.USERS),map=headerMap_(sh,1),rows=dataRows_(sh,2),affected=0;
+  rows.forEach(function(r,i){
+    var o=rowObject_(r,map);
+    if(normalizeRole_(o.Role)!==role)return;
+    affected++;
+    if(map.Permissions)sh.getRange(i+2,map.Permissions).setValue(JSON.stringify(permissions));
+    if(map.UpdatedAt)sh.getRange(i+2,map.UpdatedAt).setValue(new Date());
+  });
+  log_(null,admin,'CHANGE_ROLE_ACCESS','Hak akses role '+role+' diperbarui untuk '+affected+' user','');
+  return{ok:true,message:'Hak akses role '+role+' diperbarui. '+affected+' user mengikuti template role ini.',permissions:permissions,affectedUsers:affected};
 }
 
 function deleteUserAccount_(admin,req) {
@@ -391,8 +418,8 @@ function rowObject_(r,map){var o={};Object.keys(map).forEach(function(k){o[k]=r[
 function setBy_(row,map,key,val){if(map[key])row[map[key]-1]=val;}
 function blankRow_(n){return Array.apply(null,Array(n)).map(function(){return '';});}
 function findUser_(key){var sh=getSheet_(QC.SHEETS.USERS),map=headerMap_(sh,1),rows=dataRows_(sh,2),needle=String(key||'').toLowerCase();for(var i=0;i<rows.length;i++){var o=rowObject_(rows[i],map);if(String(o.Username||'').toLowerCase()===needle||String(o.Email||'').toLowerCase()===needle)return{sheet:sh,map:map,row:i+2,data:o};}return null;}
-function normalizeUser_(o){var role=normalizeRole_(o.Role);return{username:String(o.Username||'').toLowerCase(),email:String(o.Email||''),fullName:String(o.FullName||o.Username||''),role:role,status:String(o.Status||''),allowedForm:String(o.AllowedForm||allowedForm_(o.Role)),firebaseUid:String(o.FirebaseUID||''),firebaseStatus:String(o.FirebaseStatus||''),permissions:normalizePermissions_(o.Permissions,role)};}
-function publicUser_(u){return{username:u.username,email:u.email,fullName:u.fullName,role:u.role,status:u.status,allowedForm:u.allowedForm,firebaseUid:u.firebaseUid||'',firebaseStatus:u.firebaseStatus||'',permissions:normalizePermissions_(u.permissions,u.role)};}
+function normalizeUser_(o){var role=normalizeRole_(o.Role);return{username:String(o.Username||'').toLowerCase(),email:String(o.Email||''),fullName:String(o.FullName||o.Username||''),role:role,status:String(o.Status||''),allowedForm:String(o.AllowedForm||allowedForm_(o.Role)),firebaseUid:String(o.FirebaseUID||''),firebaseStatus:String(o.FirebaseStatus||''),permissions:rolePermissions_(role)};}
+function publicUser_(u){return{username:u.username,email:u.email,fullName:u.fullName,role:u.role,status:u.status,allowedForm:u.allowedForm,firebaseUid:u.firebaseUid||'',firebaseStatus:u.firebaseStatus||'',permissions:rolePermissions_(u.role)};}
 function normalizeRole_(r){r=String(r||'pengunjung').toLowerCase().replace(/\s+/g,'_');if(r==='mandor')return'mandor_spraying';if(r==='admin_staff')return'admin';if(r==='asisten_lapangan')return'asisten';return r;}
 function allowedForm_(r){r=normalizeRole_(r);return r==='mandor_spraying'?'spray':r==='mandor_fertilizer'?'fertilizer':['owner','asisten'].indexOf(r)>=0?'all':'none';}
 function upgradeLegacyPassword_(f,password){var salt=newSalt_();if(f.map.Password)f.sheet.getRange(f.row,f.map.Password).setValue('');if(f.map.PasswordHash)f.sheet.getRange(f.row,f.map.PasswordHash).setValue(hashPassword_(password,salt));if(f.map.Salt)f.sheet.getRange(f.row,f.map.Salt).setValue(salt);if(f.map.UpdatedAt)f.sheet.getRange(f.row,f.map.UpdatedAt).setValue(new Date());}
