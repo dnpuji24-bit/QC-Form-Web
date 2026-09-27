@@ -75,10 +75,15 @@ export function mergeResourceNames(...groups:Array<Array<{name:string}|string>>)
   return[...values].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}))
 }
 
-export function unitNumbersForUnit(resources:OperationalResource[],unitName:string){
+export function unitNumbersForUnit(resources:OperationalResource[],unitName:string,units:OperationalResource[]=[]){
   const wanted=unitName.trim().toLowerCase()
   if(!wanted)return[]
-  return resources.filter(row=>String(row.parentUnitName||'').trim().toLowerCase()===wanted)
+  const unit=units.find(row=>row.name.trim().toLowerCase()===wanted)
+  return resources.filter(row=>
+    (unit&&row.parentUnitId===unit.id)||
+    (!row.parentUnitId&&String(row.parentUnitName||'').trim().toLowerCase()===wanted)||
+    (!unit&&String(row.parentUnitName||'').trim().toLowerCase()===wanted)
+  )
 }
 
 export function preferFirestoreNames(resources:OperationalResource[],fallback:string[]=[]){
