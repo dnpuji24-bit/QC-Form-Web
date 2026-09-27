@@ -8,6 +8,7 @@ access=(root/'src'/'accessControl.ts').read_text(encoding='utf-8')
 hydrate=(root/'src'/'userAccess.ts').read_text(encoding='utf-8')
 rules=(root/'firestore.rules').read_text(encoding='utf-8')
 backend=(root/'Code.gs').read_text(encoding='utf-8')
+registration=(root/'src'/'registrationRoleIntent.ts').read_text(encoding='utf-8')
 
 # Users administration moved out of QC navigation and into the Operational Portal home.
 assert "UsersApproval" not in app
@@ -18,6 +19,10 @@ for token in ["Users & Access","mode==='users'","<UsersApproval","canUsers"]:
 for role in ['owner','manager','admin','asisten','mandor_spraying','mandor_fertilizer','pengunjung']:
     assert f'<option value="{role}">' in app, f"Missing registration role: {role}"
 assert "['owner','manager','admin'].indexOf(requested)>=0" not in backend
+assert "registration_requests" in registration
+assert "saveRegistrationRoleIntent" in app
+assert "match /registration_requests/{uid}" in rules
+assert "requestedRole" in admin
 
 # Owner can assign menu/submenu access modes.
 for token in ['PERMISSION_CATALOG','Tidak Akses','Hanya Lihat','Simpan Hak Akses','user_access']:
