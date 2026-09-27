@@ -3,6 +3,7 @@ import { collection, doc, getDocs, serverTimestamp, setDoc } from 'firebase/fire
 import { firebaseAuth, firestoreDb } from './firebase'
 import { FALLBACK_COMPANIES, companyDocId, normalizeCompanyCode, normalizePrefix, type CompanyRecord } from './companyMaster'
 import type { User } from './types'
+import { canEditAccess } from './accessControl'
 
 type Props={user:User}
 type FormState={code:string;name:string;prefixes:string;active:boolean}
@@ -25,7 +26,7 @@ export default function CompanyMasterPanel({user}:Props){
   const[busy,setBusy]=useState(false)
   const[message,setMessage]=useState('')
   const[usingFallback,setUsingFallback]=useState(false)
-  const canEdit=user.role==='owner'
+  const canEdit=canEditAccess(user,'data_company')
 
   async function load(){
     if(!firestoreDb){setCompanies(FALLBACK_COMPANIES);setUsingFallback(true);setMessage('Firestore belum tersedia. Menampilkan mapping default sementara.');return}
@@ -60,7 +61,7 @@ export default function CompanyMasterPanel({user}:Props){
   function reset(){setEditingId(null);setForm(EMPTY)}
 
   async function save(){
-    if(!canEdit){setMessage('Hanya Owner yang dapat menambah atau mengubah Master Company.');return}
+    if(!canEdit){setMessage('Hak akses Edit Company & Prefix belum diberikan.');return}
     if(!firestoreDb||!firebaseAuth?.currentUser){setMessage('Firebase Auth / Firestore belum siap. Login ulang lalu coba kembali.');return}
     const code=normalizeCompanyCode(form.code),name=form.name.trim()
     const prefixes=[...new Set(form.prefixes.split(/[;,\s]+/).map(normalizePrefix).filter(Boolean))]
@@ -92,7 +93,7 @@ export default function CompanyMasterPanel({user}:Props){
         <label>Status<select value={form.active?'ACTIVE':'INACTIVE'} disabled={busy} onChange={e=>setForm(v=>({...v,active:e.target.value==='ACTIVE'}))}><option value="ACTIVE">ACTIVE</option><option value="INACTIVE">INACTIVE</option></select></label>
       </div>
       <div className="row-actions"><button type="button" className="primary" disabled={busy||!canEdit} onClick={()=>void save()}>{busy?'Memproses…':'Simpan Company'}</button><button type="button" disabled={busy} onClick={reset}>Reset</button><button type="button" disabled={busy} onClick={()=>void load()}>Refresh</button></div>
-      {!canEdit&&<div className="alert">Role Asisten dapat melihat mapping Company tetapi perubahan Company dibatasi untuk Owner.</div>}
+      {!canEdit&&<div className="alert">Mode Hanya Lihat: perubahan Company & Prefix dinonaktifkan.</div>}
       {message&&<div className="alert">{message}</div>}
     </div>
 
