@@ -141,6 +141,42 @@ service cloud.firestore {
       allow delete: if activeUser() && role() == 'owner';
     }
 
+    match /master_unit_numbers/{unitNumberId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /master_nozzles/{nozzleId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /master_droppers/{dropperId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /master_assistants/{assistantId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /master_water_qualities/{waterQualityId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /master_weather_conditions/{weatherConditionId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
     match /master_activity_import_logs/{batchId} {
       allow read: if activeUser();
       allow create: if activeUser() && canEditKey('data_master_activity_import',['owner','asisten']);
