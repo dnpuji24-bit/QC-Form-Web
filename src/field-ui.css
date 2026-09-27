@@ -1768,3 +1768,32 @@
   .daily-pid-note input{min-height:var(--plan-control-h-mobile)!important;height:var(--plan-control-h-mobile)!important;padding:6px 8px!important;border-radius:8px!important;font-size:.76rem!important}
   .daily-draft-pids span>small{font-size:.62rem;padding-left:17px}
 }
+
+
+/* QC forms sourced from Daily Plan */
+.qc-daily-source-status{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0 12px;padding:10px 12px;border:1px solid #bfdbfe;border-radius:12px;background:linear-gradient(135deg,#eff6ff,#f8fbff);color:#1e3a8a}
+.qc-daily-source-status strong{font-size:.8rem}.qc-daily-source-status span{font-size:.73rem;color:#475569;text-align:right}
+.qc-daily-source-status.is-loading{opacity:.78}
+.qc-daily-program .section-head{align-items:center;margin-bottom:10px}
+.qc-daily-program .section-head h4{margin:2px 0 0}
+.qc-daily-link-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}
+.qc-daily-link-grid label{display:grid;gap:4px;font-size:.72rem;font-weight:800;color:#475569}
+.qc-daily-link-grid input{width:100%;min-width:0;background:#f8fafc!important;color:#334155!important}
+.qc-daily-program-grid .form-grid-note{grid-column:1/-1}
+.qc-daily-pid-note{margin-top:8px;padding:8px 10px;border:1px solid #fde68a;border-radius:9px;background:#fffbeb;color:#92400e;font-size:.74rem;font-weight:650}
+.qc-daily-program-grid label:nth-last-child(-n+2) input[readonly]{background:#f8fafc!important;color:#334155!important}
+@media(max-width:900px){
+  .qc-daily-link-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:700px){
+  .qc-daily-source-status{align-items:flex-start;flex-direction:column;gap:3px;padding:8px 9px;margin:8px 0 10px}
+  .qc-daily-source-status strong{font-size:.72rem}.qc-daily-source-status span{font-size:.66rem;text-align:left}
+  .qc-daily-link-grid{grid-template-columns:1fr 1fr;gap:6px}
+  .qc-daily-link-grid label{font-size:.65rem}
+  .qc-daily-link-grid input{min-height:34px!important;height:34px!important;padding:6px 8px!important;font-size:.72rem!important}
+  .qc-daily-pid-note{font-size:.66rem;padding:7px 8px}
+  .qc-daily-program-grid{grid-template-columns:1fr 1fr!important}
+  .qc-daily-program-grid>label:nth-child(3),
+  .qc-daily-program-grid>label:nth-child(4),
+  .qc-daily-program-grid>.form-grid-note{grid-column:1/-1}
+}
