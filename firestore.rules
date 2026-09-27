@@ -46,6 +46,14 @@ service cloud.firestore {
       allow delete: if activeUser() && role() == 'owner';
     }
 
+    match /registration_requests/{uid} {
+      allow read: if (signedIn() && request.auth.uid == uid) || (activeUser() && role() == 'owner');
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.requestedRole in ['owner','manager','admin','asisten','mandor_spraying','mandor_fertilizer','pengunjung']
+        && request.resource.data.keys().hasAll(['username','email','requestedRole','createdAt','source']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
     match /qc_records/{recordId} {
       allow read: if activeUser() && (
         canSeeAll() ||
