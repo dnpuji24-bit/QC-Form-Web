@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { collection, doc, getDoc, getDocs, query as fsQuery, serverTimestamp, setDoc, where, writeBatch } from 'firebase/firestore'
 import { firebaseAuth, firebaseAuthPersistenceReady, firestoreDb } from './firebase'
 import type { User } from './types'
+import { canEditAccess } from './accessControl'
 
 type Props={user:User;selectedMonth?:string;selectedWeek?:string;compact?:boolean;refreshKey?:number;onOpenDailyPlan?:(request:{date:string;monthlyPlanLineId:string;pid:string})=>void}
 type PlanRow={id:string;planLineId:string;year:number;monthKey:string;monthLabel:string;week:string;inputDate:string;startDate:string;endDate:string;companyCode:string;farm:string;pid:string;description:string;activity:string;targetAreaHa:number;sourceActualAreaHa:number;sourceBalanceHa:number;manualActualAreaHa:number;manualProgressNote:string;variety:string;masterVariety:string;sourceStatus:string;storedStatus:string;stage:string;notes:string;type:string;activityCategory:string;lastModifiedSource:string;cancelled:boolean;cancelReason:string;createdAt:string;updatedAt:string}
@@ -23,7 +24,7 @@ function formatDateTime(value:string){if(!value)return'-';const d=new Date(value
 function isCancelled(row:PlanRow){return row.cancelled||row.sourceStatus.toUpperCase().includes('CANCEL')}
 function autoStatus(row:PlanRow,actual:number){if(isCancelled(row))return'DONE';if(actual<=0)return'PLANNED';if(actual<row.targetAreaHa-0.0001)return'ON PROGRESS';if(Math.abs(actual-row.targetAreaHa)<=0.0001)return'DONE';return'OVER ACTUAL'}
 function weekDates(monthKey:string,week:string){if(!/^\d{4}-\d{2}$/.test(monthKey))return{start:'',end:''};const[y,m]=monthKey.split('-').map(Number),last=new Date(y,m,0).getDate(),ranges:Record<string,[number,number]>={W1:[1,7],W2:[8,15],W3:[16,22],W4:[23,last]},range=ranges[week]||[1,last];return{start:monthKey+'-'+String(range[0]).padStart(2,'0'),end:monthKey+'-'+String(range[1]).padStart(2,'0')}}
-async function writerContext(appUser:User){const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.');await firebaseAuthPersistenceReady;if(typeof auth.authStateReady==='function')await auth.authStateReady();const current=auth.currentUser;if(!current)throw new Error('Sesi Firebase belum aktif. Login ulang lalu coba lagi.');const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.');const p=snap.data() as Record<string,unknown>;if(p.active!==true||!['owner','asisten'].includes(text(p.role))||!['owner','asisten'].includes(appUser.role))throw new Error('Role tidak memiliki izin mengubah Monthly Plan.');return{db,username:text(p.username)||appUser.username}}
+async function writerContext(appUser:User){const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.');await firebaseAuthPersistenceReady;if(typeof auth.authStateReady==='function')await auth.authStateReady();const current=auth.currentUser;if(!current)throw new Error('Sesi Firebase belum aktif. Login ulang lalu coba lagi.');const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.');const p=snap.data() as Record<string,unknown>;if(p.active!==true||!canEditAccess(appUser,'data_plan_monthly'))throw new Error('Hak akses Edit Monthly Plan belum diberikan.');return{db,username:text(p.username)||appUser.username}}
 
 export default function MonthlyPlanListPanel({user,selectedMonth,selectedWeek,compact=false,refreshKey=0,onOpenDailyPlan}:Props){
   const[rows,setRows]=useState<PlanRow[]>([]),[daily,setDaily]=useState<DailyRef[]>([]),[actuals,setActuals]=useState<ActualRef[]>([]),[logs,setLogs]=useState<ImportLog[]>([]),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
@@ -31,7 +32,7 @@ export default function MonthlyPlanListPanel({user,selectedMonth,selectedWeek,co
   const[editMode,setEditMode]=useState<'details'|'progress'|''>(''),[editingId,setEditingId]=useState('')
   const[editTarget,setEditTarget]=useState(''),[editMonth,setEditMonth]=useState(''),[editVariety,setEditVariety]=useState(''),[editMasterVariety,setEditMasterVariety]=useState(''),[editStage,setEditStage]=useState(''),[editFarm,setEditFarm]=useState(''),[editWeek,setEditWeek]=useState('W1'),[editNotes,setEditNotes]=useState('')
   const[progressManual,setProgressManual]=useState(''),[progressNote,setProgressNote]=useState(''),[expandedDailyPlanId,setExpandedDailyPlanId]=useState('')
-  const isOwner=user.role==='owner',canWrite=['owner','asisten'].includes(user.role)
+  const isOwner=user.role==='owner',canWrite=canEditAccess(user,'data_plan_monthly')
 
   async function load(){if(!firestoreDb){setMessage('Firestore belum tersedia.');return}setBusy(true);const monthFilter=selectedMonth||new Date().toISOString().slice(0,7);setMessage('Memuat Monthly '+monthFilter+'…');try{
     const planSnap=await getDocs(fsQuery(collection(firestoreDb,'monthly_plans'),where('monthKey','==',monthFilter)))
