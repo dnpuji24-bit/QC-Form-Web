@@ -80,6 +80,11 @@ export interface QcRecord {
   name?: string
   nameOfAssistan?: string
   paddock: string
+  dailyPlanId?: string
+  monthlyPlanLineId?: string
+  dailyPlanLinkStatus?: string
+  plannedDailyAreaHa?: number | string
+  dailyPlanSourceType?: string
   status?: string
   saveType?: string
   area?: number | string
