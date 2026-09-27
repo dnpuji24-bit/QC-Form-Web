@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { collection, getDocs } from 'firebase/firestore'
-import { firestoreDb } from './firebase'
+import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore'
+import { firebaseAuth, firestoreDb } from './firebase'
 
 type ActivityComponent={sequence:number;label:string;activeIngredient:string;dosePerHa:number;unit:string}
 type ActivityRow={
@@ -9,6 +9,7 @@ type ActivityRow={
 }
 type MaterialRow={id:string;materialName:string;activeIngredient:string;unit:string;category:string;active:boolean}
 type ImportLog={batchId:string;companyScope:string;sourceFileName:string;activityCreated:number;activityUpdated:number;activityUnchanged:number;materialCreated:number;materialUpdated:number;materialUnchanged:number;warnings:number;importedBy:string;importedAt:string}
+type FirestoreProfile={active?:boolean;role?:string;username?:string}
 
 function text(value:unknown){return value===null||value===undefined?'':String(value).trim()}
 function numberValue(value:unknown){const parsed=Number(value||0);return Number.isFinite(parsed)?parsed:0}
@@ -23,12 +24,27 @@ function timestampValue(value:unknown){if(value&&typeof value==='object'&&'toDat
 function logFromData(id:string,data:Record<string,unknown>):ImportLog{return{batchId:text(data.batchId)||id,companyScope:text(data.companyScope)||'GLOBAL',sourceFileName:text(data.sourceFileName),activityCreated:numberValue(data.activityCreated),activityUpdated:numberValue(data.activityUpdated),activityUnchanged:numberValue(data.activityUnchanged),materialCreated:numberValue(data.materialCreated),materialUpdated:numberValue(data.materialUpdated),materialUnchanged:numberValue(data.materialUnchanged),warnings:numberValue(data.warnings),importedBy:text(data.importedBy),importedAt:timestampValue(data.importedAt)}}
 function formatDose(value:number){return new Intl.NumberFormat('id-ID',{minimumFractionDigits:0,maximumFractionDigits:4}).format(value)}
 function formatDateTime(value:string){if(!value)return'-';const date=new Date(value);return Number.isNaN(date.getTime())?value:date.toLocaleString('id-ID',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}
+function doseKey(value:number){return String(Number(Number(value).toFixed(8)))}
+function componentKey(component:ActivityComponent){return normalize(component.activeIngredient)+'|'+doseKey(component.dosePerHa)+'|'+normalize(component.unit)}
+function recipeSignature(components:ActivityComponent[]){return components.map(componentKey).sort().join('||')}
+async function writerContext(){
+  const db=firestoreDb,auth=firebaseAuth
+  if(!db||!auth)throw new Error('Firebase belum tersedia.')
+  const current=auth.currentUser
+  if(!current)throw new Error('Sesi Firebase belum aktif. Login ulang lalu coba lagi.')
+  const snap=await getDoc(doc(db,'users',current.uid))
+  if(!snap.exists())throw new Error('Profil Firebase user tidak ditemukan.')
+  const profile=snap.data() as FirestoreProfile
+  if(profile.active!==true)throw new Error('Profil Firebase tidak aktif.')
+  if(!['owner','asisten'].includes(profile.role||''))throw new Error('Hanya Owner/Asisten yang dapat mengubah komposisi Activity.')
+  return{db,username:profile.username||current.email||'unknown'}
+}
 
 export default function MasterActivityListPanel(){
   const[activities,setActivities]=useState<ActivityRow[]>([]),[materials,setMaterials]=useState<MaterialRow[]>([]),[logs,setLogs]=useState<ImportLog[]>([])
   const[busy,setBusy]=useState(false),[message,setMessage]=useState('')
   const[query,setQuery]=useState(''),[type,setType]=useState('ALL'),[category,setCategory]=useState('ALL'),[status,setStatus]=useState('ALL'),[scope,setScope]=useState('ALL')
-  const[selectedId,setSelectedId]=useState('')
+  const[selectedId,setSelectedId]=useState(''),[editMode,setEditMode]=useState(false),[editComponents,setEditComponents]=useState<ActivityComponent[]>([])
 
   async function load(){
     if(!firestoreDb){setMessage('Firestore belum tersedia.');return}
@@ -40,6 +56,7 @@ export default function MasterActivityListPanel(){
       const nextLogs=logSnap.docs.map(item=>logFromData(item.id,item.data() as Record<string,unknown>)).sort((a,b)=>b.importedAt.localeCompare(a.importedAt)).slice(0,10)
       setActivities(nextActivities);setMaterials(nextMaterials);setLogs(nextLogs)
       setSelectedId(current=>current&&nextActivities.some(row=>row.id===current)?current:'')
+      setEditMode(false);setEditComponents([])
       setMessage(`Master Activity siap: ${nextActivities.length} Activity, ${nextMaterials.length} Material.`)
     }catch(error){setMessage(error instanceof Error?error.message:'Master Activity gagal dimuat.')}finally{setBusy(false)}
   }
@@ -78,7 +95,28 @@ export default function MasterActivityListPanel(){
   const selectedProducts=useMemo(()=>selected?selected.components.reduce((total,component)=>total+(ingredientProducts.get(normalize(component.activeIngredient))||[]).length,0):0,[selected,ingredientProducts])
 
   function reset(){setQuery('');setType('ALL');setCategory('ALL');setStatus('ALL');setScope('ALL')}
-  function selectAndScroll(id:string){setSelectedId(id);requestAnimationFrame(()=>document.getElementById('activity-composition-detail')?.scrollIntoView({behavior:'smooth',block:'start'}))}
+  function selectAndScroll(id:string){setSelectedId(id);setEditMode(false);setEditComponents([]);requestAnimationFrame(()=>document.getElementById('activity-composition-detail')?.scrollIntoView({behavior:'smooth',block:'start'}))}
+  function startCompositionEdit(){if(!selected)return;setEditComponents(selected.components.map(component=>({...component})));setEditMode(true);setMessage('Mode edit aktif. Ubah Dosis / Ha atau Satuan lalu klik Simpan Perubahan.')}
+  function cancelCompositionEdit(){setEditMode(false);setEditComponents([]);setMessage('Perubahan komposisi dibatalkan.')}
+  function patchEditComponent(index:number,patch:Partial<ActivityComponent>){setEditComponents(current=>current.map((component,i)=>i===index?{...component,...patch}:component))}
+  async function saveCompositionEdit(){
+    if(!selected){setMessage('Pilih Activity terlebih dahulu.');return}
+    const cleaned=editComponents.map((component,index)=>({...component,sequence:index+1,dosePerHa:Number(component.dosePerHa),unit:component.unit.trim()}))
+    for(const component of cleaned){
+      if(!Number.isFinite(component.dosePerHa)||component.dosePerHa<=0||!component.unit){setMessage('DITOLAK: Dosis / Ha harus lebih dari 0 dan Satuan wajib diisi.');return}
+      const matchingMaterial=materials.some(material=>material.active&&normalize(material.activeIngredient)===normalize(component.activeIngredient)&&normalize(material.unit)===normalize(component.unit))
+      if(!matchingMaterial){setMessage('DITOLAK: '+component.activeIngredient+' belum memiliki Master Bahan ACTIVE dengan satuan '+component.unit+'. Ubah satuan Master Bahan terlebih dahulu atau pilih satuan yang tersedia.');return}
+    }
+    const signature=recipeSignature(cleaned),conflict=activities.find(row=>row.id!==selected.id&&row.active&&recipeSignature(row.components)===signature)
+    if(conflict){setMessage('DITOLAK: kombinasi Bahan Aktif + Dosis + Satuan identik dengan Activity ACTIVE "'+conflict.description+'".');return}
+    setBusy(true);setMessage('Menyimpan perubahan dosis dan satuan…')
+    try{
+      const context=await writerContext()
+      await setDoc(doc(context.db,'master_activities',selected.id),{components:cleaned,componentCount:cleaned.length,active:cleaned.length>0,updatedAt:serverTimestamp(),updatedBy:context.username,source:'WEB_MANUAL_EDIT_DETAIL'},{merge:true})
+      await load('Komposisi '+selected.description+' berhasil diperbarui.')
+      setSelectedId(selected.id)
+    }catch(error){setMessage(error instanceof Error?error.message:'Komposisi gagal diperbarui.')}finally{setBusy(false)}
+  }
   function filterStatus(next:'ACTIVE'|'INACTIVE'){setStatus(next);setType('ALL');setSelectedId('')}
   function filterType(next:'SPRAY'|'FERTILIZER'){setType(next);setStatus('ALL');setSelectedId('')}
 
@@ -124,7 +162,7 @@ export default function MasterActivityListPanel(){
     </div>
 
     <div className="panel" id="activity-composition-detail">
-      <div className="section-head"><div><div className="eyebrow">DETAIL AUTO-RECIPE</div><h3>Komposisi Bahan & Dosis / Ha</h3><p className="muted">Ini adalah komposisi yang nantinya ikut otomatis saat user memilih Activity di Plan.</p></div>{selected&&<button type="button" onClick={()=>setSelectedId('')}>Tutup Detail</button>}</div>
+      <div className="section-head"><div><div className="eyebrow">DETAIL AUTO-RECIPE</div><h3>Komposisi Bahan & Dosis / Ha</h3><p className="muted">Ini adalah komposisi yang nantinya ikut otomatis saat user memilih Activity di Plan.</p></div>{selected&&<div className="row-actions">{!editMode?<button type="button" className="primary" onClick={startCompositionEdit}>Edit Dosis & Satuan</button>:<><button type="button" className="primary" disabled={busy} onClick={()=>void saveCompositionEdit()}>{busy?'Menyimpan…':'Simpan Perubahan'}</button><button type="button" onClick={cancelCompositionEdit}>Batal</button></>}<button type="button" onClick={()=>{setSelectedId('');setEditMode(false);setEditComponents([])}}>Tutup Detail</button></div>}</div>
       {!selected?<div className="empty">Pilih <strong>Lihat Komposisi</strong> pada salah satu Activity.</div>:<>
         <div className="stats-grid">
           <div className="stat"><span>Activity Code</span><strong style={{fontSize:'1.1rem'}}>{selected.activityCode||'-'}</strong><small>{selected.description}</small></div>
@@ -134,7 +172,7 @@ export default function MasterActivityListPanel(){
           <div className="stat"><span>Jumlah Bahan</span><strong>{selected.components.length}</strong><small>komponen / Ha</small></div>
           <div className="stat"><span>Produk Tersedia</span><strong>{selectedProducts}</strong><small>produk ACTIVE yang cocok</small></div>
         </div>
-        {selected.components.length?<div className="table-wrap"><table><thead><tr><th>Urutan</th><th>Bahan Aktif / Komposisi Utama</th><th>Dosis / Ha</th><th>Satuan</th><th>Produk ACTIVE yang dapat digunakan</th><th>Kesiapan</th></tr></thead><tbody>{selected.components.map((component,index)=>{const products=ingredientProducts.get(normalize(component.activeIngredient))||[];return <tr key={`${selected.id}-${component.sequence}-${component.activeIngredient}`}><td><strong>{index+1}</strong></td><td><strong>{component.activeIngredient}</strong></td><td><strong>{formatDose(component.dosePerHa)}</strong></td><td>{component.unit}/Ha</td><td>{products.length?products.map(product=><div key={product.id}>{product.materialName}<span className="muted"> — {product.category}</span></div>):<span className="muted">Belum ada produk ACTIVE yang cocok</span>}</td><td><span className="badge">{products.length?'SIAP':'REVIEW'}</span></td></tr>})}</tbody></table></div>:<div className="alert">Activity ini belum mempunyai komposisi bahan/dosis sehingga tetap INACTIVE dan tidak akan muncul pada pilihan Plan.</div>}
+        {selected.components.length?<div className="table-wrap"><table><thead><tr><th>Urutan</th><th>Bahan Aktif / Komposisi Utama</th><th>Dosis / Ha</th><th>Satuan</th><th>Produk ACTIVE yang dapat digunakan</th><th>Kesiapan</th></tr></thead><tbody>{(editMode?editComponents:selected.components).map((component,index)=>{const products=ingredientProducts.get(normalize(component.activeIngredient))||[],unitOptions=[...new Set(products.map(product=>product.unit).filter(Boolean))].sort();return <tr key={selected.id+'-'+component.sequence+'-'+component.activeIngredient}><td><strong>{index+1}</strong></td><td><strong>{component.activeIngredient}</strong></td><td>{editMode?<input className="activity-recipe-inline-input" type="number" min="0" step="any" value={component.dosePerHa||''} onChange={e=>patchEditComponent(index,{dosePerHa:Number(e.target.value)})}/>:<strong>{formatDose(component.dosePerHa)}</strong>}</td><td>{editMode?<><input className="activity-recipe-inline-input" list={'activity-unit-options-'+index} value={component.unit} onChange={e=>patchEditComponent(index,{unit:e.target.value})} placeholder="Liter / Kg"/><datalist id={'activity-unit-options-'+index}>{unitOptions.map(unit=><option key={unit} value={unit}/>)}</datalist></>:<>{component.unit}/Ha</>}</td><td>{products.length?products.map(product=><div key={product.id}>{product.materialName}<span className="muted"> — {product.category} · {product.unit}</span></div>):<span className="muted">Belum ada produk ACTIVE yang cocok</span>}</td><td><span className="badge">{products.length?'SIAP':'REVIEW'}</span></td></tr>})}</tbody></table></div>:<div className="alert">Activity ini belum mempunyai komposisi bahan/dosis sehingga tetap INACTIVE dan tidak akan muncul pada pilihan Plan.</div>}
         <div className="panel" style={{marginTop:12}}><strong>Preview saat dipilih di Plan</strong><div style={{marginTop:8}}><div><strong>{selected.description}</strong> — {selected.activity} · {selected.type} · {selected.activityCategory}</div>{selected.components.length?selected.components.map((component,index)=><div key={`preview-${index}`} className="muted">{index+1}. {component.activeIngredient} — {formatDose(component.dosePerHa)} {component.unit}/Ha</div>):<div className="muted">Tidak ada komposisi.</div>}</div></div>
       </>}
     </div>
