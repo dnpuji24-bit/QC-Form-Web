@@ -10,6 +10,7 @@ import FertilizerForm from './FertilizerForm'
 import OperationalDashboard from './OperationalDashboard'
 import { ActivityLogs } from './AdminPages'
 import { canEditAccess, canViewAccess } from './accessControl'
+import { hydrateUserAccess } from './userAccess'
 import { UploadStatusPill, uploadStatusInfo } from './UploadStatus'
 import type { MasterData, QcRecord, User } from './types'
 
@@ -53,10 +54,10 @@ export default function App(){
   void hydrateQueue()
   return()=>{mounted=false;window.removeEventListener('qc:upload-state',onUploadState as EventListener)}
  },[token,user?.username])
- async function refreshSession(){if(!navigator.onLine){setMessage('Mode offline: sesi akun dipertahankan di perangkat. Data yang tersimpan tetap aman.');return}try{const result=await qcApi.me(token);if(result.user){setUser(result.user);persistSession(token,result.user)}await refreshMaster();if(!firebaseAuth?.currentUser)await refreshRecords()}catch(error){if(authSessionFailure(error)){clearSession();return}if(networkFailure(error)){setMessage('Koneksi ke server belum tersedia. Sesi lokal tetap aktif dan data dapat dilanjutkan secara offline.');return}setMessage(errorText(error)||'Verifikasi sesi belum berhasil. Sesi lokal tetap dipertahankan.')}}
+ async function refreshSession(){if(!navigator.onLine){setMessage('Mode offline: sesi akun dipertahankan di perangkat. Data yang tersimpan tetap aman.');return}try{const result=await qcApi.me(token);if(result.user){const hydrated=await hydrateUserAccess(result.user);setUser(hydrated);persistSession(token,hydrated)}await refreshMaster();if(!firebaseAuth?.currentUser)await refreshRecords()}catch(error){if(authSessionFailure(error)){clearSession();return}if(networkFailure(error)){setMessage('Koneksi ke server belum tersedia. Sesi lokal tetap aktif dan data dapat dilanjutkan secara offline.');return}setMessage(errorText(error)||'Verifikasi sesi belum berhasil. Sesi lokal tetap dipertahankan.')}}
  async function refreshMaster(){if(!token)return;try{const result=await qcApi.masterData(token);if(result.data){setMaster(result.data);localStorage.setItem(MASTER_KEY,JSON.stringify(result.data))}}catch(error){if(!Object.keys(master).length)setMessage(error instanceof Error?error.message:'Master data gagal dimuat')}}
  async function refreshRecords(){if(!token)return;setBusy(true);setMessage('');try{const result=await qcApi.records(token);setRecords((result.records||(Array.isArray(result.data)?result.data:[]))as QcRecord[])}catch(error){setMessage(error instanceof Error?error.message:'Gagal memuat data')}finally{setBusy(false)}}
- function saveSession(nextToken:string,nextUser:User){setToken(nextToken);setUser(nextUser);persistSession(nextToken,nextUser);queueMicrotask(()=>{void refreshAfterLogin(nextToken)})}
+ function saveSession(nextToken:string,nextUser:User){setToken(nextToken);setUser(nextUser);persistSession(nextToken,nextUser);void hydrateUserAccess(nextUser).then(hydrated=>{setUser(hydrated);persistSession(nextToken,hydrated)});queueMicrotask(()=>{void refreshAfterLogin(nextToken)})}
  async function refreshAfterLogin(nextToken:string){try{const masterResult=await qcApi.masterData(nextToken);if(masterResult.data){setMaster(masterResult.data);localStorage.setItem(MASTER_KEY,JSON.stringify(masterResult.data))}}catch(error){setMessage(error instanceof Error?error.message:'Master data awal gagal dimuat')}}
  function clearSession(){setToken('');setUser(null);setRecords([]);setEditingSprayRecords([]);setEditingFertilizerRecords([]);clearPersistedSession()}async function logout(){try{if(token)await qcApi.logout(token)}catch{}await signOutFirebaseBridge();clearSession()}
  function handleSpraySaved(nextRecords:QcRecord[]){setRecords(old=>[...nextRecords,...old.filter(existing=>!nextRecords.some(record=>record.id===existing.id))]);setEditingSprayRecords([])}function handleFertilizerSaved(nextRecords:QcRecord[]){setRecords(old=>[...nextRecords,...old.filter(existing=>!nextRecords.some(record=>record.id===existing.id))]);setEditingFertilizerRecords([])}
