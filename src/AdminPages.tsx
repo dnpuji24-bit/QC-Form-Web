@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { qcApi } from './api'
 import FirestoreMigrationPanel from './FirestoreMigrationPanel'
 import type { AccountChangeRequest, Role, User } from './types'
+import { defaultPermissionsForRole, PERMISSION_CATALOG, type AccessMode, type PermissionKey, type UserPermissions } from './accessControl'
 
 const ROLES: Role[] = ['owner','manager','admin','asisten','mandor_spraying','mandor_fertilizer','pengunjung']
 const formatLogTime = (value: unknown) => {
@@ -20,6 +21,8 @@ export function UsersApproval({ token }: UsersProps) {
   const [roleDraft, setRoleDraft] = useState<Record<string, string>>({})
   const [accountFeaturesReady, setAccountFeaturesReady] = useState(true)
   const [userQuery, setUserQuery] = useState('')
+  const [accessUsername, setAccessUsername] = useState('')
+  const [permissionDraft, setPermissionDraft] = useState<Record<string,UserPermissions>>({})
 
   async function load() {
     setBusy(true); setMessage('')
@@ -28,6 +31,7 @@ export function UsersApproval({ token }: UsersProps) {
       const list = (userResult.users || userResult.data || []) as User[]
       setUsers(list)
       setRoleDraft(Object.fromEntries(list.map((u) => [u.username, u.role])))
+      setPermissionDraft(Object.fromEntries(list.map((u)=>[u.username,{...defaultPermissionsForRole(u.role),...(u.permissions||{})}])))
       try {
         const requestResult = await qcApi.accountChangeRequests(token)
         setRequests((requestResult.requests || requestResult.data || []) as AccountChangeRequest[])
@@ -64,6 +68,30 @@ export function UsersApproval({ token }: UsersProps) {
       await load()
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Perubahan role gagal') }
     finally { setBusy(false) }
+  }
+
+  function permissionFor(username:string,key:PermissionKey):AccessMode {
+    return (permissionDraft[username]?.[key]||'none') as AccessMode
+  }
+  function setPermission(username:string,key:PermissionKey,mode:AccessMode){
+    setPermissionDraft(current=>({...current,[username]:{...(current[username]||{}),[key]:mode}}))
+  }
+  function resetPermissionsForRole(user:User){
+    const role=(roleDraft[user.username]||user.role) as Role
+    setPermissionDraft(current=>({...current,[user.username]:defaultPermissionsForRole(role)}))
+    setMessage('Draft hak akses '+user.fullName+' direset mengikuti default role '+role.replaceAll('_',' ')+'. Klik Simpan Hak Akses untuk menerapkan.')
+  }
+  async function savePermissions(user:User){
+    if(user.role==='owner'&&user.username===users.find(u=>u.role==='owner')?.username){
+      // Owner tetap dapat disimpan; backend memastikan akses Owner tidak terkunci.
+    }
+    setBusy(true);setMessage('')
+    try{
+      const permissions=permissionDraft[user.username]||defaultPermissionsForRole((roleDraft[user.username]||user.role) as Role)
+      const result=await qcApi.updateUserPermissions(token,user.username,permissions as Record<string,string>)
+      setMessage(result.message||('Hak akses '+user.fullName+' berhasil diperbarui. Berlaku setelah user login ulang.'))
+      await load()
+    }catch(error){setMessage(error instanceof Error?error.message:'Hak akses gagal disimpan')}finally{setBusy(false)}
   }
 
   async function deleteUser(user: User) {
@@ -120,7 +148,12 @@ export function UsersApproval({ token }: UsersProps) {
     <div className="panel users-directory-panel">
       <div className="section-head"><div><h3>Pengguna Terdaftar & Edit Role</h3><p className="muted">Cari berdasarkan nama, nickname/username, email, role, status, atau form.</p></div><span className="badge">{filteredUsers.length} dari {users.length} user</span></div>
       <div className="user-search-bar"><input aria-label="Cari pengguna" placeholder="Cari nama, username/nickname, email, role…" value={userQuery} onChange={(e) => setUserQuery(e.target.value)} />{userQuery&&<button type="button" onClick={() => setUserQuery('')}>Reset</button>}</div>
-      <div className="table-wrap"><table><thead><tr><th>Nama</th><th>Username</th><th>Role</th><th>Status</th><th>Form</th><th>Aksi</th></tr></thead><tbody>{filteredUsers.map((u) => <tr key={u.username}><td>{u.fullName}</td><td>{u.username}</td><td><select value={roleDraft[u.username] || u.role} disabled={!accountFeaturesReady} onChange={(e) => setRoleDraft((old) => ({...old,[u.username]:e.target.value}))}>{ROLES.map((r) => <option key={r} value={r}>{r.replaceAll('_',' ')}</option>)}</select></td><td>{u.status || '-'}</td><td>{u.allowedForm || '-'}</td><td><div className="row-actions"><button disabled={busy || !accountFeaturesReady || (roleDraft[u.username] || u.role) === u.role} onClick={() => void saveRole(u)}>Simpan Role</button><button className="danger" disabled={busy || !accountFeaturesReady || u.role === 'owner'} title={u.role === 'owner' ? 'Akun Owner dilindungi dari penghapusan.' : 'Hapus akun login; data QC historis tetap disimpan.'} onClick={() => void deleteUser(u)}>Hapus Akun</button></div></td></tr>)}{!filteredUsers.length&&<tr><td colSpan={6} className="empty">Tidak ada pengguna yang cocok dengan pencarian.</td></tr>}</tbody></table></div><p className="muted">Role baru berlaku pada sesi berikutnya. Hapus Akun hanya menghapus akses login pengguna; data QC historis, foto, dan laporan tetap dipertahankan.</p>
+      <div className="table-wrap"><table><thead><tr><th>Nama</th><th>Username</th><th>Role</th><th>Status</th><th>Form</th><th>Aksi</th></tr></thead><tbody>{filteredUsers.map((u) => <tr key={u.username}><td>{u.fullName}</td><td>{u.username}</td><td><select value={roleDraft[u.username] || u.role} disabled={!accountFeaturesReady} onChange={(e) => setRoleDraft((old) => ({...old,[u.username]:e.target.value}))}>{ROLES.map((r) => <option key={r} value={r}>{r.replaceAll('_',' ')}</option>)}</select></td><td>{u.status || '-'}</td><td>{u.allowedForm || '-'}</td><td><div className="row-actions"><button disabled={busy || !accountFeaturesReady || (roleDraft[u.username] || u.role) === u.role} onClick={() => void saveRole(u)}>Simpan Role</button><button type="button" className={accessUsername===u.username?'primary':''} onClick={()=>setAccessUsername(current=>current===u.username?'':u.username)}>Hak Akses</button><button className="danger" disabled={busy || !accountFeaturesReady || u.role === 'owner'} title={u.role === 'owner' ? 'Akun Owner dilindungi dari penghapusan.' : 'Hapus akun login; data QC historis tetap disimpan.'} onClick={() => void deleteUser(u)}>Hapus Akun</button></div></td></tr>)}{!filteredUsers.length&&<tr><td colSpan={6} className="empty">Tidak ada pengguna yang cocok dengan pencarian.</td></tr>}</tbody></table></div>
+      {accessUsername&&users.find(u=>u.username===accessUsername)&&(()=>{const target=users.find(u=>u.username===accessUsername)!;return <div className="user-access-editor"><div className="section-head"><div><div className="eyebrow">HAK AKSES DETAIL</div><h3>{target.fullName} · @{target.username}</h3><p className="muted">Atur setiap menu/sub menu: Tidak Akses, Hanya Lihat, atau Edit. Role tetap menjadi preset awal; pengaturan di bawah menjadi override manual.</p></div><div className="row-actions"><button type="button" onClick={()=>resetPermissionsForRole(target)}>Reset sesuai Role</button><button type="button" className="primary" disabled={busy} onClick={()=>void savePermissions(target)}>Simpan Hak Akses</button><button type="button" onClick={()=>setAccessUsername('')}>Tutup</button></div></div>
+        {(['Form QC','Data UnM'] as const).map(group=><div key={group} className="access-group"><h4>{group}</h4><div className="access-grid">{PERMISSION_CATALOG.filter(item=>item.group===group).map(item=><div className="access-row" key={item.key}><div><strong>{item.menu}</strong><span>{item.subMenu}</span></div><select value={permissionFor(target.username,item.key)} disabled={target.role==='owner'} onChange={e=>setPermission(target.username,item.key,e.target.value as AccessMode)}><option value="none">Tidak Akses</option><option value="view">Hanya Lihat</option><option value="edit">Edit</option></select></div>)}</div></div>)}
+        {target.role==='owner'&&<div className="alert">Owner selalu memiliki akses Edit penuh agar administrasi sistem tidak dapat terkunci.</div>}
+      </div>})()}
+      <p className="muted">Role dan hak akses baru berlaku pada sesi berikutnya. Hapus Akun hanya menghapus akses login pengguna; data QC historis, foto, dan laporan tetap dipertahankan.</p>
     </div>
   </section>
 }
