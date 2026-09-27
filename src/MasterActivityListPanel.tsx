@@ -46,7 +46,7 @@ export default function MasterActivityListPanel(){
   const[query,setQuery]=useState(''),[type,setType]=useState('ALL'),[category,setCategory]=useState('ALL'),[status,setStatus]=useState('ALL'),[scope,setScope]=useState('ALL')
   const[selectedId,setSelectedId]=useState(''),[editMode,setEditMode]=useState(false),[editComponents,setEditComponents]=useState<ActivityComponent[]>([])
 
-  async function load(){
+  async function load(nextMessage=''){
     if(!firestoreDb){setMessage('Firestore belum tersedia.');return}
     setBusy(true);setMessage('Memuat Master Activity…')
     try{
@@ -57,7 +57,7 @@ export default function MasterActivityListPanel(){
       setActivities(nextActivities);setMaterials(nextMaterials);setLogs(nextLogs)
       setSelectedId(current=>current&&nextActivities.some(row=>row.id===current)?current:'')
       setEditMode(false);setEditComponents([])
-      setMessage(`Master Activity siap: ${nextActivities.length} Activity, ${nextMaterials.length} Material.`)
+      setMessage(nextMessage||`Master Activity siap: ${nextActivities.length} Activity, ${nextMaterials.length} Material.`)
     }catch(error){setMessage(error instanceof Error?error.message:'Master Activity gagal dimuat.')}finally{setBusy(false)}
   }
 
