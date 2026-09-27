@@ -4,6 +4,7 @@ import { collection, doc, getDoc, getDocs, serverTimestamp, writeBatch } from 'f
 import { firebaseAuth, firestoreDb } from './firebase'
 import { FALLBACK_COMPANIES, findCompanyByPrefix, pidPrefix, type CompanyRecord } from './companyMaster'
 import type { User } from './types'
+import { canEditAccess } from './accessControl'
 
 type Props={user:User}
 type SheetRow=Record<string,unknown>
@@ -164,8 +165,7 @@ async function firebaseWriterContext(appUser:User){
   const current=auth.currentUser;if(!current)throw new Error('Firebase Auth belum terhubung. Login ulang ke QC Web agar bridge Firebase aktif.')
   const snapshot=await getDoc(doc(db,'users',current.uid));if(!snapshot.exists())throw new Error('Profil Firebase user tidak ditemukan.')
   const profile=snapshot.data() as FirestoreProfile;if(profile.active!==true)throw new Error('Profil Firebase tidak aktif.')
-  if(!['owner','asisten'].includes(profile.role||''))throw new Error(`Role Firebase ${profile.role||'-'} tidak memiliki izin update Master Paddock.`)
-  if(!['owner','asisten'].includes(appUser.role))throw new Error('Role QC Web tidak memiliki izin update Master Paddock.')
+  if(!canEditAccess(appUser,'data_master_paddock_import'))throw new Error('Hak akses Edit Update / Import Master Paddock belum diberikan.')
   return{db,username:profile.username||appUser.username,current}
 }
 
