@@ -5,17 +5,6 @@ on:
   push:
     branches:
       - migrate/react-typescript-vite
-    paths:
-      - '.github/workflows/firebase-preview.yml'
-      - 'src/**'
-      - 'public/**'
-      - 'package.json'
-      - 'firebase.json'
-      - 'firestore.rules'
-      - 'firestore.indexes.json'
-      - 'vite.config.ts'
-      - 'tsconfig*.json'
-      - 'tests/offline_session_persistence_check.py'
 
 permissions:
   contents: read

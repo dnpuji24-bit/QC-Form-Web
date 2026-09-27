@@ -15,7 +15,7 @@ import './ui-enhancers.css'
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/react/sw.js', { scope: '/react/' }).catch(() => {})
+    navigator.serviceWorker.register('/react/sw.js', { scope: '/react/' }).then((registration) => registration.update()).catch(() => {})
   })
 }
 
