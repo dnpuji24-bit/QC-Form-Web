@@ -9,6 +9,9 @@ export type Role =
 
 export type FormType = 'spray' | 'fertilizer'
 
+export type AccessMode = 'none' | 'view' | 'edit'
+export type PermissionMap = Record<string, AccessMode>
+
 export interface User {
   username: string
   fullName: string
@@ -18,6 +21,7 @@ export interface User {
   allowedForm?: FormType | 'all' | string
   firebaseUid?: string
   firebaseStatus?: string
+  permissions?: PermissionMap
 }
 
 export interface AccountChangeRequest {
