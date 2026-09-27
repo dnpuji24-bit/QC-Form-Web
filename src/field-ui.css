@@ -2850,3 +2850,35 @@
   .dashboard-stats .stat{min-height:86px!important;padding:9px!important}
   .dashboard-stats .stat strong{font-size:1.08rem!important}
 }
+
+
+/* QC final compactness + anti-clipping refinement */
+.dashboard-hero.compact-hero{padding:14px 16px!important;margin-bottom:10px!important;border-radius:16px!important;min-height:0!important}
+.dashboard-hero.compact-hero h2{font-size:1.45rem!important;line-height:1.08!important}
+.dashboard-hero.compact-hero p{font-size:.78rem!important;line-height:1.35!important}
+.dashboard-stats{gap:8px!important}
+.dashboard-stats .stat{padding:13px 14px!important;min-height:96px}
+.activity-panel{margin-top:10px!important;padding:14px!important}
+.qc-records-page .record-list-toolbar{margin-bottom:8px}
+.qc-form-shell,.qc-form-shell .unit-card,.qc-form-shell .subpanel{overflow:visible!important}
+.qc-form-shell fieldset{min-inline-size:0}
+.qc-form-shell .choice-group button{max-width:100%;overflow-wrap:anywhere}
+
+@media(max-width:700px){
+  .content{overflow-x:visible!important}
+  .qc-form-shell{overflow:visible!important;padding-inline:1px}
+  .qc-form-shell .session-bar{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .qc-form-shell .session-bar>label:nth-child(3),
+  .qc-form-shell .session-bar>label:nth-child(4){grid-column:auto!important}
+  .qc-form-shell .unit-card,.qc-form-shell .subpanel{width:100%!important;overflow:visible!important}
+  .qc-form-shell .form-grid>*,
+  .qc-form-shell .qc-daily-program-grid>*{min-width:0!important;max-width:100%!important}
+  .dashboard-hero.compact-hero{padding:11px 12px!important;margin-bottom:7px!important;border-radius:13px!important}
+  .dashboard-hero.compact-hero h2{font-size:1.12rem!important}
+  .dashboard-hero.compact-hero p{font-size:.62rem!important}
+  .dashboard-stats .stat{min-height:82px!important;padding:9px 10px!important}
+  .activity-panel{padding:9px!important}
+}
+@media(max-width:390px){
+  .qc-form-shell .session-bar{grid-template-columns:1fr!important}
+}
