@@ -31,4 +31,13 @@ for token in [
 
 assert 'grid-template-columns:repeat(2,minmax(0,1fr))!important' in css
 assert 'position:sticky' in css
+assert 'visibleRecords=useMemo(()=>showAll?filtered:filtered.slice(0,100)' in app
+assert "await import('xlsx')" in app
+assert "Export Excel" in app
+assert "Lihat Semua" in app
+assert "record-list-toolbar" in app
+assert "dashboard-hero compact-hero" in (root/'src'/'OperationalDashboard.tsx').read_text(encoding='utf-8')
+assert "Dashboard + input overflow + Data QC toolbar follow-up" in css
+assert ".dashboard-stats .stat" in css
+assert ".qc-form-shell input" in css
 print('QC mobile compact UI check passed.')
