@@ -75,6 +75,24 @@ service cloud.firestore {
       allow delete: if activeUser() && role() == 'owner';
     }
 
+    match /master_units/{unitId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canWriteAll();
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /master_shifts/{shiftId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canWriteAll();
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /master_foremen/{foremanId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canWriteAll();
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
     match /master_activity_import_logs/{batchId} {
       allow read: if activeUser() && role() in ['owner','manager','admin','asisten'];
       allow create: if activeUser() && canWriteAll();
