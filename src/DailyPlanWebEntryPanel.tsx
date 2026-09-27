@@ -6,13 +6,14 @@ import { dailyPlansToWhatsApp, type DailyPlanTransfer } from './dailyPlanActions
 import type { DailyComposerRequest } from './dailyPlanWorkspaceTypes'
 import { aggregateMaterials, clearPlanDraft, materialLinesFromComponents, planHa, planNum, planRowId, planText, readPlanDraft, writePlanDraft } from './planInputUtils'
 import type { User } from './types'
+import { loadAllOperationalResources } from './masterOperationalResources'
 
 type Props={user:User;selectedDate?:string;onDateChange?:(date:string)=>void;onSaved?:()=>void;composerRequest?:DailyComposerRequest;onComposerRequestHandled?:()=>void}
 type Monthly={id:string;planLineId:string;monthKey:string;week:string;companyCode:string;farm:string;pid:string;description:string;activity:string;targetAreaHa:number;manualActualAreaHa:number;sourceStatus:string;status:string;type:string;activityCategory:string;stage:string;masterVariety:string;componentsSnapshot:unknown[]}
 type Daily={dailyPlanId:string;monthlyPlanLineId:string;date:string;shift:string;areaHa:number}
 type Actual={id:string;monthlyPlanLineId:string;actualAreaHa:number}
 type MasterPaddock={pid:string;companyCode:string;farm:string;stage:string;variety:string}
-type MasterActivity={id:string;description:string;activity:string;defaultUnitName:string;defaultShift:string;defaultForeman:string;componentsSnapshot:unknown[]}
+type MasterActivity={id:string;description:string;activity:string;componentsSnapshot:unknown[]}
 type PidDraft={id:string;search:string;monthlyId:string;pid:string;area:string;persistedDocId?:string;persistedDailyPlanId?:string}
 type WorkDraft={id:string;sourceType:'MONTHLY'|'ADHOC'|'SUPPORT';shift:string;foreman:string;activitySearch:string;manpower:string;unitName:string;unitReady:string;unitStandby:string;unitBreakdown:string;notes:string;pids:PidDraft[]}
 type DraftState={date:string;active:WorkDraft;works:WorkDraft[];editingId:string}
@@ -60,14 +61,6 @@ function smartMonthlyChoices(rows:Monthly[],input:string,activity:string){
     return full.startsWith(code)||short.startsWith(code)||fullCompact.startsWith(compact)||shortCompact.startsWith(compact)
   })
 }
-function masterActivityDefault(rows:MasterActivity[],value:string){
-  const wanted=searchKey(value);if(!wanted)return null
-  const byDescription=rows.find(row=>searchKey(row.description)===wanted);if(byDescription)return byDescription
-  const matches=rows.filter(row=>searchKey(row.activity)===wanted)
-  if(matches.length===1)return matches[0]
-  if(matches.length>1){const signatures=new Set(matches.map(row=>[row.defaultUnitName,row.defaultShift,row.defaultForeman].map(searchKey).join('|')));if(signatures.size===1)return matches[0]}
-  return null
-}
 function activityChoices(rows:Monthly[],input:string){
   const q=searchKey(input),seen=new Set<string>(),out:string[]=[]
   for(const row of rows){const label=activityLabel(row),key=searchKey(label);if(!label||seen.has(key)||q&&!key.startsWith(q))continue;seen.add(key);out.push(label)}
@@ -80,6 +73,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
   const storedInitial=normalizeDraft(readPlanDraft<unknown>(draftKey,null))
   const initial={...storedInitial,date:selectedDate||storedInitial.date}
   const[monthly,setMonthly]=useState<Monthly[]>([]),[activityMonthly,setActivityMonthly]=useState<Monthly[]>([]),[daily,setDaily]=useState<Daily[]>([]),[linkedDaily,setLinkedDaily]=useState<Daily[]>([]),[actuals,setActuals]=useState<Actual[]>([]),[linkedActuals,setLinkedActuals]=useState<Actual[]>([]),[paddocks,setPaddocks]=useState<MasterPaddock[]>([]),[activities,setActivities]=useState<MasterActivity[]>([])
+  const[resourceUnits,setResourceUnits]=useState<string[]>([]),[resourceShifts,setResourceShifts]=useState<string[]>([]),[resourceForemen,setResourceForemen]=useState<string[]>([])
   const[state,setState]=useState<DraftState>(initial),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[draggingId,setDraggingId]=useState(''),[persistedEdit,setPersistedEdit]=useState<PersistedEditContext|null>(null)
   const saveFeedbackRef=useRef<HTMLDivElement|null>(null)
   const activityLookupRef=useRef(0),loadedActivityKeysRef=useRef(new Set<string>())
@@ -88,7 +82,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
   const actualByMonthlyId=useMemo(()=>{const reports=new Map<string,Actual>(),map=new Map<string,number>();[...actuals,...linkedActuals].forEach(row=>reports.set(row.id,row));reports.forEach(row=>{if(row.monthlyPlanLineId)map.set(row.monthlyPlanLineId,(map.get(row.monthlyPlanLineId)||0)+row.actualAreaHa)});return map},[actuals,linkedActuals])
   const selectableMonthly=useMemo(()=>availableMonthly.filter(row=>!monthlyStatusClosed(row)&&((actualByMonthlyId.get(row.planLineId)||0)+row.manualActualAreaHa)<row.targetAreaHa-0.0001),[availableMonthly,actualByMonthlyId])
 
-  async function loadMasters(){if(!firestoreDb)return;try{const[p,a]=await Promise.all([getDocs(collection(firestoreDb,'master_paddocks')),getDocs(collection(firestoreDb,'master_activities'))]);setPaddocks(p.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{pid:planText(r.pid||x.id).toUpperCase(),companyCode:planText(r.companyCode).toUpperCase(),farm:planText(r.farm),stage:planText(r.currentStage||r.stage),variety:planText(r.variety)}}));setActivities(a.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,description:planText(r.description),activity:planText(r.activity),defaultUnitName:planText(r.defaultUnitName||r.unitName||r.defaultUnit),defaultShift:planText(r.defaultShift||r.shift),defaultForeman:planText(r.defaultForeman||r.foreman||r.mandor),componentsSnapshot:Array.isArray(r.components)?r.components:[]}}).filter(x=>x.activity||x.description))}catch(e){setMessage(e instanceof Error?e.message:'Master data gagal dimuat.')}}
+  async function loadMasters(){if(!firestoreDb)return;try{const[p,a]=await Promise.all([getDocs(collection(firestoreDb,'master_paddocks')),getDocs(collection(firestoreDb,'master_activities'))]);setPaddocks(p.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{pid:planText(r.pid||x.id).toUpperCase(),companyCode:planText(r.companyCode).toUpperCase(),farm:planText(r.farm),stage:planText(r.currentStage||r.stage),variety:planText(r.variety)}}));setActivities(a.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,description:planText(r.description),activity:planText(r.activity),componentsSnapshot:Array.isArray(r.components)?r.components:[]}}).filter(x=>x.activity||x.description))}catch(e){setMessage(e instanceof Error?e.message:'Master data gagal dimuat.')}}
   async function loadPeriod(date=state.date){
     if(!firestoreDb||!date)return
     setBusy(true)
@@ -141,7 +135,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
       setLinkedActuals(current=>[...current.filter(row=>!ids.includes(row.monthlyPlanLineId)),...linkedActual])
     }catch(e){setMessage(e instanceof Error?e.message:'Monthly Plan lintas bulan gagal dimuat.')}
   }
-  useEffect(()=>{void loadMasters()},[])
+  useEffect(()=>{void loadMasters();void loadAllOperationalResources().then(resources=>{setResourceUnits(resources.units.map(x=>x.name));setResourceShifts(resources.shifts.map(x=>x.name));setResourceForemen(resources.foremen.map(x=>x.name))}).catch(()=>{})},[])
   useEffect(()=>{void loadPeriod(state.date);onDateChange?.(state.date)},[state.date])
   useEffect(()=>{if(selectedDate&&selectedDate!==state.date)setState(current=>({...current,date:selectedDate}))},[selectedDate])
   useEffect(()=>{if(state.active.sourceType!=='MONTHLY')return;const label=state.active.activitySearch.trim(),key=searchKey(label);if(!key)return;const exact=availableMonthly.some(row=>searchKey(activityLabel(row))===key)||activities.some(row=>searchKey(row.description)===key);if(exact)void loadMonthlyActivity(label)},[state.active.sourceType,state.active.activitySearch,availableMonthly,activities])
@@ -315,10 +309,10 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
         <div className="daily-form-group-title"><span>01</span><div><strong>Jadwal & Kegiatan</strong><small>Informasi utama pekerjaan</small></div></div>
         <div className="plan-grid daily-schedule-grid">
           <label className="daily-date-field"><span>Tanggal</span><input type="date" value={state.date} onChange={e=>setState(current=>({...current,date:e.target.value}))}/></label>
-          <label><span>Shift</span><input value={state.active.shift} onChange={e=>patchActive({shift:e.target.value})} placeholder="1 / 2 / 3"/></label>
-          <label><span>Mandor / Foreman</span><input value={state.active.foreman} onChange={e=>patchActive({foreman:e.target.value})} placeholder="Nama mandor"/></label>
+          <label><span>Shift</span><input list="daily-resource-shifts" value={state.active.shift} onChange={e=>patchActive({shift:e.target.value})} placeholder="Ketik shift"/><datalist id="daily-resource-shifts">{resourceShifts.map(x=><option key={x} value={x}/>)}</datalist></label>
+          <label><span>Mandor / Foreman</span><input list="daily-resource-foremen" value={state.active.foreman} onChange={e=>patchActive({foreman:e.target.value})} placeholder="Ketik nama mandor"/><datalist id="daily-resource-foremen">{resourceForemen.map(x=><option key={x} value={x}/>)}</datalist></label>
           <label><span>Sumber</span><select value={state.active.sourceType} disabled={!!persistedEdit} onChange={e=>patchActive({sourceType:e.target.value as WorkDraft['sourceType'],activitySearch:'',pids:[blankPid()]})}><option value="MONTHLY">MONTHLY</option><option value="ADHOC">ADHOC</option><option value="SUPPORT">SUPPORT</option></select></label>
-          <label className="daily-activity-field"><span>Kegiatan</span><input list="daily-active-activities" value={state.active.activitySearch} onChange={e=>{const value=e.target.value,masterDefault=masterActivityDefault(activities,value);patchActive({activitySearch:value,pids:state.active.pids.map(pid=>({...pid,search:'',monthlyId:''})),...(masterDefault?.defaultShift?{shift:masterDefault.defaultShift}:{}),...(masterDefault?.defaultForeman?{foreman:masterDefault.defaultForeman}:{}),...(masterDefault?.defaultUnitName?{unitName:masterDefault.defaultUnitName}:{})})}} placeholder="Ketik top dressing / pre"/><datalist id="daily-active-activities">{activeInfo.activityOptions.map(x=><option key={x} value={x}/>)}</datalist>{masterActivityDefault(activities,state.active.activitySearch)&&<small className="plan-search-hint">Master default: Unit {masterActivityDefault(activities,state.active.activitySearch)?.defaultUnitName||'-'} · Shift {masterActivityDefault(activities,state.active.activitySearch)?.defaultShift||'-'} · {masterActivityDefault(activities,state.active.activitySearch)?.defaultForeman||'-'}</small>}</label>
+          <label className="daily-activity-field"><span>Kegiatan</span><input list="daily-active-activities" value={state.active.activitySearch} onChange={e=>patchActive({activitySearch:e.target.value,pids:state.active.pids.map(pid=>({...pid,search:'',monthlyId:''}))})} placeholder="Ketik top dressing / pre"/><datalist id="daily-active-activities">{activeInfo.activityOptions.map(x=><option key={x} value={x}/>)}</datalist></label>
         </div>
       </section>
 
@@ -326,7 +320,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
         <div className="daily-form-group-title"><span>02</span><div><strong>Tenaga & Alat</strong><small>Resource bersama untuk seluruh PID</small></div></div>
         <div className="plan-grid daily-resource-grid">
           <label><span>Jumlah HK</span><input type="number" min="0" step="1" value={state.active.manpower} onChange={e=>patchActive({manpower:e.target.value})}/></label>
-          <label className="daily-unit-field"><span>Kode / Nama Unit</span><input value={state.active.unitName} onChange={e=>patchActive({unitName:e.target.value})} placeholder="Contoh: Stool Splitter"/></label>
+          <label className="daily-unit-field"><span>Kode / Nama Unit</span><input list="daily-resource-units" value={state.active.unitName} onChange={e=>patchActive({unitName:e.target.value})} placeholder="Ketik S untuk Stool Splitter"/><datalist id="daily-resource-units">{resourceUnits.map(x=><option key={x} value={x}/>)}</datalist></label>
           <label className="daily-status-field ready"><span>Ready</span><input type="number" min="0" step="1" value={state.active.unitReady} onChange={e=>patchActive({unitReady:e.target.value})}/></label>
           <label className="daily-status-field breakdown"><span>Breakdown</span><input type="number" min="0" step="1" value={state.active.unitBreakdown} onChange={e=>patchActive({unitBreakdown:e.target.value})}/></label>
           <label className="daily-status-field standby"><span>Standby</span><input type="number" min="0" step="1" value={state.active.unitStandby} onChange={e=>patchActive({unitStandby:e.target.value})}/></label>
