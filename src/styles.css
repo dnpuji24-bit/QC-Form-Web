@@ -96,3 +96,53 @@
 @media(max-width:360px){
   .master-activity-list>.stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+
+
+/* Grouped Firestore Master Resource */
+.master-resource-panel{min-width:0}
+.master-resource-title{align-items:center;margin:2px 0 12px}
+.master-resource-title h2{margin:3px 0 0;font-size:1.35rem}
+.resource-group-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:0 0 10px}
+.resource-group-card{display:grid;gap:4px;text-align:left;border:1px solid #dbe5f1;background:#fff;border-radius:14px;padding:12px 13px;color:#334155;box-shadow:0 7px 20px rgba(15,23,42,.04);cursor:pointer}
+.resource-group-card strong{font-size:.82rem;color:#0f172a}
+.resource-group-card small{font-size:.68rem;line-height:1.25;color:#64748b}
+.resource-group-card.active{border-color:#93b4ff;background:linear-gradient(135deg,#eef4ff,#f8fbff);box-shadow:0 8px 22px rgba(37,87,220,.09)}
+.resource-group-card.active strong{color:#2457dc}
+.resource-kind-tabs{display:flex!important;grid-template-columns:none!important;gap:5px!important;overflow-x:auto;margin:0 0 10px!important;padding:4px!important;border:1px solid #dbe5f1;background:#f3f6fb}
+.resource-kind-tabs button{flex:0 0 auto;min-height:36px!important;padding:7px 11px!important;font-size:.74rem!important}
+.resource-editor,.resource-table-panel{margin-top:10px!important;padding:14px!important;border-radius:16px!important}
+.resource-editor .section-head,.resource-table-panel .section-head{margin-bottom:10px}
+.resource-editor .form-grid{grid-template-columns:minmax(220px,1fr) minmax(180px,.8fr) auto;gap:9px;align-items:end}
+.resource-editor .resource-unit-link-grid{grid-template-columns:minmax(190px,.8fr) minmax(220px,1fr) auto}
+.resource-editor label{gap:4px!important;font-size:.75rem!important}
+.resource-editor input,.resource-editor select{min-height:38px;padding:8px 10px!important;border-radius:10px!important;font-size:.78rem!important}
+.resource-editor label small{font-size:.64rem;color:#64748b;font-weight:600}
+.resource-save-actions{align-items:flex-end;min-height:38px}
+.resource-save-actions button{min-height:38px;padding:8px 12px;font-size:.73rem}
+.resource-table-panel table{min-width:680px;font-size:.78rem}
+.resource-table-panel th{padding:9px 10px;font-size:.67rem}
+.resource-table-panel td{padding:9px 10px}
+@media(max-width:760px){
+  .master-resource-title{display:flex!important;flex-direction:row!important;align-items:center!important;gap:8px}
+  .master-resource-title>div{min-width:0;flex:1}
+  .master-resource-title h2{font-size:1.05rem;white-space:nowrap}
+  .master-resource-title>button{width:auto!important;min-height:34px;padding:6px 9px;font-size:.68rem}
+  .resource-group-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+  .resource-group-card{padding:8px 7px;border-radius:11px;min-height:66px}
+  .resource-group-card strong{font-size:.67rem;line-height:1.1}
+  .resource-group-card small{font-size:.56rem;line-height:1.18}
+  .resource-kind-tabs{border-radius:12px!important}
+  .resource-kind-tabs button{min-height:32px!important;padding:6px 8px!important;font-size:.64rem!important}
+  .resource-editor,.resource-table-panel{padding:9px!important;border-radius:13px!important}
+  .resource-editor .section-head,.resource-table-panel .section-head{display:flex!important;flex-direction:row!important;align-items:center!important;margin-bottom:7px}
+  .resource-editor .section-head h3,.resource-table-panel .section-head h3{font-size:.9rem;margin:0}
+  .resource-editor .form-grid,.resource-editor .resource-unit-link-grid{grid-template-columns:1fr 1fr!important;gap:6px}
+  .resource-editor .resource-save-actions{grid-column:1/-1}
+  .resource-editor label{font-size:.66rem!important}
+  .resource-editor input,.resource-editor select{min-height:34px!important;height:34px;padding:6px 8px!important;font-size:.7rem!important}
+  .resource-editor label small{font-size:.56rem}
+  .resource-save-actions button{min-height:34px;padding:6px 9px;font-size:.65rem}
+  .resource-table-panel .table-wrap{border-radius:11px}
+  .resource-table-panel table{min-width:620px;font-size:.69rem}
+  .resource-table-panel th,.resource-table-panel td{padding:7px 8px}
+}
