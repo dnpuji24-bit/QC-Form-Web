@@ -4,6 +4,7 @@ import { firebaseAuth, firebaseAuthPersistenceReady, firestoreDb } from './fireb
 import { FALLBACK_COMPANIES, type CompanyRecord } from './companyMaster'
 import { aggregateMaterials, clearPlanDraft, materialLinesFromComponents, planHa, planNum, planRowId, planText, readPlanDraft, writePlanDraft } from './planInputUtils'
 import type { User } from './types'
+import { canEditAccess } from './accessControl'
 
 type Props={user:User;selectedMonth?:string;selectedWeek?:string;onPeriodChange?:(month:string,week:string)=>void;onSaved?:()=>void}
 type Paddock={pid:string;companyCode:string;farm:string;variety:string;stage:string;areaPaddockHa:number;plantAreaHa:number}
@@ -20,7 +21,7 @@ function plantAreaFromData(d:Record<string,unknown>){const explicit=planNum(d.va
 function planDocId(v:string){return encodeURIComponent(v.replaceAll('/','-')).slice(0,1400)}
 function weekDates(monthKey:string,week:string){if(!/^\d{4}-\d{2}$/.test(monthKey))return{start:'',end:''};const[y,m]=monthKey.split('-').map(Number),last=new Date(y,m,0).getDate(),map:Record<string,[number,number]>={W1:[1,7],W2:[8,15],W3:[16,22],W4:[23,last]},range=map[week]||[1,last];return{start:monthKey+'-'+pad(range[0]),end:monthKey+'-'+pad(range[1])}}
 function blankLine():LineDraft{return{id:planRowId('monthly'),pid:'',activityId:'',target:'',notes:''}}
-async function writer(appUser:User){const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.');await firebaseAuthPersistenceReady;if(typeof auth.authStateReady==='function')await auth.authStateReady();const current=auth.currentUser;if(!current)throw new Error('Sesi Firebase belum siap. Tunggu sebentar atau login ulang lalu coba lagi.');const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.');const p=snap.data() as Record<string,unknown>;if(p.active!==true||!['owner','asisten'].includes(planText(p.role))||!['owner','asisten'].includes(appUser.role))throw new Error('Role tidak memiliki izin membuat Monthly Plan.');return{db,username:planText(p.username)||appUser.username}}
+async function writer(appUser:User){const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.');await firebaseAuthPersistenceReady;if(typeof auth.authStateReady==='function')await auth.authStateReady();const current=auth.currentUser;if(!current)throw new Error('Sesi Firebase belum siap. Tunggu sebentar atau login ulang lalu coba lagi.');const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.');const p=snap.data() as Record<string,unknown>;if(p.active!==true||!canEditAccess(appUser,'data_plan_monthly'))throw new Error('Hak akses Edit Monthly Plan belum diberikan.');return{db,username:planText(p.username)||appUser.username}}
 
 export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWeek,onPeriodChange,onSaved}:Props){
   const draftKey='plan_monthly_web_draft_'+user.username
