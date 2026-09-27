@@ -54,10 +54,14 @@ assert "QC final compactness + anti-clipping refinement" in css
 assert ".qc-form-shell .session-bar{grid-template-columns:repeat(2,minmax(0,1fr))!important}" in css
 
 
-assert "Mobile report preview only - export layout remains unchanged" in css
+assert "Mobile report preview: keep original two-column report geometry, only tune readability" in css
 assert ".report-toolbar .row-actions" in css
 assert ".report-sheet:not(.report-export-capture)" in css
 assert ".report-sheet.report-export-capture" in css
 assert "report-export-capture" in app
+assert "Produktivitas Efektif" in spray
+assert "productivityHaPerHour" in spray
+assert "n(card.area)/(timing.effective/60)" in spray
+assert "Produktivitas Efektif" in app
 
 print('QC mobile compact UI check passed.')
