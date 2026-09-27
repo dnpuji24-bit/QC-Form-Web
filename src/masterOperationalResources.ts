@@ -77,7 +77,8 @@ export function mergeResourceNames(...groups:Array<Array<{name:string}|string>>)
 
 export function unitNumbersForUnit(resources:OperationalResource[],unitName:string){
   const wanted=unitName.trim().toLowerCase()
-  return resources.filter(row=>!wanted||String(row.parentUnitName||'').trim().toLowerCase()===wanted)
+  if(!wanted)return[]
+  return resources.filter(row=>String(row.parentUnitName||'').trim().toLowerCase()===wanted)
 }
 
 export function preferFirestoreNames(resources:OperationalResource[],fallback:string[]=[]){
