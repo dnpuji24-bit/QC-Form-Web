@@ -19,6 +19,7 @@ export type DailyPlanTransfer={
   unitBreakdown:number
   foreman:string
   notes:string
+  pidNotes?:string
   materials:Array<{material:string;dosePerHa:number;doseUnit:string;totalMaterial:number;unit:string}>
 }
 
@@ -55,7 +56,7 @@ export function dailyPlansToWhatsApp(rows:DailyPlanTransfer[]){
       number++
       const title=(first.activity||first.description||'KEGIATAN').toUpperCase()
       lines.push(`*${number}. ${title} (${n(area)} Ha)*`)
-      for(const row of groupRows)lines.push(`📍 Pdk: ${row.pid||'-'} (${n(row.areaHa)} Ha)`)
+      for(const row of groupRows){lines.push(`📍 Pdk: ${row.pid||'-'} (${n(row.areaHa)} Ha)`);if(row.pidNotes)lines.push(`   ↳ Ket: ${row.pidNotes}`)}
       lines.push(`👷 Mandor: ${first.foreman||'-'}`)
       lines.push(`👷 HK: ${n(first.manpower)} | 🚜 Alat: ${first.unitName||'-'}`)
       lines.push(`⚙️ Stat: 🟢${n(first.unitReady)} | 🔴${n(first.unitBreakdown)} | 🟡${n(first.unitStandby)}`)
