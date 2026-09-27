@@ -6,11 +6,8 @@ for collection in ['master_units','master_shifts','master_foremen']:
     token=f"match /{collection}/"
     assert token in rules, f"Missing Firestore rules for {collection}"
 
-for fragment in [
-    "allow read: if activeUser();",
-    "allow create, update: if activeUser() && canWriteAll();",
-    "allow delete: if activeUser() && role() == 'owner';",
-]:
-    assert rules.count(fragment) >= 3, f"Operational resource permission fragment missing: {fragment}"
+assert rules.count("allow read: if activeUser();") >= 3
+assert rules.count("canEditKey('data_master_activity_resources',['owner','asisten'])") >= 3
+assert rules.count("allow delete: if activeUser() && role() == 'owner';") >= 3
 
-print("Firestore operational resource rules check passed: Unit, Shift, and Foreman masters are readable by active users, writable by Owner/Asisten, and deletable by Owner.")
+print("Firestore operational resource rules check passed: resources are readable by active users, editable through granular Master Resource permission (Owner/Asisten fallback), and deletable by Owner.")
