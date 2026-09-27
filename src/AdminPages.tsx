@@ -127,12 +127,13 @@ export function UsersApproval({ token }: UsersProps) {
     setBusy(true);setMessage('')
     try{
       const permissions=roleAccessDraft[role]||defaultPermissionsForRole(role)
-      if(!firestoreDb)throw new Error('Firestore belum tersedia untuk menyimpan hak akses role.')
-      await setDoc(doc(firestoreDb,'role_access',role),{
+      const db=firestoreDb
+      if(!db)throw new Error('Firestore belum tersedia untuk menyimpan hak akses role.')
+      await setDoc(doc(db,'role_access',role),{
         role,permissions,updatedAt:serverTimestamp(),updatedBy:firebaseAuth?.currentUser?.email||'owner',
       },{merge:true})
       const legacyUsers=users.filter(user=>user.role===role&&user.firebaseUid)
-      await Promise.all(legacyUsers.map(async user=>{try{await deleteDoc(doc(firestoreDb,'user_access',user.firebaseUid!))}catch{}}))
+      await Promise.all(legacyUsers.map(async user=>{try{await deleteDoc(doc(db,'user_access',user.firebaseUid!))}catch{}}))
       let mirrored=false
       try{await qcApi.updateRolePermissions(token,role,permissions as Record<string,string>);mirrored=true}catch(error){console.info('Mirror role access ke Apps Script belum tersedia; Firestore role template tetap aktif.',error)}
       const count=users.filter(user=>user.role===role).length
