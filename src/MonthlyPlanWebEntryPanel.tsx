@@ -66,7 +66,7 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
     }catch(err){setMessage(err instanceof Error?err.message:'Gagal membuat Monthly Plan.')}finally{setBusy(false)}
   }
 
-  return <section className="plan-entry-screen">
+  return <section className="plan-entry-screen monthly-plan-entry">
     <div className="section-head"><div><div className="eyebrow">MONTHLY PLAN · BATCH INPUT</div><h2>Input Monthly Plan</h2><p className="muted">Satu sesi dapat berisi beberapa PID/Activity. Draft tersimpan otomatis di perangkat sampai berhasil disimpan.</p></div><div className="row-actions"><button type="button" onClick={()=>void Promise.all([loadMasters(),loadPeriod()])} disabled={busy}>Refresh Master</button><button type="button" className="danger" onClick={reset} disabled={busy}>Reset Draft</button></div></div>
     {message&&<div className="alert">{message}</div>}
     <form onSubmit={save} className="plan-entry-form">
