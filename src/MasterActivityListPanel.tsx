@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore'
 import { firebaseAuth, firestoreDb } from './firebase'
+import type { User } from './types'
+import { canEditAccess } from './accessControl'
 
 type ActivityComponent={sequence:number;label:string;activeIngredient:string;dosePerHa:number;unit:string}
 type ActivityRow={
@@ -27,7 +29,7 @@ function formatDateTime(value:string){if(!value)return'-';const date=new Date(va
 function doseKey(value:number){return String(Number(Number(value).toFixed(8)))}
 function componentKey(component:ActivityComponent){return normalize(component.activeIngredient)+'|'+doseKey(component.dosePerHa)+'|'+normalize(component.unit)}
 function recipeSignature(components:ActivityComponent[]){return components.map(componentKey).sort().join('||')}
-async function writerContext(){
+async function writerContext(appUser:User){
   const db=firestoreDb,auth=firebaseAuth
   if(!db||!auth)throw new Error('Firebase belum tersedia.')
   const current=auth.currentUser
@@ -36,11 +38,11 @@ async function writerContext(){
   if(!snap.exists())throw new Error('Profil Firebase user tidak ditemukan.')
   const profile=snap.data() as FirestoreProfile
   if(profile.active!==true)throw new Error('Profil Firebase tidak aktif.')
-  if(!['owner','asisten'].includes(profile.role||''))throw new Error('Hanya Owner/Asisten yang dapat mengubah komposisi Activity.')
+  if(!canEditAccess(appUser,'data_master_activity_list'))throw new Error('Hak akses Edit Daftar Activity belum diberikan.')
   return{db,username:profile.username||current.email||'unknown'}
 }
 
-export default function MasterActivityListPanel(){
+export default function MasterActivityListPanel({user,readOnly=false}:{user:User;readOnly?:boolean}){
   const[activities,setActivities]=useState<ActivityRow[]>([]),[materials,setMaterials]=useState<MaterialRow[]>([]),[logs,setLogs]=useState<ImportLog[]>([])
   const[busy,setBusy]=useState(false),[message,setMessage]=useState('')
   const[query,setQuery]=useState(''),[type,setType]=useState('ALL'),[category,setCategory]=useState('ALL'),[status,setStatus]=useState('ALL'),[scope,setScope]=useState('ALL')
@@ -112,7 +114,7 @@ export default function MasterActivityListPanel(){
     if(conflict){setMessage('DITOLAK: kombinasi Bahan Aktif + Dosis + Satuan identik dengan Activity ACTIVE "'+conflict.description+'".');return}
     setBusy(true);setMessage('Menyimpan perubahan dosis dan satuan…')
     try{
-      const context=await writerContext()
+      const context=await writerContext(user)
       await setDoc(doc(context.db,'master_activities',selected.id),{components:cleaned,componentCount:cleaned.length,active:cleaned.length>0,updatedAt:serverTimestamp(),updatedBy:context.username,source:'WEB_MANUAL_EDIT_DETAIL'},{merge:true})
       await load('Komposisi '+selected.description+' berhasil diperbarui.')
       setSelectedId(selected.id)
@@ -163,7 +165,7 @@ export default function MasterActivityListPanel(){
     </div>
 
     <div className="panel" id="activity-composition-detail">
-      <div className="section-head"><div><div className="eyebrow">DETAIL AUTO-RECIPE</div><h3>Komposisi Bahan & Dosis / Ha</h3><p className="muted">Ini adalah komposisi yang nantinya ikut otomatis saat user memilih Activity di Plan.</p></div>{selected&&<div className="row-actions">{!editMode?<button type="button" className="primary" onClick={startCompositionEdit}>Edit Dosis & Satuan</button>:<><button type="button" className="primary" disabled={busy} onClick={()=>void saveCompositionEdit()}>{busy?'Menyimpan…':'Simpan Perubahan'}</button><button type="button" onClick={cancelCompositionEdit}>Batal</button></>}<button type="button" onClick={()=>{setSelectedId('');setEditMode(false);setEditComponents([])}}>Tutup Detail</button></div>}</div>
+      <div className="section-head"><div><div className="eyebrow">DETAIL AUTO-RECIPE</div><h3>Komposisi Bahan & Dosis / Ha</h3><p className="muted">Ini adalah komposisi yang nantinya ikut otomatis saat user memilih Activity di Plan.</p></div>{selected&&<div className="row-actions">{!editMode&&!readOnly?<button type="button" className="primary" onClick={startCompositionEdit}>Edit Dosis & Satuan</button>:<><button type="button" className="primary" disabled={busy} onClick={()=>void saveCompositionEdit()}>{busy?'Menyimpan…':'Simpan Perubahan'}</button><button type="button" onClick={cancelCompositionEdit}>Batal</button></>}<button type="button" onClick={()=>{setSelectedId('');setEditMode(false);setEditComponents([])}}>Tutup Detail</button></div>}</div>
       {!selected?<div className="empty">Pilih <strong>Lihat Komposisi</strong> pada salah satu Activity.</div>:<>
         <div className="stats-grid">
           <div className="stat"><span>Activity Code</span><strong style={{fontSize:'1.1rem'}}>{selected.activityCode||'-'}</strong><small>{selected.description}</small></div>
