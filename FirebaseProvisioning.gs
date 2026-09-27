@@ -58,7 +58,7 @@ function markFirebaseIdentity_(found,uid,status){
 }
 function firebaseProfileObject_(found,activeOverride){
   var o=found.data||{},status=String(o.Status||'').toUpperCase(),active=activeOverride===undefined?status==='APPROVED':Boolean(activeOverride);
-  return{active:active,status:status||'PENDING',role:normalizeRole_(o.Role),username:String(o.Username||'').toLowerCase(),email:String(o.Email||'').toLowerCase(),fullName:String(o.FullName||o.Username||''),allowedForm:String(o.AllowedForm||allowedForm_(o.Role)),source:'qc_apps_script',updatedAt:new Date().toISOString()};
+  var role=normalizeRole_(o.Role);return{active:active,status:status||'PENDING',role:role,username:String(o.Username||'').toLowerCase(),email:String(o.Email||'').toLowerCase(),fullName:String(o.FullName||o.Username||''),allowedForm:String(o.AllowedForm||allowedForm_(o.Role)),permissions:normalizePermissions_(o.Permissions,role),source:'qc_apps_script',updatedAt:new Date().toISOString()};
 }
 function syncFirebaseProfileForFound_(found,activeOverride){
   if(!found)return false;
