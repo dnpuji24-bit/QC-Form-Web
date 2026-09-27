@@ -1286,3 +1286,461 @@
     font-size:.76rem;
   }
 }
+
+
+/* Monthly premium edit + compact mobile */
+.monthly-inline-edit-panel{
+  margin-top:14px!important;
+  padding:13px!important;
+  display:grid;
+  gap:9px;
+  border-radius:15px!important;
+}
+.monthly-inline-edit-panel .daily-form-toolbar{
+  margin:0 0 2px;
+  align-items:flex-start;
+}
+.monthly-inline-edit-panel .daily-form-toolbar h3{
+  margin:2px 0!important;
+  font-size:1.02rem;
+}
+.monthly-inline-edit-panel .daily-form-toolbar p{
+  margin:3px 0 0;
+  max-width:780px;
+  font-size:.73rem;
+  line-height:1.35;
+}
+.monthly-inline-edit-panel .daily-form-group{
+  margin:0!important;
+  padding:10px!important;
+  border-radius:12px!important;
+  background:#fbfcff!important;
+}
+.monthly-inline-edit-panel .daily-form-group-title{
+  margin-bottom:7px!important;
+}
+.monthly-inline-edit-panel .monthly-edit-period-grid{
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+}
+.monthly-inline-edit-panel .monthly-edit-detail-grid{
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+}
+.monthly-inline-edit-panel .monthly-edit-locked{
+  background:#f8fafc!important;
+}
+.monthly-inline-edit-panel input[readonly]{
+  background:#f1f5f9!important;
+  color:#64748b!important;
+}
+
+.monthly-work-section{
+  padding:14px!important;
+  border-radius:16px!important;
+  background:linear-gradient(180deg,#fff,#fbfdff);
+}
+.monthly-work-section>.plan-section-title{
+  margin-bottom:10px!important;
+}
+.monthly-work-section>.plan-section-title p{
+  margin:4px 0 0;
+  font-size:.74rem;
+  line-height:1.35;
+}
+.monthly-work-list{
+  gap:10px!important;
+}
+.monthly-work-card{
+  position:relative;
+  padding:11px!important;
+  border-radius:13px!important;
+  box-shadow:0 4px 14px rgba(15,23,42,.035)!important;
+}
+.monthly-work-card .plan-work-head{
+  margin-bottom:9px!important;
+}
+.monthly-work-card .plan-work-head>div:first-child{
+  display:grid;
+  gap:2px;
+}
+.monthly-work-card .plan-work-head>div:first-child>strong{
+  font-size:.88rem;
+  color:#0f172a;
+}
+.monthly-work-card .plan-grid{
+  gap:8px!important;
+}
+.monthly-work-card .plan-grid label{
+  gap:4px!important;
+  font-size:.73rem!important;
+}
+.monthly-work-card .plan-grid input,
+.monthly-work-card .plan-grid select{
+  min-height:38px!important;
+  padding:7px 9px!important;
+  border-radius:9px!important;
+  font-size:.82rem!important;
+}
+.monthly-work-card .plan-inline-info{
+  margin-top:8px!important;
+  gap:6px!important;
+}
+.monthly-work-card .plan-inline-info span{
+  min-width:105px;
+  padding:6px 8px!important;
+  border-radius:8px!important;
+  font-size:.69rem!important;
+}
+.monthly-work-card .plan-inline-info strong{
+  font-size:.78rem!important;
+}
+.monthly-work-card .plan-material-mini{
+  margin-top:8px!important;
+  padding:8px 9px!important;
+  border-radius:9px!important;
+  font-size:.72rem;
+}
+.monthly-add-work-footer{
+  margin-top:10px;
+}
+.monthly-add-work-button{
+  width:100%;
+  min-height:50px;
+  display:grid!important;
+  grid-template-columns:auto 1fr;
+  grid-template-areas:
+    "icon title"
+    "icon note";
+  column-gap:9px;
+  align-items:center;
+  text-align:left;
+  padding:9px 13px!important;
+  border:1px dashed #93c5fd!important;
+  border-radius:12px!important;
+  background:linear-gradient(180deg,#f8fbff,#eff6ff)!important;
+  color:#1d4ed8!important;
+  box-shadow:none!important;
+}
+.monthly-add-work-button>span{
+  grid-area:icon;
+  display:grid;
+  place-items:center;
+  width:31px;
+  height:31px;
+  border-radius:9px;
+  background:#dbeafe;
+  font-size:1.15rem;
+  font-weight:900;
+}
+.monthly-add-work-button>strong{
+  grid-area:title;
+  font-size:.82rem;
+}
+.monthly-add-work-button>small{
+  grid-area:note;
+  color:#64748b;
+  font-size:.65rem;
+}
+.monthly-add-work-button:hover{
+  border-color:#60a5fa!important;
+  background:#eaf3ff!important;
+}
+
+@media(max-width:760px){
+  .monthly-period-list{
+    gap:7px!important;
+    padding-bottom:18px;
+  }
+  .monthly-period-list .compact-saved-head{
+    margin:0!important;
+    gap:8px!important;
+  }
+  .monthly-period-list .compact-saved-head h3{
+    font-size:.96rem!important;
+    margin:1px 0!important;
+  }
+  .monthly-period-list .compact-saved-head p{
+    margin:2px 0 0!important;
+    font-size:.63rem!important;
+    line-height:1.25!important;
+  }
+  .monthly-period-list .compact-saved-head button{
+    min-height:32px!important;
+    padding:5px 8px!important;
+    font-size:.68rem!important;
+  }
+  .monthly-period-list>.alert{
+    margin:0!important;
+    padding:8px 9px!important;
+    font-size:.66rem!important;
+    line-height:1.3!important;
+    border-radius:9px!important;
+  }
+  .monthly-period-list .monthly-quick-search{
+    padding:8px!important;
+    border-radius:11px!important;
+  }
+  .monthly-period-list .monthly-quick-search label{
+    gap:4px!important;
+    font-size:.67rem!important;
+  }
+  .monthly-period-list .monthly-quick-search input{
+    min-height:34px!important;
+    padding:6px 8px!important;
+    font-size:.74rem!important;
+  }
+  .monthly-period-list .monthly-quick-search small{
+    font-size:.59rem!important;
+    line-height:1.2!important;
+  }
+  .monthly-period-list .compact-period-cards{
+    grid-template-columns:repeat(4,minmax(0,1fr))!important;
+    gap:5px!important;
+  }
+  .monthly-period-list .compact-period-cards .card{
+    min-height:0!important;
+    padding:7px 6px!important;
+    border-radius:9px!important;
+    gap:2px!important;
+  }
+  .monthly-period-list .compact-period-cards .card span{
+    font-size:.54rem!important;
+    line-height:1.1;
+  }
+  .monthly-period-list .compact-period-cards .card strong{
+    font-size:.72rem!important;
+    line-height:1.15;
+  }
+  .monthly-period-card-list{
+    gap:7px!important;
+  }
+  .monthly-period-card{
+    padding:9px!important;
+    gap:7px!important;
+    border-radius:11px!important;
+  }
+  .monthly-period-card h4{
+    font-size:.9rem!important;
+    line-height:1.2;
+    margin:1px 0 2px!important;
+  }
+  .monthly-period-card p{
+    font-size:.65rem!important;
+    line-height:1.25!important;
+  }
+  .monthly-period-card .eyebrow{
+    font-size:.58rem!important;
+  }
+  .monthly-period-metrics{
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+    gap:4px!important;
+  }
+  .monthly-period-metrics span{
+    padding:5px 6px!important;
+    border-radius:7px!important;
+    font-size:.56rem!important;
+  }
+  .monthly-period-metrics b{
+    font-size:.66rem!important;
+  }
+  .monthly-period-metrics span:last-child{
+    grid-column:span 2;
+  }
+  .monthly-card-actions{
+    display:grid!important;
+    grid-template-columns:repeat(5,minmax(0,1fr));
+    gap:4px!important;
+  }
+  .monthly-card-actions button{
+    min-height:31px!important;
+    padding:5px 4px!important;
+    font-size:.6rem!important;
+    border-radius:8px!important;
+    white-space:nowrap;
+  }
+  .monthly-linked-daily{
+    padding:8px!important;
+    gap:6px!important;
+  }
+
+  .monthly-plan-entry{
+    gap:9px!important;
+  }
+  .monthly-plan-entry>.section-head{
+    margin-bottom:1px!important;
+  }
+  .monthly-plan-entry>.section-head h2{
+    font-size:1rem!important;
+    margin:1px 0!important;
+  }
+  .monthly-plan-entry>.section-head p{
+    font-size:.66rem!important;
+    line-height:1.3!important;
+  }
+  .monthly-plan-entry>.section-head .row-actions{
+    gap:5px!important;
+  }
+  .monthly-plan-entry>.section-head .row-actions button{
+    min-height:32px!important;
+    padding:5px 7px!important;
+    font-size:.65rem!important;
+  }
+  .monthly-plan-entry .plan-entry-form{
+    gap:9px!important;
+  }
+  .monthly-plan-entry .plan-section{
+    padding:10px!important;
+    border-radius:13px!important;
+  }
+  .monthly-plan-entry .plan-section-title{
+    margin-bottom:8px!important;
+  }
+  .monthly-plan-entry .plan-section-title h3{
+    font-size:.92rem!important;
+    margin:1px 0!important;
+  }
+  .monthly-plan-entry .plan-section-title p{
+    font-size:.62rem!important;
+  }
+  .monthly-plan-entry .plan-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:7px!important;
+  }
+  .monthly-plan-entry .plan-grid label{
+    gap:3px!important;
+    font-size:.68rem!important;
+  }
+  .monthly-plan-entry .plan-grid input,
+  .monthly-plan-entry .plan-grid select{
+    min-height:36px!important;
+    padding:6px 8px!important;
+    border-radius:8px!important;
+    font-size:.76rem!important;
+  }
+  .monthly-plan-entry .plan-span-2{
+    grid-column:1/-1!important;
+  }
+  .monthly-work-card{
+    padding:8px!important;
+  }
+  .monthly-work-card .plan-work-head{
+    align-items:flex-start!important;
+    flex-direction:row!important;
+    margin-bottom:7px!important;
+  }
+  .monthly-work-card .plan-work-head>div:first-child{
+    min-width:0;
+    flex:1;
+  }
+  .monthly-work-card .plan-work-head>div:first-child>strong{
+    font-size:.78rem!important;
+    overflow-wrap:anywhere;
+  }
+  .monthly-work-card .plan-work-head .row-actions{
+    width:auto!important;
+    flex:0 0 auto;
+    gap:4px!important;
+  }
+  .monthly-work-card .plan-work-head .row-actions button{
+    min-height:29px!important;
+    padding:4px 6px!important;
+    font-size:.61rem!important;
+    border-radius:7px!important;
+  }
+  .monthly-work-card .plan-inline-info{
+    grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  }
+  .monthly-work-card .plan-inline-info span{
+    min-width:0!important;
+    padding:5px!important;
+    font-size:.56rem!important;
+  }
+  .monthly-work-card .plan-inline-info strong{
+    font-size:.65rem!important;
+  }
+  .monthly-add-work-footer{
+    margin-top:8px;
+  }
+  .monthly-add-work-button{
+    min-height:43px;
+    padding:7px 9px!important;
+  }
+  .monthly-add-work-button>span{
+    width:27px;
+    height:27px;
+    font-size:1rem;
+  }
+  .monthly-add-work-button>strong{
+    font-size:.73rem;
+  }
+  .monthly-add-work-button>small{
+    font-size:.58rem;
+  }
+  .monthly-plan-entry .plan-summary-grid{
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+    gap:5px!important;
+  }
+  .monthly-plan-entry .plan-summary-grid>div{
+    padding:7px!important;
+    border-radius:8px!important;
+  }
+  .monthly-plan-entry .plan-summary-grid span{
+    font-size:.56rem!important;
+  }
+  .monthly-plan-entry .plan-summary-grid strong{
+    font-size:.72rem!important;
+  }
+  .monthly-plan-entry .plan-save-button{
+    margin-top:8px!important;
+    min-height:39px!important;
+    padding:7px 10px!important;
+    font-size:.75rem!important;
+  }
+
+  .monthly-inline-edit-panel{
+    padding:9px!important;
+    gap:7px!important;
+  }
+  .monthly-inline-edit-panel .daily-form-toolbar h3{
+    font-size:.9rem!important;
+  }
+  .monthly-inline-edit-panel .daily-form-toolbar p{
+    font-size:.61rem!important;
+    line-height:1.25!important;
+  }
+  .monthly-inline-edit-panel .daily-form-group{
+    padding:8px!important;
+  }
+  .monthly-inline-edit-panel .monthly-edit-period-grid{
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  }
+  .monthly-inline-edit-panel .monthly-edit-detail-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+  .monthly-inline-edit-panel .plan-grid input,
+  .monthly-inline-edit-panel .plan-grid select{
+    min-height:35px!important;
+    padding:6px 8px!important;
+    font-size:.74rem!important;
+  }
+  .monthly-inline-edit-panel .daily-single-form-actions{
+    position:sticky!important;
+    bottom:7px!important;
+  }
+}
+
+@media(max-width:430px){
+  .monthly-period-list .compact-period-cards{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+  .monthly-card-actions{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+  .monthly-plan-entry .plan-grid{
+    grid-template-columns:1fr 1fr!important;
+  }
+  .monthly-work-card .plan-grid label:first-child,
+  .monthly-work-card .plan-grid label:nth-child(2),
+  .monthly-work-card .plan-grid .plan-span-2{
+    grid-column:1/-1!important;
+  }
+}
