@@ -123,8 +123,8 @@ export default function MasterActivityListPanel({user,readOnly=false}:{user:User
   function filterStatus(next:'ACTIVE'|'INACTIVE'){setStatus(next);setType('ALL');setSelectedId('')}
   function filterType(next:'SPRAY'|'FERTILIZER'){setType(next);setStatus('ALL');setSelectedId('')}
 
-  return <section>
-    <div className="section-head"><div><div className="eyebrow">FIRESTORE MASTER</div><h2>Daftar Master Activity</h2><p className="muted">Daftar ini menunjukkan tepat apa yang akan dibaca Plan: pilih Activity sekali, lalu komposisi bahan aktif dan dosis/Ha mengikuti otomatis.</p></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'Memuat…':'Refresh'}</button></div>
+  return <section className="master-activity-list">
+    <div className="section-head master-activity-titlebar"><div><div className="eyebrow">FIRESTORE MASTER</div><h2>Daftar Master Activity</h2></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'Memuat…':'Refresh'}</button></div>
     {message&&<div className="alert">{message}</div>}
 
     <div className="panel premium-filter-panel master-filter-panel">
@@ -147,9 +147,9 @@ export default function MasterActivityListPanel({user,readOnly=false}:{user:User
       <div className="stat"><span>Master Material</span><strong>{materials.length}</strong><small>{materials.filter(row=>row.active).length} ACTIVE</small></div>
     </div>
 
-    <div className="panel">
-      <div className="section-head"><div><h3>Daftar Activity</h3><p className="muted">Tabel dibuat ringkas. Klik <strong>Lihat Komposisi</strong> untuk melihat bahan, dosis, dan produk yang tersedia secara lengkap.</p></div><span className="badge">{filtered.length} activity</span></div>
-      <div className="table-wrap"><table><thead><tr><th>Code</th><th>Deskripsi</th><th>Activity</th><th>Type / Category</th><th>Scope</th><th>Status</th><th>Bahan</th><th>Detail</th></tr></thead><tbody>
+    <div className="panel master-activity-table-panel">
+      <div className="section-head master-activity-table-head"><div><h3>Daftar Activity</h3></div><span className="badge">{filtered.length} activity</span></div>
+      <div className="table-wrap master-activity-table-wrap"><table><thead><tr><th>Code</th><th>Deskripsi</th><th>Activity</th><th>Type / Category</th><th>Scope</th><th>Status</th><th>Bahan</th><th>Detail</th></tr></thead><tbody>
         {filtered.map(row=><tr key={row.id}>
           <td><strong>{row.activityCode||'-'}</strong></td>
           <td><strong>{row.description}</strong></td>
