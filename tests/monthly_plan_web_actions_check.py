@@ -19,7 +19,7 @@ for token in [
     "progressPct=cancelled?100",
     "Progress Manual / Historis (Ha)",
     "Actual dari Actual Plan",
-    "Plan ID, PID, dan Activity dikunci",
+    "Plan ID, PID, dan Activity tetap dikunci",
     "Simpan Update Progress",
     "Buka Lagi",
 ]:
