@@ -29,8 +29,10 @@ service cloud.firestore {
     function ownsIncoming() { return request.resource.data.inputtedBy == username(); }
 
     match /users/{uid} {
-      allow read: if activeUser() && request.auth.uid == uid;
-      allow write: if false;
+      allow read: if activeUser() && (request.auth.uid == uid || role() == 'owner');
+      allow update: if activeUser() && role() == 'owner'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['permissions','updatedAt','updatedBy']);
+      allow create, delete: if false;
     }
 
     match /qc_records/{recordId} {
