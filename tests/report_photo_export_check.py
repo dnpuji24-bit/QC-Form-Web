@@ -16,4 +16,13 @@ assert 'photoPreviewBase64?: string' in types
 for token in ['width:820px!important','grid-template-columns:repeat(2,minmax(0,1fr))!important','flex-direction:row!important']:
     assert token in field, f'Missing fixed desktop report export layout: {token}'
 
+
+app=(root/'src'/'App.tsx').read_text(encoding='utf-8')
+assert "el.classList.add('report-export-capture')" in app
+assert "el.classList.remove('report-export-capture')" in app
+assert 'Mobile report preview only - export layout remains unchanged' in field
+assert '.report-dialog .report-sheet:not(.report-export-capture)' in field
+assert '.report-dialog .report-sheet.report-export-capture' in field
+assert 'z-index:12000!important' in field
+
 print('Report photo preview and desktop-consistent mobile export checks: OK')
