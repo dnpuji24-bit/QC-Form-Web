@@ -20,16 +20,16 @@ export async function hydrateUserAccess(user:User):Promise<User>{
     if(typeof auth.authStateReady==='function')await auth.authStateReady()
     const current=auth.currentUser
     if(!current)return user
-    const [overrideSnap,profileSnap]=await Promise.all([
-      getDoc(doc(db,'user_access',current.uid)),
+    const [roleSnap,profileSnap]=await Promise.all([
+      getDoc(doc(db,'role_access',user.role)),
       getDoc(doc(db,'users',current.uid)),
     ])
-    const override=overrideSnap.exists()?overrideSnap.data():null
+    const roleTemplate=roleSnap.exists()?roleSnap.data():null
     const profile=profileSnap.exists()?profileSnap.data():null
-    const permissions=permissionMap(override?.permissions)||permissionMap(profile?.permissions)||user.permissions
+    const permissions=permissionMap(roleTemplate?.permissions)||permissionMap(profile?.permissions)||user.permissions
     return{...user,firebaseUid:current.uid,permissions}
   }catch(error){
-    console.info('Hak akses Firestore belum dapat di-hydrate; memakai default role/session.',error)
+    console.info('Hak akses role Firestore belum dapat di-hydrate; memakai default role/session.',error)
     return user
   }
 }
