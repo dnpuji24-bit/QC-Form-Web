@@ -15,14 +15,14 @@ assert "UsersApproval" not in app, 'Users administration must live on Operationa
 for token in ["'users'", 'UsersApproval', 'Users & Access', 'Pengguna & Hak Akses', "user?.role==='owner'"]:
     assert token in portal, f'Missing Operational Portal Users integration: {token}'
 
-for token in ['users:', 'approveUser:', 'rejectUser:', 'updateUserRole:', 'updateUserPermissions:', 'logs:']:
+for token in ['users:', 'approveUser:', 'rejectUser:', 'updateUserRole:', 'updateRolePermissions:', 'logs:']:
     assert token in api, f'Missing API wrapper: {token}'
-for token in ['Users & Approval', 'Menunggu Persetujuan', 'Activity Logs', 'AUDIT TRAIL', 'HAK AKSES DETAIL', 'Simpan Hak Akses']:
+for token in ['Users & Approval', 'Menunggu Persetujuan', 'Activity Logs', 'AUDIT TRAIL', 'HAK AKSES TERPUSAT', 'Simpan Hak Akses Role']:
     assert token in admin, f'Missing admin/access UI: {token}'
 for token in ['Dashboard QC', 'Luas yang Sudah Dikerjakan', 'Spray area', 'Fertilizer area', 'Pupuk tercatat', 'Total area dikerjakan', 'worked-paddocks', 'onOpenRecords']:
     assert token in dash, f'Missing dashboard metric or navigation: {token}'
 assert 'Total luas pada Plan' not in dash
 assert "if (action === 'users') { requireRole_(session,['owner'])" in backend
-assert "if (action === 'updateUserPermissions') { requireRole_(session,['owner'])" in backend
+assert "if (action === 'updateRolePermissions') { requireRole_(session,['owner'])" in backend
 assert "requirePermission_(session,'qc_logs',false)" in backend
-print('Portal Users, granular access, logs, and operational dashboard React check: OK')
+print('Portal Users, role-based access, logs, and operational dashboard React check: OK')
