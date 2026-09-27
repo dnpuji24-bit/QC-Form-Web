@@ -18,8 +18,8 @@ export default function MasterActivityWorkspace({user}:Props){
     import:canViewAccess(user,'data_master_activity_import'),
   }),[user])
   useEffect(()=>{if(allowed[view])return;const first=(['list','manage','resource','import'] as View[]).find(key=>allowed[key]);if(first)setView(first)},[view,allowed])
-  return <section>
-    <div className="segmented" aria-label="Menu Master Activity">
+  return <section className="master-activity-workspace">
+    <div className="segmented master-activity-segmented" aria-label="Menu Master Activity">
       {allowed.list&&<button type="button" className={view==='list'?'active':''} onClick={()=>setView('list')}>Daftar Activity</button>}
       {allowed.manage&&<button type="button" className={view==='manage'?'active':''} onClick={()=>setView('manage')}>Kelola Master</button>}
       {allowed.resource&&<button type="button" className={view==='resource'?'active':''} onClick={()=>setView('resource')}>Master Resource</button>}
