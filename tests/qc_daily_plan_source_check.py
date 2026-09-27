@@ -39,4 +39,11 @@ for token in ["dailyPlanId?: string","monthlyPlanLineId?: string","dailyPlanLink
 assert ".qc-daily-source-status" in styles
 assert ".qc-daily-link-grid" in styles
 
+
+assert "function shiftKey(value:unknown)" in source
+assert "const selectedShift=shiftKey(shift)" in source
+assert "const rowShift=shiftKey(row.shift)" in source
+for token in ["'shift2':'2'","'s2':'2'","'2.0':'2'","'shiftii':'2'"]:
+    assert token in source, f"Missing Shift 2 normalization alias: {token}"
+
 print("QC Daily Plan source check passed.")

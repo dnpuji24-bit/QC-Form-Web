@@ -34,6 +34,18 @@ export type QcDailyPlan={
 const text=(value:unknown)=>String(value??'').trim()
 const num=(value:unknown)=>{const n=Number(value??0);return Number.isFinite(n)?n:0}
 const key=(value:unknown)=>text(value).toLowerCase().replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim()
+function shiftKey(value:unknown){
+  const raw=key(value)
+  if(!raw)return''
+  const compact=raw.replace(/\s+/g,'')
+  const aliases:Record<string,string>={
+    '1':'1','01':'1','1.0':'1','shift1':'1','sh1':'1','s1':'1','i':'1','shifti':'1',
+    '2':'2','02':'2','2.0':'2','shift2':'2','sh2':'2','s2':'2','ii':'2','shiftii':'2',
+  }
+  if(aliases[compact])return aliases[compact]
+  const numeric=raw.match(/^(?:shift|sh|s)?\s*0*([12])(?:\.0+)?$/)
+  return numeric?numeric[1]:raw
+}
 
 function materials(value:unknown):QcDailyMaterial[]{
   if(!Array.isArray(value))return[]
@@ -86,12 +98,16 @@ export async function loadQcDailyPlans(date:string):Promise<QcDailyPlan[]>{
       materials:materials(row.materials),
     }
   }).filter(row=>row.pid&&row.activity)
-    .sort((a,b)=>a.shift.localeCompare(b.shift,undefined,{numeric:true})||a.planningOrder-b.planningOrder||a.pid.localeCompare(b.pid,undefined,{numeric:true}))
+    .sort((a,b)=>shiftKey(a.shift).localeCompare(shiftKey(b.shift),undefined,{numeric:true})||a.planningOrder-b.planningOrder||a.pid.localeCompare(b.pid,undefined,{numeric:true}))
 }
 
 export function dailyPlansForQc(rows:QcDailyPlan[],kind:'spray'|'fertilizer',shift:string){
-  const shiftKey=text(shift)
-  return rows.filter(row=>qcDailyKind(row)===kind&&(!shiftKey||!row.shift||row.shift===shiftKey))
+  const selectedShift=shiftKey(shift)
+  return rows.filter(row=>{
+    if(qcDailyKind(row)!==kind)return false
+    const rowShift=shiftKey(row.shift)
+    return !selectedShift||!rowShift||rowShift===selectedShift
+  })
 }
 
 export function resolveQcDailyPlan(rows:QcDailyPlan[],pid:string,activity:string,description=''){
