@@ -9,7 +9,7 @@
  * - Permissions are enforced here; the browser UI is not trusted.
  */
 var QC = {
-  VERSION: '46.5.0',
+  VERSION: '46.5.1',
   SESSION_SECONDS: 21600,
   SHEETS: {
     USERS: 'Users', LOGS: 'Activity_Logs', CLOUD: 'Cloud_Monitoring', REQUESTS: 'Account_Change_Requests',
@@ -395,7 +395,7 @@ function writeFertilizer_(rec) {
     var id=rec.id+(fills.length>1?'_p'+(i+1):''),hasil=num_(p.hasilKerja||rec.hasilKerja),jumlah=num_(p.jumlah||rec.jumlah),actual=num_(p.dosisAktual||rec.dosisAktual);
     if((actual===''||actual===0)&&hasil>0)actual=Math.round(jumlah/hasil*100)/100;
     var jenis=p.jenisPupuk||rec.jenisPupuk||rec.material,dosis=num_(p.dosis||rec.dosis),hose=p.statusHose||rec.statusHose;
-    var v=[rec.date,rec.shift,rec.name,rec.nameOfAssistan,rec.status||'Working',rec.status==='Hold'?rec.startTime:'',rec.status==='Hold'?rec.endTime:'',rec.paddock,rec.unit,rec.noUnit,rec.type||'Fertilizer',rec.activity,jenis,dosis,hose,p.pengisianKe||rec.pengisianKe||i+1,jumlah,hasil,actual,num_(p.pemerataanPupuk||rec.pemerataanPupuk),rec.catatan||rec.noted,rec.photoDriveUrl||'',id];
+    var v=[rec.date,rec.shift,rec.name,rec.nameOfAssistan,rec.status||'Working',rec.startTime||'',rec.endTime||'',rec.paddock,rec.unit,rec.noUnit,rec.type||'Fertilizer',rec.activity,jenis,dosis,hose,p.pengisianKe||rec.pengisianKe||i+1,jumlah,hasil,actual,num_(p.pemerataanPupuk||rec.pemerataanPupuk),rec.catatan||rec.noted,rec.photoDriveUrl||'',id];
     upsertRow_(sh,v,23,id,2);
   });return fills.length;
 }

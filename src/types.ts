@@ -107,6 +107,7 @@ export interface QcRecord {
   workingDurationMinutes?: number
   holdTotalMinutes?: number
   effectiveWorkingMinutes?: number
+  productivityHaPerHour?: number
   [key: string]: unknown
 }
 
