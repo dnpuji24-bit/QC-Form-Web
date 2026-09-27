@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import MonthlyPlanImportPanel from './MonthlyPlanImportPanel'
 import MonthlyPlanListPanel from './MonthlyPlanListPanel'
 import MonthlyPlanMasterSyncPanel from './MonthlyPlanMasterSyncPanel'
 import MonthlyPlanWebEntryPanel from './MonthlyPlanWebEntryPanel'
 import type { User } from './types'
+import { canEditAccess, canViewAccess } from './accessControl'
 
 type Props={user:User;onOpenDailyPlan?:(request:{date:string;monthlyPlanLineId:string;pid:string})=>void}
 type View='plan'|'import'|'sync'
@@ -18,11 +19,13 @@ export default function MonthlyPlanWorkspace({user,onOpenDailyPlan}:Props){
   const[week,setWeek]=useState(currentWeek(now.getDate()))
   const[refreshKey,setRefreshKey]=useState(0)
   const monthKey=useMemo(()=>year+'-'+String(monthNumber).padStart(2,'0'),[year,monthNumber])
+  const canPlan=canViewAccess(user,'data_plan_monthly'),editPlan=canEditAccess(user,'data_plan_monthly'),canImport=canViewAccess(user,'data_plan_monthly_import'),editImport=canEditAccess(user,'data_plan_monthly_import')
+  useEffect(()=>{if(view==='plan'&&!canPlan)setView(canImport?'import':'plan');if((view==='import'||view==='sync')&&!canImport)setView(canPlan?'plan':'import')},[view,canPlan,canImport])
   return <section className="plan-subworkspace">
     <div className="segmented plan-secondary-nav" aria-label="Menu Monthly Plan">
-      <button type="button" className={view==='plan'?'active':''} onClick={()=>setView('plan')}>Plan per Periode</button>
-      <button type="button" className={view==='import'?'active':''} onClick={()=>setView('import')}>Update / Import Excel</button>
-      <button type="button" className={view==='sync'?'active':''} onClick={()=>setView('sync')}>Sinkron Master</button>
+      {canPlan&&<button type="button" className={view==='plan'?'active':''} onClick={()=>setView('plan')}>Plan per Periode</button>}
+      {canImport&&<button type="button" className={view==='import'?'active':''} onClick={()=>setView('import')}>Update / Import Excel</button>}
+      {canImport&&<button type="button" className={view==='sync'?'active':''} onClick={()=>setView('sync')}>Sinkron Master</button>}
     </div>
     {view==='plan'?<div className="period-workspace">
       <section className="panel monthly-period-selector premium-period-selector">
@@ -32,8 +35,9 @@ export default function MonthlyPlanWorkspace({user,onOpenDailyPlan}:Props){
         <label><span>Week</span><select value={week} onChange={e=>setWeek(e.target.value)}>{['W1','W2','W3','W4'].map(x=><option key={x}>{x}</option>)}</select></label>
         <div className="monthly-period-badge"><span>Aktif</span><strong>{monthKey} · {week}</strong></div>
       </section>
-      <MonthlyPlanWebEntryPanel user={user} selectedMonth={monthKey} selectedWeek={week} onSaved={()=>setRefreshKey(x=>x+1)}/>
+      {editPlan&&<MonthlyPlanWebEntryPanel user={user} selectedMonth={monthKey} selectedWeek={week} onSaved={()=>setRefreshKey(x=>x+1)}/>}
+      {!editPlan&&<div className="alert">Mode Hanya Lihat: input, edit, update, cancel, dan hapus Monthly Plan dinonaktifkan.</div>}
       <MonthlyPlanListPanel user={user} selectedMonth={monthKey} selectedWeek={week} compact refreshKey={refreshKey} onOpenDailyPlan={onOpenDailyPlan}/>
-    </div>:view==='import'?<MonthlyPlanImportPanel user={user}/>:<MonthlyPlanMasterSyncPanel user={user}/>}
+    </div>:view==='import'?(editImport?<MonthlyPlanImportPanel user={user}/>:<div className="panel"><div className="alert">Mode Hanya Lihat: Update / Import Excel dinonaktifkan.</div></div>):(editImport?<MonthlyPlanMasterSyncPanel user={user}/>:<div className="panel"><div className="alert">Mode Hanya Lihat: Sinkron Master dinonaktifkan.</div></div>)}
   </section>
 }
