@@ -46,6 +46,7 @@ function shiftKey(value:unknown){
   const numeric=raw.match(/^(?:shift|sh|s)?\s*0*([12])(?:\.0+)?$/)
   return numeric?numeric[1]:raw
 }
+export function qcShiftValue(value:unknown){return shiftKey(value)}
 
 function materials(value:unknown):QcDailyMaterial[]{
   if(!Array.isArray(value))return[]
