@@ -23,7 +23,7 @@ assert "plan-secondary-nav" in actual_ws
 for token in [
     "daily-mobile-workspace",
     "daily-form-toolbar",
-    "Jadwal & Kegiatan",
+    "Jadwal & Activity",
     "Tenaga & Alat",
     "daily-schedule-grid",
     "daily-resource-grid",
