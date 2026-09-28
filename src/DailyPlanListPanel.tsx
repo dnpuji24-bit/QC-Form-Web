@@ -23,6 +23,7 @@ type Props={
   readOnly?:boolean
 }
 type DailyRow=SavedDailyRow
+type LinkedActualRef={id:string;actualReportId:string;date:string;dailyPlanId:string;dailyLinkStatus:string}
 
 function text(value:unknown){return value===null||value===undefined?'':String(value).trim()}
 function num(value:unknown){const n=Number(value||0);return Number.isFinite(n)?n:0}
@@ -87,29 +88,60 @@ export default function DailyPlanListPanel({user,onCopyToActual,selectedDate,com
     }catch(error){setMessage(error instanceof Error?error.message:'Urutan Daily Plan gagal diperbarui.')}finally{setBusy(false)}
   }
 
-  async function hasLinkedActual(group:SavedDailyGroup){
-    if(!firestoreDb)return false
-    const ids=group.rows.map(row=>row.dailyPlanId).filter(Boolean)
+  async function findLinkedActuals(group:SavedDailyGroup):Promise<LinkedActualRef[]>{
+    if(!firestoreDb)return[]
+    const ids=group.rows.map(row=>row.dailyPlanId).filter(Boolean),found=new Map<string,LinkedActualRef>()
     for(let i=0;i<ids.length;i+=30){
       const snap=await getDocs(fsQuery(collection(firestoreDb,'daily_reports'),where('dailyPlanId','in',ids.slice(i,i+30))))
-      if(!snap.empty)return true
+      snap.docs.forEach(item=>{const data=item.data() as Record<string,unknown>;found.set(item.id,{id:item.id,actualReportId:text(data.actualReportId||item.id),date:text(data.date),dailyPlanId:text(data.dailyPlanId),dailyLinkStatus:text(data.dailyLinkStatus)})})
     }
-    return false
+    return[...found.values()]
+  }
+
+  function splitActualLinks(group:SavedDailyGroup,links:LinkedActualRef[]){
+    const sourceDate=group.rows[0]?.date||selectedDate||''
+    return{sourceDate,sameDate:links.filter(link=>!link.date||link.date===sourceDate),crossDate:links.filter(link=>Boolean(link.date)&&link.date!==sourceDate)}
+  }
+
+  function linkedActualSummary(links:LinkedActualRef[]){
+    const dates=[...new Set(links.map(link=>link.date||'tanggal tidak diketahui'))]
+    return dates.join(', ')
+  }
+
+  async function detachCrossDateActuals(db:NonNullable<typeof firestoreDb>,username:string,links:LinkedActualRef[],sourceDateByDailyId:Map<string,string>){
+    for(let i=0;i<links.length;i+=400){
+      const batch=writeBatch(db)
+      links.slice(i,i+400).forEach(link=>batch.set(doc(db,'daily_reports',link.id),{
+        dailyPlanId:'',
+        dailyLinkStatus:'NOT_FOUND',
+        detachedFromDailyPlanId:link.dailyPlanId,
+        detachedFromDailyDate:sourceDateByDailyId.get(link.dailyPlanId)||'',
+        detachedReason:'DAILY_DELETED',
+        lastModifiedSource:'WEB',
+        updatedAt:serverTimestamp(),
+        updatedBy:username,
+      },{merge:true}))
+      await batch.commit()
+    }
   }
 
   async function deleteGroup(group:SavedDailyGroup){
-    if(await hasLinkedActual(group)){setMessage('Tidak dapat menghapus '+(group.description||group.activity)+'. Salah satu PID sudah memiliki Actual Plan terkait. Edit/hapus Actual terlebih dahulu.');return}
-    if(!window.confirm('Hapus kegiatan '+(group.description||group.activity)+' beserta '+group.rows.length+' PID dari Daily Plan?'))return
     setBusy(true)
     try{
-      const{db}=await writerContext(user),batch=writeBatch(db);group.rows.forEach(row=>batch.delete(doc(db,'daily_plans',row.id)));await batch.commit()
-      setMessage('Kegiatan berhasil dihapus.');await load();onChanged?.()
+      const links=await findLinkedActuals(group),{sourceDate,sameDate,crossDate}=splitActualLinks(group,links)
+      if(sameDate.length){setMessage('Tidak dapat menghapus '+(group.description||group.activity)+'. Ada '+sameDate.length+' Actual Plan pada tanggal Daily yang sama ('+sourceDate+'): '+sameDate.map(link=>link.actualReportId).join(', ')+'. Hapus Actual tersebut terlebih dahulu.');return}
+      const note=crossDate.length?'\n\nCatatan: '+crossDate.length+' Actual di tanggal lain ('+linkedActualSummary(crossDate)+') masih menunjuk Daily ini. Link Daily pada Actual tersebut akan dilepas; data Actual tetap dipertahankan.':''
+      if(!window.confirm('Hapus kegiatan '+(group.description||group.activity)+' beserta '+group.rows.length+' PID dari Daily Plan?'+note))return
+      const{db,username}=await writerContext(user),sourceDateByDailyId=new Map(group.rows.map(row=>[row.dailyPlanId,row.date]))
+      if(crossDate.length)await detachCrossDateActuals(db,username,crossDate,sourceDateByDailyId)
+      const batch=writeBatch(db);group.rows.forEach(row=>batch.delete(doc(db,'daily_plans',row.id)));await batch.commit()
+      setMessage('Kegiatan berhasil dihapus.'+(crossDate.length?' '+crossDate.length+' link Actual lintas tanggal dilepas tanpa menghapus data Actual.':''));await load();onChanged?.()
     }catch(error){setMessage(error instanceof Error?error.message:'Hapus Daily Plan gagal.')}finally{setBusy(false)}
   }
 
   async function groupsWithLinkedActual(targets:SavedDailyGroup[]){
-    const blocked:SavedDailyGroup[]=[]
-    for(const group of targets)if(await hasLinkedActual(group))blocked.push(group)
+    const blocked:{group:SavedDailyGroup;actuals:LinkedActualRef[]}[]=[]
+    for(const group of targets){const actuals=await findLinkedActuals(group);if(actuals.length)blocked.push({group,actuals})}
     return blocked
   }
 
@@ -118,17 +150,24 @@ export default function DailyPlanListPanel({user,onCopyToActual,selectedDate,com
     if(!targets.length){setMessage('Pilih minimal satu kegiatan yang akan dihapus.');return}
     setBusy(true)
     try{
-      const blocked=await groupsWithLinkedActual(targets)
-      if(blocked.length){setMessage('Tidak dapat menghapus. '+blocked.length+' kegiatan sudah memiliki Actual Plan terkait: '+blocked.map(group=>group.description||group.activity||'-').join(', ')+'. Edit/hapus Actual terlebih dahulu.');return}
-      const pidCount=targets.reduce((sum,group)=>sum+group.rows.length,0)
-      if(!window.confirm('Hapus '+targets.length+' kegiatan terpilih beserta '+pidCount+' PID dari Daily Plan? Tindakan ini tidak dapat dibatalkan.'))return
-      const{db}=await writerContext(user),allRows=targets.flatMap(group=>group.rows)
+      const sameDateBlocked:{group:SavedDailyGroup;actuals:LinkedActualRef[]}[]=[],crossDateLinks:LinkedActualRef[]=[]
+      for(const group of targets){
+        const links=await findLinkedActuals(group),split=splitActualLinks(group,links)
+        if(split.sameDate.length)sameDateBlocked.push({group,actuals:split.sameDate})
+        crossDateLinks.push(...split.crossDate)
+      }
+      if(sameDateBlocked.length){setMessage('Tidak dapat menghapus. '+sameDateBlocked.length+' kegiatan memiliki Actual pada tanggal Daily yang sama: '+sameDateBlocked.map(item=>(item.group.description||item.group.activity||'-')+' ['+linkedActualSummary(item.actuals)+']').join('; ')+'. Hapus Actual tersebut terlebih dahulu.');return}
+      const uniqueCross=[...new Map(crossDateLinks.map(link=>[link.id,link])).values()],pidCount=targets.reduce((sum,group)=>sum+group.rows.length,0)
+      const note=uniqueCross.length?'\n\n'+uniqueCross.length+' Actual di tanggal lain ('+linkedActualSummary(uniqueCross)+') akan tetap dipertahankan tetapi link ke Daily yang dihapus akan dilepas.':''
+      if(!window.confirm('Hapus '+targets.length+' kegiatan terpilih beserta '+pidCount+' PID dari Daily Plan? Tindakan ini tidak dapat dibatalkan.'+note))return
+      const{db,username}=await writerContext(user),allRows=targets.flatMap(group=>group.rows),sourceDateByDailyId=new Map(allRows.map(row=>[row.dailyPlanId,row.date]))
+      if(uniqueCross.length)await detachCrossDateActuals(db,username,uniqueCross,sourceDateByDailyId)
       for(let i=0;i<allRows.length;i+=450){
         const batch=writeBatch(db)
         allRows.slice(i,i+450).forEach(row=>batch.delete(doc(db,'daily_plans',row.id)))
         await batch.commit()
       }
-      setMessage(targets.length+' kegiatan terpilih berhasil dihapus.');setSelectedGroupKeys([]);await load();onChanged?.()
+      setMessage(targets.length+' kegiatan terpilih berhasil dihapus.'+(uniqueCross.length?' '+uniqueCross.length+' link Actual lintas tanggal dilepas.':''));setSelectedGroupKeys([]);await load();onChanged?.()
     }catch(error){setMessage(error instanceof Error?error.message:'Hapus kegiatan terpilih gagal.')}finally{setBusy(false)}
   }
 
@@ -141,7 +180,7 @@ export default function DailyPlanListPanel({user,onCopyToActual,selectedDate,com
     setBusy(true)
     try{
       const blocked=await groupsWithLinkedActual(targets)
-      if(blocked.length){setMessage('Tidak dapat memindahkan. '+blocked.length+' kegiatan sudah memiliki Actual Plan terkait: '+blocked.map(group=>group.description||group.activity||'-').join(', ')+'. Edit/hapus Actual terlebih dahulu.');return}
+      if(blocked.length){setMessage('Tidak dapat memindahkan. '+blocked.length+' kegiatan masih memiliki link Actual: '+blocked.map(item=>(item.group.description||item.group.activity||'-')+' ['+linkedActualSummary(item.actuals)+']').join('; ')+'. Hapus atau relink Actual terlebih dahulu.');return}
       const shiftText=targetShift==='KEEP'?'shift asal':'Shift '+targetShift
       if(!window.confirm('Pindahkan '+targets.length+' kegiatan terpilih ke '+targetDate+' · '+shiftText+'?'))return
       const{db,username}=await writerContext(user)

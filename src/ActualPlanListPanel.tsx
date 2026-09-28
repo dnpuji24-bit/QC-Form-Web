@@ -87,18 +87,24 @@ export default function ActualPlanListPanel({user,selectedDate,compact=false,ref
   async function copyRowsToDate(targets:Row[],targetDate:string){
     if(!targets.length){setMessage('Pilih minimal satu Actual yang akan disalin.');return}
     if(!targetDate){setMessage('Pilih tanggal tujuan.');return}
-    if(!window.confirm('Salin '+targets.length+' Actual ke '+targetDate+'? Daily Plan link tetap dipertahankan.'))return
+    if(!window.confirm('Salin '+targets.length+' Actual ke '+targetDate+'? Sistem akan mencoba menautkan ke Daily Plan pada tanggal tujuan.'))return
     setBusy(true)
     try{
-      const{db,username}=await writerContext(user),snap=await getDocs(fsQuery(collection(db,'daily_reports'),where('date','==',targetDate))),existing=snap.docs.map(x=>row(x.id,x.data() as Record<string,unknown>)),prefix='AR-'+targetDate.replaceAll('-','')+'-'
+      const{db,username}=await writerContext(user),[snap,dailySnap]=await Promise.all([
+        getDocs(fsQuery(collection(db,'daily_reports'),where('date','==',targetDate))),
+        getDocs(fsQuery(collection(db,'daily_plans'),where('date','==',targetDate))),
+      ]),existing=snap.docs.map(x=>row(x.id,x.data() as Record<string,unknown>)),targetDaily=dailySnap.docs.map(item=>{const data=item.data() as Record<string,unknown>;return{id:item.id,dailyPlanId:text(data.dailyPlanId||item.id),shift:text(data.shift),pid:text(data.pid),activity:text(data.activity),areaHa:num(data.areaHa),monthlyPlanLineId:text(data.monthlyPlanLineId),sourceType:text(data.sourceType)}}),prefix='AR-'+targetDate.replaceAll('-','')+'-'
       let seq=existing.map(x=>x.actualReportId.startsWith(prefix)?Number(x.actualReportId.slice(prefix.length)):0).filter(Number.isFinite).reduce((m,x)=>Math.max(m,x),0)
       const orderByShift=new Map<string,number>();existing.forEach(r=>orderByShift.set(r.shift,Math.max(orderByShift.get(r.shift)||0,r.planningOrder<999999?r.planningOrder:0)))
-      const batch=writeBatch(db)
+      const batch=writeBatch(db);let relinked=0,unlinked=0
       for(const sourceRow of targets){
+        const matches=targetDaily.filter(d=>d.pid===sourceRow.pid&&d.activity===sourceRow.activity&&d.shift===sourceRow.shift),target=matches.length===1?matches[0]:null
+        const dailyLinkStatus=target?'LINKED':matches.length>1?'AMBIGUOUS':'NOT_FOUND',dailyPlanId=target?.dailyPlanId||'',plannedDailyAreaHa=target?.areaHa||0
+        if(target)relinked++;else unlinked++
         seq++;const actualReportId=prefix+String(seq).padStart(4,'0'),planningOrder=(orderByShift.get(sourceRow.shift)||0)+1;orderByShift.set(sourceRow.shift,planningOrder)
-        batch.set(doc(db,'daily_reports',actualReportId),{actualReportId,workGroupId:'AWG-'+targetDate.replaceAll('-','')+'-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7),planningOrder,dailySourcePlanIdRaw:sourceRow.dailyPlanId,sourceType:sourceRow.sourceType,dailyPlanId:sourceRow.dailyPlanId,dailyLinkStatus:sourceRow.dailyLinkStatus,monthlyPlanLineId:sourceRow.monthlyPlanLineId,monthlyLinkStatus:sourceRow.monthlyLinkStatus,date:targetDate,year:Number(targetDate.slice(0,4)),monthKey:targetDate.slice(0,7),shift:sourceRow.shift,activity:sourceRow.activity,paddockRaw:sourceRow.pid,pid:sourceRow.pid,actualAreaHa:sourceRow.actualAreaHa,areaUnit:'Ha',manpower:sourceRow.manpower,unitName:sourceRow.unitName,unitReady:sourceRow.unitReady,unitStandby:sourceRow.unitStandby,unitBreakdown:sourceRow.unitBreakdown,foreman:sourceRow.foreman,notes:sourceRow.notes,materials:sourceRow.materials,plannedDailyAreaHa:sourceRow.plannedDailyAreaHa,dailyVarianceHa:sourceRow.plannedDailyAreaHa-sourceRow.actualAreaHa,companyCode:sourceRow.companyCode,farm:sourceRow.farm,masterPending:false,copiedFromActualReportId:sourceRow.actualReportId,sourceOrigin:'WEB',lastModifiedSource:'WEB',createdAt:serverTimestamp(),createdBy:username,updatedAt:serverTimestamp(),updatedBy:username})
+        batch.set(doc(db,'daily_reports',actualReportId),{actualReportId,workGroupId:'AWG-'+targetDate.replaceAll('-','')+'-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7),planningOrder,dailySourcePlanIdRaw:sourceRow.dailyPlanId,sourceType:target?.sourceType||sourceRow.sourceType,dailyPlanId,dailyLinkStatus,monthlyPlanLineId:target?.monthlyPlanLineId||sourceRow.monthlyPlanLineId,monthlyLinkStatus:(target?.monthlyPlanLineId||sourceRow.monthlyPlanLineId)?'LINKED':'NOT_APPLICABLE',date:targetDate,year:Number(targetDate.slice(0,4)),monthKey:targetDate.slice(0,7),shift:sourceRow.shift,activity:sourceRow.activity,paddockRaw:sourceRow.pid,pid:sourceRow.pid,actualAreaHa:sourceRow.actualAreaHa,areaUnit:'Ha',manpower:sourceRow.manpower,unitName:sourceRow.unitName,unitReady:sourceRow.unitReady,unitStandby:sourceRow.unitStandby,unitBreakdown:sourceRow.unitBreakdown,foreman:sourceRow.foreman,notes:sourceRow.notes,materials:sourceRow.materials,plannedDailyAreaHa,dailyVarianceHa:plannedDailyAreaHa-sourceRow.actualAreaHa,companyCode:sourceRow.companyCode,farm:sourceRow.farm,masterPending:false,copiedFromActualReportId:sourceRow.actualReportId,copiedFromDailyPlanId:sourceRow.dailyPlanId,sourceOrigin:'WEB',lastModifiedSource:'WEB',createdAt:serverTimestamp(),createdBy:username,updatedAt:serverTimestamp(),updatedBy:username})
       }
-      await batch.commit();setMessage(targets.length+' Actual berhasil disalin ke '+targetDate+'. Daily link tetap sama.');setCopyRowId('');onChanged?.()
+      await batch.commit();setMessage(targets.length+' Actual berhasil disalin ke '+targetDate+'. '+relinked+' tertaut ke Daily tanggal tujuan; '+unlinked+' belum memiliki pasangan Daily yang unik.');setCopyRowId('');onChanged?.()
     }catch(error){setMessage(error instanceof Error?error.message:'Copy Actual ke tanggal gagal.')}finally{setBusy(false)}
   }
 
