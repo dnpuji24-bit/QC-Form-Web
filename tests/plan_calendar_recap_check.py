@@ -54,19 +54,23 @@ assert "grid-auto-rows:minmax(132px,1fr)" in css
 assert "import { YinYangIcon } from './YinYangRefreshButton'" in calendar
 assert "function MonthChevronIcon" in calendar
 assert "function jumpToMonth(value:string)" in calendar
-assert "const cursorMonthValue=cursor.slice(0,7)" in calendar
+assert "const cursorYear=parseDate(cursor).getFullYear()" in calendar
+assert "const cursorMonthNumber=String(cursorMonth+1).padStart(2,'0')" in calendar
 assert 'className="calendar-month-picker"' in calendar
-assert 'select value={cursorMonthValue}' in calendar
-assert "monthOptions.map(option=>" in calendar
-assert "onChange={e=>jumpToMonth(e.target.value)}" in calendar
+assert 'select value={cursorMonthNumber}' in calendar
+assert "MONTH_NAMES.map((name,index)=>" in calendar
+assert "onChange={e=>jumpToMonth(String(cursorYear)+'-'+e.target.value)}" in calendar
+assert 'className="calendar-year-input"' in calendar
+assert "function commitCalendarYear()" in calendar
+assert 'max="9999"' in calendar
 assert 'type="month"' not in calendar
 assert 'className="calendar-refresh-btn"' in calendar
 assert "YinYangIcon spinning={busy}" in calendar
 assert "Calendar Rekap premium navigation + month picker" in css
 assert ".calendar-month-picker{" in css
-assert ".calendar-month-picker>select{" in css
+assert ".calendar-month-select-wrap>select{" in css
+assert ".calendar-year-input{" in css
 assert "appearance:none" in css
-assert ".calendar-month-picker>input{" not in css
 assert ".yin-yang-icon.spinning{" in css
 assert "@keyframes calendar-yinyang-spin" in css
 

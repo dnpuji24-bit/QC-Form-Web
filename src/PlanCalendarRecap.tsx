@@ -35,7 +35,7 @@ function MonthChevronIcon(){return <svg viewBox="0 0 20 20" aria-hidden="true"><
 
 export default function PlanCalendarRecap(){
   const today=dateKey(new Date())
-  const[mode,setMode]=useState<ViewMode>('month'),[cursor,setCursor]=useState(today)
+  const[mode,setMode]=useState<ViewMode>('month'),[cursor,setCursor]=useState(today),[yearDraft,setYearDraft]=useState(String(parseDate(today).getFullYear()))
   const[daily,setDaily]=useState<DailyRow[]>([]),[actual,setActual]=useState<ActualRow[]>([])
   const[busy,setBusy]=useState(false),[message,setMessage]=useState('')
 
@@ -59,6 +59,8 @@ export default function PlanCalendarRecap(){
     }catch(error){setMessage(error instanceof Error?error.message:'Calendar Rekap gagal dimuat.')}finally{setBusy(false)}
   }
   useEffect(()=>{void load()},[range.start,range.end])
+
+  useEffect(()=>{setYearDraft(String(parseDate(cursor).getFullYear()))},[cursor])
 
   const items=useMemo<RecapItem[]>(()=>{
     const dailyById=new Map(daily.map(row=>[row.dailyPlanId,row])),map=new Map<string,{date:string;activity:string;pid:string;plan:number;actual:number;shifts:Set<string>;foremen:Set<string>}>()
@@ -89,6 +91,11 @@ export default function PlanCalendarRecap(){
     const current=parseDate(cursor),[year,month]=value.split('-').map(Number),last=new Date(year,month,0).getDate(),day=Math.min(current.getDate(),last)
     setCursor(dateKey(new Date(year,month-1,day,12)))
   }
+  function commitCalendarYear(){
+    const year=Number(yearDraft),current=parseDate(cursor)
+    if(!Number.isInteger(year)||year<1900||year>9999){setYearDraft(String(current.getFullYear()));return}
+    jumpToMonth(String(year).padStart(4,'0')+'-'+String(current.getMonth()+1).padStart(2,'0'))
+  }
   function periodTitle(){
     if(mode==='day')return fmtDayTitle(cursor)
     if(mode==='week')return fmtShort(startOfWeek(cursor))+' – '+fmtShort(endOfWeek(cursor))+' '+parseDate(endOfWeek(cursor)).getFullYear()
@@ -99,13 +106,8 @@ export default function PlanCalendarRecap(){
   const monthDates=useMemo(()=>{const start=monthStart(cursor),count=parseDate(monthEnd(cursor)).getDate();return Array.from({length:count},(_,i)=>addDays(start,i))},[cursor])
   const monthFirstColumn=monthDates.length?parseDate(monthDates[0]).getDay()+1:1
   const cursorMonth=parseDate(cursor).getMonth()
-  const cursorMonthValue=cursor.slice(0,7)
-  const monthOptions=useMemo(()=>{
-    const cursorYear=parseDate(cursor).getFullYear(),todayYear=parseDate(today).getFullYear(),startYear=Math.min(todayYear-5,cursorYear-1),endYear=Math.max(todayYear+5,cursorYear+1)
-    const options:{value:string;label:string}[]=[]
-    for(let year=startYear;year<=endYear;year++)MONTH_NAMES.forEach((name,index)=>options.push({value:year+'-'+String(index+1).padStart(2,'0'),label:name+' '+year}))
-    return options
-  },[cursor,today])
+  const cursorYear=parseDate(cursor).getFullYear()
+  const cursorMonthNumber=String(cursorMonth+1).padStart(2,'0')
 
   return <section className="plan-calendar-recap">
     <div className="calendar-recap-topbar premium">
@@ -113,7 +115,7 @@ export default function PlanCalendarRecap(){
       <div className="calendar-recap-actions">
         <button type="button" className="calendar-today-btn" onClick={()=>setCursor(today)}>Hari Ini</button>
         <div className="calendar-period-nav"><button type="button" aria-label="Periode sebelumnya" onClick={()=>move(-1)}>‹</button><button type="button" aria-label="Periode berikutnya" onClick={()=>move(1)}>›</button></div>
-        {mode==='month'?<label className="calendar-month-picker" title="Pilih bulan"><select value={cursorMonthValue} onChange={e=>jumpToMonth(e.target.value)} aria-label="Pilih bulan Calendar Rekap">{monthOptions.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select><MonthChevronIcon/></label>:<strong className="calendar-period-title">{periodTitle()}</strong>}
+        {mode==='month'?<div className="calendar-month-picker" title="Pilih bulan dan tahun"><label className="calendar-month-select-wrap"><select value={cursorMonthNumber} onChange={e=>jumpToMonth(String(cursorYear)+'-'+e.target.value)} aria-label="Pilih bulan Calendar Rekap">{MONTH_NAMES.map((name,index)=><option key={name} value={String(index+1).padStart(2,'0')}>{name}</option>)}</select><MonthChevronIcon/></label><input className="calendar-year-input" type="number" inputMode="numeric" min="1900" max="9999" step="1" value={yearDraft} onChange={e=>setYearDraft(e.target.value)} onBlur={commitCalendarYear} onKeyDown={e=>{if(e.key==='Enter'){commitCalendarYear();e.currentTarget.blur()}}} aria-label="Pilih tahun Calendar Rekap"/></div>:<strong className="calendar-period-title">{periodTitle()}</strong>}
         <div className="calendar-view-switch"><button type="button" className={mode==='day'?'active':''} onClick={()=>setMode('day')}>Day</button><button type="button" className={mode==='week'?'active':''} onClick={()=>setMode('week')}>Week</button><button type="button" className={mode==='month'?'active':''} onClick={()=>setMode('month')}>Month</button></div>
         <button type="button" className="calendar-refresh-btn" disabled={busy} onClick={()=>void load()} aria-label="Refresh Calendar Rekap" title="Refresh data"><YinYangIcon spinning={busy}/><span>Refresh</span></button>
       </div>
