@@ -13,11 +13,11 @@ assert "Keterangan PID" in entry
 assert "Opsional: unit / perlakuan khusus" in entry
 assert entry.count("pidNotes:row.pid.pidNotes") >= 2
 assert "pidNotes:row.pidNotes||''" in entry
-assert "row.pid.pidNotes&&<small>" in entry
+assert 'row.pid.pidNotes&&<small className="daily-draft-pid-note"' in entry
 
 assert "pidNotes:string" in types
 assert "pidNotes:text(data.pidNotes)" in saved
-assert "row.pidNotes&&<small>" in saved
+assert 'row.pidNotes&&<small className="daily-saved-pid-note"' in saved
 assert "pidNotes:row.pidNotes" in saved
 
 assert "pidNotes?:string" in wa
