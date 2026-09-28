@@ -100,6 +100,12 @@ export default function PlanCalendarRecap(){
   const monthFirstColumn=monthDates.length?parseDate(monthDates[0]).getDay()+1:1
   const cursorMonth=parseDate(cursor).getMonth()
   const cursorMonthValue=cursor.slice(0,7)
+  const monthOptions=useMemo(()=>{
+    const cursorYear=parseDate(cursor).getFullYear(),todayYear=parseDate(today).getFullYear(),startYear=Math.min(todayYear-5,cursorYear-1),endYear=Math.max(todayYear+5,cursorYear+1)
+    const options:{value:string;label:string}[]=[]
+    for(let year=startYear;year<=endYear;year++)MONTH_NAMES.forEach((name,index)=>options.push({value:year+'-'+String(index+1).padStart(2,'0'),label:name+' '+year}))
+    return options
+  },[cursor,today])
 
   return <section className="plan-calendar-recap">
     <div className="calendar-recap-topbar premium">
@@ -107,7 +113,7 @@ export default function PlanCalendarRecap(){
       <div className="calendar-recap-actions">
         <button type="button" className="calendar-today-btn" onClick={()=>setCursor(today)}>Hari Ini</button>
         <div className="calendar-period-nav"><button type="button" aria-label="Periode sebelumnya" onClick={()=>move(-1)}>‹</button><button type="button" aria-label="Periode berikutnya" onClick={()=>move(1)}>›</button></div>
-        {mode==='month'?<label className="calendar-month-picker" title="Pilih bulan"><span>{periodTitle()}</span><MonthChevronIcon/><input type="month" value={cursorMonthValue} onChange={e=>jumpToMonth(e.target.value)} aria-label="Pilih bulan Calendar Rekap"/></label>:<strong className="calendar-period-title">{periodTitle()}</strong>}
+        {mode==='month'?<label className="calendar-month-picker" title="Pilih bulan"><select value={cursorMonthValue} onChange={e=>jumpToMonth(e.target.value)} aria-label="Pilih bulan Calendar Rekap">{monthOptions.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select><MonthChevronIcon/></label>:<strong className="calendar-period-title">{periodTitle()}</strong>}
         <div className="calendar-view-switch"><button type="button" className={mode==='day'?'active':''} onClick={()=>setMode('day')}>Day</button><button type="button" className={mode==='week'?'active':''} onClick={()=>setMode('week')}>Week</button><button type="button" className={mode==='month'?'active':''} onClick={()=>setMode('month')}>Month</button></div>
         <button type="button" className="calendar-refresh-btn" disabled={busy} onClick={()=>void load()} aria-label="Refresh Calendar Rekap" title="Refresh data"><YinYangIcon spinning={busy}/><span>Refresh</span></button>
       </div>

@@ -56,12 +56,17 @@ assert "function MonthChevronIcon" in calendar
 assert "function jumpToMonth(value:string)" in calendar
 assert "const cursorMonthValue=cursor.slice(0,7)" in calendar
 assert 'className="calendar-month-picker"' in calendar
-assert 'type="month" value={cursorMonthValue}' in calendar
+assert 'select value={cursorMonthValue}' in calendar
+assert "monthOptions.map(option=>" in calendar
 assert "onChange={e=>jumpToMonth(e.target.value)}" in calendar
+assert 'type="month"' not in calendar
 assert 'className="calendar-refresh-btn"' in calendar
 assert "YinYangIcon spinning={busy}" in calendar
 assert "Calendar Rekap premium navigation + month picker" in css
 assert ".calendar-month-picker{" in css
+assert ".calendar-month-picker>select{" in css
+assert "appearance:none" in css
+assert ".calendar-month-picker>input{" not in css
 assert ".yin-yang-icon.spinning{" in css
 assert "@keyframes calendar-yinyang-spin" in css
 

@@ -3182,8 +3182,10 @@
 .calendar-period-title{min-width:190px;padding:8px 12px;text-align:center;color:#172033;font-weight:950;letter-spacing:-.01em}
 .calendar-month-picker{position:relative;display:flex;align-items:center;justify-content:center;gap:6px;min-width:190px;min-height:38px;padding:7px 11px;border:1px solid #d7e0ec;border-radius:11px;background:linear-gradient(180deg,#fff,#f8fafc);color:#172033;font-weight:950;letter-spacing:-.01em;cursor:pointer;box-shadow:0 4px 13px rgba(15,23,42,.045);transition:.18s ease}
 .calendar-month-picker:hover{border-color:#93c5fd;background:#fff;box-shadow:0 7px 20px rgba(37,99,235,.1);transform:translateY(-1px)}
-.calendar-month-picker>svg{width:16px;height:16px;color:#64748b;flex:0 0 auto}
-.calendar-month-picker>input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0}
+.calendar-month-picker>svg{width:16px;height:16px;color:#64748b;flex:0 0 auto;pointer-events:none}
+.calendar-month-picker>select{position:relative;z-index:2;flex:1;min-width:0;width:100%;min-height:32px;padding:2px 22px 2px 4px!important;border:0!important;border-radius:0!important;background:transparent!important;color:#172033!important;font:inherit!important;font-weight:950!important;letter-spacing:-.01em;cursor:pointer;box-shadow:none!important;outline:none!important;appearance:none;-webkit-appearance:none}
+.calendar-month-picker>select:focus-visible{outline:2px solid #93c5fd!important;outline-offset:3px!important;border-radius:6px!important}
+.calendar-month-picker>svg{position:absolute;right:10px;top:50%;transform:translateY(-50%);z-index:3}
 
 .calendar-view-switch{padding:4px;border-color:#d8e1ee;background:#f1f5f9;box-shadow:inset 0 1px 2px rgba(15,23,42,.03)}
 .calendar-view-switch button{min-width:72px;min-height:32px;font-weight:850!important;color:#64748b!important;transition:.16s ease}
@@ -3216,7 +3218,7 @@
 @media(max-width:520px){
   .calendar-recap-actions{grid-template-columns:auto auto 1fr}
   .calendar-period-nav{justify-self:start}
-  .calendar-month-picker{font-size:.86rem}
+  .calendar-month-picker{font-size:.86rem}.calendar-month-picker>select{font-size:.86rem!important}
   .calendar-month-summary{display:grid;grid-template-columns:repeat(3,1fr);min-width:820px}
   .calendar-month-summary>div{min-width:0}
 }
