@@ -25,18 +25,9 @@ export type DailyPlanTransfer={
 
 function n(v:number){return new Intl.NumberFormat('id-ID',{maximumFractionDigits:2}).format(v)}
 function groupKey(row:DailyPlanTransfer){return row.date+'|'+(row.workGroupId||row.dailyPlanId)}
-function aggregateMaterials(rows:DailyPlanTransfer[]){
-  const map=new Map<string,{material:string;dosePerHa:number;doseUnit:string;totalMaterial:number;unit:string}>()
-  for(const row of rows)for(const m of row.materials){
-    const k=(m.material+'|'+(m.unit||m.doseUnit)).toLowerCase(),current=map.get(k)
-    if(current)current.totalMaterial+=m.totalMaterial
-    else map.set(k,{...m})
-  }
-  return[...map.values()]
-}
 function materialLine(m:DailyPlanTransfer['materials'][number]){
   const doseUnit=m.doseUnit||m.unit||'',totalUnit=m.unit||m.doseUnit||''
-  return `   - ${m.material}: ${n(m.dosePerHa)} ${doseUnit}/Ha (Tot: ${n(m.totalMaterial)} ${totalUnit})`
+  return `      - ${m.material}: ${n(m.dosePerHa)} ${doseUnit}/Ha · Total ${n(m.totalMaterial)} ${totalUnit}`
 }
 
 export function dailyPlansToWhatsApp(rows:DailyPlanTransfer[]){
@@ -52,17 +43,21 @@ export function dailyPlansToWhatsApp(rows:DailyPlanTransfer[]){
     const groups=new Map<string,DailyPlanTransfer[]>()
     for(const row of shiftRows){const k=groupKey(row),list=groups.get(k)||[];list.push(row);groups.set(k,list)}
     for(const groupRows of groups.values()){
-      const first=groupRows[0],area=groupRows.reduce((s,x)=>s+x.areaHa,0),materials=aggregateMaterials(groupRows)
+      const first=groupRows[0],area=groupRows.reduce((s,x)=>s+x.areaHa,0)
       number++
       const title=(first.activity||first.description||'KEGIATAN').toUpperCase()
       lines.push(`*${number}. ${title} (${n(area)} Ha)*`)
-      for(const row of groupRows){lines.push(`📍 Pdk: ${row.pid||'-'} (${n(row.areaHa)} Ha)`);if(row.pidNotes)lines.push(`   ↳ Ket: ${row.pidNotes}`)}
+      for(const row of groupRows){
+        lines.push(`📍 Pdk: ${row.pid||'-'} (${n(row.areaHa)} Ha)`)
+        lines.push(`   🧾 Kegiatan: ${row.description||row.activity||'-'}`)
+        lines.push('   🧪 Bahan & Dosis:')
+        if(row.materials.length)lines.push(...row.materials.map(materialLine))
+        else lines.push('      -')
+        if(row.pidNotes)lines.push(`   ↳ Ket: ${row.pidNotes}`)
+      }
       lines.push(`👷 Mandor: ${first.foreman||'-'}`)
       lines.push(`👷 HK: ${n(first.manpower)} | 🚜 Alat: ${first.unitName||'-'}`)
       lines.push(`⚙️ Stat: 🟢${n(first.unitReady)} | 🔴${n(first.unitBreakdown)} | 🟡${n(first.unitStandby)}`)
-      lines.push('🧪 Bahan:')
-      if(materials.length)lines.push(...materials.map(materialLine))
-      else lines.push('   -')
       lines.push(`ℹ️ Ket: ${first.notes||'-'}`,'')
     }
   }

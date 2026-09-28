@@ -9,15 +9,15 @@ for token in [
     ".normalize('NFKC')",
     r"/[\u200B-\u200D\uFEFF]/g",
     "function uniqueActivityNames(values:unknown[],input='')",
-    "activityChoices(rows:Monthly[],input:string){return uniqueActivityNames",
-    "uniqueActivityNames(activities.map(a=>a.activity||a.description),groupActivity)",
+    "activityChoices(rows:Monthly[],masters:MasterActivity[],input:string){return uniqueActivityNames",
+    "masters.filter(item=>item.active).map(item=>item.activity)",
     "const[activityOpen,setActivityOpen]=useState(false)",
     "function selectActivity(value:string)",
     'autoComplete="off"',
     'aria-autocomplete="list"',
     'id="daily-activity-options"',
     "daily-activity-options",
-    "Tidak ada kegiatan yang cocok",
+    "Tidak ada activity yang cocok",
 ]:
     assert token in daily, f"Missing activity dropdown/dedup token: {token}"
 

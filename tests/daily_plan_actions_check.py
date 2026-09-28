@@ -14,7 +14,7 @@ for token in [
     "ADHOC",
     "SUPPORT",
     "activitySearch",
-    "BAHAN & DOSIS ACUAN",
+    "daily-pid-work-detail",
 ]:
     assert token in web, f'Missing Daily smart/adhoc token: {token}'
 
@@ -27,14 +27,15 @@ for token in [
     "copiedFromWorkGroupId",
     "groupSavedDailyRows",
     "dailyPlansToWhatsApp",
-    "daily-draft-materials",
+    "daily-saved-pid-materials",
 ]:
     assert token in listing, f'Missing Daily bulk action token: {token}'
 
 for token in [
     "*DAILY PLANNING*",
     "📅 *Tanggal:*",
-    "🧪 Bahan:",
+    "🧾 Kegiatan:",
+    "🧪 Bahan & Dosis:",
     "📊 *Total:*",
 ]:
     assert token in actions, f'Missing WhatsApp format token: {token}'

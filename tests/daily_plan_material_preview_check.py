@@ -5,20 +5,26 @@ daily=(root/'src'/'DailyPlanWebEntryPanel.tsx').read_text(encoding='utf-8')
 css=(root/'src'/'field-ui.css').read_text(encoding='utf-8')
 
 for token in [
-    "BAHAN & DOSIS ACUAN",
-    "activityDosePreview",
-    "activityReference",
+    "daily-pid-work-detail",
+    "daily-pid-materials",
+    "Pilih kegiatan untuk melihat bahan dan dosis.",
     "Dosis ",
-    "Isi luas PID untuk total",
-    "Belum ada bahan/dosis pada Master Activity atau Monthly Plan",
+    "Total ",
+    "descriptionSearch",
+    "masterActivityId",
+    "taskOptions",
 ]:
-    assert token in daily, f'Missing Daily activity material preview token: {token}'
+    assert token in daily, f'Missing Daily per-PID material token: {token}'
+
+assert "BAHAN & DOSIS ACUAN" not in daily
+assert "activityDosePreview" not in daily
 
 for token in [
-    ".daily-activity-material-preview",
-    ".daily-material-dose-list",
-    ".daily-material-empty",
+    "Daily Activity-first + per-paddock kegiatan/material",
+    ".daily-pid-work-detail",
+    ".daily-pid-materials",
+    ".daily-draft-pid-materials",
 ]:
-    assert token in css, f'Missing Daily material preview style: {token}'
+    assert token in css, f'Missing Daily per-PID material style: {token}'
 
-print('Daily activity material preview check passed: selecting an activity immediately shows material dosage, and total requirement appears after PID areas are entered.')
+print('Daily per-PID material check passed: activity is shared by the group while each paddock keeps its own kegiatan, dose, and total material.')
