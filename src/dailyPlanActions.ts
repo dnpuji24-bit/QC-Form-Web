@@ -65,6 +65,6 @@ export function dailyPlansToWhatsApp(rows:DailyPlanTransfer[]){
   const uniqueGroups=new Map<string,DailyPlanTransfer>()
   for(const row of sorted)if(!uniqueGroups.has(groupKey(row)))uniqueGroups.set(groupKey(row),row)
   const totalHk=[...uniqueGroups.values()].reduce((s,x)=>s+x.manpower,0)
-  lines.push('────────────────────',`📊 *Total:* ${uniqueGroups.size} kegiatan | ${sorted.length} PID | ${n(totalArea)} Ha | HK ${n(totalHk)}`)
+  lines.push('────────────────────',`📊 *Total:* ${uniqueGroups.size} activity | ${sorted.length} PID | ${n(totalArea)} Ha | HK ${n(totalHk)}`)
   return lines.join('\n')
 }
