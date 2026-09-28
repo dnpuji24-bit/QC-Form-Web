@@ -21,7 +21,13 @@ for token in [
 
 assert "Tidak dapat menghapus." in listing
 assert "Tidak dapat memindahkan." in listing
-assert "Actual Plan terkait" in listing
+for token in [
+    "splitActualLinks",
+    "sameDateBlocked",
+    "Actual pada tanggal Daily yang sama",
+    "link Actual lintas tanggal dilepas",
+]:
+    assert token in listing, f'Missing Daily/Actual safe-delete behavior token: {token}'
 assert "targetDate===sourceDate" in listing
 assert "prefix='DP-'+targetDate.replaceAll('-','')+'-'" in listing
 
