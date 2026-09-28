@@ -45,7 +45,7 @@ export default function MonthlyPlanListPanel({user,selectedMonth,selectedWeek,co
     const planSnap=await getDocs(fsQuery(collection(firestoreDb,'monthly_plans'),where('monthKey','==',monthFilter)))
     const next=planSnap.docs.map(x=>rowFromData(x.id,x.data() as Record<string,unknown>)).sort((a,b)=>{const aTime=a.createdAt||a.updatedAt||a.inputDate,bTime=b.createdAt||b.updatedAt||b.inputDate;return bTime.localeCompare(aTime)||b.planLineId.localeCompare(a.planLineId,undefined,{numeric:true})||b.pid.localeCompare(a.pid,undefined,{numeric:true})})
     const ids=next.map(x=>x.planLineId).filter(Boolean),dailyDocs:any[]=[],actualDocs:any[]=[]
-    for(let i=0;i<ids.length;i+=30){const part=ids.slice(i,i+30);const[d,a]=await Promise.all([getDocs(fsQuery(collection(firestoreDb,'daily_plans'),where('monthlyPlanLineId','in',part))),getDocs(fsQuery(collection(firestoreDb,'daily_reports'),where('monthlyPlanLineId','in',part)))]);dailyDocs.push(...d.docs);actualDocs.push(...a.docs)}
+    for(let i=0;i<ids.length;i+=30){const part=ids.slice(i,i+30);const[d,a]=await Promise.all([getDocs(fsQuery(collection(db,'daily_plans'),where('monthlyPlanLineId','in',part))),getDocs(fsQuery(collection(db,'daily_reports'),where('monthlyPlanLineId','in',part)))]);dailyDocs.push(...d.docs);actualDocs.push(...a.docs)}
     setRows(next);setDaily(dailyDocs.map(x=>{const d=x.data() as Record<string,unknown>;return{id:x.id,dailyPlanId:text(d.dailyPlanId||x.id),monthlyPlanLineId:text(d.monthlyPlanLineId),date:text(d.date),shift:text(d.shift),foreman:text(d.foreman),pid:text(d.pid),activity:text(d.activity||d.description),areaHa:num(d.areaHa)}}).sort((a,b)=>a.date.localeCompare(b.date)||a.shift.localeCompare(b.shift,undefined,{numeric:true})||a.dailyPlanId.localeCompare(b.dailyPlanId,undefined,{numeric:true})));setActuals(actualDocs.map(x=>{const d=x.data() as Record<string,unknown>;return{monthlyPlanLineId:text(d.monthlyPlanLineId),actualAreaHa:num(d.actualAreaHa)}}))
     if(compact)setLogs([]);else{const logSnap=await getDocs(collection(firestoreDb,'monthly_plan_import_logs'));setLogs(logSnap.docs.map(x=>logFromData(x.id,x.data() as Record<string,unknown>)).sort((a,b)=>b.importedAt.localeCompare(a.importedAt)).slice(0,10))}
     setMessage('Monthly '+monthFilter+': '+next.length+' Plan Line. Actual = Actual Plan terhubung + progress manual/historis.')
@@ -55,10 +55,11 @@ export default function MonthlyPlanListPanel({user,selectedMonth,selectedWeek,co
   const searchNeedle=searchKey(query),searchingSource=Boolean(searchNeedle)
   useEffect(()=>{
     if(!searchingSource||sourceSearchLoaded||!firestoreDb)return
+    const db=firestoreDb
     let cancelled=false
     const timer=window.setTimeout(()=>{
       setSourceSearchBusy(true)
-      void getDocs(collection(firestoreDb,'monthly_plans')).then(snap=>{
+      void getDocs(collection(db,'monthly_plans')).then(snap=>{
         if(cancelled)return
         const all=snap.docs.map(x=>rowFromData(x.id,x.data() as Record<string,unknown>)).sort((a,b)=>b.monthKey.localeCompare(a.monthKey)||b.week.localeCompare(a.week,undefined,{numeric:true})||b.planLineId.localeCompare(a.planLineId,undefined,{numeric:true})||b.pid.localeCompare(a.pid,undefined,{numeric:true}))
         setSourceCatalog(all);setSourceSearchLoaded(true)
@@ -71,6 +72,7 @@ export default function MonthlyPlanListPanel({user,selectedMonth,selectedWeek,co
 
   useEffect(()=>{
     if(!searchingSource||!sourceSearchLoaded||!firestoreDb){setSearchDaily([]);setSearchActuals([]);return}
+    const db=firestoreDb
     let cancelled=false
     const timer=window.setTimeout(()=>{
       const ids=[...new Set(sourceMatches.map(row=>row.planLineId).filter(Boolean))]
