@@ -52,17 +52,30 @@ function paddockKey(value:unknown){return planText(value).toUpperCase().replace(
 function compactPaddockKey(value:unknown){return paddockKey(value).replace(/[^A-Z0-9]/g,'')}
 function shortPaddockCode(pid:string){const parts=paddockKey(pid).split('-').filter(Boolean);return parts.length>=2?parts.slice(-2).join('-'):parts.join('-')}
 function monthlyStatusClosed(row:Monthly){const status=searchKey(row.sourceStatus+' '+row.status);return ['cancel','done','selesai','complete'].some(token=>status.includes(token))}
-function smartMonthlyChoices(rows:Monthly[],input:string,activity:string){
-  const activityKey=searchKey(activity),scoped=activityKey?rows.filter(row=>searchKey(activityLabel(row))===activityKey):rows,q=searchKey(input)
-  if(!q)return scoped
-  const byPlanId=scoped.filter(row=>searchKey(row.planLineId).startsWith(q))
-  if(byPlanId.length)return byPlanId
+function monthlyActivityCompatible(row:Monthly,activity:string,rows:Monthly[]){
+  const activityKey=searchKey(activity)
+  if(!activityKey)return true
+  if(searchKey(activityLabel(row))===activityKey)return true
+  const reference=rows.find(item=>searchKey(activityLabel(item))===activityKey)
+  if(!reference)return false
+  const referenceActivity=searchKey(reference.activity),rowActivity=searchKey(row.activity)
+  return Boolean(referenceActivity&&rowActivity&&referenceActivity===rowActivity)
+}
+function monthlyPidMatches(row:Monthly,input:string){
+  const q=searchKey(input)
+  if(!q)return true
+  if(searchKey(row.planLineId).startsWith(q))return true
   const code=paddockKey(input),compact=compactPaddockKey(input)
-  if(!code)return scoped
-  return scoped.filter(row=>{
-    const full=paddockKey(row.pid),short=shortPaddockCode(row.pid),fullCompact=compactPaddockKey(full),shortCompact=compactPaddockKey(short)
-    return full.startsWith(code)||short.startsWith(code)||fullCompact.startsWith(compact)||shortCompact.startsWith(compact)
-  })
+  if(!code)return false
+  const full=paddockKey(row.pid),short=shortPaddockCode(row.pid),fullCompact=compactPaddockKey(full),shortCompact=compactPaddockKey(short)
+  return full.startsWith(code)||short.startsWith(code)||fullCompact.startsWith(compact)||shortCompact.startsWith(compact)
+}
+function smartMonthlyChoices(rows:Monthly[],input:string,activity:string){
+  const compatible=rows.filter(row=>monthlyActivityCompatible(row,activity,rows)),q=searchKey(input)
+  if(!q)return compatible
+  const matches=rows.filter(row=>monthlyPidMatches(row,input))
+  const compatibleMatches=matches.filter(row=>monthlyActivityCompatible(row,activity,rows))
+  return compatibleMatches.length?compatibleMatches:matches
 }
 function uniqueActivityNames(values:unknown[],input=''){
   const q=searchKey(input),seen=new Set<string>(),out:string[]=[]
@@ -79,10 +92,11 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
   const[monthly,setMonthly]=useState<Monthly[]>([]),[activityMonthly,setActivityMonthly]=useState<Monthly[]>([]),[daily,setDaily]=useState<Daily[]>([]),[linkedDaily,setLinkedDaily]=useState<Daily[]>([]),[actuals,setActuals]=useState<Actual[]>([]),[linkedActuals,setLinkedActuals]=useState<Actual[]>([]),[paddocks,setPaddocks]=useState<MasterPaddock[]>([]),[activities,setActivities]=useState<MasterActivity[]>([])
   const[resourceUnits,setResourceUnits]=useState<string[]>([]),[resourceShifts,setResourceShifts]=useState<string[]>([]),[resourceForemen,setResourceForemen]=useState<string[]>([])
   const[state,setState]=useState<DraftState>(initial),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[draggingId,setDraggingId]=useState(''),[persistedEdit,setPersistedEdit]=useState<PersistedEditContext|null>(null)
-  const[activityOpen,setActivityOpen]=useState(false)
+  const[activityOpen,setActivityOpen]=useState(false),[pidSearchBusy,setPidSearchBusy]=useState(false)
+  const[pidMonthly,setPidMonthly]=useState<Monthly[]>([])
   const saveFeedbackRef=useRef<HTMLDivElement|null>(null)
-  const activityLookupRef=useRef(0),loadedActivityKeysRef=useRef(new Set<string>())
-  const availableMonthly=useMemo(()=>{const map=new Map<string,Monthly>();[...monthly,...activityMonthly].forEach(row=>map.set(row.id,row));return[...map.values()].sort((a,b)=>a.monthKey.localeCompare(b.monthKey)||a.week.localeCompare(b.week,undefined,{numeric:true})||a.planLineId.localeCompare(b.planLineId,undefined,{numeric:true}))},[monthly,activityMonthly])
+  const activityLookupRef=useRef(0),pidLookupRef=useRef(0),loadedActivityKeysRef=useRef(new Set<string>()),loadedPidKeysRef=useRef(new Set<string>())
+  const availableMonthly=useMemo(()=>{const map=new Map<string,Monthly>();[...monthly,...activityMonthly,...pidMonthly].forEach(row=>map.set(row.id,row));return[...map.values()].sort((a,b)=>a.monthKey.localeCompare(b.monthKey)||a.week.localeCompare(b.week,undefined,{numeric:true})||a.planLineId.localeCompare(b.planLineId,undefined,{numeric:true}))},[monthly,activityMonthly,pidMonthly])
   const availableDaily=useMemo(()=>{const map=new Map<string,Daily>();[...daily,...linkedDaily].forEach(row=>map.set(row.dailyPlanId,row));return[...map.values()]},[daily,linkedDaily])
   const actualByMonthlyId=useMemo(()=>{const reports=new Map<string,Actual>(),map=new Map<string,number>();[...actuals,...linkedActuals].forEach(row=>reports.set(row.id,row));reports.forEach(row=>{if(row.monthlyPlanLineId)map.set(row.monthlyPlanLineId,(map.get(row.monthlyPlanLineId)||0)+row.actualAreaHa)});return map},[actuals,linkedActuals])
   const selectableMonthly=useMemo(()=>availableMonthly.filter(row=>!monthlyStatusClosed(row)&&((actualByMonthlyId.get(row.planLineId)||0)+row.manualActualAreaHa)<row.targetAreaHa-0.0001),[availableMonthly,actualByMonthlyId])
@@ -140,6 +154,45 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
       setLinkedActuals(current=>[...current.filter(row=>!ids.includes(row.monthlyPlanLineId)),...linkedActual])
     }catch(e){setMessage(e instanceof Error?e.message:'Monthly Plan lintas bulan gagal dimuat.')}
   }
+  async function loadMonthlyPid(input:string){
+    if(!firestoreDb)return
+    const q=searchKey(input),code=paddockKey(input),compact=compactPaddockKey(input)
+    if(!q||q.length<2||!code)return
+    const candidatePids=[...new Set([...availableMonthly.map(row=>row.pid),...paddocks.map(row=>row.pid)].filter(pid=>{
+      const full=paddockKey(pid),short=shortPaddockCode(pid),fullCompact=compactPaddockKey(full),shortCompact=compactPaddockKey(short)
+      return full.startsWith(code)||short.startsWith(code)||fullCompact.startsWith(compact)||shortCompact.startsWith(compact)
+    }).map(pid=>paddockKey(pid)))]
+    if(!candidatePids.length)return
+    const lookupKey=candidatePids.sort().join('|')
+    if(loadedPidKeysRef.current.has(lookupKey))return
+    const db=firestoreDb,token=++pidLookupRef.current
+    setPidSearchBusy(true)
+    try{
+      const docs=new Map<string,any>()
+      for(const pid of candidatePids.slice(0,12)){
+        const snap=await getDocs(fsQuery(collection(db,'monthly_plans'),where('pid','==',pid)))
+        snap.docs.forEach(item=>docs.set(item.id,item))
+      }
+      if(token!==pidLookupRef.current)return
+      const rows:Monthly[]=[...docs.values()].map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,planLineId:planText(r.planLineId||x.id),monthKey:planText(r.monthKey),week:planText(r.week),companyCode:planText(r.companyCode),farm:planText(r.farm),pid:planText(r.pid),description:planText(r.description),activity:planText(r.activity),targetAreaHa:planNum(r.targetAreaHa),manualActualAreaHa:planNum(r.manualActualAreaHa),sourceStatus:planText(r.sourceStatus),status:planText(r.status),type:planText(r.type),activityCategory:planText(r.activityCategory),stage:planText(r.stage),masterVariety:planText(r.masterVariety),componentsSnapshot:Array.isArray(r.componentsSnapshot)?r.componentsSnapshot:[]}}).sort((a,b)=>b.monthKey.localeCompare(a.monthKey)||b.week.localeCompare(a.week,undefined,{numeric:true})||a.planLineId.localeCompare(b.planLineId,undefined,{numeric:true}))
+      loadedPidKeysRef.current.add(lookupKey)
+      setPidMonthly(current=>{const merged=new Map<string,Monthly>();[...current,...rows].forEach(row=>merged.set(row.id,row));return[...merged.values()]})
+      const ids=[...new Set(rows.map(row=>row.planLineId).filter(Boolean))],linked:Daily[]=[],linkedActual:Actual[]=[]
+      for(let i=0;i<ids.length;i+=30){
+        const part=ids.slice(i,i+30)
+        const[dailySnap,actualSnap]=await Promise.all([
+          getDocs(fsQuery(collection(db,'daily_plans'),where('monthlyPlanLineId','in',part))),
+          getDocs(fsQuery(collection(db,'daily_reports'),where('monthlyPlanLineId','in',part))),
+        ])
+        dailySnap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;linked.push({dailyPlanId:planText(r.dailyPlanId||x.id),monthlyPlanLineId:planText(r.monthlyPlanLineId),date:planText(r.date),shift:planText(r.shift),areaHa:planNum(r.areaHa)})})
+        actualSnap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;linkedActual.push({id:x.id,monthlyPlanLineId:planText(r.monthlyPlanLineId),actualAreaHa:planNum(r.actualAreaHa)})})
+      }
+      if(token!==pidLookupRef.current)return
+      if(linked.length)setLinkedDaily(current=>{const merged=new Map<string,Daily>();[...current,...linked].forEach(row=>merged.set(row.dailyPlanId,row));return[...merged.values()]})
+      setLinkedActuals(current=>[...current.filter(row=>!ids.includes(row.monthlyPlanLineId)),...linkedActual])
+    }catch(e){setMessage(e instanceof Error?e.message:'Pencarian PID Monthly lintas week/bulan gagal.')}finally{if(token===pidLookupRef.current)setPidSearchBusy(false)}
+  }
+
   useEffect(()=>{void loadMasters();void loadAllOperationalResources().then(resources=>{setResourceUnits(resources.units.map(x=>x.name));setResourceShifts(resources.shifts.map(x=>x.name));setResourceForemen(resources.foremen.map(x=>x.name))}).catch(()=>{})},[])
   useEffect(()=>{void loadPeriod(state.date);onDateChange?.(state.date)},[state.date])
   useEffect(()=>{if(selectedDate&&selectedDate!==state.date)setState(current=>({...current,date:selectedDate}))},[selectedDate])
@@ -190,8 +243,8 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
     if(!info.work.shift.trim()||!info.work.foreman.trim()||!info.work.activitySearch.trim())return'Shift, Mandor, dan Kegiatan wajib diisi.'
     const invalid=info.pids.find(p=>p.area<=0||(info.work.sourceType==='MONTHLY'&&!p.selected)||(info.work.sourceType!=='MONTHLY'&&!p.pid.pid.trim()))
     if(invalid)return invalid.area<=0?'Luas setiap PID harus lebih dari 0.':info.work.sourceType==='MONTHLY'?'Pilih PID/Monthly Plan yang valid.':'Paddock wajib diisi.'
-    const mismatch=info.pids.some(p=>info.work.sourceType==='MONTHLY'&&p.selected&&searchKey(activityLabel(p.selected))!==searchKey(info.work.activitySearch))
-    if(mismatch)return'Ada PID Monthly yang kegiatannya berbeda dari kegiatan pada form.'
+    const mismatch=info.pids.some(p=>info.work.sourceType==='MONTHLY'&&p.selected&&!monthlyActivityCompatible(p.selected,info.work.activitySearch,availableMonthly))
+    if(mismatch)return'Ada PID Monthly dengan kelompok kegiatan yang berbeda dari kegiatan pada form.'
     const keys=new Set<string>()
     for(const p of info.pids){const key=info.work.sourceType==='MONTHLY'?(p.selected?.planLineId||''):p.pid.pid.toUpperCase();if(key&&keys.has(key))return'Ada PID yang sama dipilih lebih dari sekali pada kegiatan ini.';keys.add(key)}
     if(checkExisting){const duplicate=info.pids.some(p=>info.work.sourceType==='MONTHLY'&&p.selected&&availableDaily.some(d=>d.date===state.date&&d.shift===info.work.shift&&d.monthlyPlanLineId===p.selected?.planLineId));if(duplicate)return'Ada PID yang sudah memiliki Daily Plan pada tanggal/shift yang sama.'}
@@ -336,7 +389,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
 
       <div className="daily-activity-material-preview"><div className="daily-material-preview-head"><div><span className="eyebrow">BAHAN & DOSIS ACUAN</span><strong>{state.active.activitySearch||'Pilih kegiatan terlebih dahulu'}</strong></div>{activeInfo.area>0&&<span className="status-pill">{planHa(activeInfo.area)} total PID</span>}</div>{activeInfo.activityDosePreview.length>0?<div className="daily-material-dose-list">{activeInfo.activityDosePreview.map(m=>{const total=activeInfo.materials.find(x=>x.material===m.material&&x.unit===m.unit)?.totalMaterial||0;return <div key={m.material+'|'+m.unit}><span><b>{m.material}</b><small>Dosis {m.dosePerHa.toLocaleString('id-ID',{maximumFractionDigits:4})} {m.unit}/Ha</small></span><strong>{activeInfo.area>0?('Total '+total.toLocaleString('id-ID',{maximumFractionDigits:4})+' '+m.unit):'Isi luas PID untuk total'}</strong></div>})}</div>:<div className="daily-material-empty">{state.active.activitySearch?'Belum ada bahan/dosis pada Master Activity atau Monthly Plan untuk kegiatan ini.':'Pilih kegiatan untuk melihat bahan dan dosis.'}</div>}</div>
 
-      <div className="daily-pid-section"><div className="daily-pid-head"><div><strong>Multiple PID</strong><span>{state.active.sourceType==='MONTHLY'?'PID mengikuti kegiatan; hanya Belum Dikerjakan / On Progress. DONE, selesai, over actual, dan cancelled disembunyikan':'Masukkan paddock dan luas rencana'}</span></div><button type="button" onClick={addActivePid}>+ Tambah PID</button></div><div className="daily-pid-list">{activeInfo.pids.map((row,index)=><div className="daily-pid-row" key={row.pid.id}><span className="daily-pid-number">{index+1}</span>{state.active.sourceType==='MONTHLY'?<label className="daily-pid-search"><span>PID / Monthly Plan</span><input list={'monthly-active-options-'+row.pid.id} value={row.pid.search} onFocus={e=>e.currentTarget.select()} onChange={e=>{const value=e.target.value,matched=availableMonthly.find(month=>monthlyOptionLabel(month)===value||month.planLineId===value);patchActivePid(row.pid.id,{search:value,monthlyId:matched?.id||''})}} placeholder="Ketik G-007"/><datalist id={'monthly-active-options-'+row.pid.id}>{row.choices.map(x=><option key={x.id} value={monthlyOptionLabel(x)}/>)}</datalist><small className="plan-search-hint">{row.selected?'Terpilih: '+monthlyOptionLabel(row.selected):state.active.activitySearch?(row.pid.search?(row.choices.length?row.choices.length+' pilihan aktif':'0 pilihan aktif — DONE/selesai disembunyikan'):'Ketik kode paddock'):'Pilih kegiatan dahulu'}</small></label>:<label className="daily-pid-search"><span>Paddock</span><input list={'daily-active-paddocks-'+row.pid.id} value={row.pid.pid} onChange={e=>patchActivePid(row.pid.id,{pid:e.target.value.toUpperCase()})} placeholder="Contoh: JAGF-2-G-007"/><datalist id={'daily-active-paddocks-'+row.pid.id}>{paddocks.map(p=><option key={p.pid} value={p.pid}/>)}</datalist></label>}<label className="daily-pid-area"><span>Luas (Ha)</span><input type="number" min="0" step="0.0001" value={row.pid.area} onChange={e=>patchActivePid(row.pid.id,{area:e.target.value})}/></label>{state.active.sourceType==='SUPPORT'&&<label className="daily-pid-note"><span>Keterangan PID</span><input value={row.pid.pidNotes} onChange={e=>patchActivePid(row.pid.id,{pidNotes:e.target.value})} placeholder="Opsional: unit / perlakuan khusus"/></label>}<button type="button" className="danger daily-pid-remove" onClick={()=>removeActivePid(row.pid.id)}>Hapus</button>{(row.pid.persistedDailyPlanId||row.selected)&&<div className="daily-pid-meta">{row.pid.persistedDailyPlanId&&<span>Daily ID <b>{row.pid.persistedDailyPlanId}</b></span>}{row.selected&&<><span>Monthly ID <b>{row.selected.planLineId}</b></span><span>Target {planHa(row.selected.targetAreaHa)}</span><span>Terjadwal {planHa(row.scheduled)}</span>{row.selected.manualActualAreaHa>0&&<span>Progress manual <b>{planHa(row.selected.manualActualAreaHa)}</b></span>}<span>Sisa <b className={row.area>row.remaining?'plan-danger-text':''}>{planHa(row.remaining)}</b></span></>}</div>}</div>)}</div></div>
+      <div className="daily-pid-section"><div className="daily-pid-head"><div><strong>Multiple PID</strong><span>{state.active.sourceType==='MONTHLY'?'PID mengikuti kegiatan; hanya Belum Dikerjakan / On Progress. DONE, selesai, over actual, dan cancelled disembunyikan':'Masukkan paddock dan luas rencana'}</span></div><button type="button" onClick={addActivePid}>+ Tambah PID</button></div><div className="daily-pid-list">{activeInfo.pids.map((row,index)=><div className="daily-pid-row" key={row.pid.id}><span className="daily-pid-number">{index+1}</span>{state.active.sourceType==='MONTHLY'?<label className="daily-pid-search"><span>PID / Monthly Plan</span><input list={'monthly-active-options-'+row.pid.id} value={row.pid.search} onFocus={e=>e.currentTarget.select()} onChange={e=>{const value=e.target.value,matched=availableMonthly.find(month=>monthlyOptionLabel(month)===value||month.planLineId===value);patchActivePid(row.pid.id,{search:value,monthlyId:matched?.id||''});if(!matched)void loadMonthlyPid(value)}} placeholder="Ketik G-007"/><datalist id={'monthly-active-options-'+row.pid.id}>{row.choices.map(x=><option key={x.id} value={monthlyOptionLabel(x)}/>)}</datalist><small className="plan-search-hint">{row.selected?'Terpilih: '+monthlyOptionLabel(row.selected):state.active.activitySearch?(row.pid.search?(pidSearchBusy?'Mencari PID lintas week/bulan…':row.choices.length?row.choices.length+' pilihan aktif lintas week/bulan':'0 pilihan aktif — DONE/selesai disembunyikan'):'Ketik kode paddock'):'Pilih kegiatan dahulu'}</small></label>:<label className="daily-pid-search"><span>Paddock</span><input list={'daily-active-paddocks-'+row.pid.id} value={row.pid.pid} onChange={e=>patchActivePid(row.pid.id,{pid:e.target.value.toUpperCase()})} placeholder="Contoh: JAGF-2-G-007"/><datalist id={'daily-active-paddocks-'+row.pid.id}>{paddocks.map(p=><option key={p.pid} value={p.pid}/>)}</datalist></label>}<label className="daily-pid-area"><span>Luas (Ha)</span><input type="number" min="0" step="0.0001" value={row.pid.area} onChange={e=>patchActivePid(row.pid.id,{area:e.target.value})}/></label>{state.active.sourceType==='SUPPORT'&&<label className="daily-pid-note"><span>Keterangan PID</span><input value={row.pid.pidNotes} onChange={e=>patchActivePid(row.pid.id,{pidNotes:e.target.value})} placeholder="Opsional: unit / perlakuan khusus"/></label>}<button type="button" className="danger daily-pid-remove" onClick={()=>removeActivePid(row.pid.id)}>Hapus</button>{(row.pid.persistedDailyPlanId||row.selected)&&<div className="daily-pid-meta">{row.pid.persistedDailyPlanId&&<span>Daily ID <b>{row.pid.persistedDailyPlanId}</b></span>}{row.selected&&<><span>Monthly ID <b>{row.selected.planLineId}</b></span><span>Target {planHa(row.selected.targetAreaHa)}</span><span>Terjadwal {planHa(row.scheduled)}</span>{row.selected.manualActualAreaHa>0&&<span>Progress manual <b>{planHa(row.selected.manualActualAreaHa)}</b></span>}<span>Sisa <b className={row.area>row.remaining?'plan-danger-text':''}>{planHa(row.remaining)}</b></span></>}</div>}</div>)}</div></div>
 
       <div className="daily-single-form-actions"><button type="submit" className="primary" disabled={busy}>{persistedEdit?'Simpan Perubahan Daily':state.editingId?'Simpan Perubahan Draft':'Simpan ke Draft'}</button><button type="button" onClick={()=>resetInput(false)}>{persistedEdit||state.editingId?'Batal Edit':'Reset Form'}</button></div>
     </form>
