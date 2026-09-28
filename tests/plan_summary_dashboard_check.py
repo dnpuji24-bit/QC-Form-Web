@@ -72,4 +72,30 @@ for token in [
     ".premium-filter-chips",
 ]:
     assert token in css, f'Missing premium Summary filter style: {token}'
+
+for token in [
+    "type JobType='ALL'|'SPRAY'|'FERTILIZER'",
+    "master_activities",
+    "masterActivityFromData",
+    "resolveJobType",
+    "activityTypeIndex",
+    "Jenis Pekerjaan",
+    "Semua Jenis",
+    "ActivityCompositionPie",
+    "Persentase Activity per Jenis Pekerjaan",
+    "activityBasis",
+    "Actual Ha",
+    "Daily Plan Ha",
+]:
+    assert token in summary, f'Missing job-type/activity pie token: {token}'
+
+for token in [
+    "Summary Activity composition pie + job type filter",
+    ".summary-activity-pie-circle",
+    ".summary-activity-pie-legend",
+    ".summary-pie-basis-toggle",
+    ".summary-job-type-filter",
+]:
+    assert token in css, f'Missing activity composition pie style: {token}'
+
 print('Plan Summary dashboard check passed: premium responsive filters, Daily-vs-Actual productivity, and Monthly progress are wired.')

@@ -3,10 +3,14 @@ import { collection, getDocs, query as fsQuery, where } from 'firebase/firestore
 import { firestoreDb } from './firebase'
 import YinYangRefreshButton from './YinYangRefreshButton'
 
-type MonthlyRow={planLineId:string;monthKey:string;week:string;companyCode:string;farm:string;pid:string;activity:string;description:string;targetAreaHa:number;manualActualAreaHa:number;variety:string;stage:string;cancelled:boolean;sourceStatus:string}
-type DailyRow={dailyPlanId:string;date:string;monthKey:string;shift:string;companyCode:string;farm:string;pid:string;activity:string;areaHa:number;sourceType:string;monthlyPlanLineId:string;foreman:string}
-type ActualRow={actualReportId:string;date:string;monthKey:string;shift:string;companyCode:string;farm:string;pid:string;activity:string;actualAreaHa:number;dailyPlanId:string;monthlyPlanLineId:string;foreman:string}
+type JobType='ALL'|'SPRAY'|'FERTILIZER'
+type ActivityBasis='ACTUAL'|'PLAN'
+type MonthlyRow={planLineId:string;monthKey:string;week:string;companyCode:string;farm:string;pid:string;activity:string;description:string;type:string;activityCategory:string;targetAreaHa:number;manualActualAreaHa:number;variety:string;stage:string;cancelled:boolean;sourceStatus:string}
+type DailyRow={dailyPlanId:string;date:string;monthKey:string;shift:string;companyCode:string;farm:string;pid:string;activity:string;type:string;areaHa:number;sourceType:string;monthlyPlanLineId:string;foreman:string}
+type ActualRow={actualReportId:string;date:string;monthKey:string;shift:string;companyCode:string;farm:string;pid:string;activity:string;type:string;actualAreaHa:number;dailyPlanId:string;monthlyPlanLineId:string;foreman:string}
 type MasterPaddockRow={pid:string;companyCode:string;farm:string;areaPlantedHa:number}
+type MasterActivityRow={description:string;activity:string;type:string;active:boolean}
+type ActivityPieRow={activity:string;value:number}
 type PaddockActivityCell={activity:string;area:number;dates:string[];manual:number}
 type PaddockActivityMatrixRow={pid:string;companyCode:string;farm:string;paddockAreaHa:number;cells:PaddockActivityCell[]}
 type DayProductivity={date:string;plan:number;actual:number}
@@ -18,10 +22,13 @@ const MONTHS=[
 
 function text(value:unknown){return value===null||value===undefined?'':String(value).trim()}
 function num(value:unknown){const n=Number(value||0);return Number.isFinite(n)?n:0}
-function monthlyFromData(data:Record<string,unknown>):MonthlyRow{return{planLineId:text(data.planLineId||data.planCode),monthKey:text(data.monthKey||data.month),week:text(data.week),companyCode:text(data.companyCode).toUpperCase(),farm:text(data.farm),pid:text(data.pid).toUpperCase(),activity:text(data.activity||data.description),description:text(data.description),targetAreaHa:num(data.targetAreaHa),manualActualAreaHa:num(data.manualActualAreaHa),variety:text(data.variety||data.masterVariety),stage:text(data.stage),cancelled:data.cancelled===true,sourceStatus:text(data.sourceStatus)}}
-function dailyFromData(data:Record<string,unknown>,id:string):DailyRow{return{dailyPlanId:text(data.dailyPlanId||id),date:text(data.date),monthKey:text(data.monthKey),shift:text(data.shift),companyCode:text(data.companyCode).toUpperCase(),farm:text(data.farm),pid:text(data.pid).toUpperCase(),activity:text(data.activity||data.description),areaHa:num(data.areaHa),sourceType:text(data.sourceType).toUpperCase(),monthlyPlanLineId:text(data.monthlyPlanLineId),foreman:text(data.foreman)}}
-function actualFromData(data:Record<string,unknown>,id:string):ActualRow{return{actualReportId:text(data.actualReportId||id),date:text(data.date),monthKey:text(data.monthKey),shift:text(data.shift),companyCode:text(data.companyCode).toUpperCase(),farm:text(data.farm),pid:text(data.pid).toUpperCase(),activity:text(data.activity||data.description),actualAreaHa:num(data.actualAreaHa),dailyPlanId:text(data.dailyPlanId),monthlyPlanLineId:text(data.monthlyPlanLineId),foreman:text(data.foreman)}}
+function monthlyFromData(data:Record<string,unknown>):MonthlyRow{return{planLineId:text(data.planLineId||data.planCode),monthKey:text(data.monthKey||data.month),week:text(data.week),companyCode:text(data.companyCode).toUpperCase(),farm:text(data.farm),pid:text(data.pid).toUpperCase(),activity:text(data.activity||data.description),description:text(data.description),type:text(data.type).toUpperCase(),activityCategory:text(data.activityCategory).toUpperCase(),targetAreaHa:num(data.targetAreaHa),manualActualAreaHa:num(data.manualActualAreaHa),variety:text(data.variety||data.masterVariety),stage:text(data.stage),cancelled:data.cancelled===true,sourceStatus:text(data.sourceStatus)}}
+function dailyFromData(data:Record<string,unknown>,id:string):DailyRow{return{dailyPlanId:text(data.dailyPlanId||id),date:text(data.date),monthKey:text(data.monthKey),shift:text(data.shift),companyCode:text(data.companyCode).toUpperCase(),farm:text(data.farm),pid:text(data.pid).toUpperCase(),activity:text(data.activity||data.description),type:text(data.type).toUpperCase(),areaHa:num(data.areaHa),sourceType:text(data.sourceType).toUpperCase(),monthlyPlanLineId:text(data.monthlyPlanLineId),foreman:text(data.foreman)}}
+function actualFromData(data:Record<string,unknown>,id:string):ActualRow{return{actualReportId:text(data.actualReportId||id),date:text(data.date),monthKey:text(data.monthKey),shift:text(data.shift),companyCode:text(data.companyCode).toUpperCase(),farm:text(data.farm),pid:text(data.pid).toUpperCase(),activity:text(data.activity||data.description),type:text(data.type).toUpperCase(),actualAreaHa:num(data.actualAreaHa),dailyPlanId:text(data.dailyPlanId),monthlyPlanLineId:text(data.monthlyPlanLineId),foreman:text(data.foreman)}}
 function masterPaddockFromData(data:Record<string,unknown>):MasterPaddockRow{return{pid:text(data.pid).toUpperCase(),companyCode:text(data.companyCode).toUpperCase(),farm:text(data.farm),areaPlantedHa:num(data.areaPlantedHa)}}
+function masterActivityFromData(data:Record<string,unknown>):MasterActivityRow{return{description:text(data.description),activity:text(data.activity),type:text(data.type).toUpperCase(),active:data.active!==false}}
+function normalizeActivity(value:unknown){return text(value).normalize('NFKC').replace(/[\u200B-\u200D\uFEFF]/g,'').replace(/\u00A0/g,' ').replace(/\s+/g,' ').trim().toLocaleLowerCase('id-ID')}
+function resolveJobType(typeValue:string,activity:string,description:string,index:Map<string,string>):Exclude<JobType,'ALL'>|''{const direct=text(typeValue).toUpperCase();if(direct==='SPRAY'||direct==='FERTILIZER')return direct;for(const value of [description,activity]){const mapped=index.get(normalizeActivity(value));if(mapped==='SPRAY'||mapped==='FERTILIZER')return mapped}const fallback=normalizeActivity(description||activity);if(/\b(spray|insecticide|herbicide|fungicide|rodenticide|pre emergence|post emergence|knockdown)\b/.test(fallback))return'SPRAY';if(/\b(fertilizer|fertiliser|top dressing|basalt dressing|bassalt dressing|single dressing|manuring)\b/.test(fallback))return'FERTILIZER';return''}
 function fmtHa(value:number,digits=2){return new Intl.NumberFormat('id-ID',{minimumFractionDigits:digits,maximumFractionDigits:digits}).format(value)+' Ha'}
 function fmtNumber(value:number,digits=2){return new Intl.NumberFormat('id-ID',{maximumFractionDigits:digits}).format(value)}
 function fmtPct(value:number){return new Intl.NumberFormat('id-ID',{minimumFractionDigits:0,maximumFractionDigits:1}).format(value)+'%'}
@@ -71,12 +78,30 @@ function MonthlyProgressDonut({target,actual}:{target:number;actual:number}){
   </div>
 }
 
+
+const ACTIVITY_PIE_COLORS=['#2563eb','#f97316','#16a34a','#a855f7','#eab308','#06b6d4','#ef4444','#64748b','#ec4899','#84cc16','#0ea5e9','#f43f5e']
+
+function ActivityCompositionPie({rows,basisLabel}:{rows:ActivityPieRow[];basisLabel:string}){
+  const positive=rows.filter(row=>row.value>0),total=positive.reduce((sum,row)=>sum+row.value,0)
+  if(!total)return <div className="summary-chart-empty">Belum ada luasan {basisLabel.toLowerCase()} pada filter ini.</div>
+  let cursor=0
+  const slices=positive.map((row,index)=>{const start=cursor/total*100,end=(cursor+row.value)/total*100,color=ACTIVITY_PIE_COLORS[index%ACTIVITY_PIE_COLORS.length];cursor+=row.value;return{...row,start,end,color,percent:row.value/total*100}})
+  const gradient=slices.map(row=>row.color+' '+row.start+'% '+row.end+'%').join(',')
+  return <div className="summary-activity-pie-layout">
+    <div className="summary-activity-pie-visual">
+      <div className="summary-activity-pie-circle" style={{background:'conic-gradient('+gradient+')'}} role="img" aria-label={'Komposisi Activity berdasarkan '+basisLabel}/>
+      <div className="summary-activity-pie-total"><span>Total {basisLabel}</span><strong>{fmtHa(total)}</strong><small>{slices.length} activity</small></div>
+    </div>
+    <div className="summary-activity-pie-legend">{slices.map(row=><div key={row.activity} className="summary-activity-pie-legend-row"><span className="summary-activity-pie-swatch" style={{background:row.color}}/><div><strong>{row.activity}</strong><small>{fmtHa(row.value)}</small></div><b>{fmtPct(row.percent)}</b></div>)}</div>
+  </div>
+}
+
 export default function PlanSummaryDashboard(){
   const now=new Date(),currentYear=now.getFullYear()
   const[selectedYear,setSelectedYear]=useState(String(currentYear)),[selectedMonth,setSelectedMonth]=useState(String(now.getMonth()+1).padStart(2,'0')),[selectedWeek,setSelectedWeek]=useState('ALL')
-  const[monthly,setMonthly]=useState<MonthlyRow[]>([]),[daily,setDaily]=useState<DailyRow[]>([]),[actual,setActual]=useState<ActualRow[]>([]),[masterPaddocks,setMasterPaddocks]=useState<MasterPaddockRow[]>([])
+  const[monthly,setMonthly]=useState<MonthlyRow[]>([]),[daily,setDaily]=useState<DailyRow[]>([]),[actual,setActual]=useState<ActualRow[]>([]),[masterPaddocks,setMasterPaddocks]=useState<MasterPaddockRow[]>([]),[masterActivities,setMasterActivities]=useState<MasterActivityRow[]>([])
   const[busy,setBusy]=useState(false),[message,setMessage]=useState('')
-  const[company,setCompany]=useState('ALL'),[farm,setFarm]=useState('ALL'),[shift,setShift]=useState('ALL'),[foreman,setForeman]=useState('ALL'),[paddockFilter,setPaddockFilter]=useState('')
+  const[company,setCompany]=useState('ALL'),[farm,setFarm]=useState('ALL'),[shift,setShift]=useState('ALL'),[foreman,setForeman]=useState('ALL'),[jobType,setJobType]=useState<JobType>('ALL'),[activityBasis,setActivityBasis]=useState<ActivityBasis>('ACTUAL'),[paddockFilter,setPaddockFilter]=useState('')
   const monthKey=selectedYear+'-'+selectedMonth
   const yearOptions=useMemo(()=>Array.from({length:7},(_,i)=>String(currentYear-4+i)),[currentYear])
 
@@ -84,16 +109,18 @@ export default function PlanSummaryDashboard(){
     if(!firestoreDb){setMessage('Firestore belum tersedia.');return}
     setBusy(true);setMessage('Memuat Summary '+monthKey+'…')
     try{
-      const[m,d,a,p]=await Promise.all([
+      const[m,d,a,p,activities]=await Promise.all([
         getDocs(fsQuery(collection(firestoreDb,'monthly_plans'),where('monthKey','==',monthKey))),
         getDocs(fsQuery(collection(firestoreDb,'daily_plans'),where('monthKey','==',monthKey))),
         getDocs(fsQuery(collection(firestoreDb,'daily_reports'),where('monthKey','==',monthKey))),
         getDocs(collection(firestoreDb,'master_paddocks')),
+        getDocs(collection(firestoreDb,'master_activities')),
       ])
       setMonthly(m.docs.map(x=>monthlyFromData(x.data() as Record<string,unknown>)))
       setDaily(d.docs.map(x=>dailyFromData(x.data() as Record<string,unknown>,x.id)))
       setActual(a.docs.map(x=>actualFromData(x.data() as Record<string,unknown>,x.id)))
       setMasterPaddocks(p.docs.map(x=>masterPaddockFromData(x.data() as Record<string,unknown>)).filter(x=>x.pid))
+      setMasterActivities(activities.docs.map(x=>masterActivityFromData(x.data() as Record<string,unknown>)))
       setMessage('Summary '+monthKey+' siap. Filter di bawah dipakai bersama untuk grafik produktivitas dan Summary Activity per Tanggal.')
     }catch(error){setMessage(error instanceof Error?error.message:'Summary Plan gagal dimuat.')}finally{setBusy(false)}
   }
@@ -104,9 +131,13 @@ export default function PlanSummaryDashboard(){
   const shiftOptions=useMemo(()=>[...new Set([...daily.map(x=>x.shift),...actual.map(x=>x.shift)].filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[daily,actual])
   const foremanOptions=useMemo(()=>[...new Set([...daily.map(x=>x.foreman),...actual.map(x=>x.foreman)].filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[daily,actual])
 
-  const monthlyScope=useMemo(()=>monthly.filter(row=>(company==='ALL'||row.companyCode===company)&&(farm==='ALL'||row.farm===farm)&&(selectedWeek==='ALL'||row.week===selectedWeek)),[monthly,company,farm,selectedWeek])
-  const dailyScope=useMemo(()=>daily.filter(row=>(company==='ALL'||row.companyCode===company)&&(farm==='ALL'||row.farm===farm)&&(selectedWeek==='ALL'||weekFromDate(row.date)===selectedWeek)&&(shift==='ALL'||row.shift===shift)&&(foreman==='ALL'||row.foreman===foreman)),[daily,company,farm,selectedWeek,shift,foreman])
-  const actualScope=useMemo(()=>actual.filter(row=>(company==='ALL'||row.companyCode===company)&&(farm==='ALL'||row.farm===farm)&&(selectedWeek==='ALL'||weekFromDate(row.date)===selectedWeek)&&(shift==='ALL'||row.shift===shift)&&(foreman==='ALL'||row.foreman===foreman)),[actual,company,farm,selectedWeek,shift,foreman])
+  const activityTypeIndex=useMemo(()=>{const map=new Map<string,string>();masterActivities.forEach(row=>{if(row.type!=='SPRAY'&&row.type!=='FERTILIZER')return;for(const value of [row.description,row.activity]){const key=normalizeActivity(value);if(key&&!map.has(key))map.set(key,row.type)}});return map},[masterActivities])
+  const monthlyBaseScope=useMemo(()=>monthly.filter(row=>(company==='ALL'||row.companyCode===company)&&(farm==='ALL'||row.farm===farm)&&(selectedWeek==='ALL'||row.week===selectedWeek)),[monthly,company,farm,selectedWeek])
+  const dailyBaseScope=useMemo(()=>daily.filter(row=>(company==='ALL'||row.companyCode===company)&&(farm==='ALL'||row.farm===farm)&&(selectedWeek==='ALL'||weekFromDate(row.date)===selectedWeek)&&(shift==='ALL'||row.shift===shift)&&(foreman==='ALL'||row.foreman===foreman)),[daily,company,farm,selectedWeek,shift,foreman])
+  const actualBaseScope=useMemo(()=>actual.filter(row=>(company==='ALL'||row.companyCode===company)&&(farm==='ALL'||row.farm===farm)&&(selectedWeek==='ALL'||weekFromDate(row.date)===selectedWeek)&&(shift==='ALL'||row.shift===shift)&&(foreman==='ALL'||row.foreman===foreman)),[actual,company,farm,selectedWeek,shift,foreman])
+  const monthlyScope=useMemo(()=>jobType==='ALL'?monthlyBaseScope:monthlyBaseScope.filter(row=>resolveJobType(row.type,row.activity,row.description,activityTypeIndex)===jobType),[monthlyBaseScope,jobType,activityTypeIndex])
+  const dailyScope=useMemo(()=>jobType==='ALL'?dailyBaseScope:dailyBaseScope.filter(row=>resolveJobType(row.type,row.activity,'',activityTypeIndex)===jobType),[dailyBaseScope,jobType,activityTypeIndex])
+  const actualScope=useMemo(()=>jobType==='ALL'?actualBaseScope:actualBaseScope.filter(row=>resolveJobType(row.type,row.activity,'',activityTypeIndex)===jobType),[actualBaseScope,jobType,activityTypeIndex])
 
   const selectedDays=useMemo(()=>monthDays(monthKey).filter(date=>selectedWeek==='ALL'||weekFromDate(date)===selectedWeek),[monthKey,selectedWeek])
   const productivityRows=useMemo<DayProductivity[]>(()=>selectedDays.map(date=>({date,plan:dailyScope.filter(row=>row.date===date).reduce((sum,row)=>sum+row.areaHa,0),actual:actualScope.filter(row=>row.date===date).reduce((sum,row)=>sum+row.actualAreaHa,0)})),[selectedDays,dailyScope,actualScope])
@@ -117,6 +148,7 @@ export default function PlanSummaryDashboard(){
   const manualActual=useMemo(()=>activeMonthly.reduce((sum,row)=>sum+row.manualActualAreaHa,0),[activeMonthly])
   const linkedMonthlyActual=useMemo(()=>actual.filter(row=>activePlanIds.has(row.monthlyPlanLineId)).reduce((sum,row)=>sum+row.actualAreaHa,0),[actual,activePlanIds])
   const monthlyActual=linkedMonthlyActual+manualActual
+  const activityPieRows=useMemo<ActivityPieRow[]>(()=>{const map=new Map<string,number>();if(activityBasis==='ACTUAL'){actualScope.forEach(row=>{const label=row.activity||'Tanpa Activity';map.set(label,(map.get(label)||0)+row.actualAreaHa)})}else{dailyScope.forEach(row=>{const label=row.activity||'Tanpa Activity';map.set(label,(map.get(label)||0)+row.areaHa)})}return[...map.entries()].map(([activity,value])=>({activity,value})).filter(row=>row.value>0).sort((a,b)=>b.value-a.value||a.activity.localeCompare(b.activity,undefined,{numeric:true}))},[activityBasis,dailyScope,actualScope])
 
   const activityNames=useMemo(()=>[...new Set([...monthlyScope.map(x=>x.activity),...dailyScope.map(x=>x.activity),...actualScope.map(x=>x.activity)].filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[monthlyScope,dailyScope,actualScope])
   const dayMatrixRows=useMemo(()=>activityNames.map(activityName=>({activity:activityName,days:selectedDays.map(date=>({date,plan:dailyScope.filter(x=>x.activity===activityName&&x.date===date).reduce((sum,x)=>sum+x.areaHa,0),actual:actualScope.filter(x=>x.activity===activityName&&x.date===date).reduce((sum,x)=>sum+x.actualAreaHa,0)}))})),[activityNames,selectedDays,dailyScope,actualScope])
@@ -141,7 +173,7 @@ export default function PlanSummaryDashboard(){
   const paddockOptions=useMemo(()=>paddockActivityMatrix.map(row=>row.pid).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[paddockActivityMatrix])
   const filteredPaddockActivityMatrix=useMemo(()=>{const needle=paddockFilter.trim().toUpperCase();return needle?paddockActivityMatrix.filter(row=>row.pid.includes(needle)):paddockActivityMatrix},[paddockActivityMatrix,paddockFilter])
 
-  function resetFilters(){setSelectedWeek('ALL');setCompany('ALL');setFarm('ALL');setShift('ALL');setForeman('ALL')}
+  function resetFilters(){setSelectedWeek('ALL');setCompany('ALL');setFarm('ALL');setShift('ALL');setForeman('ALL');setJobType('ALL')}
 
   return <section className="plan-summary-dashboard">
     <div className="section-head summary-compact-head"><div><div className="eyebrow">SUMMARY PLAN</div><h2>Dashboard Daily Plan & Aktual</h2><p className="muted">Produktivitas harian, pencapaian Monthly Plan, dan Summary Activity per tanggal dalam satu filter.</p></div><YinYangRefreshButton busy={busy} label="Refresh Summary" onClick={()=>void load()}/></div>
@@ -152,7 +184,7 @@ export default function PlanSummaryDashboard(){
         <div>
           <span className="premium-filter-kicker">FILTER DASHBOARD</span>
           <strong>Atur tampilan data</strong>
-          <small>Periode, area kerja, shift, dan mandor.</small>
+          <small>Periode, area kerja, shift, mandor, dan jenis pekerjaan.</small>
         </div>
         <button type="button" className="premium-filter-reset" onClick={resetFilters}>Reset Filter</button>
       </div>
@@ -164,20 +196,26 @@ export default function PlanSummaryDashboard(){
         <label className="premium-filter-field"><span>Farm</span><select value={farm} onChange={e=>setFarm(e.target.value)}><option value="ALL">Semua Farm</option>{farms.map(x=><option key={x} value={x}>{x}</option>)}</select></label>
         <label className="premium-filter-field"><span>Shift</span><select value={shift} onChange={e=>setShift(e.target.value)}><option value="ALL">Semua Shift</option>{shiftOptions.map(x=><option key={x} value={x}>Shift {x}</option>)}</select></label>
         <label className="premium-filter-field"><span>Mandor</span><select value={foreman} onChange={e=>setForeman(e.target.value)}><option value="ALL">Semua Mandor</option>{foremanOptions.map(x=><option key={x} value={x}>{x}</option>)}</select></label>
+        <label className="premium-filter-field summary-job-type-filter"><span>Jenis Pekerjaan</span><select value={jobType} onChange={e=>setJobType(e.target.value as JobType)}><option value="ALL">Semua Jenis</option><option value="SPRAY">Spray</option><option value="FERTILIZER">Fertilizer</option></select></label>
       </div>
       <div className="premium-filter-chips" aria-label="Filter aktif">
-        <span>{selectedYear}</span><span>{MONTHS.find(([value])=>value===selectedMonth)?.[1]||selectedMonth}</span><span>{selectedWeek==='ALL'?'Semua Week':selectedWeek}</span><span>{company==='ALL'?'Semua Company':company}</span><span>{farm==='ALL'?'Semua Farm':farm}</span><span>{shift==='ALL'?'Semua Shift':'Shift '+shift}</span><span>{foreman==='ALL'?'Semua Mandor':foreman}</span>
+        <span>{selectedYear}</span><span>{MONTHS.find(([value])=>value===selectedMonth)?.[1]||selectedMonth}</span><span>{selectedWeek==='ALL'?'Semua Week':selectedWeek}</span><span>{company==='ALL'?'Semua Company':company}</span><span>{farm==='ALL'?'Semua Farm':farm}</span><span>{shift==='ALL'?'Semua Shift':'Shift '+shift}</span><span>{foreman==='ALL'?'Semua Mandor':foreman}</span><span className="job-type-chip">{jobType==='ALL'?'Semua Jenis':jobType==='SPRAY'?'Spray':'Fertilizer'}</span>
       </div>
     </section>
 
     <div className="summary-dashboard-grid summary-main-charts">
-      <section className="panel summary-chart-panel"><div className="section-head"><div><h3>Produktivitas Harian</h3><p className="muted">Daily Plan dibanding Aktual Plan per hari. Filter Tahun, Bulan, Week, Company, Farm, Shift, dan Mandor dipakai bersama.</p></div></div><DailyProductivityChart rows={productivityRows}/></section>
-      <section className="panel summary-pie-panel"><div className="section-head"><div><h3>Progress Monthly Plan</h3><p className="muted">Target Monthly dibanding Aktual terhubung + progress manual. Pie mengikuti Tahun, Bulan, Week, Company, dan Farm.</p></div></div><MonthlyProgressDonut target={monthlyTarget} actual={monthlyActual}/></section>
+      <section className="panel summary-chart-panel"><div className="section-head"><div><h3>Produktivitas Harian</h3><p className="muted">Daily Plan dibanding Aktual Plan per hari. Filter Tahun, Bulan, Week, Company, Farm, Shift, Mandor, dan Jenis Pekerjaan dipakai bersama.</p></div></div><DailyProductivityChart rows={productivityRows}/></section>
+      <section className="panel summary-pie-panel"><div className="section-head"><div><h3>Progress Monthly Plan</h3><p className="muted">Target Monthly dibanding Aktual terhubung + progress manual. Progress mengikuti Tahun, Bulan, Week, Company, Farm, dan Jenis Pekerjaan.</p></div></div><MonthlyProgressDonut target={monthlyTarget} actual={monthlyActual}/></section>
     </div>
+
+    <section className="panel summary-activity-composition-panel">
+      <div className="section-head summary-activity-composition-head"><div><div className="eyebrow">KOMPOSISI ACTIVITY</div><h3>Persentase Activity per Jenis Pekerjaan</h3><p className="muted">{jobType==='ALL'?'Semua jenis pekerjaan':jobType==='SPRAY'?'Spray':'Fertilizer'} · persentase berdasarkan luasan {activityBasis==='ACTUAL'?'Actual':'Daily Plan'}.</p></div><div className="summary-pie-basis-toggle" aria-label="Basis diagram activity"><button type="button" className={activityBasis==='ACTUAL'?'active':''} onClick={()=>setActivityBasis('ACTUAL')}>Actual</button><button type="button" className={activityBasis==='PLAN'?'active':''} onClick={()=>setActivityBasis('PLAN')}>Daily Plan</button></div></div>
+      <ActivityCompositionPie rows={activityPieRows} basisLabel={activityBasis==='ACTUAL'?'Actual Ha':'Daily Plan Ha'}/>
+    </section>
 
     <section className="panel summary-day-matrix-panel">
       <div className="section-head"><div><div className="eyebrow">PLAN VS AKTUAL HARIAN</div><h3>Summary Activity per Tanggal</h3><p className="muted">Semua activity ditampilkan. Filter sama dengan grafik Produktivitas Harian.</p></div><strong>{activityNames.length} activity</strong></div>
-      <div className="summary-matrix-scope summary-matrix-scope-inline"><span>Periode</span><strong>{monthKey}{selectedWeek!=='ALL'?' · '+selectedWeek:''}</strong><small>{company==='ALL'?'Semua Company':company} · {farm==='ALL'?'Semua Farm':farm} · {shift==='ALL'?'Semua Shift':'Shift '+shift} · {foreman==='ALL'?'Semua Mandor':foreman}</small></div>
+      <div className="summary-matrix-scope summary-matrix-scope-inline"><span>Periode</span><strong>{monthKey}{selectedWeek!=='ALL'?' · '+selectedWeek:''}</strong><small>{company==='ALL'?'Semua Company':company} · {farm==='ALL'?'Semua Farm':farm} · {shift==='ALL'?'Semua Shift':'Shift '+shift} · {foreman==='ALL'?'Semua Mandor':foreman} · {jobType==='ALL'?'Semua Jenis':jobType==='SPRAY'?'Spray':'Fertilizer'}</small></div>
       <div className="summary-wide-table"><table className="summary-plan-report-table"><thead><tr><th rowSpan={2} className="summary-sticky-col first">Kegiatan / Activity</th>{selectedDays.map(date=><th key={date} colSpan={2}>{dayLabel(date)}</th>)}</tr><tr>{selectedDays.map(date=><Fragment key={date}><th>Plan</th><th>Aktual</th></Fragment>)}</tr></thead><tbody>{dayMatrixRows.map(row=><tr key={row.activity}><td className="summary-sticky-col first"><strong>{row.activity}</strong></td>{row.days.map(cell=><Fragment key={row.activity+'|'+cell.date}><td className={cell.plan>0?'summary-plan-cell':''}>{cell.plan>0?fmtNumber(cell.plan):'-'}</td><td className={cell.actual<=0&&cell.plan>0?'summary-actual-low':cell.actual>0&&cell.plan>0&&cell.actual>=cell.plan?'summary-actual-good':cell.actual>0?'summary-actual-only':''}>{cell.actual>0?fmtNumber(cell.actual):cell.plan>0?'0':'-'}</td></Fragment>)}</tr>)}</tbody></table></div>
       {!dayMatrixRows.length&&<div className="daily-draft-empty">Belum ada activity pada kombinasi filter ini.</div>}
       <div className="summary-matrix-note"><span className="good">Hijau</span> Aktual ≥ Plan · <span className="low">Merah</span> Aktual &lt; Plan · Progress manual/historis tidak dimasukkan ke tanggal karena tidak memiliki tanggal kerja asli.</div>
