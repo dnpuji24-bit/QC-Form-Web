@@ -5,6 +5,7 @@ import { FALLBACK_COMPANIES, type CompanyRecord } from './companyMaster'
 import { aggregateMaterials, clearPlanDraft, materialLinesFromComponents, planHa, planNum, planRowId, planText, readPlanDraft, writePlanDraft } from './planInputUtils'
 import type { User } from './types'
 import { canEditAccess } from './accessControl'
+import YinYangRefreshButton from './YinYangRefreshButton'
 
 type Props={user:User;selectedMonth?:string;selectedWeek?:string;onPeriodChange?:(month:string,week:string)=>void;onSaved?:()=>void}
 type Paddock={pid:string;companyCode:string;farm:string;variety:string;stage:string;areaPaddockHa:number;plantAreaHa:number}
@@ -70,7 +71,7 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
   }
 
   return <section className="plan-entry-screen monthly-plan-entry">
-    <div className="section-head"><div><div className="eyebrow">MONTHLY PLAN · BATCH INPUT</div><h2>Input Monthly Plan</h2><p className="muted">Satu sesi dapat berisi beberapa PID/Activity. Draft tersimpan otomatis di perangkat sampai berhasil disimpan.</p></div><div className="row-actions"><button type="button" onClick={()=>void Promise.all([loadMasters(),loadPeriod()])} disabled={busy}>Refresh Master</button><button type="button" className="danger" onClick={reset} disabled={busy}>Reset Draft</button></div></div>
+    <div className="section-head"><div><div className="eyebrow">MONTHLY PLAN · BATCH INPUT</div><h2>Input Monthly Plan</h2><p className="muted">Satu sesi dapat berisi beberapa PID/Activity. Draft tersimpan otomatis di perangkat sampai berhasil disimpan.</p></div><div className="row-actions"><YinYangRefreshButton busy={busy} label="Refresh Master" onClick={()=>void Promise.all([loadMasters(),loadPeriod()])}/><button type="button" className="danger" onClick={reset} disabled={busy}>Reset Draft</button></div></div>
     {message&&<div className="alert">{message}</div>}
     <form onSubmit={save} className="plan-entry-form" noValidate>
       <section className="panel plan-section"><div className="plan-section-title"><div><span className="eyebrow">PERIODE PLANNING</span><h3>Periode & Company</h3></div><span className="status-pill">Draft otomatis</span></div><div className="plan-grid">

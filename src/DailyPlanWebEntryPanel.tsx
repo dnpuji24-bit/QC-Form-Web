@@ -8,6 +8,7 @@ import { aggregateMaterials, clearPlanDraft, materialLinesFromComponents, planHa
 import type { User } from './types'
 import { canEditAccess } from './accessControl'
 import { loadAllOperationalResources } from './masterOperationalResources'
+import YinYangRefreshButton from './YinYangRefreshButton'
 
 type Props={user:User;selectedDate?:string;onDateChange?:(date:string)=>void;onSaved?:()=>void;composerRequest?:DailyComposerRequest;onComposerRequestHandled?:()=>void}
 type Monthly={id:string;planLineId:string;monthKey:string;week:string;companyCode:string;farm:string;pid:string;description:string;activity:string;targetAreaHa:number;manualActualAreaHa:number;sourceStatus:string;status:string;type:string;activityCategory:string;stage:string;masterVariety:string;componentsSnapshot:unknown[]}
@@ -304,7 +305,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
   }
 
   return <section className="plan-entry-screen daily-mobile-workspace daily-plan-entry">
-    <div className="section-head daily-entry-head"><div><div className="eyebrow">DAILY PLAN</div><h2>Input Daily</h2><p className="muted">Tambah satu kegiatan lalu cek hasilnya di draft.</p></div><div className="row-actions"><button type="button" onClick={()=>void Promise.all([loadMasters(),loadPeriod(),loadMonthlyActivity(state.active.activitySearch,true)])} disabled={busy}>Refresh</button><button type="button" className="danger" onClick={clearAll} disabled={busy}>Hapus Semua</button></div></div>
+    <div className="section-head daily-entry-head"><div><div className="eyebrow">DAILY PLAN</div><h2>Input Daily</h2><p className="muted">Tambah satu kegiatan lalu cek hasilnya di draft.</p></div><div className="row-actions"><YinYangRefreshButton busy={busy} label="Refresh" onClick={()=>void Promise.all([loadMasters(),loadPeriod(),loadMonthlyActivity(state.active.activitySearch,true)])}/><button type="button" className="danger" onClick={clearAll} disabled={busy}>Hapus Semua</button></div></div>
     {message&&<div className="alert">{message}</div>}
 
     <form id="daily-active-form" onSubmit={persistedEdit?savePersistedEdit:saveToDraft} className="panel plan-section daily-single-form">

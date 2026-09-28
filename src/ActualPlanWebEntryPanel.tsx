@@ -8,6 +8,7 @@ import { aggregateMaterials, clearPlanDraft, materialLinesFromComponents, planHa
 import { loadAllOperationalResources } from './masterOperationalResources'
 import type { User } from './types'
 import { canEditAccess } from './accessControl'
+import YinYangRefreshButton from './YinYangRefreshButton'
 
 type Props={
   user:User
@@ -181,7 +182,7 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
   }
 
   return <section className="plan-entry-screen daily-mobile-workspace actual-plan-entry">
-    <div className="section-head daily-entry-head"><div><div className="eyebrow">ACTUAL PLAN · BATCH INPUT</div><h2>Input Actual Plan</h2><p className="muted">Alur dibuat sama seperti Daily Plan: isi satu hasil → Simpan ke Draft → periksa card → Simpan Semua Actual.</p></div><div className="row-actions"><button type="button" onClick={()=>void load()} disabled={busy}>Refresh</button><button type="button" className="danger" onClick={clearAll} disabled={busy}>Reset Draft</button></div></div>
+    <div className="section-head daily-entry-head"><div><div className="eyebrow">ACTUAL PLAN · BATCH INPUT</div><h2>Input Actual Plan</h2><p className="muted">Alur dibuat sama seperti Daily Plan: isi satu hasil → Simpan ke Draft → periksa card → Simpan Semua Actual.</p></div><div className="row-actions"><YinYangRefreshButton busy={busy} label="Refresh" onClick={()=>void load()}/><button type="button" className="danger" onClick={clearAll} disabled={busy}>Reset Draft</button></div></div>
     {message&&<div className="alert">{message}</div>}
 
     <form id="actual-active-form" onSubmit={persistedEdit?savePersistedEdit:saveToDraft} className="panel plan-section daily-single-form actual-single-form">

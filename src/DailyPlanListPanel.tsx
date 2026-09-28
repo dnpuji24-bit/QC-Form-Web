@@ -6,6 +6,7 @@ import { dailyPlansToWhatsApp, type DailyPlanTransfer } from './dailyPlanActions
 import { groupSavedDailyRows, type DailyComposerRequest, type SavedDailyGroup, type SavedDailyRow } from './dailyPlanWorkspaceTypes'
 import type { User } from './types'
 import { canEditAccess } from './accessControl'
+import YinYangRefreshButton from './YinYangRefreshButton'
 
 type Props={
   user:User
@@ -131,7 +132,7 @@ export default function DailyPlanListPanel({user,onCopyToActual,selectedDate,com
   const totals=useMemo(()=>visibleGroups.reduce((acc,group)=>({groups:acc.groups+1,pids:acc.pids+group.rows.filter(row=>!focusMonthlyPlanLineId||row.monthlyPlanLineId===focusMonthlyPlanLineId).length,area:acc.area+group.rows.filter(row=>!focusMonthlyPlanLineId||row.monthlyPlanLineId===focusMonthlyPlanLineId).reduce((sum,row)=>sum+row.areaHa,0),hk:acc.hk+group.manpower}),{groups:0,pids:0,area:0,hk:0}),[visibleGroups,focusMonthlyPlanLineId])
 
   return <section className="daily-period-saved">
-    <div className="section-head compact-saved-head"><div><div className="eyebrow">PLAN TERSIMPAN</div><h3>Daily Plan · {selectedDate||'-'}</h3><p className="muted">{visibleGroups.length} kegiatan · {focusMonthlyPlanLineId?visibleGroups.reduce((sum,group)=>sum+group.rows.filter(row=>row.monthlyPlanLineId===focusMonthlyPlanLineId).length,0):rows.length} PID. Edit dan duplikat menggunakan form utama di atas.</p></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'…':'Refresh'}</button></div>
+    <div className="section-head compact-saved-head"><div><div className="eyebrow">PLAN TERSIMPAN</div><h3>Daily Plan · {selectedDate||'-'}</h3><p className="muted">{visibleGroups.length} kegiatan · {focusMonthlyPlanLineId?visibleGroups.reduce((sum,group)=>sum+group.rows.filter(row=>row.monthlyPlanLineId===focusMonthlyPlanLineId).length,0):rows.length} PID. Edit dan duplikat menggunakan form utama di atas.</p></div><YinYangRefreshButton busy={busy} label="Refresh" compact onClick={()=>void load()}/></div>
     {message&&<div className="alert">{message}</div>}
     {focusMonthlyPlanLineId&&<div className="alert daily-monthly-focus"><div><strong>Dibuka dari Monthly Plan</strong><span>{focusPid||'-'} · {focusMonthlyPlanLineId} · tanggal {selectedDate||'-'}</span></div><button type="button" onClick={onClearMonthlyFocus}>Tampilkan Semua Daily</button></div>}
     <div className="plan-summary-grid daily-draft-summary"><div><span>Kegiatan</span><strong>{totals.groups}</strong></div><div><span>PID</span><strong>{totals.pids}</strong></div><div><span>Total Luas</span><strong>{formatHa(totals.area)}</strong></div><div><span>Total HK</span><strong>{totals.hk}</strong></div></div>
