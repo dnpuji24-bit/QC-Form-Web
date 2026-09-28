@@ -7,8 +7,11 @@ for token in [
     "function smartMonthlyChoices",
     "compactPaddockKey",
     "shortPaddockCode",
-    "const byPlanId=scoped.filter(row=>searchKey(row.planLineId).startsWith(q))",
-    "if(byPlanId.length)return byPlanId",
+    "function monthlyActivityCompatible",
+    "function monthlyPidMatches",
+    "const matches=rows.filter(row=>monthlyPidMatches(row,input))",
+    "const compatibleMatches=matches.filter(row=>monthlyActivityCompatible(row,activity,rows))",
+    "return compatibleMatches.length?compatibleMatches:matches",
     "full.startsWith(code)",
     "short.startsWith(code)",
     "fullCompact.startsWith(compact)",
@@ -65,4 +68,4 @@ for token in [
     assert token in daily, f'Missing cross-month Daily Monthly lookup token: {token}'
 
 
-print('Daily Monthly smart search check passed: short PID prefixes such as O, O003, or O-003 resolve active Monthly IDs while availability still respects Actual/manual progress.')
+print('Daily Monthly smart search check passed: short PID prefixes resolve active Monthly IDs across week/month while availability still respects Actual/manual progress.')
