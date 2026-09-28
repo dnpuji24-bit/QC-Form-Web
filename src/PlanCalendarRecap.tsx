@@ -30,6 +30,8 @@ function dailyFromData(data:Record<string,unknown>,id:string):DailyRow{return{da
 function actualFromData(data:Record<string,unknown>,id:string):ActualRow{return{actualReportId:text(data.actualReportId||id),dailyPlanId:text(data.dailyPlanId),date:text(data.date),shift:text(data.shift),activity:activityLabel(text(data.activity||data.description)),pid:text(data.pid).toUpperCase(),actualAreaHa:num(data.actualAreaHa),foreman:text(data.foreman),monthlyPlanLineId:text(data.monthlyPlanLineId)}}
 
 function CalendarIcon(){return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M12 14h3M17 14h1M7 18h3M12 18h3" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg>}
+function YinYangIcon({spinning=false}:{spinning?:boolean}){return <svg className={spinning?'yin-yang-icon spinning':'yin-yang-icon'} viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 5 5 0 0 1 0-10 5 5 0 0 0 0-10Z" fill="currentColor"/><path d="M12 2a5 5 0 0 1 0 10 5 5 0 0 0 0 10 10 10 0 0 0 0-20Z" fill="none" stroke="currentColor" strokeWidth="1.5"/><circle cx="12" cy="7" r="1.35" fill="white"/><circle cx="12" cy="17" r="1.35" fill="currentColor"/></svg>}
+function MonthChevronIcon(){return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6.5 8 3.5 3.5L13.5 8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
 
 export default function PlanCalendarRecap(){
   const today=dateKey(new Date())
@@ -82,6 +84,11 @@ export default function PlanCalendarRecap(){
     setCursor(dateKey(d))
   }
   function openDay(date:string){setCursor(date);setMode('day')}
+  function jumpToMonth(value:string){
+    if(!/^\d{4}-\d{2}$/.test(value))return
+    const current=parseDate(cursor),[year,month]=value.split('-').map(Number),last=new Date(year,month,0).getDate(),day=Math.min(current.getDate(),last)
+    setCursor(dateKey(new Date(year,month-1,day,12)))
+  }
   function periodTitle(){
     if(mode==='day')return fmtDayTitle(cursor)
     if(mode==='week')return fmtShort(startOfWeek(cursor))+' – '+fmtShort(endOfWeek(cursor))+' '+parseDate(endOfWeek(cursor)).getFullYear()
@@ -92,11 +99,18 @@ export default function PlanCalendarRecap(){
   const monthDates=useMemo(()=>{const start=monthStart(cursor),count=parseDate(monthEnd(cursor)).getDate();return Array.from({length:count},(_,i)=>addDays(start,i))},[cursor])
   const monthFirstColumn=monthDates.length?parseDate(monthDates[0]).getDay()+1:1
   const cursorMonth=parseDate(cursor).getMonth()
+  const cursorMonthValue=cursor.slice(0,7)
 
   return <section className="plan-calendar-recap">
-    <div className="calendar-recap-topbar">
-      <div className="calendar-recap-heading"><span className="calendar-recap-icon"><CalendarIcon/></span><div><div className="eyebrow">CALENDAR REKAP</div><h2>Plan & Actual Calendar</h2><p className="muted">Klik tanggal untuk melihat kegiatan dan paddock yang di-plan serta actual-nya.</p></div></div>
-      <div className="calendar-recap-actions"><button type="button" onClick={()=>setCursor(today)}>Hari Ini</button><button type="button" aria-label="Sebelumnya" onClick={()=>move(-1)}>‹</button><button type="button" aria-label="Berikutnya" onClick={()=>move(1)}>›</button><strong>{periodTitle()}</strong><div className="calendar-view-switch"><button type="button" className={mode==='day'?'active':''} onClick={()=>setMode('day')}>Day</button><button type="button" className={mode==='week'?'active':''} onClick={()=>setMode('week')}>Week</button><button type="button" className={mode==='month'?'active':''} onClick={()=>setMode('month')}>Month</button></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'…':'Refresh'}</button></div>
+    <div className="calendar-recap-topbar premium">
+      <div className="calendar-recap-heading"><span className="calendar-recap-icon"><CalendarIcon/></span><div><div className="eyebrow">CALENDAR REKAP</div><h2>Plan & Actual Calendar</h2><p className="muted">Timeline operasional Plan vs Actual — klik tanggal untuk melihat detail kegiatan dan paddock.</p></div></div>
+      <div className="calendar-recap-actions">
+        <button type="button" className="calendar-today-btn" onClick={()=>setCursor(today)}>Hari Ini</button>
+        <div className="calendar-period-nav"><button type="button" aria-label="Periode sebelumnya" onClick={()=>move(-1)}>‹</button><button type="button" aria-label="Periode berikutnya" onClick={()=>move(1)}>›</button></div>
+        {mode==='month'?<label className="calendar-month-picker" title="Pilih bulan"><span>{periodTitle()}</span><MonthChevronIcon/><input type="month" value={cursorMonthValue} onChange={e=>jumpToMonth(e.target.value)} aria-label="Pilih bulan Calendar Rekap"/></label>:<strong className="calendar-period-title">{periodTitle()}</strong>}
+        <div className="calendar-view-switch"><button type="button" className={mode==='day'?'active':''} onClick={()=>setMode('day')}>Day</button><button type="button" className={mode==='week'?'active':''} onClick={()=>setMode('week')}>Week</button><button type="button" className={mode==='month'?'active':''} onClick={()=>setMode('month')}>Month</button></div>
+        <button type="button" className="calendar-refresh-btn" disabled={busy} onClick={()=>void load()} aria-label="Refresh Calendar Rekap" title="Refresh data"><YinYangIcon spinning={busy}/><span>Refresh</span></button>
+      </div>
     </div>
     {message&&<div className="alert">{message}</div>}
 
@@ -121,7 +135,7 @@ export default function PlanCalendarRecap(){
         </section>}
 
         {mode==='month'&&<section className="calendar-month-view">
-          <div className="calendar-month-summary"><div><span>Plan Bulan</span><strong>{fmtHa(totals.plan)}</strong></div><div><span>Actual Bulan</span><strong>{fmtHa(totals.actual)}</strong></div><div><span>Selisih</span><strong className={totals.actual<totals.plan?'negative':'positive'}>{fmtHa(totals.actual-totals.plan)}</strong></div></div>
+          <div className="calendar-month-summary"><div className="plan"><span>Plan Bulan</span><strong>{fmtHa(totals.plan)}</strong></div><div className="actual"><span>Actual Bulan</span><strong>{fmtHa(totals.actual)}</strong></div><div className="balance"><span>Selisih</span><strong className={totals.actual<totals.plan?'negative':'positive'}>{fmtHa(totals.actual-totals.plan)}</strong></div></div>
           <div className="calendar-month-weekdays">{DAY_NAMES.map(day=><span key={day}>{day}</span>)}</div>
           <div className="calendar-month-grid">{monthDates.map((date,index)=>{const d=parseDate(date),rows=itemsByDate.get(date)||[],activityGroups=[...new Map(rows.map(x=>[normalize(x.activity),x.activity])).values()],plan=rows.reduce((s,x)=>s+x.plan,0),actualValue=rows.reduce((s,x)=>s+x.actual,0);return <button type="button" key={date} style={index===0?{gridColumnStart:monthFirstColumn}:undefined} className={'calendar-month-cell '+(date===today?'today ':'')} onClick={()=>openDay(date)}><div className="calendar-month-date"><strong>{d.getDate()}</strong>{rows.length>0&&<span>{fmtHa(plan)} / {fmtHa(actualValue)}</span>}</div><div className="calendar-month-events">{activityGroups.slice(0,4).map(activity=><span key={activity}>{activity}</span>)}{activityGroups.length>4&&<small>+{activityGroups.length-4} lainnya</small>}</div></button>})}</div>
         </section>}

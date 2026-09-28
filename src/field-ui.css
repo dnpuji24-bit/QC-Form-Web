@@ -3163,3 +3163,60 @@
   .calendar-recap-actions{gap:5px}.calendar-recap-actions>button{padding:6px 8px;font-size:.72rem}.calendar-view-switch{width:100%}.calendar-view-switch button{flex:1;min-width:0}
   .calendar-day-view{padding:9px}.calendar-day-summary{gap:6px}.calendar-day-summary>div{padding:8px}.calendar-day-table th,.calendar-day-table td{padding:8px;font-size:.72rem}
 }
+
+
+/* Calendar Rekap premium navigation + month picker */
+.plan-calendar-recap{--cal-ink:#0f172a;--cal-muted:#64748b;--cal-line:#dbe3ef;--cal-blue:#2563eb;--cal-blue-soft:#eff6ff}
+.calendar-recap-topbar.premium{position:relative;overflow:visible;padding:16px 18px;border-color:rgba(148,163,184,.34);background:linear-gradient(135deg,rgba(255,255,255,.98),rgba(248,251,255,.96));box-shadow:0 14px 42px rgba(15,23,42,.07),0 1px 0 rgba(255,255,255,.8) inset}
+.calendar-recap-topbar.premium:before{content:"";position:absolute;left:0;top:16px;bottom:16px;width:3px;border-radius:0 6px 6px 0;background:linear-gradient(180deg,#2563eb,#60a5fa)}
+.calendar-recap-heading h2{letter-spacing:-.025em}.calendar-recap-heading .eyebrow{letter-spacing:.12em}.calendar-recap-heading p{font-size:.78rem}
+.calendar-recap-icon{background:linear-gradient(145deg,#eff6ff,#dbeafe);border:1px solid #bfdbfe;box-shadow:0 8px 22px rgba(37,99,235,.12),0 1px 0 #fff inset}
+
+.calendar-recap-actions{padding:4px;border-radius:15px}
+.calendar-today-btn{border-color:#d8e1ee!important;background:#fff!important;color:#334155!important;font-weight:850!important;box-shadow:0 3px 10px rgba(15,23,42,.04)!important}
+.calendar-today-btn:hover{border-color:#93c5fd!important;color:#1d4ed8!important;background:#f8fbff!important}
+.calendar-period-nav{display:flex;gap:4px;padding:3px;border:1px solid #dbe3ef;border-radius:11px;background:#fff;box-shadow:0 3px 10px rgba(15,23,42,.035)}
+.calendar-period-nav button{width:32px!important;height:32px!important;min-width:32px!important;min-height:32px!important;padding:0!important;border:0!important;border-radius:8px!important;background:transparent!important;color:#334155!important;font-size:1.15rem!important;box-shadow:none!important}
+.calendar-period-nav button:hover{background:#eef4ff!important;color:#1d4ed8!important}
+
+.calendar-period-title{min-width:190px;padding:8px 12px;text-align:center;color:#172033;font-weight:950;letter-spacing:-.01em}
+.calendar-month-picker{position:relative;display:flex;align-items:center;justify-content:center;gap:6px;min-width:190px;min-height:38px;padding:7px 11px;border:1px solid #d7e0ec;border-radius:11px;background:linear-gradient(180deg,#fff,#f8fafc);color:#172033;font-weight:950;letter-spacing:-.01em;cursor:pointer;box-shadow:0 4px 13px rgba(15,23,42,.045);transition:.18s ease}
+.calendar-month-picker:hover{border-color:#93c5fd;background:#fff;box-shadow:0 7px 20px rgba(37,99,235,.1);transform:translateY(-1px)}
+.calendar-month-picker>svg{width:16px;height:16px;color:#64748b;flex:0 0 auto}
+.calendar-month-picker>input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0}
+
+.calendar-view-switch{padding:4px;border-color:#d8e1ee;background:#f1f5f9;box-shadow:inset 0 1px 2px rgba(15,23,42,.03)}
+.calendar-view-switch button{min-width:72px;min-height:32px;font-weight:850!important;color:#64748b!important;transition:.16s ease}
+.calendar-view-switch button:hover{color:#1d4ed8!important}
+.calendar-view-switch button.active{background:#fff!important;color:#1d4ed8!important;box-shadow:0 3px 10px rgba(37,99,235,.13)!important}
+
+.calendar-refresh-btn{display:inline-flex!important;align-items:center;justify-content:center;gap:7px!important;min-width:42px!important;border-color:#d8e1ee!important;background:#fff!important;color:#172033!important;font-weight:850!important;box-shadow:0 3px 10px rgba(15,23,42,.045)!important}
+.calendar-refresh-btn:hover{border-color:#a5b4fc!important;background:#f8faff!important;color:#3730a3!important}
+.yin-yang-icon{width:19px;height:19px;display:block}.yin-yang-icon.spinning{animation:calendar-yinyang-spin .85s linear infinite}
+@keyframes calendar-yinyang-spin{to{transform:rotate(360deg)}}
+
+.calendar-recap-main{border-color:rgba(148,163,184,.34);box-shadow:0 16px 45px rgba(15,23,42,.065)}
+.calendar-month-summary{gap:10px;padding:11px 13px;background:linear-gradient(180deg,#fbfdff,#f8fafc)}
+.calendar-month-summary>div{position:relative;overflow:hidden;min-width:138px;padding:9px 12px;border-color:#e2e8f0;border-radius:11px;box-shadow:0 4px 12px rgba(15,23,42,.035)}
+.calendar-month-summary>div:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px}
+.calendar-month-summary>div.plan:before{background:#3b82f6}.calendar-month-summary>div.actual:before{background:#10b981}.calendar-month-summary>div.balance:before{background:#8b5cf6}
+.calendar-month-summary span{font-size:.6rem;letter-spacing:.04em;text-transform:uppercase}.calendar-month-summary strong{font-size:.82rem;letter-spacing:-.01em}
+.calendar-month-weekdays{background:#fbfdff}.calendar-month-weekdays span{padding:10px 9px;color:#475569;letter-spacing:.03em}
+.calendar-month-cell{transition:background .15s ease,box-shadow .15s ease}.calendar-month-cell:hover{position:relative;z-index:2;background:#fbfdff!important;box-shadow:inset 0 0 0 1px #bfdbfe!important}
+.calendar-month-events span{border:1px solid #dbeafe;background:linear-gradient(180deg,#f3f8ff,#eaf3ff);color:#1d4ed8;border-radius:6px}
+.calendar-month-date strong{font-weight:950}.calendar-month-date span{padding:2px 4px;border-radius:5px;background:#f8fafc}
+
+@media(max-width:900px){
+  .calendar-recap-topbar.premium{padding:13px}
+  .calendar-recap-actions{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:7px}
+  .calendar-period-title,.calendar-month-picker{grid-column:1/-1;grid-row:1;justify-self:stretch;min-width:0;width:100%}
+  .calendar-view-switch{grid-column:1/-1;width:100%}.calendar-view-switch button{flex:1}
+  .calendar-refresh-btn span{display:none}.calendar-refresh-btn{min-width:38px!important;width:38px!important;padding:0!important}
+}
+@media(max-width:520px){
+  .calendar-recap-actions{grid-template-columns:auto auto 1fr}
+  .calendar-period-nav{justify-self:start}
+  .calendar-month-picker{font-size:.86rem}
+  .calendar-month-summary{display:grid;grid-template-columns:repeat(3,1fr);min-width:820px}
+  .calendar-month-summary>div{min-width:0}
+}

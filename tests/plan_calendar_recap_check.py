@@ -50,4 +50,19 @@ assert "calendar-month-summary" in calendar
 assert ".calendar-recap-layout.month-mode{grid-template-columns:minmax(0,1fr)}" in css
 assert "grid-auto-rows:minmax(132px,1fr)" in css
 
+
+assert "function YinYangIcon" in calendar
+assert "function MonthChevronIcon" in calendar
+assert "function jumpToMonth(value:string)" in calendar
+assert "const cursorMonthValue=cursor.slice(0,7)" in calendar
+assert 'className="calendar-month-picker"' in calendar
+assert 'type="month" value={cursorMonthValue}' in calendar
+assert "onChange={e=>jumpToMonth(e.target.value)}" in calendar
+assert 'className="calendar-refresh-btn"' in calendar
+assert "YinYangIcon spinning={busy}" in calendar
+assert "Calendar Rekap premium navigation + month picker" in css
+assert ".calendar-month-picker{" in css
+assert ".yin-yang-icon.spinning{" in css
+assert "@keyframes calendar-yinyang-spin" in css
+
 print("Calendar Rekap Day/Week/Month checks: OK")
