@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { collection, getDocs, query as fsQuery, where } from 'firebase/firestore'
 import { firestoreDb } from './firebase'
+import { YinYangIcon } from './YinYangRefreshButton'
 
 type ViewMode='day'|'week'|'month'
 type DailyRow={dailyPlanId:string;date:string;shift:string;activity:string;pid:string;areaHa:number;foreman:string;monthlyPlanLineId:string}
@@ -30,7 +31,6 @@ function dailyFromData(data:Record<string,unknown>,id:string):DailyRow{return{da
 function actualFromData(data:Record<string,unknown>,id:string):ActualRow{return{actualReportId:text(data.actualReportId||id),dailyPlanId:text(data.dailyPlanId),date:text(data.date),shift:text(data.shift),activity:activityLabel(text(data.activity||data.description)),pid:text(data.pid).toUpperCase(),actualAreaHa:num(data.actualAreaHa),foreman:text(data.foreman),monthlyPlanLineId:text(data.monthlyPlanLineId)}}
 
 function CalendarIcon(){return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M12 14h3M17 14h1M7 18h3M12 18h3" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg>}
-function YinYangIcon({spinning=false}:{spinning?:boolean}){return <svg className={spinning?'yin-yang-icon spinning':'yin-yang-icon'} viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 5 5 0 0 1 0-10 5 5 0 0 0 0-10Z" fill="currentColor"/><path d="M12 2a5 5 0 0 1 0 10 5 5 0 0 0 0 10 10 10 0 0 0 0-20Z" fill="none" stroke="currentColor" strokeWidth="1.5"/><circle cx="12" cy="7" r="1.35" fill="white"/><circle cx="12" cy="17" r="1.35" fill="currentColor"/></svg>}
 function MonthChevronIcon(){return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6.5 8 3.5 3.5L13.5 8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
 
 export default function PlanCalendarRecap(){

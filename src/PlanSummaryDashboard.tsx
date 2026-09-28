@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { collection, getDocs, query as fsQuery, where } from 'firebase/firestore'
 import { firestoreDb } from './firebase'
+import YinYangRefreshButton from './YinYangRefreshButton'
 
 type MonthlyRow={planLineId:string;monthKey:string;week:string;companyCode:string;farm:string;pid:string;activity:string;description:string;targetAreaHa:number;manualActualAreaHa:number;variety:string;stage:string;cancelled:boolean;sourceStatus:string}
 type DailyRow={dailyPlanId:string;date:string;monthKey:string;shift:string;companyCode:string;farm:string;pid:string;activity:string;areaHa:number;sourceType:string;monthlyPlanLineId:string;foreman:string}
@@ -143,8 +144,8 @@ export default function PlanSummaryDashboard(){
   function resetFilters(){setSelectedWeek('ALL');setCompany('ALL');setFarm('ALL');setShift('ALL');setForeman('ALL')}
 
   return <section className="plan-summary-dashboard">
-    <div className="section-head"><div><div className="eyebrow">SUMMARY PLAN</div><h2>Dashboard Daily Plan & Aktual</h2><p className="muted">Produktivitas harian, pencapaian Monthly Plan, dan Summary Activity per tanggal dalam satu filter.</p></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'Memuat…':'Refresh Summary'}</button></div>
-    {message&&<div className="alert">{message}</div>}
+    <div className="section-head summary-compact-head"><div><div className="eyebrow">SUMMARY PLAN</div><h2>Dashboard Daily Plan & Aktual</h2><p className="muted">Produktivitas harian, pencapaian Monthly Plan, dan Summary Activity per tanggal dalam satu filter.</p></div><YinYangRefreshButton busy={busy} label="Refresh Summary" onClick={()=>void load()}/></div>
+    {message&&<div className="alert summary-compact-alert">{message}</div>}
 
     <section className="panel summary-filter-panel premium-filter-panel">
       <div className="premium-filter-head">
