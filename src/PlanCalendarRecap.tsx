@@ -40,7 +40,7 @@ export default function PlanCalendarRecap(){
   const range=useMemo(()=>{
     if(mode==='day')return{start:cursor,end:cursor}
     if(mode==='week')return{start:startOfWeek(cursor),end:endOfWeek(cursor)}
-    const dates=monthGridDates(cursor);return{start:dates[0],end:dates[dates.length-1]}
+    return{start:monthStart(cursor),end:monthEnd(cursor)}
   },[mode,cursor])
 
   async function load(){
@@ -88,8 +88,9 @@ export default function PlanCalendarRecap(){
     const d=parseDate(cursor);return MONTH_NAMES[d.getMonth()]+' '+d.getFullYear()
   }
   const weekDates=useMemo(()=>Array.from({length:7},(_,i)=>addDays(startOfWeek(cursor),i)),[cursor])
-  const gridDates=useMemo(()=>monthGridDates(cursor),[cursor])
-  const miniDates=gridDates
+  const miniDates=useMemo(()=>monthGridDates(cursor),[cursor])
+  const monthDates=useMemo(()=>{const start=monthStart(cursor),count=parseDate(monthEnd(cursor)).getDate();return Array.from({length:count},(_,i)=>addDays(start,i))},[cursor])
+  const monthFirstColumn=monthDates.length?parseDate(monthDates[0]).getDay()+1:1
   const cursorMonth=parseDate(cursor).getMonth()
 
   return <section className="plan-calendar-recap">
@@ -99,13 +100,13 @@ export default function PlanCalendarRecap(){
     </div>
     {message&&<div className="alert">{message}</div>}
 
-    <div className="calendar-recap-layout">
-      <aside className="calendar-recap-sidebar">
+    <div className={'calendar-recap-layout '+(mode==='month'?'month-mode':'')}>
+      {mode!=='month'&&<aside className="calendar-recap-sidebar">
         <div className="calendar-mini-title">{MONTH_NAMES[parseDate(cursor).getMonth()]} {parseDate(cursor).getFullYear()}</div>
         <div className="calendar-mini-weekdays">{DAY_NAMES.map(day=><span key={day}>{day[0]}</span>)}</div>
         <div className="calendar-mini-grid">{miniDates.map(date=>{const d=parseDate(date),outside=d.getMonth()!==cursorMonth;return <button type="button" key={date} className={(date===cursor?'selected ':'')+(date===today?'today ':'')+(outside?'outside':'')} onClick={()=>openDay(date)}>{d.getDate()}</button>})}</div>
         <div className="calendar-recap-totals"><span>Periode aktif</span><strong>Plan {fmtHa(totals.plan)}</strong><strong>Actual {fmtHa(totals.actual)}</strong><small>Selisih {fmtHa(totals.actual-totals.plan)}</small></div>
-      </aside>
+      </aside>}
 
       <main className="calendar-recap-main">
         {mode==='day'&&<section className="calendar-day-view">
@@ -120,8 +121,9 @@ export default function PlanCalendarRecap(){
         </section>}
 
         {mode==='month'&&<section className="calendar-month-view">
+          <div className="calendar-month-summary"><div><span>Plan Bulan</span><strong>{fmtHa(totals.plan)}</strong></div><div><span>Actual Bulan</span><strong>{fmtHa(totals.actual)}</strong></div><div><span>Selisih</span><strong className={totals.actual<totals.plan?'negative':'positive'}>{fmtHa(totals.actual-totals.plan)}</strong></div></div>
           <div className="calendar-month-weekdays">{DAY_NAMES.map(day=><span key={day}>{day}</span>)}</div>
-          <div className="calendar-month-grid">{gridDates.map(date=>{const d=parseDate(date),outside=d.getMonth()!==cursorMonth,rows=itemsByDate.get(date)||[],activityGroups=[...new Map(rows.map(x=>[normalize(x.activity),x.activity])).values()],plan=rows.reduce((s,x)=>s+x.plan,0),actualValue=rows.reduce((s,x)=>s+x.actual,0);return <button type="button" key={date} className={'calendar-month-cell '+(outside?'outside ':'')+(date===today?'today ':'')} onClick={()=>openDay(date)}><div className="calendar-month-date"><strong>{d.getDate()}</strong>{rows.length>0&&<span>{fmtHa(plan)} / {fmtHa(actualValue)}</span>}</div><div className="calendar-month-events">{activityGroups.slice(0,3).map(activity=><span key={activity}>{activity}</span>)}{activityGroups.length>3&&<small>+{activityGroups.length-3} lainnya</small>}</div></button>})}</div>
+          <div className="calendar-month-grid">{monthDates.map((date,index)=>{const d=parseDate(date),rows=itemsByDate.get(date)||[],activityGroups=[...new Map(rows.map(x=>[normalize(x.activity),x.activity])).values()],plan=rows.reduce((s,x)=>s+x.plan,0),actualValue=rows.reduce((s,x)=>s+x.actual,0);return <button type="button" key={date} style={index===0?{gridColumnStart:monthFirstColumn}:undefined} className={'calendar-month-cell '+(date===today?'today ':'')} onClick={()=>openDay(date)}><div className="calendar-month-date"><strong>{d.getDate()}</strong>{rows.length>0&&<span>{fmtHa(plan)} / {fmtHa(actualValue)}</span>}</div><div className="calendar-month-events">{activityGroups.slice(0,4).map(activity=><span key={activity}>{activity}</span>)}{activityGroups.length>4&&<small>+{activityGroups.length-4} lainnya</small>}</div></button>})}</div>
         </section>}
       </main>
     </div>

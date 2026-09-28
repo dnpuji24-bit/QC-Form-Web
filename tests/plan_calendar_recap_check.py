@@ -38,4 +38,16 @@ for token in [
 ]:
     assert token in css, f"Missing Calendar Rekap CSS token: {token}"
 
+
+assert "return{start:monthStart(cursor),end:monthEnd(cursor)}" in calendar
+assert "const monthDates=useMemo" in calendar
+assert "const monthFirstColumn=" in calendar
+assert "mode!=='month'&&<aside" in calendar
+assert "month-mode" in calendar
+assert "gridDates.map" not in calendar
+assert "style={index===0?{gridColumnStart:monthFirstColumn}:undefined}" in calendar
+assert "calendar-month-summary" in calendar
+assert ".calendar-recap-layout.month-mode{grid-template-columns:minmax(0,1fr)}" in css
+assert "grid-auto-rows:minmax(132px,1fr)" in css
+
 print("Calendar Rekap Day/Week/Month checks: OK")
