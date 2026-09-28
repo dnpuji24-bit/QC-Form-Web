@@ -41,13 +41,13 @@ export default function MonthlyPlanListPanel({user,selectedMonth,selectedWeek,co
   const[searchDaily,setSearchDaily]=useState<DailyRef[]>([]),[searchActuals,setSearchActuals]=useState<ActualRef[]>([])
   const isOwner=user.role==='owner',canWrite=canEditAccess(user,'data_plan_monthly')
 
-  async function load(){if(!firestoreDb){setMessage('Firestore belum tersedia.');return}setSourceSearchLoaded(false);setSourceCatalog([]);setSearchDaily([]);setSearchActuals([]);setBusy(true);const monthFilter=selectedMonth||new Date().toISOString().slice(0,7);setMessage('Memuat Monthly '+monthFilter+'…');try{
-    const planSnap=await getDocs(fsQuery(collection(firestoreDb,'monthly_plans'),where('monthKey','==',monthFilter)))
+  async function load(){if(!firestoreDb){setMessage('Firestore belum tersedia.');return}const db=firestoreDb;setSourceSearchLoaded(false);setSourceCatalog([]);setSearchDaily([]);setSearchActuals([]);setBusy(true);const monthFilter=selectedMonth||new Date().toISOString().slice(0,7);setMessage('Memuat Monthly '+monthFilter+'…');try{
+    const planSnap=await getDocs(fsQuery(collection(db,'monthly_plans'),where('monthKey','==',monthFilter)))
     const next=planSnap.docs.map(x=>rowFromData(x.id,x.data() as Record<string,unknown>)).sort((a,b)=>{const aTime=a.createdAt||a.updatedAt||a.inputDate,bTime=b.createdAt||b.updatedAt||b.inputDate;return bTime.localeCompare(aTime)||b.planLineId.localeCompare(a.planLineId,undefined,{numeric:true})||b.pid.localeCompare(a.pid,undefined,{numeric:true})})
     const ids=next.map(x=>x.planLineId).filter(Boolean),dailyDocs:any[]=[],actualDocs:any[]=[]
     for(let i=0;i<ids.length;i+=30){const part=ids.slice(i,i+30);const[d,a]=await Promise.all([getDocs(fsQuery(collection(db,'daily_plans'),where('monthlyPlanLineId','in',part))),getDocs(fsQuery(collection(db,'daily_reports'),where('monthlyPlanLineId','in',part)))]);dailyDocs.push(...d.docs);actualDocs.push(...a.docs)}
     setRows(next);setDaily(dailyDocs.map(x=>{const d=x.data() as Record<string,unknown>;return{id:x.id,dailyPlanId:text(d.dailyPlanId||x.id),monthlyPlanLineId:text(d.monthlyPlanLineId),date:text(d.date),shift:text(d.shift),foreman:text(d.foreman),pid:text(d.pid),activity:text(d.activity||d.description),areaHa:num(d.areaHa)}}).sort((a,b)=>a.date.localeCompare(b.date)||a.shift.localeCompare(b.shift,undefined,{numeric:true})||a.dailyPlanId.localeCompare(b.dailyPlanId,undefined,{numeric:true})));setActuals(actualDocs.map(x=>{const d=x.data() as Record<string,unknown>;return{monthlyPlanLineId:text(d.monthlyPlanLineId),actualAreaHa:num(d.actualAreaHa)}}))
-    if(compact)setLogs([]);else{const logSnap=await getDocs(collection(firestoreDb,'monthly_plan_import_logs'));setLogs(logSnap.docs.map(x=>logFromData(x.id,x.data() as Record<string,unknown>)).sort((a,b)=>b.importedAt.localeCompare(a.importedAt)).slice(0,10))}
+    if(compact)setLogs([]);else{const logSnap=await getDocs(collection(db,'monthly_plan_import_logs'));setLogs(logSnap.docs.map(x=>logFromData(x.id,x.data() as Record<string,unknown>)).sort((a,b)=>b.importedAt.localeCompare(a.importedAt)).slice(0,10))}
     setMessage('Monthly '+monthFilter+': '+next.length+' Plan Line. Actual = Actual Plan terhubung + progress manual/historis.')
   }catch(error){setMessage(error instanceof Error?error.message:'Monthly Plan gagal dimuat.')}finally{setBusy(false)}}
   useEffect(()=>{void load()},[selectedMonth,refreshKey])
@@ -83,8 +83,8 @@ export default function MonthlyPlanListPanel({user,selectedMonth,selectedWeek,co
         for(let i=0;i<ids.length;i+=30){
           const part=ids.slice(i,i+30)
           const[d,a]=await Promise.all([
-            getDocs(fsQuery(collection(firestoreDb,'daily_plans'),where('monthlyPlanLineId','in',part))),
-            getDocs(fsQuery(collection(firestoreDb,'daily_reports'),where('monthlyPlanLineId','in',part))),
+            getDocs(fsQuery(collection(db,'daily_plans'),where('monthlyPlanLineId','in',part))),
+            getDocs(fsQuery(collection(db,'daily_reports'),where('monthlyPlanLineId','in',part))),
           ])
           dailyDocs.push(...d.docs);actualDocs.push(...a.docs)
         }
