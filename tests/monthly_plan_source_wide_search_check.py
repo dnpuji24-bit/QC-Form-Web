@@ -7,7 +7,7 @@ for token in [
     "sourceCatalog",
     "sourceSearchLoaded",
     "sourceSearchBusy",
-    "getDocs(collection(firestoreDb,'monthly_plans'))",
+    "getDocs(collection(db,'monthly_plans'))",
     "const sourceMatches=useMemo",
     "effectiveRows=searchingSource?sourceMatches:rows",
     "effectiveDaily=searchingSource?searchDaily:daily",
