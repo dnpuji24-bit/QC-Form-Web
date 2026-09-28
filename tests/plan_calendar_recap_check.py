@@ -51,7 +51,7 @@ assert ".calendar-recap-layout.month-mode{grid-template-columns:minmax(0,1fr)}" 
 assert "grid-auto-rows:minmax(132px,1fr)" in css
 
 
-assert "function YinYangIcon" in calendar
+assert "import { YinYangIcon } from './YinYangRefreshButton'" in calendar
 assert "function MonthChevronIcon" in calendar
 assert "function jumpToMonth(value:string)" in calendar
 assert "const cursorMonthValue=cursor.slice(0,7)" in calendar
