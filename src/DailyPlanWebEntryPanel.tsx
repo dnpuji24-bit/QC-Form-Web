@@ -42,10 +42,11 @@ function normalizeDraft(raw:unknown):DraftState{
   return{date,active:blankWork({shift:legacyShift,foreman:legacyForeman}),works:legacyWorks,editingId:''}
 }
 function cloneWork(work:WorkDraft,newId=true):WorkDraft{return{...work,id:newId?planRowId('daily'):work.id,pids:work.pids.map(pid=>({...pid,id:newId?planRowId('pid'):pid.id}))}}
-function searchKey(value:unknown){return planText(value).toLowerCase().replace(/\s+/g,' ').trim()}
+function normalizedActivityText(value:unknown){return planText(value).normalize('NFKC').replace(/[\u200B-\u200D\uFEFF]/g,'').replace(/\u00A0/g,' ').replace(/\s+/g,' ').trim()}
+function searchKey(value:unknown){return normalizedActivityText(value).toLocaleLowerCase('id-ID')}
 function monthlyOptionLabel(row:Monthly){return row.pid+' — '+row.planLineId+' — '+row.monthKey+'/'+row.week+' — '+(row.description||row.activity)}
 function monthBounds(date:string){const monthKey=date.slice(0,7),[year,month]=monthKey.split('-').map(Number),nextMonth=month===12?`${year+1}-01`:`${year}-${String(month+1).padStart(2,'0')}`;return{monthKey,startDate:monthKey+'-01',nextStartDate:nextMonth+'-01'}}
-function activityLabel(row:Monthly){return planText(row.description||row.activity)}
+function activityLabel(row:Monthly){return normalizedActivityText(row.description||row.activity)}
 function paddockKey(value:unknown){return planText(value).toUpperCase().replace(/\s+/g,'').trim()}
 function compactPaddockKey(value:unknown){return paddockKey(value).replace(/[^A-Z0-9]/g,'')}
 function shortPaddockCode(pid:string){const parts=paddockKey(pid).split('-').filter(Boolean);return parts.length>=2?parts.slice(-2).join('-'):parts.join('-')}
@@ -62,11 +63,12 @@ function smartMonthlyChoices(rows:Monthly[],input:string,activity:string){
     return full.startsWith(code)||short.startsWith(code)||fullCompact.startsWith(compact)||shortCompact.startsWith(compact)
   })
 }
-function activityChoices(rows:Monthly[],input:string){
+function uniqueActivityNames(values:unknown[],input=''){
   const q=searchKey(input),seen=new Set<string>(),out:string[]=[]
-  for(const row of rows){const label=activityLabel(row),key=searchKey(label);if(!label||seen.has(key)||q&&!key.startsWith(q))continue;seen.add(key);out.push(label)}
-  return out.sort((a,b)=>a.localeCompare(b)).slice(0,80)
+  for(const raw of values){const label=normalizedActivityText(raw),key=searchKey(label);if(!label||seen.has(key)||q&&!key.includes(q))continue;seen.add(key);out.push(label)}
+  return out.sort((a,b)=>a.localeCompare(b,'id-ID',{sensitivity:'base'})).slice(0,80)
 }
+function activityChoices(rows:Monthly[],input:string){return uniqueActivityNames(rows.map(activityLabel),input)}
 async function writer(appUser:User){const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.');await firebaseAuthPersistenceReady;if(typeof auth.authStateReady==='function')await auth.authStateReady();const current=auth.currentUser;if(!current)throw new Error('Sesi Firebase belum aktif di perangkat ini. Buka ulang halaman atau login ulang, lalu coba Simpan Semua Daily Plan.');const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.');const p=snap.data() as Record<string,unknown>;if(p.active!==true||!canEditAccess(appUser,'data_plan_daily'))throw new Error('Hak akses Edit Daily Plan belum diberikan.');return{db,username:planText(p.username)||appUser.username}}
 
 export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,onSaved,composerRequest,onComposerRequestHandled}:Props){
@@ -76,6 +78,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
   const[monthly,setMonthly]=useState<Monthly[]>([]),[activityMonthly,setActivityMonthly]=useState<Monthly[]>([]),[daily,setDaily]=useState<Daily[]>([]),[linkedDaily,setLinkedDaily]=useState<Daily[]>([]),[actuals,setActuals]=useState<Actual[]>([]),[linkedActuals,setLinkedActuals]=useState<Actual[]>([]),[paddocks,setPaddocks]=useState<MasterPaddock[]>([]),[activities,setActivities]=useState<MasterActivity[]>([])
   const[resourceUnits,setResourceUnits]=useState<string[]>([]),[resourceShifts,setResourceShifts]=useState<string[]>([]),[resourceForemen,setResourceForemen]=useState<string[]>([])
   const[state,setState]=useState<DraftState>(initial),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[draggingId,setDraggingId]=useState(''),[persistedEdit,setPersistedEdit]=useState<PersistedEditContext|null>(null)
+  const[activityOpen,setActivityOpen]=useState(false)
   const saveFeedbackRef=useRef<HTMLDivElement|null>(null)
   const activityLookupRef=useRef(0),loadedActivityKeysRef=useRef(new Set<string>())
   const availableMonthly=useMemo(()=>{const map=new Map<string,Monthly>();[...monthly,...activityMonthly].forEach(row=>map.set(row.id,row));return[...map.values()].sort((a,b)=>a.monthKey.localeCompare(b.monthKey)||a.week.localeCompare(b.week,undefined,{numeric:true})||a.planLineId.localeCompare(b.planLineId,undefined,{numeric:true}))},[monthly,activityMonthly])
@@ -163,7 +166,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
     const groupActivity=work.activitySearch.trim(),manualActivity=activities.find(a=>[a.activity,a.description].some(v=>searchKey(v)===searchKey(groupActivity)))||null,activityReference=availableMonthly.find(row=>searchKey(activityLabel(row))===searchKey(groupActivity))||null
     const activityComponents=work.sourceType==='MONTHLY'?(activityReference?.componentsSnapshot||[]):(manualActivity?.componentsSnapshot||[]),activityDosePreview=materialLinesFromComponents(activityComponents,1)
     const pids=work.pids.map(pid=>{const choices=work.sourceType==='MONTHLY'?smartMonthlyChoices(selectableMonthly,pid.search,groupActivity):[],selected=availableMonthly.find(x=>x.id===pid.monthlyId)||null,paddock=paddocks.find(p=>p.pid===pid.pid.toUpperCase())||null,area=planNum(pid.area),scheduled=selected?availableDaily.filter(x=>x.monthlyPlanLineId===selected.planLineId).reduce((s,x)=>s+x.areaHa,0):0,linkedActual=selected?(actualByMonthlyId.get(selected.planLineId)||0):0,remaining=selected?selected.targetAreaHa-selected.manualActualAreaHa-Math.max(scheduled,linkedActual):0,materials=materialLinesFromComponents(work.sourceType==='MONTHLY'?(selected?.componentsSnapshot||activityComponents):(manualActivity?.componentsSnapshot||[]),area);return{pid,choices,selected,paddock,area,scheduled,remaining,materials}})
-    return{work,activityOptions:work.sourceType==='MONTHLY'?activityChoices(availableMonthly,groupActivity):activities.map(a=>a.activity||a.description).filter(Boolean),manualActivity,activityReference,activityDosePreview,pids,area:pids.reduce((s,x)=>s+x.area,0),materials:aggregateMaterials(pids.map(x=>x.materials))}
+    return{work,activityOptions:work.sourceType==='MONTHLY'?activityChoices(availableMonthly,groupActivity):uniqueActivityNames(activities.map(a=>a.activity||a.description),groupActivity),manualActivity,activityReference,activityDosePreview,pids,area:pids.reduce((s,x)=>s+x.area,0),materials:aggregateMaterials(pids.map(x=>x.materials))}
   }
 
   const activeInfo=useMemo(()=>buildInfo(state.active),[state.active,availableMonthly,selectableMonthly,availableDaily,activities,paddocks])
@@ -174,6 +177,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
 
   function showSaveFeedback(text:string){setMessage(text);requestAnimationFrame(()=>saveFeedbackRef.current?.scrollIntoView({behavior:'smooth',block:'nearest'}))}
   function patchActive(patch:Partial<WorkDraft>){setState(current=>({...current,active:{...current.active,...patch}}))}
+  function selectActivity(value:string){patchActive({activitySearch:normalizedActivityText(value),pids:state.active.pids.map(pid=>({...pid,search:'',monthlyId:''}))});setActivityOpen(false)}
   function patchActivePid(pidId:string,patch:Partial<PidDraft>){setState(current=>({...current,active:{...current.active,pids:current.active.pids.map(pid=>pid.id===pidId?{...pid,...patch}:pid)}}))}
   function addActivePid(){setState(current=>({...current,active:{...current.active,pids:[...current.active.pids,blankPid()]}}))}
   function removeActivePid(pidId:string){setState(current=>({...current,active:{...current.active,pids:current.active.pids.length>1?current.active.pids.filter(pid=>pid.id!==pidId):[blankPid()]}}))}
@@ -313,7 +317,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
           <label><span>Shift</span><input list="daily-resource-shifts" value={state.active.shift} onChange={e=>patchActive({shift:e.target.value})} placeholder="Ketik shift"/><datalist id="daily-resource-shifts">{resourceShifts.map(x=><option key={x} value={x}/>)}</datalist></label>
           <label><span>Mandor / Foreman</span><input list="daily-resource-foremen" value={state.active.foreman} onChange={e=>patchActive({foreman:e.target.value})} placeholder="Ketik nama mandor"/><datalist id="daily-resource-foremen">{resourceForemen.map(x=><option key={x} value={x}/>)}</datalist></label>
           <label><span>Sumber</span><select value={state.active.sourceType} disabled={!!persistedEdit} onChange={e=>patchActive({sourceType:e.target.value as WorkDraft['sourceType'],activitySearch:'',pids:[blankPid()]})}><option value="MONTHLY">MONTHLY</option><option value="ADHOC">ADHOC</option><option value="SUPPORT">SUPPORT</option></select></label>
-          <label className="daily-activity-field"><span>Kegiatan</span><input list="daily-active-activities" value={state.active.activitySearch} onChange={e=>patchActive({activitySearch:e.target.value,pids:state.active.pids.map(pid=>({...pid,search:'',monthlyId:''}))})} placeholder="Ketik top dressing / pre"/><datalist id="daily-active-activities">{activeInfo.activityOptions.map(x=><option key={x} value={x}/>)}</datalist></label>
+          <label className="daily-activity-field"><span>Kegiatan</span><div className="daily-activity-combobox"><input value={state.active.activitySearch} autoComplete="off" spellCheck={false} aria-autocomplete="list" aria-expanded={activityOpen} aria-controls="daily-activity-options" onFocus={()=>setActivityOpen(true)} onBlur={()=>window.setTimeout(()=>setActivityOpen(false),120)} onKeyDown={e=>{if(e.key==='Escape')setActivityOpen(false)}} onChange={e=>{patchActive({activitySearch:e.target.value,pids:state.active.pids.map(pid=>({...pid,search:'',monthlyId:''}))});setActivityOpen(true)}} placeholder="Ketik kegiatan"/><button type="button" className="daily-activity-toggle" tabIndex={-1} aria-label="Buka pilihan kegiatan" onMouseDown={e=>e.preventDefault()} onClick={()=>setActivityOpen(value=>!value)}>⌄</button>{activityOpen&&<div id="daily-activity-options" className="daily-activity-options" role="listbox">{activeInfo.activityOptions.length?activeInfo.activityOptions.map(x=><button type="button" role="option" aria-selected={searchKey(x)===searchKey(state.active.activitySearch)} key={searchKey(x)} onMouseDown={e=>e.preventDefault()} onClick={()=>selectActivity(x)}>{x}</button>):<div className="daily-activity-no-option">Tidak ada kegiatan yang cocok</div>}</div>}</div></label>
         </div>
       </section>
 
