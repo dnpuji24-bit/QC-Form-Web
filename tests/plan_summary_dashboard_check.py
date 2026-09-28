@@ -7,7 +7,7 @@ css=(root/'src'/'field-ui.css').read_text(encoding='utf-8')
 
 for token in [
     "PlanSummaryDashboard",
-    "type Tab='summary'|'monthly'|'daily'|'actual'|'reconciliation'",
+    "type Tab='summary'|'calendar'|'monthly'|'daily'|'actual'|'reconciliation'",
     "setTab('summary')",
     ">Summary</button>",
 ]:
