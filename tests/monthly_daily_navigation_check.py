@@ -10,10 +10,11 @@ css=(root/'src'/'field-ui.css').read_text(encoding='utf-8')
 
 for token in [
     "Cari Monthly Plan / Paddock",
-    "Contoh: A007 / JAGF-1-A-007 / Top Dressing",
+    "Cari seluruh sumber: PID / Plan Line / Activity / bulan / week…",
     "searchKey(value:unknown)",
     "replace(/[^a-z0-9]/g,'')",
-    "searching&&compact",
+    "const sourceMatches=useMemo",
+    "const filtered=useMemo(()=>searchingSource?viewRows:",
     "DailyRef={id:string;dailyPlanId:string",
     "dailyByMonthlyId",
     "Daily Plan terkait",
@@ -40,4 +41,4 @@ for token in [
 ]:
     assert token in css, f'Missing Monthly search/Daily-link style: {token}'
 
-print('Monthly search and Daily navigation check passed: A007-style normalized search spans the active month, linked Daily dates are visible, and each date opens a focused Daily Plan.')
+print('Monthly search and Daily navigation check passed: normalized search spans the full Firestore Monthly source, linked Daily dates remain visible, and each date opens a focused Daily Plan.')
