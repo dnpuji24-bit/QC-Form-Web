@@ -12,9 +12,9 @@ for token in [
     "where('pid','==',pid)",
     "Pencarian PID Monthly lintas week/bulan gagal.",
     "void loadMonthlyPid(value)",
-    "pilihan aktif lintas week/bulan",
+    "pilihan aktif dengan Activity yang sama",
     "Mencari PID lintas week/bulan",
-    "kelompok kegiatan yang berbeda",
+    "Activity yang berbeda dari Activity pada form.",
 ]:
     assert token in daily, f"Missing Daily PID cross-period token: {token}"
 
