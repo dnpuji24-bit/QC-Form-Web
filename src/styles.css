@@ -146,3 +146,183 @@
   .resource-table-panel table{min-width:620px;font-size:.69rem}
   .resource-table-panel th,.resource-table-panel td{padding:7px 8px}
 }
+
+
+/* =========================================================
+   Premium micro-interactions & view transitions
+   ========================================================= */
+:root{
+  --ui-motion-fast:140ms;
+  --ui-motion-base:220ms;
+  --ui-motion-slow:320ms;
+  --ui-motion-ease:cubic-bezier(.22,.8,.25,1);
+  --ui-motion-spring:cubic-bezier(.2,.9,.25,1.08);
+}
+
+.ui-view-transition{
+  min-width:0;
+  animation:ui-view-enter var(--ui-motion-base) var(--ui-motion-ease) both;
+  transform-origin:50% 0;
+}
+.portal-layer{
+  animation:ui-portal-enter var(--ui-motion-slow) var(--ui-motion-ease) both;
+}
+@keyframes ui-view-enter{
+  from{opacity:0;transform:translateY(8px) scale(.995)}
+  to{opacity:1;transform:none}
+}
+@keyframes ui-portal-enter{
+  from{opacity:0;transform:scale(.992)}
+  to{opacity:1;transform:none}
+}
+
+/* Click / press feedback */
+button:not(:disabled),
+.portal-card,
+.calendar-month-cell,
+.calendar-event-card{
+  -webkit-tap-highlight-color:transparent;
+}
+button:not(:disabled){
+  transition:
+    transform var(--ui-motion-fast) ease,
+    box-shadow var(--ui-motion-fast) ease,
+    background-color var(--ui-motion-fast) ease,
+    border-color var(--ui-motion-fast) ease,
+    color var(--ui-motion-fast) ease;
+}
+button:not(:disabled):active{
+  transform:translateY(1px) scale(.975);
+}
+.portal-return-button:active,
+.scroll-to-top-button:active{
+  transform:translateY(1px) scale(.96)!important;
+}
+
+/* Navigation feels more responsive when the active item changes */
+.tabs button,
+.plan-primary-nav button,
+.plan-secondary-nav button,
+.role-access-tabs button,
+.segmented button{
+  position:relative;
+  transition:
+    background-color var(--ui-motion-base) var(--ui-motion-ease),
+    color var(--ui-motion-base) var(--ui-motion-ease),
+    border-color var(--ui-motion-base) var(--ui-motion-ease),
+    box-shadow var(--ui-motion-base) var(--ui-motion-ease),
+    transform var(--ui-motion-fast) ease!important;
+}
+.tabs button.active,
+.plan-primary-nav button.active,
+.plan-secondary-nav button.active,
+.role-access-tabs button.active,
+.segmented button.active{
+  animation:ui-tab-pop 180ms var(--ui-motion-spring) both;
+}
+@keyframes ui-tab-pop{
+  0%{transform:scale(.97)}
+  70%{transform:scale(1.015)}
+  100%{transform:scale(1)}
+}
+
+/* Cards: subtle depth only on genuinely interactive / summary cards */
+.portal-card,
+.stat,
+.daily-saved-group,
+.activity-card,
+.summary-pie-stats>div{
+  transition:
+    transform var(--ui-motion-base) var(--ui-motion-ease),
+    box-shadow var(--ui-motion-base) var(--ui-motion-ease),
+    border-color var(--ui-motion-base) var(--ui-motion-ease);
+}
+.portal-card:hover,
+.daily-saved-group:hover,
+.activity-card:hover{
+  transform:translateY(-2px);
+}
+.stat:hover,
+.summary-pie-stats>div:hover{
+  transform:translateY(-1px);
+  box-shadow:0 12px 28px rgba(15,23,42,.075);
+}
+.portal-card:active{
+  transform:translateY(0) scale(.985);
+}
+
+/* Modal / report / export entrances */
+.report-backdrop,
+.scan-backdrop,
+.monthly-export-backdrop{
+  animation:ui-backdrop-in 170ms ease-out both;
+}
+.report-dialog,
+.scan-dialog,
+.monthly-export-dialog{
+  transform-origin:50% 12%;
+  animation:ui-dialog-in 220ms var(--ui-motion-ease) both;
+}
+@keyframes ui-backdrop-in{
+  from{opacity:0}
+  to{opacity:1}
+}
+@keyframes ui-dialog-in{
+  from{opacity:0;transform:translateY(12px) scale(.975)}
+  to{opacity:1;transform:none}
+}
+
+/* Search dropdowns / alerts */
+.daily-activity-options{
+  transform-origin:top center;
+  animation:ui-dropdown-in 160ms var(--ui-motion-ease) both;
+}
+.alert,
+.save-status-popup{
+  animation:ui-notice-in 190ms var(--ui-motion-ease) both;
+}
+@keyframes ui-dropdown-in{
+  from{opacity:0;transform:translateY(-5px) scaleY(.97)}
+  to{opacity:1;transform:none}
+}
+@keyframes ui-notice-in{
+  from{opacity:0;transform:translateY(-4px)}
+  to{opacity:1;transform:none}
+}
+
+/* Inputs keep focus transitions polished without changing layout */
+input,
+select,
+textarea{
+  transition:
+    border-color var(--ui-motion-fast) ease,
+    box-shadow var(--ui-motion-fast) ease,
+    background-color var(--ui-motion-fast) ease;
+}
+
+/* Accessibility: respect OS/browser Reduce Motion preference */
+@media(prefers-reduced-motion:reduce){
+  *,
+  *::before,
+  *::after{
+    scroll-behavior:auto!important;
+    animation-duration:.001ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:.001ms!important;
+    transition-delay:0ms!important;
+  }
+  .ui-view-transition,
+  .portal-layer,
+  .report-backdrop,
+  .scan-backdrop,
+  .monthly-export-backdrop,
+  .report-dialog,
+  .scan-dialog,
+  .monthly-export-dialog,
+  .daily-activity-options,
+  .alert,
+  .save-status-popup{
+    transform:none!important;
+    opacity:1!important;
+  }
+}

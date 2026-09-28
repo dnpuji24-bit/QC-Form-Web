@@ -89,7 +89,7 @@ export default function PortalRouter(){
       <div><div className="portal-eyebrow">DATA UnM</div><h1>Planning & Master Data</h1></div>
       <div className="portal-user"><div><strong>{user.fullName}</strong><span>{user.role.replaceAll('_',' ')}</span></div><button type="button" onClick={()=>choose('chooser')}>Menu Utama</button></div>
     </header>
-    <main className="portal-content">
+    <main className="portal-content"><div key={dataView} className="ui-view-transition portal-view-transition">
       {dataView==='home'&&<>
         <section className="portal-hero compact data-home-hero"><div><span className="portal-kicker">WORKSPACE OPERASIONAL</span><h2>Data UnM</h2><p>Plan dan master data operasional.</p></div></section>
         <section className="portal-grid data-grid data-shortcut-grid">
@@ -103,7 +103,7 @@ export default function PortalRouter(){
       {dataView==='master-paddock'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM</span><h2>Master Paddock</h2><p>Lihat data Firestore atau lakukan update dari Area Plant dan Area Harvest.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><MasterPaddockWorkspace user={user}/></section>}
       {dataView==='master-activity'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM</span><h2>Master Activity</h2><p>Activity, komposisi bahan per hektar, Master Material, dan status penggunaan di Plan.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><MasterActivityWorkspace user={user}/></section>}
       {dataView==='company'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM</span><h2>Company & Prefix</h2><p>Master klasifikasi perusahaan MSG berdasarkan prefix PID.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><CompanyMasterPanel user={user}/></section>}
-    </main>
+    </div></main>
   </div>
 
   return <div className="portal-layer chooser-layer">

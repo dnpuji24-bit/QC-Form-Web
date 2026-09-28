@@ -31,6 +31,8 @@ export default function PlanWorkspace({user}:Props){
       {allowed.actual&&<button type="button" className={tab==='actual'?'active':''} onClick={()=>setTab('actual')}>Actual Plan</button>}
       {allowed.reconciliation&&<button type="button" className={tab==='reconciliation'?'active':''} onClick={()=>setTab('reconciliation')}>Rekonsiliasi</button>}
     </div>
-    {tab==='summary'?<PlanSummaryDashboard/>:tab==='calendar'?<PlanCalendarRecap/>:tab==='monthly'?<MonthlyPlanWorkspace user={user} onOpenDailyPlan={request=>{setDailyJump(request);setTab('daily')}}/>:tab==='daily'?<DailyPlanWorkspace user={user} jumpRequest={dailyJump} onCopyToActual={ids=>{setActualPrefill(ids);setTab('actual')}}/>:tab==='actual'?<ActualPlanWorkspace user={user} prefillDailyPlanIds={actualPrefill}/>:<PlanReconciliationPanel/>}
+    <div key={tab} className="ui-view-transition plan-tab-transition">
+      {tab==='summary'?<PlanSummaryDashboard/>:tab==='calendar'?<PlanCalendarRecap/>:tab==='monthly'?<MonthlyPlanWorkspace user={user} onOpenDailyPlan={request=>{setDailyJump(request);setTab('daily')}}/>:tab==='daily'?<DailyPlanWorkspace user={user} jumpRequest={dailyJump} onCopyToActual={ids=>{setActualPrefill(ids);setTab('actual')}}/>:tab==='actual'?<ActualPlanWorkspace user={user} prefillDailyPlanIds={actualPrefill}/>:<PlanReconciliationPanel/>}
+    </div>
   </section>
 }
