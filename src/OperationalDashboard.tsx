@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { onAuthStateChanged } from 'firebase/auth'
 import { firebaseAuth, firestoreDb } from './firebase'
 import type { MasterData, QcRecord } from './types'
+import YinYangRefreshButton from './YinYangRefreshButton'
 
 type RecordPreset = { type?: 'all'|'spray'|'fertilizer'; query?: string; saveType?: string }
 type Props = { records: QcRecord[]; master: MasterData; loading: boolean; onRefresh: () => void; onOpenRecords?: (preset: RecordPreset) => void }
@@ -58,7 +59,7 @@ export default function OperationalDashboard({ records, loading, onRefresh, onOp
     <div className="dashboard-hero compact-hero">
       <div><div className="eyebrow">QUALITY CONTROL</div><h2>Dashboard QC</h2><p>{realtimeActive?'Ringkasan berubah otomatis saat Draft, Edit, atau Upload berubah di Firestore.':'Ringkasan pekerjaan yang sudah diinput dan status pelaporannya.'}</p></div>
     </div>
-    <div className="section-head"><div><div className="eyebrow">FILTER DATA</div><h2>Ringkasan Pekerjaan</h2></div>{realtimeActive?<span className="status-pill success">● Firestore realtime aktif</span>:<button className="secondary" onClick={onRefresh} disabled={loading}>{loading?'Memuat…':'Refresh data'}</button>}</div>
+    <div className="section-head"><div><div className="eyebrow">FILTER DATA</div><h2>Ringkasan Pekerjaan</h2></div>{realtimeActive?<span className="status-pill success">● Firestore realtime aktif</span>:<YinYangRefreshButton busy={loading} label="Refresh data" onClick={onRefresh}/>}</div>
     {realtimeActive&&<div className="alert">Dashboard mengikuti Firestore secara realtime. Tidak perlu menekan Refresh setelah Simpan Draft atau Edit.</div>}
     <div className="filters dashboard-filters"><div><input list="worked-paddocks" placeholder="Cari / pilih paddock yang sudah dikerjakan…" value={query} onChange={(e)=>setQuery(e.target.value)} /><datalist id="worked-paddocks">{paddockOptions.map((x)=><option value={x} key={x}/>)}</datalist></div><select value={type} onChange={(e)=>setType(e.target.value as typeof type)}><option value="all">Semua form</option><option value="spray">Spraying</option><option value="fertilizer">Fertilizer</option></select></div>
     <div className="stats-grid dashboard-stats">

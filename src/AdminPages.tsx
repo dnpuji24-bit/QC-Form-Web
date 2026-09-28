@@ -5,6 +5,7 @@ import FirestoreMigrationPanel from './FirestoreMigrationPanel'
 import { firebaseAuth, firestoreDb } from './firebase'
 import type { AccountChangeRequest, Role, User } from './types'
 import { defaultPermissionsForRole, PERMISSION_CATALOG, type AccessMode, type PermissionKey, type UserPermissions } from './accessControl'
+import YinYangRefreshButton from './YinYangRefreshButton'
 
 const ROLES: Role[] = ['owner','manager','admin','asisten','mandor_spraying','mandor_fertilizer','pengunjung']
 const ROLE_LABELS:Record<Role,string>={
@@ -185,7 +186,7 @@ export function UsersApproval({ token }: UsersProps) {
   const selectedRoleUserCount=users.filter(user=>user.role===selectedAccessRole).length
 
   return <section>
-    <div className="section-head"><div><div className="eyebrow">ADMINISTRASI</div><h2>Users & Approval</h2></div><button className="secondary" onClick={() => void load()} disabled={busy}>Refresh</button></div>
+    <div className="section-head"><div><div className="eyebrow">ADMINISTRASI</div><h2>Users & Approval</h2></div><YinYangRefreshButton busy={busy} label="Refresh" onClick={()=>void load()}/></div>
     {message && <div className="alert">{message}</div>}
     <div className="stats-grid"><Stat label="Total user" value={users.length} /><Stat label="Pending user" value={pending.length} /><Stat label="Approved" value={approved.length} /><Stat label="Perubahan akun" value={pendingChanges.length} /></div>
     <FirestoreMigrationPanel token={token}/>
@@ -230,7 +231,7 @@ export function ActivityLogs({ token }: LogsProps) {
   useEffect(() => { void load() }, [token])
   const filtered = useMemo(() => logs.filter((log) => JSON.stringify(log).toLowerCase().includes(query.toLowerCase())), [logs, query])
   return <section>
-    <div className="section-head"><div><div className="eyebrow">AUDIT TRAIL</div><h2>Activity Logs</h2></div><button className="secondary" onClick={() => void load()} disabled={busy}>Refresh</button></div>
+    <div className="section-head"><div><div className="eyebrow">AUDIT TRAIL</div><h2>Activity Logs</h2></div><YinYangRefreshButton busy={busy} label="Refresh" onClick={()=>void load()}/></div>
     {message && <div className="alert">{message}</div>}
     <div className="filters"><input placeholder="Cari user, aksi, deskripsi…" value={query} onChange={(e) => setQuery(e.target.value)} /><span className="badge">{filtered.length} log</span></div>
     <div className="table-wrap activity-log-table"><table><thead><tr><th>Waktu</th><th>User</th><th>Role</th><th>Aksi</th><th>Deskripsi</th><th>Device</th></tr></thead><tbody>{filtered.map((log, i) => <tr key={i}><td><span className="log-time">{formatLogTime(log.Timestamp)}</span></td><td>{String(log.FullName || log.Username || '-')}<br/><small>{String(log.Username || '')}</small></td><td>{String(log.Role || '-')}</td><td>{String(log.ActionType || '-')}</td><td>{String(log.Description || '-')}</td><td>{String(log.IP_Device || '-')}</td></tr>)}{!filtered.length && <tr><td colSpan={6} className="empty">Tidak ada log yang cocok.</td></tr>}</tbody></table></div>
