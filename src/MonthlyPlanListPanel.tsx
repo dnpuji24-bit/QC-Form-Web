@@ -24,14 +24,18 @@ function formatDateTime(value:string){if(!value)return'-';const d=new Date(value
 function isCancelled(row:PlanRow){return row.cancelled||row.sourceStatus.toUpperCase().includes('CANCEL')}
 function autoStatus(row:PlanRow,actual:number){if(isCancelled(row))return'DONE';if(actual<=0)return'PLANNED';if(actual<row.targetAreaHa-0.0001)return'ON PROGRESS';if(Math.abs(actual-row.targetAreaHa)<=0.0001)return'DONE';return'OVER ACTUAL'}
 function weekDates(monthKey:string,week:string){if(!/^\d{4}-\d{2}$/.test(monthKey))return{start:'',end:''};const[y,m]=monthKey.split('-').map(Number),last=new Date(y,m,0).getDate(),ranges:Record<string,[number,number]>={W1:[1,7],W2:[8,15],W3:[16,22],W4:[23,last]},range=ranges[week]||[1,last];return{start:monthKey+'-'+String(range[0]).padStart(2,'0'),end:monthKey+'-'+String(range[1]).padStart(2,'0')}}
+const EXPORT_WEEKS=['W1','W2','W3','W4'] as const
+function ExcelIcon(){return <svg className="monthly-excel-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5.5" y="3" width="14.5" height="18" rx="2.2" fill="currentColor" opacity=".18"/><path d="M11 6h7v2h-7zm0 4h7v2h-7zm0 4h7v2h-7z" fill="currentColor"/><rect x="2" y="5.5" width="10" height="13" rx="1.8" fill="currentColor"/><path d="m4.6 9 1.45 2.35L7.55 9h1.7l-2.3 3.48L9.4 16H7.62l-1.6-2.46L4.43 16H2.7l2.4-3.52L2.88 9z" fill="#fff"/></svg>}
 async function writerContext(appUser:User){const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.');await firebaseAuthPersistenceReady;if(typeof auth.authStateReady==='function')await auth.authStateReady();const current=auth.currentUser;if(!current)throw new Error('Sesi Firebase belum aktif. Login ulang lalu coba lagi.');const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.');const p=snap.data() as Record<string,unknown>;if(p.active!==true||!canEditAccess(appUser,'data_plan_monthly'))throw new Error('Hak akses Edit Monthly Plan belum diberikan.');return{db,username:text(p.username)||appUser.username}}
 
 export default function MonthlyPlanListPanel({user,selectedMonth,selectedWeek,compact=false,refreshKey=0,onOpenDailyPlan}:Props){
+  const defaultExportMonth=selectedMonth||new Date().toISOString().slice(0,7),initialExportWeeks=selectedWeek&&EXPORT_WEEKS.includes(selectedWeek as typeof EXPORT_WEEKS[number])?[selectedWeek]:[...EXPORT_WEEKS]
   const[rows,setRows]=useState<PlanRow[]>([]),[daily,setDaily]=useState<DailyRef[]>([]),[actuals,setActuals]=useState<ActualRef[]>([]),[logs,setLogs]=useState<ImportLog[]>([]),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
   const[month,setMonth]=useState('ALL'),[week,setWeek]=useState('ALL'),[company,setCompany]=useState('ALL'),[farm,setFarm]=useState('ALL'),[status,setStatus]=useState('ALL'),[query,setQuery]=useState('')
   const[editMode,setEditMode]=useState<'details'|'progress'|''>(''),[editingId,setEditingId]=useState('')
   const[editTarget,setEditTarget]=useState(''),[editMonth,setEditMonth]=useState(''),[editVariety,setEditVariety]=useState(''),[editMasterVariety,setEditMasterVariety]=useState(''),[editStage,setEditStage]=useState(''),[editFarm,setEditFarm]=useState(''),[editWeek,setEditWeek]=useState('W1'),[editNotes,setEditNotes]=useState('')
   const[progressManual,setProgressManual]=useState(''),[progressNote,setProgressNote]=useState(''),[expandedDailyPlanId,setExpandedDailyPlanId]=useState('')
+  const[exportOpen,setExportOpen]=useState(false),[exporting,setExporting]=useState(false),[exportFrom,setExportFrom]=useState(defaultExportMonth),[exportTo,setExportTo]=useState(defaultExportMonth),[exportWeeks,setExportWeeks]=useState<string[]>(initialExportWeeks)
   const isOwner=user.role==='owner',canWrite=canEditAccess(user,'data_plan_monthly')
 
   async function load(){if(!firestoreDb){setMessage('Firestore belum tersedia.');return}setBusy(true);const monthFilter=selectedMonth||new Date().toISOString().slice(0,7);setMessage('Memuat Monthly '+monthFilter+'…');try{
@@ -63,6 +67,40 @@ export default function MonthlyPlanListPanel({user,selectedMonth,selectedWeek,co
   function startProgress(row:ViewRow){setEditingId(row.id);setEditMode('progress');setProgressManual(String(row.manualActualAreaHa||0));setProgressNote(row.manualProgressNote);requestAnimationFrame(()=>document.getElementById('monthly-edit-panel')?.scrollIntoView({behavior:'smooth',block:'start'}))}
   function closeEdit(){setEditingId('');setEditMode('')}
 
+  function openExportDialog(){
+    const activeMonth=selectedMonth||new Date().toISOString().slice(0,7)
+    setExportFrom(activeMonth);setExportTo(activeMonth)
+    setExportWeeks(selectedWeek&&EXPORT_WEEKS.includes(selectedWeek as typeof EXPORT_WEEKS[number])?[selectedWeek]:[...EXPORT_WEEKS])
+    setExportOpen(true)
+  }
+  function toggleExportWeek(value:string){setExportWeeks(current=>current.includes(value)?current.filter(item=>item!==value):EXPORT_WEEKS.filter(item=>[...current,value].includes(item)))}
+  async function exportMonthlyExcel(){
+    if(!firestoreDb){setMessage('Firestore belum tersedia.');return}
+    if(!/^\d{4}-\d{2}$/.test(exportFrom)||!/^\d{4}-\d{2}$/.test(exportTo)){setMessage('Rentang bulan export tidak valid.');return}
+    if(exportFrom>exportTo){setMessage('Bulan Mulai tidak boleh setelah Bulan Sampai.');return}
+    if(!exportWeeks.length){setMessage('Pilih minimal satu Week untuk export.');return}
+    setExporting(true);setMessage('Menyiapkan Excel Monthly Plan '+exportFrom+' s.d. '+exportTo+'…')
+    try{
+      const planSnap=await getDocs(fsQuery(collection(firestoreDb,'monthly_plans'),where('monthKey','>=',exportFrom),where('monthKey','<=',exportTo)))
+      const selectedWeekSet=new Set(exportWeeks),planRows=planSnap.docs.map(x=>rowFromData(x.id,x.data() as Record<string,unknown>)).filter(row=>selectedWeekSet.has(row.week.toUpperCase())).sort((a,b)=>a.monthKey.localeCompare(b.monthKey)||a.week.localeCompare(b.week,undefined,{numeric:true})||a.planLineId.localeCompare(b.planLineId,undefined,{numeric:true})||a.pid.localeCompare(b.pid,undefined,{numeric:true}))
+      if(!planRows.length){setMessage('Tidak ada Monthly Plan pada rentang bulan dan Week yang dipilih.');setExportOpen(false);return}
+      const ids=[...new Set(planRows.map(row=>row.planLineId).filter(Boolean))],dailyDocs:any[]=[],actualDocs:any[]=[]
+      for(let i=0;i<ids.length;i+=30){const part=ids.slice(i,i+30),[d,a]=await Promise.all([getDocs(fsQuery(collection(firestoreDb,'daily_plans'),where('monthlyPlanLineId','in',part))),getDocs(fsQuery(collection(firestoreDb,'daily_reports'),where('monthlyPlanLineId','in',part)))]);dailyDocs.push(...d.docs);actualDocs.push(...a.docs)}
+      const scheduled=new Map<string,number>(),linkedActual=new Map<string,number>()
+      dailyDocs.forEach(x=>{const d=x.data() as Record<string,unknown>,id=text(d.monthlyPlanLineId);if(id)scheduled.set(id,(scheduled.get(id)||0)+num(d.areaHa))})
+      actualDocs.forEach(x=>{const d=x.data() as Record<string,unknown>,id=text(d.monthlyPlanLineId);if(id)linkedActual.set(id,(linkedActual.get(id)||0)+num(d.actualAreaHa))})
+      const exportRows=planRows.map(row=>{const dailyHa=scheduled.get(row.planLineId)||0,linkedHa=linkedActual.get(row.planLineId)||0,totalActual=linkedHa+row.manualActualAreaHa,cancelled=isCancelled(row),balance=cancelled?0:row.targetAreaHa-totalActual,progress=cancelled?100:row.targetAreaHa>0?totalActual/row.targetAreaHa*100:0,statusValue=autoStatus(row,totalActual);return[row.monthKey,row.week,row.planLineId,row.companyCode,row.farm,row.pid,row.description,row.activity,row.type,row.activityCategory,row.variety,row.masterVariety,row.stage,row.targetAreaHa,dailyHa,cancelled?0:row.targetAreaHa-dailyHa,linkedHa,row.manualActualAreaHa,totalActual,balance,Number(progress.toFixed(2)),statusValue,cancelled?'YA':'TIDAK',row.cancelReason,row.startDate,row.endDate,row.notes]})
+      const headers=['Bulan','Week','Plan Line ID','Company','Farm','Paddock','Description','Activity','Type','Activity Category','Variety','Master Variety','Stage','Target (Ha)','Daily (Ha)','Sisa Belum Dijadwalkan (Ha)','Actual Linked (Ha)','Progress Manual (Ha)','Actual Total (Ha)','Balance (Ha)','Progress (%)','Status','Cancelled','Alasan Cancel','Start Date','End Date','Notes']
+      const XLSX=await import('xlsx'),sheet=XLSX.utils.aoa_to_sheet([headers,...exportRows]),workbook=XLSX.utils.book_new()
+      sheet['!cols']=headers.map(header=>({wch:/Description|Activity|Variety|Notes|Alasan/i.test(header)?24:/Plan Line|Paddock|Company|Status/i.test(header)?18:Math.min(22,Math.max(11,header.length+2))}))
+      sheet['!autofilter']={ref:'A1:'+XLSX.utils.encode_col(headers.length-1)+(exportRows.length+1)}
+      XLSX.utils.book_append_sheet(workbook,sheet,'Monthly Plan')
+      const weekLabel=exportWeeks.length===EXPORT_WEEKS.length?'ALL_WEEK':exportWeeks.join('-')
+      XLSX.writeFile(workbook,'Monthly_Plan_'+exportFrom+'_to_'+exportTo+'_'+weekLabel+'.xlsx')
+      setExportOpen(false);setMessage('Export Excel selesai: '+planRows.length+' Plan Line · '+exportFrom+' s.d. '+exportTo+' · '+weekLabel+'.')
+    }catch(error){setMessage(error instanceof Error?error.message:'Export Excel Monthly Plan gagal.')}finally{setExporting(false)}
+  }
+
   async function saveDetails(e:FormEvent){e.preventDefault();if(!editing)return;const target=num(editTarget);if(target<=0){setMessage('Target harus lebih dari 0 Ha.');return}if(!/^\d{4}-\d{2}$/.test(editMonth)){setMessage('Bulan Monthly Plan tidak valid.');return}if(target<editing.systemActualAreaHa-0.0001&&!window.confirm('Target baru lebih kecil dari total Actual saat ini ('+formatHa(editing.systemActualAreaHa)+'). Status akan menjadi OVER ACTUAL. Tetap simpan?'))return
     if(editMonth!==editing.monthKey&&editing.scheduledAreaHa>0&&!window.confirm('Monthly Plan ini sudah mempunyai Daily Plan '+formatHa(editing.scheduledAreaHa)+'. Memindahkan bulan tidak mengubah tanggal Daily yang sudah dibuat dan link tetap dipertahankan. Tetap pindahkan ke '+editMonth+'?'))return
     setBusy(true)
@@ -89,6 +127,14 @@ export default function MonthlyPlanListPanel({user,selectedMonth,selectedWeek,co
     setBusy(true);setMessage('Menghapus '+targets.length+' Monthly Plan…')
     try{for(let start=0;start<targets.length;start+=450){const batch=writeBatch(firestoreDb);targets.slice(start,start+450).forEach(row=>batch.delete(doc(firestoreDb!,'monthly_plans',row.id)));await batch.commit()}const deletedIds=new Set(targets.map(row=>row.id));setRows(current=>current.filter(row=>!deletedIds.has(row.id)));setMessage('Hapus selesai: '+targets.length+' Monthly Plan dihapus. Daily/Actual downstream tidak dihapus.')}catch(error){setMessage(error instanceof Error?error.message:'Monthly Plan gagal dihapus.')}finally{setBusy(false)}
   }
+
+  const exportDialog=exportOpen?<div className="monthly-export-backdrop" role="dialog" aria-modal="true" aria-label="Export Monthly Plan ke Excel"><div className="monthly-export-dialog">
+    <div className="monthly-export-title"><div className="monthly-export-logo"><ExcelIcon/></div><div><span className="eyebrow">EXPORT MONTHLY PLAN</span><h3>Export ke Excel</h3><p>Pilih rentang bulan dan Week. Data diambil langsung dari Firestore, termasuk Daily, Actual, Balance, dan Status.</p></div><button type="button" className="monthly-export-close" onClick={()=>setExportOpen(false)} aria-label="Tutup">×</button></div>
+    <div className="monthly-export-range"><label><span>Bulan Mulai</span><input type="month" value={exportFrom} onChange={e=>setExportFrom(e.target.value)}/></label><label><span>Bulan Sampai</span><input type="month" value={exportTo} onChange={e=>setExportTo(e.target.value)}/></label></div>
+    <fieldset className="monthly-export-week-box"><legend>Week yang diexport</legend><div className="monthly-export-weeks">{EXPORT_WEEKS.map(item=><label className={exportWeeks.includes(item)?'selected':''} key={item}><input type="checkbox" checked={exportWeeks.includes(item)} onChange={()=>toggleExportWeek(item)}/><span>{item}</span></label>)}</div><div className="monthly-export-week-actions"><button type="button" onClick={()=>setExportWeeks([...EXPORT_WEEKS])}>Semua Week</button><button type="button" onClick={()=>setExportWeeks([])}>Kosongkan</button></div></fieldset>
+    <div className="monthly-export-note">Rentang bersifat inklusif. Contoh 2026-08 s.d. 2026-10 dengan W2 + W4 akan mengekspor W2 dan W4 dari ketiga bulan tersebut.</div>
+    <div className="monthly-export-actions"><button type="button" className="secondary" disabled={exporting} onClick={()=>setExportOpen(false)}>Batal</button><button type="button" className="monthly-excel-confirm" disabled={exporting||!exportWeeks.length} onClick={()=>void exportMonthlyExcel()}><ExcelIcon/>{exporting?'Menyiapkan Excel…':'Export Excel'}</button></div>
+  </div></div>:null
 
   const editPanel=editing&&editMode?<form id="monthly-edit-panel" className="panel daily-single-form monthly-inline-edit-panel" onSubmit={editMode==='details'?saveDetails:saveProgress}>
     <div className="daily-form-toolbar"><div><div className="eyebrow">{editMode==='details'?'EDIT MONTHLY PLAN':'UPDATE PROGRESS MANUAL'}</div><h3>{editing.planLineId} · {editing.pid}</h3><p className="muted">{editMode==='details'?'Periode, target dan atribut dapat diubah. Plan ID, PID, dan Activity tetap dikunci agar link Daily/Actual tidak putus.':'Progress manual adalah progress historis/eksternal yang belum memiliki Actual Plan.'}</p></div><button type="button" onClick={closeEdit}>Batal</button></div>
@@ -119,7 +165,8 @@ export default function MonthlyPlanListPanel({user,selectedMonth,selectedWeek,co
   </form>:null
 
   if(compact)return <section className="monthly-period-list">
-    <div className="section-head compact-saved-head"><div><div className="eyebrow">MONTHLY PERIODE</div><h3>{selectedMonth||'-'} · {selectedWeek||'Semua Week'}</h3><p className="muted">{filtered.length} plan line · urutan terbaru di atas. Actual = linked Actual + progress manual.</p></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'…':'Refresh'}</button></div>
+    <div className="section-head compact-saved-head"><div><div className="eyebrow">MONTHLY PERIODE</div><h3>{selectedMonth||'-'} · {selectedWeek||'Semua Week'}</h3><p className="muted">{filtered.length} plan line · urutan terbaru di atas. Actual = linked Actual + progress manual.</p></div><div className="monthly-list-head-actions"><button type="button" className="monthly-excel-trigger" disabled={exporting} onClick={openExportDialog}><ExcelIcon/><span>Export Excel</span></button><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'…':'Refresh'}</button></div></div>
+    {exportDialog}
     {message&&<div className="alert">{message}</div>}
     <div className="panel monthly-quick-search premium-search-filter"><label><span>Cari Monthly Plan / Paddock</span><div className="monthly-quick-search-row"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Contoh: A007 / JAGF-1-A-007 / Top Dressing"/>{query&&<button type="button" onClick={()=>setQuery('')}>Clear</button>}</div><small>Pencarian mengabaikan tanda '-' dan spasi. Saat mencari, semua week pada bulan aktif ikut diperiksa.</small></label></div>
     <div className="cards compact-period-cards"><div className="card"><span>PLAN LINE</span><strong>{filtered.length}</strong></div><div className="card"><span>TARGET</span><strong>{formatHa(totals.target)}</strong></div><div className="card"><span>DAILY</span><strong>{formatHa(totals.scheduled)}</strong></div><div className="card"><span>ACTUAL</span><strong>{formatHa(totals.actual)}</strong></div></div>
@@ -129,7 +176,8 @@ export default function MonthlyPlanListPanel({user,selectedMonth,selectedWeek,co
   </section>
 
   return <section>
-    <div className="section-head"><div><div className="eyebrow">MONTHLY PLAN</div><h2>Daftar & Progress</h2><p className="muted">Actual sistem = Actual Plan terhubung + progress manual/historis. Cancel menutup sisa pekerjaan dan mengubah status sistem menjadi DONE tanpa membuat Actual palsu.</p></div><div style={{display:'flex',gap:10,flexWrap:'wrap'}}><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'Memuat…':'Refresh Progress'}</button>{isOwner&&<button type="button" disabled={busy||!filtered.length} onClick={()=>void deleteRows(filtered,hasActiveFilter?'sesuai filter saat ini':'SEMUA Monthly Plan')} style={{borderColor:'#b91c1c',color:'#b91c1c'}}>{hasActiveFilter?'Hapus Sesuai Filter ('+filtered.length+')':'Hapus Semua Plan ('+filtered.length+')'}</button>}</div></div>
+    <div className="section-head"><div><div className="eyebrow">MONTHLY PLAN</div><h2>Daftar & Progress</h2><p className="muted">Actual sistem = Actual Plan terhubung + progress manual/historis. Cancel menutup sisa pekerjaan dan mengubah status sistem menjadi DONE tanpa membuat Actual palsu.</p></div><div style={{display:'flex',gap:10,flexWrap:'wrap'}}><button type="button" className="monthly-excel-trigger" disabled={exporting} onClick={openExportDialog}><ExcelIcon/><span>Export Excel</span></button><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'Memuat…':'Refresh Progress'}</button>{isOwner&&<button type="button" disabled={busy||!filtered.length} onClick={()=>void deleteRows(filtered,hasActiveFilter?'sesuai filter saat ini':'SEMUA Monthly Plan')} style={{borderColor:'#b91c1c',color:'#b91c1c'}}>{hasActiveFilter?'Hapus Sesuai Filter ('+filtered.length+')':'Hapus Semua Plan ('+filtered.length+')'}</button>}</div></div>
+    {exportDialog}
     {message&&<div className="alert" style={{whiteSpace:'pre-line'}}>{message}</div>}
     <div className="panel premium-filter-panel compact-filter-panel" style={{marginTop:18}}><div className="premium-filter-grid filter-grid-auto">
       <label className="premium-filter-field"><span>Bulan</span><select value={month} onChange={e=>setMonth(e.target.value)}><option value="ALL">Semua Bulan</option>{months.map(x=><option key={x} value={x}>{x}</option>)}</select></label>
