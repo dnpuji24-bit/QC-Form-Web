@@ -37,7 +37,8 @@ function asTransfer(row:DailyRow):DailyPlanTransfer{return{dailyPlanId:row.daily
 export default function DailyPlanListPanel({user,onCopyToActual,selectedDate,compact=true,refreshKey=0,onEditGroup,onDuplicateGroup,onChanged,focusMonthlyPlanLineId='',focusPid='',onClearMonthlyFocus,readOnly=false}:Props){
   const[rows,setRows]=useState<DailyRow[]>([]),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
   const[selectedGroupKeys,setSelectedGroupKeys]=useState<string[]>([])
-  const[copyDate,setCopyDate]=useState(new Date().toISOString().slice(0,10))
+  const[copyDate,setCopyDate]=useState(selectedDate||new Date().toISOString().slice(0,10))
+  const[moveDate,setMoveDate]=useState(selectedDate||new Date().toISOString().slice(0,10)),[moveShift,setMoveShift]=useState('KEEP')
   const[copyGroupKey,setCopyGroupKey]=useState(''),[groupCopyDate,setGroupCopyDate]=useState(new Date().toISOString().slice(0,10))
 
   async function load(){
@@ -51,11 +52,13 @@ export default function DailyPlanListPanel({user,onCopyToActual,selectedDate,com
     }catch(error){setMessage(error instanceof Error?error.message:'Daily Plan gagal dimuat.')}finally{setBusy(false)}
   }
   useEffect(()=>{void load()},[selectedDate,refreshKey])
+  useEffect(()=>{if(!selectedDate)return;setCopyDate(selectedDate);setMoveDate(selectedDate)},[selectedDate])
 
   const groups=useMemo(()=>groupSavedDailyRows(rows),[rows])
   const visibleGroups=useMemo(()=>focusMonthlyPlanLineId?groups.filter(group=>group.rows.some(row=>row.monthlyPlanLineId===focusMonthlyPlanLineId)):groups,[groups,focusMonthlyPlanLineId])
   const selectedGroups=useMemo(()=>{const keys=new Set(selectedGroupKeys);return visibleGroups.filter(group=>keys.has(group.groupKey))},[visibleGroups,selectedGroupKeys])
   const shifts=useMemo(()=>[...new Set(visibleGroups.map(group=>group.shift||'-'))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[visibleGroups])
+  const moveShiftOptions=useMemo(()=>[...new Set([...shifts,'1','2'].filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[shifts])
 
   function toggleGroup(groupKey:string){setSelectedGroupKeys(current=>current.includes(groupKey)?current.filter(x=>x!==groupKey):[...current,groupKey])}
   function toggleAll(){const keys=visibleGroups.map(group=>group.groupKey),all=keys.length>0&&keys.every(key=>selectedGroupKeys.includes(key));setSelectedGroupKeys(all?[]:keys)}
@@ -104,6 +107,88 @@ export default function DailyPlanListPanel({user,onCopyToActual,selectedDate,com
     }catch(error){setMessage(error instanceof Error?error.message:'Hapus Daily Plan gagal.')}finally{setBusy(false)}
   }
 
+  async function groupsWithLinkedActual(targets:SavedDailyGroup[]){
+    const blocked:SavedDailyGroup[]=[]
+    for(const group of targets)if(await hasLinkedActual(group))blocked.push(group)
+    return blocked
+  }
+
+  async function deleteSelectedGroups(){
+    const targets=selectedGroups
+    if(!targets.length){setMessage('Pilih minimal satu kegiatan yang akan dihapus.');return}
+    setBusy(true)
+    try{
+      const blocked=await groupsWithLinkedActual(targets)
+      if(blocked.length){setMessage('Tidak dapat menghapus. '+blocked.length+' kegiatan sudah memiliki Actual Plan terkait: '+blocked.map(group=>group.description||group.activity||'-').join(', ')+'. Edit/hapus Actual terlebih dahulu.');return}
+      const pidCount=targets.reduce((sum,group)=>sum+group.rows.length,0)
+      if(!window.confirm('Hapus '+targets.length+' kegiatan terpilih beserta '+pidCount+' PID dari Daily Plan? Tindakan ini tidak dapat dibatalkan.'))return
+      const{db}=await writerContext(user),allRows=targets.flatMap(group=>group.rows)
+      for(let i=0;i<allRows.length;i+=450){
+        const batch=writeBatch(db)
+        allRows.slice(i,i+450).forEach(row=>batch.delete(doc(db,'daily_plans',row.id)))
+        await batch.commit()
+      }
+      setMessage(targets.length+' kegiatan terpilih berhasil dihapus.');setSelectedGroupKeys([]);await load();onChanged?.()
+    }catch(error){setMessage(error instanceof Error?error.message:'Hapus kegiatan terpilih gagal.')}finally{setBusy(false)}
+  }
+
+  async function moveSelectedGroups(){
+    const targets=selectedGroups,targetDate=moveDate,targetShift=moveShift
+    if(!targets.length){setMessage('Pilih minimal satu kegiatan yang akan dipindahkan.');return}
+    if(!targetDate){setMessage('Pilih tanggal tujuan untuk pindahkan kegiatan.');return}
+    const sourceDate=selectedDate||targets[0]?.rows[0]?.date||''
+    if(targetDate===sourceDate&&targetShift==='KEEP'){setMessage('Tanggal dan shift tujuan masih sama dengan asal. Pilih tujuan yang berbeda.');return}
+    setBusy(true)
+    try{
+      const blocked=await groupsWithLinkedActual(targets)
+      if(blocked.length){setMessage('Tidak dapat memindahkan. '+blocked.length+' kegiatan sudah memiliki Actual Plan terkait: '+blocked.map(group=>group.description||group.activity||'-').join(', ')+'. Edit/hapus Actual terlebih dahulu.');return}
+      const shiftText=targetShift==='KEEP'?'shift asal':'Shift '+targetShift
+      if(!window.confirm('Pindahkan '+targets.length+' kegiatan terpilih ke '+targetDate+' · '+shiftText+'?'))return
+      const{db,username}=await writerContext(user)
+      const existingSnap=await getDocs(fsQuery(collection(db,'daily_plans'),where('date','==',targetDate)))
+      const existing=existingSnap.docs.map(x=>rowFromData(x.id,x.data() as Record<string,unknown>))
+      const movedIds=new Set(targets.flatMap(group=>group.rows.map(row=>row.id)))
+      const orderByShift=new Map<string,number>()
+      for(const row of existing){
+        if(targetDate===sourceDate&&movedIds.has(row.id))continue
+        orderByShift.set(row.shift,Math.max(orderByShift.get(row.shift)||0,row.planningOrder||0))
+      }
+
+      if(targetDate===sourceDate){
+        const allRows=targets.flatMap(group=>{const shift=targetShift==='KEEP'?group.shift:targetShift;const planningOrder=(orderByShift.get(shift)||0)+1;orderByShift.set(shift,planningOrder);return group.rows.map(row=>({row,shift,planningOrder}))})
+        for(let i=0;i<allRows.length;i+=450){
+          const batch=writeBatch(db)
+          allRows.slice(i,i+450).forEach(({row,shift,planningOrder})=>batch.set(doc(db,'daily_plans',row.id),{shift,planningOrder,lastModifiedSource:'WEB',updatedAt:serverTimestamp(),updatedBy:username},{merge:true}))
+          await batch.commit()
+        }
+      }else{
+        const prefix='DP-'+targetDate.replaceAll('-','')+'-'
+        let seq=existing.map(x=>x.dailyPlanId.startsWith(prefix)?Number(x.dailyPlanId.slice(prefix.length)):0).filter(Number.isFinite).reduce((m,x)=>Math.max(m,x),0)
+        const operations:{source:DailyRow;sourceData:Record<string,unknown>;dailyPlanId:string;workGroupId:string;shift:string;planningOrder:number}[]=[]
+        for(const group of targets){
+          const shift=targetShift==='KEEP'?group.shift:targetShift,planningOrder=(orderByShift.get(shift)||0)+1;orderByShift.set(shift,planningOrder)
+          const workGroupId='WG-'+targetDate.replaceAll('-','')+'-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7)
+          for(const source of group.rows){
+            const snap=await getDoc(doc(db,'daily_plans',source.id))
+            if(!snap.exists())throw new Error('Daily Plan '+source.dailyPlanId+' tidak ditemukan saat akan dipindahkan.')
+            seq++;operations.push({source,sourceData:snap.data() as Record<string,unknown>,dailyPlanId:prefix+String(seq).padStart(4,'0'),workGroupId,shift,planningOrder})
+          }
+        }
+        for(let i=0;i<operations.length;i+=220){
+          const batch=writeBatch(db)
+          for(const op of operations.slice(i,i+220)){
+            const payload:Record<string,unknown>={...op.sourceData,dailyPlanId:op.dailyPlanId,workGroupId:op.workGroupId,workGroupPidCount:targets.find(group=>group.rows.some(row=>row.id===op.source.id))?.rows.length||1,date:targetDate,monthKey:targetDate.slice(0,7),shift:op.shift,planningOrder:op.planningOrder,movedFromDailyPlanId:op.source.dailyPlanId,movedFromDate:op.source.date,sourceOrigin:'WEB',lastModifiedSource:'WEB',createdAt:serverTimestamp(),createdBy:username,updatedAt:serverTimestamp(),updatedBy:username}
+            batch.set(doc(db,'daily_plans',op.dailyPlanId),payload)
+            batch.delete(doc(db,'daily_plans',op.source.id))
+          }
+          await batch.commit()
+        }
+      }
+      setMessage(targets.length+' kegiatan berhasil dipindahkan ke '+targetDate+(targetShift==='KEEP'?' dengan shift asal':' · Shift '+targetShift)+'.')
+      setSelectedGroupKeys([]);await load();onChanged?.()
+    }catch(error){setMessage(error instanceof Error?error.message:'Pindahkan kegiatan terpilih gagal.')}finally{setBusy(false)}
+  }
+
   async function copyGroupsToDate(targets:SavedDailyGroup[],targetDate:string){
     if(!targets.length){setMessage('Pilih minimal satu kegiatan yang akan disalin.');return}
     if(!targetDate){setMessage('Pilih tanggal tujuan.');return}
@@ -136,7 +221,13 @@ export default function DailyPlanListPanel({user,onCopyToActual,selectedDate,com
     {message&&<div className="alert">{message}</div>}
     {focusMonthlyPlanLineId&&<div className="alert daily-monthly-focus"><div><strong>Dibuka dari Monthly Plan</strong><span>{focusPid||'-'} · {focusMonthlyPlanLineId} · tanggal {selectedDate||'-'}</span></div><button type="button" onClick={onClearMonthlyFocus}>Tampilkan Semua Daily</button></div>}
     <div className="plan-summary-grid daily-draft-summary"><div><span>Kegiatan</span><strong>{totals.groups}</strong></div><div><span>PID</span><strong>{totals.pids}</strong></div><div><span>Total Luas</span><strong>{formatHa(totals.area)}</strong></div><div><span>Total HK</span><strong>{totals.hk}</strong></div></div>
-    <div className="panel daily-bulk-actions compact-bulk-actions"><div><strong>{selectedGroups.length} kegiatan dipilih</strong><span className="muted">{readOnly?'Mode hanya lihat':'Aksi massal berdasarkan group kegiatan'}</span></div><div className="row-actions"><button type="button" onClick={toggleAll}>{visibleGroups.length&&visibleGroups.every(group=>selectedGroupKeys.includes(group.groupKey))?'Batal Semua':'Pilih Semua'}</button>{!readOnly&&<button type="button" onClick={copyToActual} disabled={!selectedGroups.length}>Copy Actual</button>}<button type="button" onClick={()=>void copyWaGroups(selectedGroups)} disabled={!selectedGroups.length}>Copy WA</button>{!readOnly&&<><label className="daily-copy-date"><span>Copy tanggal</span><input type="date" value={copyDate} onChange={e=>setCopyDate(e.target.value)}/></label><button type="button" onClick={()=>void copyGroupsToDate(selectedGroups,copyDate)} disabled={!selectedGroups.length||busy}>Salin</button></>}</div></div>
+    <div className="panel daily-bulk-actions compact-bulk-actions">
+      <div><strong>{selectedGroups.length} kegiatan dipilih</strong><span className="muted">{readOnly?'Mode hanya lihat':'Aksi massal berdasarkan group kegiatan'}</span></div>
+      <div className="daily-bulk-action-stack">
+        <div className="row-actions daily-bulk-primary-actions"><button type="button" onClick={toggleAll}>{visibleGroups.length&&visibleGroups.every(group=>selectedGroupKeys.includes(group.groupKey))?'Batal Semua':'Pilih Semua'}</button>{!readOnly&&<button type="button" onClick={copyToActual} disabled={!selectedGroups.length}>Copy Actual</button>}<button type="button" onClick={()=>void copyWaGroups(selectedGroups)} disabled={!selectedGroups.length}>Copy WA</button>{!readOnly&&<><label className="daily-copy-date"><span>Salin tanggal</span><input type="date" value={copyDate} onChange={e=>setCopyDate(e.target.value)}/></label><button type="button" onClick={()=>void copyGroupsToDate(selectedGroups,copyDate)} disabled={!selectedGroups.length||busy}>Salin</button></>}</div>
+        {!readOnly&&<div className="daily-bulk-selected-actions"><label><span>Pindah tanggal</span><input type="date" value={moveDate} onChange={e=>setMoveDate(e.target.value)}/></label><label><span>Shift tujuan</span><select value={moveShift} onChange={e=>setMoveShift(e.target.value)}><option value="KEEP">Tetap seperti asal</option>{moveShiftOptions.map(shift=><option key={shift} value={shift}>Shift {shift}</option>)}</select></label><button type="button" className="daily-bulk-move-button" onClick={()=>void moveSelectedGroups()} disabled={!selectedGroups.length||busy}>Pindahkan Dipilih</button><button type="button" className="daily-bulk-delete-button" onClick={()=>void deleteSelectedGroups()} disabled={!selectedGroups.length||busy}>Hapus Dipilih</button></div>}
+      </div>
+    </div>
 
     <div className="daily-saved-shifts">{shifts.map(shift=>{const shiftGroups=visibleGroups.filter(group=>(group.shift||'-')===shift);return <section key={shift} className="daily-draft-shift"><div className="daily-draft-shift-title"><strong>SHIFT {shift}</strong><span>{shiftGroups.length} kegiatan</span></div><div className="daily-draft-card-list">{shiftGroups.map((group,index)=><article className={'daily-draft-card '+(selectedGroupKeys.includes(group.groupKey)?'daily-saved-selected':'')} key={group.groupKey}>
       <div className="daily-draft-card-head">
