@@ -3,6 +3,7 @@ import { collection, doc, getDoc, getDocs, serverTimestamp, writeBatch } from 'f
 import { firebaseAuth, firestoreDb } from './firebase'
 import type { User } from './types'
 import { canEditAccess } from './accessControl'
+import YinYangRefreshButton from './YinYangRefreshButton'
 
 type Props={user:User}
 type View='VALIDATION'|'COMPOSITION'|'MATERIAL'
@@ -150,7 +151,7 @@ export default function MasterActivityManagePanel({user}:Props){
   const selectedActivity=activities.find(row=>row.id===selectedActivityId)
 
   return <section>
-    <div className="section-head"><div><div className="eyebrow">MANUAL MASTER</div><h2>Kelola Master Activity</h2><p className="muted">Input manual tetap memakai safety ketat. Import Excel dibuat lebih longgar; data duplikat dapat masuk lalu ditinjau di Review Pasca Import untuk diedit, dipaksa INACTIVE, atau dihapus.</p></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'Memproses…':'Refresh'}</button></div>
+    <div className="section-head"><div><div className="eyebrow">MANUAL MASTER</div><h2>Kelola Master Activity</h2><p className="muted">Input manual tetap memakai safety ketat. Import Excel dibuat lebih longgar; data duplikat dapat masuk lalu ditinjau di Review Pasca Import untuk diedit, dipaksa INACTIVE, atau dihapus.</p></div><YinYangRefreshButton busy={busy} label="Refresh" onClick={()=>void load()}/></div>
     {message&&<div className="alert" style={{whiteSpace:'pre-line'}}>{message}</div>}
     <div className="segmented" aria-label="Kelola Master Activity"><button type="button" className={view==='VALIDATION'?'active':''} onClick={()=>setView('VALIDATION')}>List Validasi</button><button type="button" className={view==='COMPOSITION'?'active':''} onClick={()=>setView('COMPOSITION')}>Komposisi Activity</button><button type="button" className={view==='MATERIAL'?'active':''} onClick={()=>setView('MATERIAL')}>Master Bahan</button></div>
     <div className="panel"><div className="section-head"><div><h3>Safety Master</h3><p className="muted">Hanya data ACTIVE yang dihitung sebagai konflik. Urutan Bahan 1/2/3 diabaikan saat membandingkan komposisi.</p></div><span className="badge">{safetyIssues.length?safetyIssues.length+' issue':'AMAN'}</span></div>{safetyIssues.length?<div>{safetyIssues.slice(0,10).map((issue,index)=><div key={index} className="alert" style={{marginBottom:8}}>{issue}</div>)}</div>:<p className="muted">Tidak ditemukan konflik ACTIVE pada nama Material, Deskripsi, komponen, atau komposisi Activity.</p>}</div>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { collection, getDocs } from 'firebase/firestore'
 import { firestoreDb } from './firebase'
 import { FALLBACK_COMPANIES, type CompanyRecord } from './companyMaster'
+import YinYangRefreshButton from './YinYangRefreshButton'
 
 type ProgressEntry={date:string;areaHa:number;stage?:string}
 type VarietyArea={variety:string;areaHa:number}
@@ -136,7 +137,7 @@ export default function MasterPaddockListPanel(){
   function reset(){setQuery('');setCompany('ALL');setFarm('ALL');setStage('ALL');setDateFrom('');setDateTo('')}
 
   return <section>
-    <div className="section-head"><div><div className="eyebrow">FIRESTORE MASTER</div><h2>Daftar Paddock</h2><p className="muted">Rekapan Master Paddock yang sudah benar-benar tersimpan di Firestore. Area Plan mengambil <strong>Area Paddock (Ha)</strong> dari sheet Area Plant, sedangkan progres tanggal mengambil kolom Progres.</p></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'Memuat…':'Refresh'}</button></div>
+    <div className="section-head"><div><div className="eyebrow">FIRESTORE MASTER</div><h2>Daftar Paddock</h2><p className="muted">Rekapan Master Paddock yang sudah benar-benar tersimpan di Firestore. Area Plan mengambil <strong>Area Paddock (Ha)</strong> dari sheet Area Plant, sedangkan progres tanggal mengambil kolom Progres.</p></div><YinYangRefreshButton busy={busy} label="Refresh" onClick={()=>void load()}/></div>
     {message&&<div className="alert">{message}</div>}
     <div className="panel premium-filter-panel master-filter-panel">
       <div className="record-filters premium-record-filters">

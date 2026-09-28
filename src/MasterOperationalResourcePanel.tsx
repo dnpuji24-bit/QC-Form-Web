@@ -4,6 +4,7 @@ import { firebaseAuth, firestoreDb } from './firebase'
 import type { User } from './types'
 import { canEditAccess } from './accessControl'
 import { OPERATIONAL_RESOURCE_COLLECTIONS, type OperationalResourceKind } from './masterOperationalResources'
+import YinYangRefreshButton from './YinYangRefreshButton'
 
 type Props={user:User}
 type Row={id:string;name:string;active:boolean;parentUnitId?:string;parentUnitName?:string}
@@ -130,7 +131,7 @@ export default function MasterOperationalResourcePanel({user}:Props){
   function startEdit(row:Row){setEditingId(row.id);setValue(row.name);setParentUnitId(row.parentUnitId||'')}
 
   return <section className="master-resource-panel">
-    <div className="section-head master-resource-title"><div><div className="eyebrow">FIRESTORE INPUT MASTER</div><h2>Master Resource Operasional</h2></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'Memuat…':'Refresh'}</button></div>
+    <div className="section-head master-resource-title"><div><div className="eyebrow">FIRESTORE INPUT MASTER</div><h2>Master Resource Operasional</h2></div><YinYangRefreshButton busy={busy} label="Refresh" onClick={()=>void load()}/></div>
 
     <div className="resource-group-grid">
       {(Object.keys(GROUPS) as GroupKey[]).map(key=><button type="button" key={key} className={`resource-group-card ${group===key?'active':''}`} onClick={()=>switchGroup(key)}><strong>{GROUPS[key].label}</strong><small>{GROUPS[key].hint}</small></button>)}

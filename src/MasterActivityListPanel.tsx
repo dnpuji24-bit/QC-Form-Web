@@ -3,6 +3,7 @@ import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'fireb
 import { firebaseAuth, firestoreDb } from './firebase'
 import type { User } from './types'
 import { canEditAccess } from './accessControl'
+import YinYangRefreshButton from './YinYangRefreshButton'
 
 type ActivityComponent={sequence:number;label:string;activeIngredient:string;dosePerHa:number;unit:string}
 type ActivityRow={
@@ -124,7 +125,7 @@ export default function MasterActivityListPanel({user,readOnly=false}:{user:User
   function filterType(next:'SPRAY'|'FERTILIZER'){setType(next);setStatus('ALL');setSelectedId('')}
 
   return <section className="master-activity-list">
-    <div className="section-head master-activity-titlebar"><div><div className="eyebrow">FIRESTORE MASTER</div><h2>Daftar Master Activity</h2></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'Memuat…':'Refresh'}</button></div>
+    <div className="section-head master-activity-titlebar"><div><div className="eyebrow">FIRESTORE MASTER</div><h2>Daftar Master Activity</h2></div><YinYangRefreshButton busy={busy} label="Refresh" onClick={()=>void load()}/></div>
     {message&&<div className="alert">{message}</div>}
 
     <div className="panel premium-filter-panel master-filter-panel">

@@ -4,6 +4,7 @@ import { firebaseAuth, firestoreDb } from './firebase'
 import { FALLBACK_COMPANIES, companyDocId, normalizeCompanyCode, normalizePrefix, type CompanyRecord } from './companyMaster'
 import type { User } from './types'
 import { canEditAccess } from './accessControl'
+import YinYangRefreshButton from './YinYangRefreshButton'
 
 type Props={user:User}
 type FormState={code:string;name:string;prefixes:string;active:boolean}
@@ -92,7 +93,7 @@ export default function CompanyMasterPanel({user}:Props){
         <label>Prefix PID<input value={form.prefixes} disabled={busy} placeholder="JAGF, ABCF" onChange={e=>setForm(v=>({...v,prefixes:e.target.value.toUpperCase()}))}/><span className="muted">Pisahkan beberapa prefix dengan koma.</span></label>
         <label>Status<select value={form.active?'ACTIVE':'INACTIVE'} disabled={busy} onChange={e=>setForm(v=>({...v,active:e.target.value==='ACTIVE'}))}><option value="ACTIVE">ACTIVE</option><option value="INACTIVE">INACTIVE</option></select></label>
       </div>
-      <div className="row-actions"><button type="button" className="primary" disabled={busy||!canEdit} onClick={()=>void save()}>{busy?'Memproses…':'Simpan Company'}</button><button type="button" disabled={busy} onClick={reset}>Reset</button><button type="button" disabled={busy} onClick={()=>void load()}>Refresh</button></div>
+      <div className="row-actions"><button type="button" className="primary" disabled={busy||!canEdit} onClick={()=>void save()}>{busy?'Memproses…':'Simpan Company'}</button><button type="button" disabled={busy} onClick={reset}>Reset</button><YinYangRefreshButton busy={busy} label="Refresh" onClick={()=>void load()}/></div>
       {!canEdit&&<div className="alert">Mode Hanya Lihat: perubahan Company & Prefix dinonaktifkan.</div>}
       {message&&<div className="alert">{message}</div>}
     </div>
