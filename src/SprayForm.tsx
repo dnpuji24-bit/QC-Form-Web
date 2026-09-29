@@ -141,7 +141,7 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
   const linkedDailyPlan=card?(sprayDailyPlans.find(p=>p.dailyPlanId===card.dailyPlanId)||resolveQcDailyPlan(sprayDailyPlans,card.paddock,card.activity,card.deskripsi)):null
   const numbers=card?unique((()=>{const linked=unitNumbersForUnit(resourceUnitNumbers,card.unit,resourceUnitRows).map(x=>x.name);return linked.length?linked:(card.unit?(master.unitMap?.[card.unit]||[]):[])})()):[]
   const materials=linkedDailyPlan?linkedDailyPlan.materials.slice(0,4).map((m,i)=>({slot:'Pesticide '+(i+1),material:m.material,unit:m.doseUnit||m.unit,dosage:m.dosePerHa})):[]
-  const timing=card?timingFor(card):{ready:false,total:0,working:0,effective:0,error:''}
+  const timing=card?timingFor(card):{ready:false,total:0,working:0,effective:0,overnight:false,error:''}
   const productivityHaPerHour=card&&timing.ready&&timing.effective>0?n(card.area)/(timing.effective/60):0
   const estimatedAdjuvant=card?((n(card.adjuvantDosage)*n(card.waterRate)*n(card.area))/1000).toFixed(2):'0.00'
 
