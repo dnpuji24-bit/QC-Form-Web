@@ -21,7 +21,33 @@ const text=(value:unknown)=>String(value??'')
 const unique=(items:unknown[])=>[...new Set(items.map(String).map(x=>x.trim()).filter(Boolean))]
 function minutes(value:string){const m=/^(\d{2}):(\d{2})$/.exec(value);return m?Number(m[1])*60+Number(m[2]):NaN}
 function durationLabel(value:number){return`${Math.floor(value/60)}j ${String(value%60).padStart(2,'0')}m`}
-function timingFor(card:UnitCard){const start=minutes(card.startTime),end=minutes(card.endTime);if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start)return{ready:false,total:0,working:0,effective:0,error:'Isi jam mulai dan selesai dengan benar.'};const ranges:Array<[number,number]>=[];for(const[i,d]of card.downtime.entries()){if(!d.start&&!d.end)continue;const a=minutes(d.start),b=minutes(d.end);if(!Number.isFinite(a)||!Number.isFinite(b)||b<=a)return{ready:false,total:0,working:end-start,effective:0,error:`HOLD ${i+1}: jam tidak valid.`};if(a<start||b>end)return{ready:false,total:0,working:end-start,effective:0,error:`HOLD ${i+1}: harus berada dalam jam kerja.`};ranges.push([a,b])}ranges.sort((a,b)=>a[0]-b[0]);for(let i=1;i<ranges.length;i++)if(ranges[i][0]<ranges[i-1][1])return{ready:false,total:0,working:end-start,effective:0,error:'Waktu HOLD tidak boleh bertumpuk.'};const total=ranges.reduce((s,[a,b])=>s+b-a,0),working=end-start;return{ready:true,total,working,effective:working-total,error:''}}
+function workingClockRange(startValue:string,endValue:string){
+  const start=minutes(startValue),rawEnd=minutes(endValue)
+  if(!Number.isFinite(start)||!Number.isFinite(rawEnd)||rawEnd===start)return null
+  const overnight=rawEnd<start
+  return{start,end:overnight?rawEnd+1440:rawEnd,overnight}
+}
+function clockWithinWorkingDay(value:string,start:number,overnight:boolean){
+  const raw=minutes(value)
+  if(!Number.isFinite(raw))return NaN
+  return overnight&&raw<start?raw+1440:raw
+}
+function timingFor(card:UnitCard){
+  const work=workingClockRange(card.startTime,card.endTime)
+  if(!work)return{ready:false,total:0,working:0,effective:0,overnight:false,error:'Isi jam mulai dan selesai dengan benar.'}
+  const{start,end,overnight}=work,working=end-start,ranges:Array<[number,number]>=[]
+  for(const[i,d]of card.downtime.entries()){
+    if(!d.start&&!d.end)continue
+    const a=clockWithinWorkingDay(d.start,start,overnight),b=clockWithinWorkingDay(d.end,start,overnight)
+    if(!Number.isFinite(a)||!Number.isFinite(b)||b<=a)return{ready:false,total:0,working,effective:0,overnight,error:`HOLD ${i+1}: jam tidak valid.`}
+    if(a<start||b>end)return{ready:false,total:0,working,effective:0,overnight,error:`HOLD ${i+1}: harus berada dalam jam kerja.`}
+    ranges.push([a,b])
+  }
+  ranges.sort((a,b)=>a[0]-b[0])
+  for(let i=1;i<ranges.length;i++)if(ranges[i][0]<ranges[i-1][1])return{ready:false,total:0,working,effective:0,overnight,error:'Waktu HOLD tidak boleh bertumpuk.'}
+  const total=ranges.reduce((s,[a,b])=>s+b-a,0)
+  return{ready:true,total,working,effective:working-total,overnight,error:''}
+}
 function newFilling(index=1,source?:Partial<Filling>):Filling{return{id:uid(),pengisianKe:index,dosis:source?.dosis||'',statusHose:source?.statusHose||'Lancar',jenisPupuk:source?.jenisPupuk||'',jumlah:'',hasilKerja:'',pemerataanPupuk:''}}
 function newCard():UnitCard{return{id:uid(),startTime:'',endTime:'',unit:'',noUnit:'',paddock:'',type:'',activity:'',dailyPlanId:'',monthlyPlanLineId:'',catatan:'',fillings:[newFilling(1)],downtime:[]}}
 function hasCardInput(card:UnitCard){return Boolean(card.recordId||card.startTime||card.endTime||card.unit||card.noUnit||card.paddock||card.activity||card.catatan||card.photo||card.photoDriveUrl||card.downtime.some(d=>d.issue||d.start||d.end||d.note||d.file||d.photoDriveUrl)||card.fillings.some(f=>f.dosis||f.jenisPupuk||f.jumlah||f.hasilKerja||f.pemerataanPupuk))}
