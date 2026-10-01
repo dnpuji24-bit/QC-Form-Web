@@ -30,6 +30,17 @@ service cloud.firestore {
     function isFertMandor() { return role() == 'mandor_fertilizer'; }
     function ownsExisting() { return resource.data.inputtedBy == username(); }
     function ownsIncoming() { return request.resource.data.inputtedBy == username(); }
+    function validQcActualWrite() {
+      return request.resource.data.keys().hasAll(['sourceOrigin','qcRecordId','dailyPlanId','actualAreaHa','inputtedBy'])
+        && request.resource.data.sourceOrigin == 'QC'
+        && request.resource.data.inputtedBy == username()
+        && request.resource.data.qcRecordId is string
+        && exists(/databases/$(database)/documents/qc_records/$(request.resource.data.qcRecordId))
+        && get(/databases/$(database)/documents/qc_records/$(request.resource.data.qcRecordId)).data.inputtedBy == username()
+        && get(/databases/$(database)/documents/qc_records/$(request.resource.data.qcRecordId)).data.dailyPlanId == request.resource.data.dailyPlanId
+        && get(/databases/$(database)/documents/qc_records/$(request.resource.data.qcRecordId)).data.actualAreaHa == request.resource.data.actualAreaHa
+        && get(/databases/$(database)/documents/qc_records/$(request.resource.data.qcRecordId)).data.saveType in ['ready','uploaded','upload_queued'];
+    }
 
     match /users/{uid} {
       allow read: if activeUser() && (request.auth.uid == uid || role() == 'owner');
@@ -209,8 +220,18 @@ service cloud.firestore {
 
     match /daily_reports/{reportId} {
       allow read: if activeUser();
-      allow create, update: if activeUser() && canEditEither('data_plan_actual','data_plan_actual_import',['owner','asisten']);
-      allow delete: if activeUser() && role() == 'owner';
+      allow create: if activeUser() && (
+        canEditEither('data_plan_actual','data_plan_actual_import',['owner','asisten'])
+        || validQcActualWrite()
+      );
+      allow update: if activeUser() && (
+        canEditEither('data_plan_actual','data_plan_actual_import',['owner','asisten'])
+        || (resource.data.sourceOrigin == 'QC' && resource.data.qcRecordId == request.resource.data.qcRecordId && validQcActualWrite())
+      );
+      allow delete: if activeUser() && (
+        role() == 'owner'
+        || (resource.data.sourceOrigin == 'QC' && canEditKey('qc_records',['owner','manager','admin','asisten']))
+      );
     }
 
     match /actual_plan_import_logs/{batchId} {

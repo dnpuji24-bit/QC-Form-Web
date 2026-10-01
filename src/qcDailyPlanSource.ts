@@ -13,6 +13,8 @@ export type QcDailyPlan={
   id:string
   dailyPlanId:string
   monthlyPlanLineId:string
+  companyCode:string
+  farm:string
   date:string
   shift:string
   foreman:string
@@ -81,6 +83,8 @@ export async function loadQcDailyPlans(date:string):Promise<QcDailyPlan[]>{
       id:item.id,
       dailyPlanId:text(row.dailyPlanId||item.id),
       monthlyPlanLineId:text(row.monthlyPlanLineId),
+      companyCode:text(row.companyCode).toUpperCase(),
+      farm:text(row.farm),
       date:text(row.date),
       shift:text(row.shift),
       foreman:text(row.foreman),
