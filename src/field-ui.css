@@ -3300,3 +3300,18 @@
 .daily-draft-pid-materials,.daily-saved-pid-materials{display:grid;gap:4px}.daily-draft-pid-materials>span,.daily-saved-pid-materials>span{display:grid!important;gap:1px!important;padding:6px 7px!important;border:1px solid #bbf7d0!important;border-radius:8px!important;background:#ecfdf5!important;color:#166534!important}.daily-draft-pid-materials small,.daily-saved-pid-materials small{color:#475569;font-size:.66rem}
 .daily-draft-pid-no-material,.daily-saved-pid-no-material{color:#94a3b8;font-size:.68rem}.daily-draft-pid-note,.daily-saved-pid-note{color:#92400e;font-size:.68rem}
 @media(max-width:800px){.daily-pid-work-detail{grid-column:2}.daily-pid-work-head{align-items:stretch;flex-direction:column}.daily-pid-activity-chip{align-self:flex-start}.daily-pid-materials>div{align-items:flex-start;flex-direction:column}.daily-pid-materials>div>strong{text-align:left}.daily-draft-pid-details,.daily-saved-pid-details{grid-template-columns:1fr}}
+
+/* Premium Monthly Plan action icons + finish */
+.monthly-card-actions{align-items:center!important}
+.monthly-icon-action{width:38px!important;height:38px!important;min-width:38px!important;min-height:38px!important;padding:0!important;display:inline-grid!important;place-items:center!important;border:1px solid #dbe4f0!important;border-radius:11px!important;background:linear-gradient(180deg,#ffffff,#f8fafc)!important;color:#334155!important;box-shadow:0 3px 10px rgba(15,23,42,.06)!important;transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease,background .16s ease!important}
+.monthly-icon-action svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.monthly-icon-action:hover:not(:disabled){transform:translateY(-1px);border-color:#bfdbfe!important;box-shadow:0 7px 18px rgba(15,23,42,.10)!important;background:#fff!important}
+.monthly-icon-action:disabled{opacity:.32!important;box-shadow:none!important;cursor:not-allowed!important}
+.monthly-icon-action.finish{color:#15803d!important;background:linear-gradient(180deg,#f0fdf4,#dcfce7)!important;border-color:#bbf7d0!important}
+.monthly-icon-action.reopen{color:#2563eb!important;background:linear-gradient(180deg,#eff6ff,#dbeafe)!important;border-color:#bfdbfe!important}
+.monthly-icon-action.cancel{color:#b45309!important;background:linear-gradient(180deg,#fffbeb,#fef3c7)!important;border-color:#fde68a!important}
+.monthly-icon-action.trash{color:#b91c1c!important;background:linear-gradient(180deg,#fff7f7,#fee2e2)!important;border-color:#fecaca!important}
+.monthly-table-actions{display:flex!important;gap:6px!important;flex-wrap:nowrap!important}
+.monthly-finished-note{color:#15803d!important;font-weight:800!important}
+@media(min-width:901px){.monthly-card-actions{display:flex!important;flex-wrap:nowrap!important;gap:7px!important}.monthly-card-actions .monthly-daily-link-button{min-height:38px!important}}
+@media(max-width:760px){.monthly-icon-action{width:34px!important;height:34px!important;min-width:34px!important;min-height:34px!important;border-radius:9px!important}.monthly-icon-action svg{width:16px;height:16px}.monthly-card-actions{grid-template-columns:minmax(0,1fr) repeat(5,34px)!important;gap:5px!important}.monthly-card-actions .monthly-daily-link-button{grid-column:auto!important}}
