@@ -32,10 +32,11 @@ export default function MonthlyPlanWorkspace({user,onOpenDailyPlan}:Props){
         <div><span className="eyebrow">PERIODE AKTIF</span><h3>Monthly Planning</h3></div>
         <label><span>Tahun</span><input type="number" min="2020" max="2100" value={year} onChange={e=>setYear(Number(e.target.value)||now.getFullYear())}/></label>
         <label><span>Bulan</span><select value={monthNumber} onChange={e=>setMonthNumber(Number(e.target.value))}>{monthNames.map((name,i)=><option key={name} value={i+1}>{String(i+1).padStart(2,'0')} · {name}</option>)}</select></label>
-        <label><span>Week</span><select value={week} onChange={e=>setWeek(e.target.value)}>{['W1','W2','W3','W4'].map(x=><option key={x}>{x}</option>)}</select></label>
-        <div className="monthly-period-badge"><span>Aktif</span><strong>{monthKey} · {week}</strong></div>
+        <label><span>Week</span><select value={week} onChange={e=>setWeek(e.target.value)}><option value="ALL">Semua Week</option>{['W1','W2','W3','W4'].map(x=><option key={x}>{x}</option>)}</select></label>
+        <div className="monthly-period-badge"><span>Aktif</span><strong>{monthKey} · {week==='ALL'?'Semua Week':week}</strong></div>
       </section>
-      {editPlan&&<MonthlyPlanWebEntryPanel user={user} selectedMonth={monthKey} selectedWeek={week} onSaved={()=>setRefreshKey(x=>x+1)}/>}
+      {editPlan&&week!=='ALL'&&<MonthlyPlanWebEntryPanel user={user} selectedMonth={monthKey} selectedWeek={week} onSaved={()=>setRefreshKey(x=>x+1)}/>}
+      {editPlan&&week==='ALL'&&<div className="panel monthly-all-week-note"><strong>Mode Semua Week</strong><span>Daftar dan ringkasan menampilkan W1–W4 sekaligus. Pilih W1, W2, W3, atau W4 untuk menambah Monthly Plan baru.</span></div>}
       {!editPlan&&<div className="alert">Mode Hanya Lihat: input, edit, update, cancel, dan hapus Monthly Plan dinonaktifkan.</div>}
       <MonthlyPlanListPanel user={user} selectedMonth={monthKey} selectedWeek={week} compact refreshKey={refreshKey} onOpenDailyPlan={onOpenDailyPlan}/>
     </div>:view==='import'?(editImport?<MonthlyPlanImportPanel user={user}/>:<div className="panel"><div className="alert">Mode Hanya Lihat: Update / Import Excel dinonaktifkan.</div></div>):(editImport?<MonthlyPlanMasterSyncPanel user={user}/>:<div className="panel"><div className="alert">Mode Hanya Lihat: Sinkron Master dinonaktifkan.</div></div>)}
