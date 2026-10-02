@@ -12,8 +12,8 @@ import YinYangRefreshButton from './YinYangRefreshButton'
 
 type Props={user:User;selectedDate?:string;onDateChange?:(date:string)=>void;onSaved?:()=>void;composerRequest?:DailyComposerRequest;onComposerRequestHandled?:()=>void}
 type Monthly={id:string;planLineId:string;monthKey:string;week:string;companyCode:string;farm:string;pid:string;description:string;activity:string;targetAreaHa:number;manualActualAreaHa:number;sourceStatus:string;status:string;type:string;activityCategory:string;stage:string;masterVariety:string;componentsSnapshot:unknown[]}
-type Daily={dailyPlanId:string;monthlyPlanLineId:string;date:string;shift:string;areaHa:number}
-type Actual={id:string;monthlyPlanLineId:string;actualAreaHa:number}
+type Daily={dailyPlanId:string;monthlyPlanLineId:string;date:string;shift:string;pid:string;activity:string;description:string;areaHa:number}
+type Actual={id:string;monthlyPlanLineId:string;pid:string;activity:string;description:string;actualAreaHa:number}
 type MasterPaddock={pid:string;companyCode:string;farm:string;stage:string;variety:string}
 type MasterActivity={id:string;description:string;activity:string;type:string;activityCategory:string;active:boolean;componentsSnapshot:unknown[]}
 type PidDraft={id:string;search:string;monthlyId:string;pid:string;area:string;pidNotes:string;descriptionSearch:string;masterActivityId:string;persistedDocId?:string;persistedDailyPlanId?:string}
@@ -52,6 +52,14 @@ function paddockKey(value:unknown){return planText(value).toUpperCase().replace(
 function compactPaddockKey(value:unknown){return paddockKey(value).replace(/[^A-Z0-9]/g,'')}
 function shortPaddockCode(pid:string){const parts=paddockKey(pid).split('-').filter(Boolean);return parts.length>=2?parts.slice(-2).join('-'):parts.join('-')}
 function monthlyStatusClosed(row:Monthly){const status=searchKey(row.sourceStatus+' '+row.status);return ['cancel','done','selesai','complete'].some(token=>status.includes(token))}
+function monthlyIdentityBase(row:{planLineId?:string;monthlyPlanLineId?:string;pid?:string}){return searchKey(row.planLineId||row.monthlyPlanLineId)+'|'+compactPaddockKey(row.pid)}
+function sameMonthlyIdentity(plan:Monthly,item:{monthlyPlanLineId:string;pid:string;activity?:string;description?:string},rows:Monthly[]){
+  if(monthlyIdentityBase(plan)!==monthlyIdentityBase(item))return false
+  const siblings=rows.filter(row=>monthlyIdentityBase(row)===monthlyIdentityBase(plan))
+  if(siblings.length<=1)return true
+  const planTask=searchKey(plan.description||plan.activity),itemTask=searchKey(item.description||item.activity)
+  return Boolean(planTask&&itemTask&&planTask===itemTask)
+}
 function monthlyActivityCompatible(row:Monthly,activity:string,_rows:Monthly[]){
   const activityKey=searchKey(activity)
   if(!activityKey)return true
@@ -94,8 +102,10 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
   const activityLookupRef=useRef(0),pidLookupRef=useRef(0),loadedActivityKeysRef=useRef(new Set<string>()),loadedPidKeysRef=useRef(new Set<string>())
   const availableMonthly=useMemo(()=>{const map=new Map<string,Monthly>();[...monthly,...activityMonthly,...pidMonthly].forEach(row=>map.set(row.id,row));return[...map.values()].sort((a,b)=>a.monthKey.localeCompare(b.monthKey)||a.week.localeCompare(b.week,undefined,{numeric:true})||a.planLineId.localeCompare(b.planLineId,undefined,{numeric:true}))},[monthly,activityMonthly,pidMonthly])
   const availableDaily=useMemo(()=>{const map=new Map<string,Daily>();[...daily,...linkedDaily].forEach(row=>map.set(row.dailyPlanId,row));return[...map.values()]},[daily,linkedDaily])
-  const actualByMonthlyId=useMemo(()=>{const reports=new Map<string,Actual>(),map=new Map<string,number>();[...actuals,...linkedActuals].forEach(row=>reports.set(row.id,row));reports.forEach(row=>{if(row.monthlyPlanLineId)map.set(row.monthlyPlanLineId,(map.get(row.monthlyPlanLineId)||0)+row.actualAreaHa)});return map},[actuals,linkedActuals])
-  const selectableMonthly=useMemo(()=>availableMonthly.filter(row=>!monthlyStatusClosed(row)&&((actualByMonthlyId.get(row.planLineId)||0)+row.manualActualAreaHa)<row.targetAreaHa-0.0001),[availableMonthly,actualByMonthlyId])
+  const effectiveActuals=useMemo(()=>{const reports=new Map<string,Actual>();[...actuals,...linkedActuals].forEach(row=>reports.set(row.id,row));return[...reports.values()]},[actuals,linkedActuals])
+  function actualForMonthly(row:Monthly){return effectiveActuals.filter(item=>sameMonthlyIdentity(row,item,availableMonthly)).reduce((sum,item)=>sum+item.actualAreaHa,0)}
+  function dailyForMonthly(row:Monthly){return availableDaily.filter(item=>sameMonthlyIdentity(row,item,availableMonthly))}
+  const selectableMonthly=useMemo(()=>availableMonthly.filter(row=>!monthlyStatusClosed(row)&&(actualForMonthly(row)+row.manualActualAreaHa)<row.targetAreaHa-0.0001),[availableMonthly,effectiveActuals,availableDaily])
 
   async function loadMasters(){if(!firestoreDb)return;try{const[p,a]=await Promise.all([getDocs(collection(firestoreDb,'master_paddocks')),getDocs(collection(firestoreDb,'master_activities'))]);setPaddocks(p.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{pid:planText(r.pid||x.id).toUpperCase(),companyCode:planText(r.companyCode).toUpperCase(),farm:planText(r.farm),stage:planText(r.currentStage||r.stage),variety:planText(r.variety)}}));setActivities(a.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,description:planText(r.description),activity:planText(r.activity),type:planText(r.type),activityCategory:planText(r.activityCategory||r.category),active:r.active!==false,componentsSnapshot:Array.isArray(r.components)?r.components:Array.isArray(r.componentsSnapshot)?r.componentsSnapshot:[]}}).filter(x=>x.activity||x.description))}catch(e){setMessage(e instanceof Error?e.message:'Master data gagal dimuat.')}}
   async function loadPeriod(date=state.date){
@@ -112,10 +122,10 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
       ;[...byMonthKey.docs,...byStartDate.docs].forEach(item=>mergedMonthly.set(item.id,item))
       const monthlyRows=[...mergedMonthly.values()].map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,planLineId:planText(r.planLineId||x.id),monthKey:planText(r.monthKey),week:planText(r.week),companyCode:planText(r.companyCode),farm:planText(r.farm),pid:planText(r.pid),description:planText(r.description),activity:planText(r.activity),targetAreaHa:planNum(r.targetAreaHa),manualActualAreaHa:planNum(r.manualActualAreaHa),sourceStatus:planText(r.sourceStatus),status:planText(r.status),type:planText(r.type),activityCategory:planText(r.activityCategory),stage:planText(r.stage),masterVariety:planText(r.masterVariety),componentsSnapshot:Array.isArray(r.componentsSnapshot)?r.componentsSnapshot:[]}}).sort((a,b)=>a.week.localeCompare(b.week,undefined,{numeric:true})||a.planLineId.localeCompare(b.planLineId,undefined,{numeric:true}))
       const ids=[...new Set(monthlyRows.map(row=>row.planLineId).filter(Boolean))],periodActuals:Actual[]=[]
-      for(let i=0;i<ids.length;i+=30){const part=ids.slice(i,i+30),snap=await getDocs(fsQuery(collection(firestoreDb,'daily_reports'),where('monthlyPlanLineId','in',part)));snap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;periodActuals.push({id:x.id,monthlyPlanLineId:planText(r.monthlyPlanLineId),actualAreaHa:planNum(r.actualAreaHa)})})}
+      for(let i=0;i<ids.length;i+=30){const part=ids.slice(i,i+30),snap=await getDocs(fsQuery(collection(firestoreDb,'daily_reports'),where('monthlyPlanLineId','in',part)));snap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;periodActuals.push({id:x.id,monthlyPlanLineId:planText(r.monthlyPlanLineId),pid:planText(r.pid||r.paddockRaw).toUpperCase(),activity:planText(r.activity),description:planText(r.description||r.activity),actualAreaHa:planNum(r.actualAreaHa)})})}
       setMonthly(monthlyRows)
       setActuals(periodActuals)
-      setDaily(d.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{dailyPlanId:planText(r.dailyPlanId||x.id),monthlyPlanLineId:planText(r.monthlyPlanLineId),date:planText(r.date),shift:planText(r.shift),areaHa:planNum(r.areaHa)}}))
+      setDaily(d.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{dailyPlanId:planText(r.dailyPlanId||x.id),monthlyPlanLineId:planText(r.monthlyPlanLineId),date:planText(r.date),shift:planText(r.shift),pid:planText(r.pid||r.paddockRaw).toUpperCase(),activity:planText(r.activity),description:planText(r.description||r.activity),areaHa:planNum(r.areaHa)}}))
     }catch(e){setMessage(e instanceof Error?e.message:'Data periode Daily gagal dimuat.')}finally{setBusy(false)}
   }
   async function loadMonthlyActivity(activityName:string,force=false){
@@ -142,8 +152,8 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
           getDocs(fsQuery(collection(firestoreDb,'daily_plans'),where('monthlyPlanLineId','in',part))),
           getDocs(fsQuery(collection(firestoreDb,'daily_reports'),where('monthlyPlanLineId','in',part))),
         ])
-        dailySnap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;linked.push({dailyPlanId:planText(r.dailyPlanId||x.id),monthlyPlanLineId:planText(r.monthlyPlanLineId),date:planText(r.date),shift:planText(r.shift),areaHa:planNum(r.areaHa)})})
-        actualSnap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;linkedActual.push({id:x.id,monthlyPlanLineId:planText(r.monthlyPlanLineId),actualAreaHa:planNum(r.actualAreaHa)})})
+        dailySnap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;linked.push({dailyPlanId:planText(r.dailyPlanId||x.id),monthlyPlanLineId:planText(r.monthlyPlanLineId),date:planText(r.date),shift:planText(r.shift),pid:planText(r.pid||r.paddockRaw).toUpperCase(),activity:planText(r.activity),description:planText(r.description||r.activity),areaHa:planNum(r.areaHa)})})
+        actualSnap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;linkedActual.push({id:x.id,monthlyPlanLineId:planText(r.monthlyPlanLineId),pid:planText(r.pid||r.paddockRaw).toUpperCase(),activity:planText(r.activity),description:planText(r.description||r.activity),actualAreaHa:planNum(r.actualAreaHa)})})
       }
       if(token!==activityLookupRef.current)return
       if(linked.length)setLinkedDaily(current=>{const merged=new Map<string,Daily>();[...current,...linked].forEach(row=>merged.set(row.dailyPlanId,row));return[...merged.values()]})
@@ -180,8 +190,8 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
           getDocs(fsQuery(collection(db,'daily_plans'),where('monthlyPlanLineId','in',part))),
           getDocs(fsQuery(collection(db,'daily_reports'),where('monthlyPlanLineId','in',part))),
         ])
-        dailySnap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;linked.push({dailyPlanId:planText(r.dailyPlanId||x.id),monthlyPlanLineId:planText(r.monthlyPlanLineId),date:planText(r.date),shift:planText(r.shift),areaHa:planNum(r.areaHa)})})
-        actualSnap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;linkedActual.push({id:x.id,monthlyPlanLineId:planText(r.monthlyPlanLineId),actualAreaHa:planNum(r.actualAreaHa)})})
+        dailySnap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;linked.push({dailyPlanId:planText(r.dailyPlanId||x.id),monthlyPlanLineId:planText(r.monthlyPlanLineId),date:planText(r.date),shift:planText(r.shift),pid:planText(r.pid||r.paddockRaw).toUpperCase(),activity:planText(r.activity),description:planText(r.description||r.activity),areaHa:planNum(r.areaHa)})})
+        actualSnap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;linkedActual.push({id:x.id,monthlyPlanLineId:planText(r.monthlyPlanLineId),pid:planText(r.pid||r.paddockRaw).toUpperCase(),activity:planText(r.activity),description:planText(r.description||r.activity),actualAreaHa:planNum(r.actualAreaHa)})})
       }
       if(token!==pidLookupRef.current)return
       if(linked.length)setLinkedDaily(current=>{const merged=new Map<string,Daily>();[...current,...linked].forEach(row=>merged.set(row.dailyPlanId,row));return[...merged.values()]})
@@ -200,7 +210,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
     if(group.sourceType==='MONTHLY'&&group.rows.some(row=>row.monthlyPlanLineId)&&!monthly.length)return
     const duplicate=composerRequest.mode==='duplicate-saved'
     const pids:PidDraft[]=group.rows.map(row=>{
-      const monthlyRow=availableMonthly.find(item=>item.planLineId===row.monthlyPlanLineId)||null
+      const monthlyRow=availableMonthly.find(item=>item.planLineId===row.monthlyPlanLineId&&compactPaddockKey(item.pid)===compactPaddockKey(row.pid)&&(!row.description||searchKey(item.description||item.activity)===searchKey(row.description)))||availableMonthly.find(item=>item.planLineId===row.monthlyPlanLineId&&compactPaddockKey(item.pid)===compactPaddockKey(row.pid))||availableMonthly.find(item=>item.planLineId===row.monthlyPlanLineId)||null
       return{id:planRowId('pid'),search:monthlyRow?monthlyOptionLabel(monthlyRow):row.pid,monthlyId:monthlyRow?.id||'',pid:row.pid,area:String(row.areaHa),pidNotes:row.pidNotes||'',descriptionSearch:row.description||'',masterActivityId:'',persistedDocId:duplicate?undefined:row.id,persistedDailyPlanId:duplicate?undefined:row.dailyPlanId}
     })
     const work=blankWork({id:duplicate?planRowId('daily'):group.workGroupId,sourceType:(['MONTHLY','ADHOC','SUPPORT'].includes(group.sourceType)?group.sourceType:'MONTHLY') as WorkDraft['sourceType'],shift:group.shift,foreman:group.foreman,activitySearch:group.activity||group.description,manpower:String(group.manpower),unitName:group.unitName,unitReady:String(group.unitReady),unitStandby:String(group.unitStandby),unitBreakdown:String(group.unitBreakdown),notes:group.notes,pids})
@@ -220,8 +230,8 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
       const selected=availableMonthly.find(x=>x.id===pid.monthlyId)||null
       const paddock=paddocks.find(p=>p.pid===pid.pid.toUpperCase())||null
       const area=planNum(pid.area)
-      const scheduled=selected?availableDaily.filter(x=>x.monthlyPlanLineId===selected.planLineId).reduce((s,x)=>s+x.areaHa,0):0
-      const linkedActual=selected?(actualByMonthlyId.get(selected.planLineId)||0):0
+      const scheduled=selected?dailyForMonthly(selected).reduce((s,x)=>s+x.areaHa,0):0
+      const linkedActual=selected?actualForMonthly(selected):0
       const remaining=selected?selected.targetAreaHa-selected.manualActualAreaHa-Math.max(scheduled,linkedActual):0
       const selectedMaster=selected?activities.find(item=>searchKey(item.activity)===searchKey(selected.activity||groupActivity)&&searchKey(item.description)===searchKey(selected.description))||null:null
       const manualMaster=work.sourceType==='MONTHLY'?selectedMaster:(activities.find(item=>searchKey(item.activity)===groupKey&&((pid.masterActivityId&&item.id===pid.masterActivityId)||(!pid.masterActivityId&&pid.descriptionSearch&&searchKey(item.description)===searchKey(pid.descriptionSearch))))||null)
@@ -234,8 +244,8 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
     return{work,activityOptions:activityChoices(availableMonthly,activities,groupActivity),pids,area:pids.reduce((s,x)=>s+x.area,0)}
   }
 
-  const activeInfo=useMemo(()=>buildInfo(state.active),[state.active,availableMonthly,selectableMonthly,availableDaily,activities,paddocks])
-  const draftInfos=useMemo(()=>state.works.map(buildInfo),[state.works,availableMonthly,selectableMonthly,availableDaily,activities,paddocks])
+  const activeInfo=useMemo(()=>buildInfo(state.active),[state.active,availableMonthly,selectableMonthly,availableDaily,effectiveActuals,activities,paddocks])
+  const draftInfos=useMemo(()=>state.works.map(buildInfo),[state.works,availableMonthly,selectableMonthly,availableDaily,effectiveActuals,activities,paddocks])
   const totals=useMemo(()=>draftInfos.reduce((acc,g)=>({groups:acc.groups+1,pids:acc.pids+g.pids.length,area:acc.area+g.area,manpower:acc.manpower+planNum(g.work.manpower),ready:acc.ready+planNum(g.work.unitReady),standby:acc.standby+planNum(g.work.unitStandby),breakdown:acc.breakdown+planNum(g.work.unitBreakdown)}),{groups:0,pids:0,area:0,manpower:0,ready:0,standby:0,breakdown:0}),[draftInfos])
   const shifts=useMemo(()=>[...new Set(draftInfos.map(g=>g.work.shift||'-'))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[draftInfos])
 
@@ -259,7 +269,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
     if(invalidTask)return'Pilih Kegiatan dari Master Activity untuk setiap paddock.'
     const keys=new Set<string>()
     for(const p of info.pids){const key=info.work.sourceType==='MONTHLY'?(p.selected?.planLineId||''):p.pid.pid.toUpperCase();if(key&&keys.has(key))return'Ada PID yang sama dipilih lebih dari sekali pada kegiatan ini.';keys.add(key)}
-    if(checkExisting){const duplicate=info.pids.some(p=>info.work.sourceType==='MONTHLY'&&p.selected&&availableDaily.some(d=>d.date===state.date&&d.shift===info.work.shift&&d.monthlyPlanLineId===p.selected?.planLineId));if(duplicate)return'Ada PID yang sudah memiliki Daily Plan pada tanggal/shift yang sama.'}
+    if(checkExisting){const duplicate=info.pids.some(p=>info.work.sourceType==='MONTHLY'&&p.selected&&availableDaily.some(d=>p.selected&&d.date===state.date&&d.shift===info.work.shift&&sameMonthlyIdentity(p.selected,d,availableMonthly)));if(duplicate)return'Ada PID yang sudah memiliki Daily Plan pada tanggal/shift yang sama.'}
     return''
   }
 
