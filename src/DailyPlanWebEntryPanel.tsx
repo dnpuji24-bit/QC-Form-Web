@@ -20,7 +20,7 @@ type PidDraft={id:string;search:string;monthlyId:string;pid:string;area:string;p
 type WorkDraft={id:string;sourceType:'MONTHLY'|'ADHOC'|'SUPPORT';shift:string;foreman:string;activitySearch:string;manpower:string;unitName:string;unitReady:string;unitStandby:string;unitBreakdown:string;notes:string;pids:PidDraft[]}
 type DraftState={date:string;active:WorkDraft;works:WorkDraft[];editingId:string}
 type PersistedEditContext={groupKey:string;workGroupId:string;planningOrder:number;originalRows:Array<{id:string;dailyPlanId:string;monthlyPlanLineId:string}>}
-type PidInfo={pid:PidDraft;choices:Monthly[];selected:Monthly|null;paddock:MasterPaddock|null;area:number;scheduled:number;remaining:number;description:string;masterActivity:MasterActivity|null;taskOptions:MasterActivity[];materials:ReturnType<typeof materialLinesFromComponents>}
+type PidInfo={pid:PidDraft;choices:Monthly[];selected:Monthly|null;paddock:MasterPaddock|null;area:number;actual:number;remaining:number;description:string;masterActivity:MasterActivity|null;taskOptions:MasterActivity[];materials:ReturnType<typeof materialLinesFromComponents>}
 type WorkInfo={work:WorkDraft;activityOptions:string[];pids:PidInfo[];area:number}
 
 function blankPid():PidDraft{return{id:planRowId('pid'),search:'',monthlyId:'',pid:'',area:'',pidNotes:'',descriptionSearch:'',masterActivityId:''}}
@@ -230,16 +230,16 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
       const selected=availableMonthly.find(x=>x.id===pid.monthlyId)||null
       const paddock=paddocks.find(p=>p.pid===pid.pid.toUpperCase())||null
       const area=planNum(pid.area)
-      const scheduled=selected?dailyForMonthly(selected).reduce((s,x)=>s+x.areaHa,0):0
       const linkedActual=selected?actualForMonthly(selected):0
-      const remaining=selected?selected.targetAreaHa-selected.manualActualAreaHa-Math.max(scheduled,linkedActual):0
+      const actual=selected?linkedActual+selected.manualActualAreaHa:0
+      const remaining=selected?selected.targetAreaHa-actual:0
       const selectedMaster=selected?activities.find(item=>searchKey(item.activity)===searchKey(selected.activity||groupActivity)&&searchKey(item.description)===searchKey(selected.description))||null:null
       const manualMaster=work.sourceType==='MONTHLY'?selectedMaster:(activities.find(item=>searchKey(item.activity)===groupKey&&((pid.masterActivityId&&item.id===pid.masterActivityId)||(!pid.masterActivityId&&pid.descriptionSearch&&searchKey(item.description)===searchKey(pid.descriptionSearch))))||null)
       const taskOptions=manualMaster&&!activeTasks.some(item=>item.id===manualMaster.id)?[manualMaster,...activeTasks]:activeTasks
       const description=work.sourceType==='MONTHLY'?(selected?.description||selectedMaster?.description||''):(manualMaster?.description||pid.descriptionSearch.trim())
       const components=work.sourceType==='MONTHLY'?((selected?.componentsSnapshot?.length?selected.componentsSnapshot:selectedMaster?.componentsSnapshot)||[]):(manualMaster?.componentsSnapshot||[])
       const materials=materialLinesFromComponents(components,area)
-      return{pid,choices,selected,paddock,area,scheduled,remaining,description,masterActivity:manualMaster,taskOptions,materials}
+      return{pid,choices,selected,paddock,area,actual,remaining,description,masterActivity:manualMaster,taskOptions,materials}
     })
     return{work,activityOptions:activityChoices(availableMonthly,activities,groupActivity),pids,area:pids.reduce((s,x)=>s+x.area,0)}
   }
@@ -274,8 +274,6 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
   }
 
   function saveToDraft(e:FormEvent){e.preventDefault();const error=validateGroup(activeInfo);if(error){setMessage(error);return}
-    const over=activeInfo.pids.filter(p=>activeInfo.work.sourceType==='MONTHLY'&&p.selected&&p.area>p.remaining+0.0001)
-    if(over.length&&!window.confirm(over.length+' PID melebihi sisa Monthly Plan. Tetap tambahkan ke draft?'))return
     setState(current=>{
       const saved=cloneWork(current.active,false)
       const nextWorks=current.editingId?current.works.map(work=>work.id===current.editingId?saved:work):[...current.works,saved]
@@ -417,7 +415,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
           <label className="daily-pid-area"><span>Luas (Ha)</span><input type="number" min="0" step="0.0001" value={row.pid.area} onChange={e=>patchActivePid(row.pid.id,{area:e.target.value})}/></label>
           {state.active.sourceType==='SUPPORT'&&<label className="daily-pid-note"><span>Keterangan PID</span><input value={row.pid.pidNotes} onChange={e=>patchActivePid(row.pid.id,{pidNotes:e.target.value})} placeholder="Opsional: unit / perlakuan khusus"/></label>}
           <button type="button" className="danger daily-pid-remove" onClick={()=>removeActivePid(row.pid.id)}>Hapus</button>
-          {(row.pid.persistedDailyPlanId||row.selected)&&<div className="daily-pid-meta">{row.pid.persistedDailyPlanId&&<span>Daily ID <b>{row.pid.persistedDailyPlanId}</b></span>}{row.selected&&<><span>Monthly ID <b>{row.selected.planLineId}</b></span><span>Target {planHa(row.selected.targetAreaHa)}</span><span>Terjadwal {planHa(row.scheduled)}</span>{row.selected.manualActualAreaHa>0&&<span>Progress manual <b>{planHa(row.selected.manualActualAreaHa)}</b></span>}<span>Sisa <b className={row.area>row.remaining?'plan-danger-text':''}>{planHa(row.remaining)}</b></span></>}</div>}
+          {(row.pid.persistedDailyPlanId||row.selected)&&<div className="daily-pid-meta">{row.pid.persistedDailyPlanId&&<span>Daily ID <b>{row.pid.persistedDailyPlanId}</b></span>}{row.selected&&<><span>Monthly ID <b>{row.selected.planLineId}</b></span><span>Target {planHa(row.selected.targetAreaHa)}</span><span>Actual <b>{planHa(row.actual)}</b></span>{row.selected.manualActualAreaHa>0&&<span>Progress manual <b>{planHa(row.selected.manualActualAreaHa)}</b></span>}<span>Sisa <b className={row.remaining< -0.0001?'plan-danger-text':''}>{planHa(row.remaining)}</b></span></>}</div>}
           <div className="daily-pid-work-detail">
             <div className="daily-pid-work-head"><div><span>Kegiatan</span>{state.active.sourceType==='MONTHLY'?<strong>{row.description||'Pilih PID / Monthly Plan terlebih dahulu'}</strong>:<select value={row.pid.masterActivityId||row.masterActivity?.id||''} disabled={!state.active.activitySearch} onChange={e=>{const task=row.taskOptions.find(item=>item.id===e.target.value)||null;patchActivePid(row.pid.id,{masterActivityId:e.target.value,descriptionSearch:task?.description||''})}}><option value="">Pilih kegiatan...</option>{row.taskOptions.map(task=><option key={task.id} value={task.id}>{task.description}</option>)}</select>}</div>{state.active.activitySearch&&<span className="daily-pid-activity-chip">Activity: {state.active.activitySearch}</span>}</div>
             {row.materials.length?<div className="daily-pid-materials">{row.materials.map(m=><div key={m.material+'|'+m.unit}><span><b>{m.material}</b><small>Dosis {m.dosePerHa.toLocaleString('id-ID',{maximumFractionDigits:4})} {m.doseUnit||m.unit}/Ha</small></span><strong>Total {m.totalMaterial.toLocaleString('id-ID',{maximumFractionDigits:4})} {m.unit||m.doseUnit}</strong></div>)}</div>:<div className="daily-pid-material-empty">{row.description?'Belum ada bahan/dosis untuk kegiatan ini.':'Pilih kegiatan untuk melihat bahan dan dosis.'}</div>}
