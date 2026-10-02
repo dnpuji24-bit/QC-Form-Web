@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import CompanyMasterPanel from './CompanyMasterPanel'
 import MasterActivityWorkspace from './MasterActivityWorkspace'
 import MasterPaddockWorkspace from './MasterPaddockWorkspace'
-import PlanWorkspace from './PlanWorkspace'
+import PlanWorkspace, { type PlanWorkspaceHandle } from './PlanWorkspace'
 import { UsersApproval } from './AdminPages'
 import { canOpenDataUnm, canOpenQc, canViewAccess } from './accessControl'
 import { hydrateUserAccess } from './userAccess'
@@ -28,6 +28,7 @@ export default function PortalRouter(){
   const[user,setUser]=useState<User|null>(()=>readUser())
   const[mode,setMode]=useState<PortalMode>(()=>hasSession()?((sessionStorage.getItem(MODE_KEY) as PortalMode)||'chooser'):'chooser')
   const[dataView,setDataView]=useState<DataView>('home')
+  const planWorkspaceRef=useRef<PlanWorkspaceHandle|null>(null)
 
   useEffect(()=>{
     let previous=hasSession()
@@ -99,7 +100,7 @@ export default function PortalRouter(){
           {canViewAccess(user,'data_company')&&<button className="portal-card" type="button" onClick={()=>setDataView('company')}><span className="portal-icon">CO</span><strong>Company & Prefix</strong><p>Tambah, edit, aktif/nonaktifkan Company serta mapping prefix PID seperti JAGF → GPA.</p><span className="portal-link">Buka Company →</span></button>}
         </section>
       </>}
-      {dataView==='plan'&&<section className="portal-workspace-view"><div className="portal-section-head compact-page-head"><div><span className="portal-kicker">DATA UnM / PLAN</span><h2>Plan</h2><p>Monthly, Daily, Actual dan rekonsiliasi.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><PlanWorkspace user={user}/></section>}
+      {dataView==='plan'&&<section className="portal-workspace-view"><div className="portal-section-head compact-page-head"><div><span className="portal-kicker">DATA UnM / PLAN</span><h2>Plan</h2><p>Monthly, Daily, Actual dan rekonsiliasi.</p></div><button type="button" onClick={()=>{if(!planWorkspaceRef.current?.goBack())setDataView('home')}}>← Kembali</button></div><PlanWorkspace ref={planWorkspaceRef} user={user}/></section>}
       {dataView==='master-paddock'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM</span><h2>Master Paddock</h2><p>Lihat data Firestore atau lakukan update dari Area Plant dan Area Harvest.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><MasterPaddockWorkspace user={user}/></section>}
       {dataView==='master-activity'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM</span><h2>Master Activity</h2><p>Activity, komposisi bahan per hektar, Master Material, dan status penggunaan di Plan.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><MasterActivityWorkspace user={user}/></section>}
       {dataView==='company'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM</span><h2>Company & Prefix</h2><p>Master klasifikasi perusahaan MSG berdasarkan prefix PID.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><CompanyMasterPanel user={user}/></section>}
