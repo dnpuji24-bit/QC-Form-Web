@@ -6,12 +6,12 @@ import MonthlyPlanWebEntryPanel from './MonthlyPlanWebEntryPanel'
 import type { User } from './types'
 import { canEditAccess, canViewAccess } from './accessControl'
 
-type Props={user:User;onOpenDailyPlan?:(request:{date:string;monthlyPlanLineId:string;pid:string})=>void}
+type Props={user:User;onOpenDailyPlan?:(request:{date:string;monthlyPlanLineId:string;pid:string})=>void;onOpenActualSource?:(request:{monthlyPlanLineId:string;actualReportIds:string[];label:string})=>void}
 type View='plan'|'import'|'sync'
 const monthNames=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des']
 function currentWeek(day:number){return day<=7?'W1':day<=15?'W2':day<=22?'W3':'W4'}
 
-export default function MonthlyPlanWorkspace({user,onOpenDailyPlan}:Props){
+export default function MonthlyPlanWorkspace({user,onOpenDailyPlan,onOpenActualSource}:Props){
   const now=new Date()
   const[view,setView]=useState<View>('plan')
   const[year,setYear]=useState(now.getFullYear())
@@ -38,7 +38,7 @@ export default function MonthlyPlanWorkspace({user,onOpenDailyPlan}:Props){
       {editPlan&&week!=='ALL'&&<MonthlyPlanWebEntryPanel user={user} selectedMonth={monthKey} selectedWeek={week} onSaved={()=>setRefreshKey(x=>x+1)}/>}
       {editPlan&&week==='ALL'&&<div className="panel monthly-all-week-note"><strong>Mode Semua Week</strong><span>Daftar dan ringkasan menampilkan W1–W4 sekaligus. Pilih W1, W2, W3, atau W4 untuk menambah Monthly Plan baru.</span></div>}
       {!editPlan&&<div className="alert">Mode Hanya Lihat: input, edit, update, cancel, dan hapus Monthly Plan dinonaktifkan.</div>}
-      <MonthlyPlanListPanel user={user} selectedMonth={monthKey} selectedWeek={week} compact refreshKey={refreshKey} onOpenDailyPlan={onOpenDailyPlan}/>
+      <MonthlyPlanListPanel user={user} selectedMonth={monthKey} selectedWeek={week} compact refreshKey={refreshKey} onOpenDailyPlan={onOpenDailyPlan} onOpenActualSource={onOpenActualSource}/>
     </div>:view==='import'?(editImport?<MonthlyPlanImportPanel user={user}/>:<div className="panel"><div className="alert">Mode Hanya Lihat: Update / Import Excel dinonaktifkan.</div></div>):(editImport?<MonthlyPlanMasterSyncPanel user={user}/>:<div className="panel"><div className="alert">Mode Hanya Lihat: Sinkron Master dinonaktifkan.</div></div>)}
   </section>
 }
