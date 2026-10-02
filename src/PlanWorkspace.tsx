@@ -12,7 +12,7 @@ type Props={user:User}
 type Tab='summary'|'calendar'|'monthly'|'daily'|'actual'|'reconciliation'
 
 export default function PlanWorkspace({user}:Props){
-  const[tab,setTab]=useState<Tab>('monthly'),[actualPrefill,setActualPrefill]=useState<string[]>([]),[dailyJump,setDailyJump]=useState<{date:string;monthlyPlanLineId:string;pid:string}|null>(null)
+  const[tab,setTab]=useState<Tab>('monthly'),[actualPrefill,setActualPrefill]=useState<string[]>([]),[dailyJump,setDailyJump]=useState<{date:string;monthlyPlanLineId:string;pid:string}|null>(null),[actualJump,setActualJump]=useState<{monthlyPlanLineId:string;actualReportIds:string[];label:string}|null>(null)
   const allowed=useMemo(()=>({
     summary:canViewAccess(user,'data_plan_summary'),
     calendar:canViewAccess(user,'data_plan_summary')||canViewAccess(user,'data_plan_daily')||canViewAccess(user,'data_plan_actual'),
@@ -32,7 +32,7 @@ export default function PlanWorkspace({user}:Props){
       {allowed.reconciliation&&<button type="button" className={tab==='reconciliation'?'active':''} onClick={()=>setTab('reconciliation')}>Rekonsiliasi</button>}
     </div>
     <div key={tab} className="ui-view-transition plan-tab-transition">
-      {tab==='summary'?<PlanSummaryDashboard/>:tab==='calendar'?<PlanCalendarRecap/>:tab==='monthly'?<MonthlyPlanWorkspace user={user} onOpenDailyPlan={request=>{setDailyJump(request);setTab('daily')}}/>:tab==='daily'?<DailyPlanWorkspace user={user} jumpRequest={dailyJump} onCopyToActual={ids=>{setActualPrefill(ids);setTab('actual')}}/>:tab==='actual'?<ActualPlanWorkspace user={user} prefillDailyPlanIds={actualPrefill}/>:<PlanReconciliationPanel/>}
+      {tab==='summary'?<PlanSummaryDashboard/>:tab==='calendar'?<PlanCalendarRecap/>:tab==='monthly'?<MonthlyPlanWorkspace user={user} onOpenDailyPlan={request=>{setDailyJump(request);setTab('daily')}} onOpenActualSource={request=>{setActualJump(request);setActualPrefill([]);setTab('actual')}}/>:tab==='daily'?<DailyPlanWorkspace user={user} jumpRequest={dailyJump} onCopyToActual={ids=>{setActualPrefill(ids);setTab('actual')}}/>:tab==='actual'?<ActualPlanWorkspace user={user} prefillDailyPlanIds={actualPrefill} jumpRequest={actualJump}/>:<PlanReconciliationPanel/>}
     </div>
   </section>
 }
