@@ -39,7 +39,7 @@ assert ".slice(0,120)" not in daily, 'Daily Monthly selector must not hide valid
 for token in [
     "['cancel','done','selesai','complete']",
     "!monthlyStatusClosed(row)",
-    "((actualByMonthlyId.get(row.planLineId)||0)+row.manualActualAreaHa)<row.targetAreaHa-0.0001",
+    "(actualForMonthly(row)+row.manualActualAreaHa)<row.targetAreaHa-0.0001",
     "smartMonthlyChoices(selectableMonthly",
 ]:
     assert token in daily, f'Missing Daily Monthly availability behavior token: {token}'
@@ -47,7 +47,7 @@ for token in [
 for token in [
     "type Actual=",
     "monthlyStatusClosed",
-    "actualByMonthlyId",
+    "actualForMonthly",
     "selectableMonthly",
     "where('monthlyPlanLineId','in',part)",
     "daily_reports",
@@ -68,4 +68,11 @@ for token in [
     assert token in daily, f'Missing cross-month Daily Monthly lookup token: {token}'
 
 
-print('Daily Monthly smart search check passed: short PID prefixes resolve active Monthly IDs across week/month while availability still respects Actual/manual progress.')
+for token in [
+    "sameMonthlyIdentity",
+    "dailyForMonthly",
+    "effectiveActuals",
+]:
+    assert token in daily, f'Missing identity-aware Daily/Actual linkage token: {token}'
+
+print('Daily Monthly smart search check passed: short PID prefixes resolve active Monthly IDs across week/month while availability respects identity-aware Actual/manual progress.')
