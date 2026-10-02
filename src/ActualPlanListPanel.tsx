@@ -18,6 +18,7 @@ type Props={
   onDuplicateActual?:(row:SavedActualRow)=>void
   onChanged?:()=>void
   readOnly?:boolean
+  jumpRequest?:{monthlyPlanLineId:string;actualReportIds:string[];label:string}|null
 }
 type Row=SavedActualRow&{dailySourcePlanIdRaw:string;monthlyLegacyPlanId:string;paddockRaw:string;masterPending:boolean}
 type Log={id:string;sourceFileName:string;total:number;created:number;updated:number;unchanged:number;protected:number;dailyLinked:number;dailyPending:number;monthlyLinked:number;masterPending:number;warnings:number;errors:number;importedBy:string;importedAt:string}
@@ -33,7 +34,7 @@ function date(v:string){if(!v)return'-';const d=new Date(v+'T00:00:00');return N
 function dateTime(v:string){if(!v)return'-';const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleString('id-ID')}
 async function writerContext(appUser:User){const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.');await firebaseAuthPersistenceReady;if(typeof auth.authStateReady==='function')await auth.authStateReady();const current=auth.currentUser;if(!current)throw new Error('Sesi Firebase belum aktif. Login ulang lalu coba lagi.');const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.');const p=snap.data() as Record<string,unknown>;if(p.active!==true||!canEditAccess(appUser,'data_plan_actual'))throw new Error('Hak akses Edit Actual Plan belum diberikan.');return{db,username:text(p.username)||appUser.username}}
 
-export default function ActualPlanListPanel({user,selectedDate,compact=false,refreshKey=0,onEditActual,onDuplicateActual,onChanged,readOnly=false}:Props){
+export default function ActualPlanListPanel({user,selectedDate,compact=false,refreshKey=0,onEditActual,onDuplicateActual,onChanged,readOnly=false,jumpRequest=null}:Props){
   const[rows,setRows]=useState<Row[]>([]),[logs,setLogs]=useState<Log[]>([]),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
   const[selectedIds,setSelectedIds]=useState<string[]>([]),[copyDate,setCopyDate]=useState(new Date().toISOString().slice(0,10)),[copyRowId,setCopyRowId]=useState(''),[rowCopyDate,setRowCopyDate]=useState(new Date().toISOString().slice(0,10))
   const[month,setMonth]=useState('ALL'),[source,setSource]=useState('ALL'),[link,setLink]=useState('ALL'),[company,setCompany]=useState('ALL'),[farm,setFarm]=useState('ALL'),[activity,setActivity]=useState('ALL'),[query,setQuery]=useState('')
@@ -43,13 +44,16 @@ export default function ActualPlanListPanel({user,selectedDate,compact=false,ref
     const dateFilter=selectedDate||new Date().toISOString().slice(0,10)
     setBusy(true)
     try{
-      const[a,b]=await Promise.all([getDocs(fsQuery(collection(firestoreDb,'daily_reports'),where('date','==',dateFilter))),compact?Promise.resolve(null):getDocs(collection(firestoreDb,'actual_plan_import_logs'))])
-      const rr=a.docs.map(x=>row(x.id,x.data() as Record<string,unknown>)).sort((x,y)=>x.shift.localeCompare(y.shift,undefined,{numeric:true})||(x.planningOrder||999999)-(y.planningOrder||999999)||x.pid.localeCompare(y.pid,undefined,{numeric:true}))
+      const actualQuery=jumpRequest?.monthlyPlanLineId?fsQuery(collection(firestoreDb,'daily_reports'),where('monthlyPlanLineId','==',jumpRequest.monthlyPlanLineId)):fsQuery(collection(firestoreDb,'daily_reports'),where('date','==',dateFilter))
+      const[a,b]=await Promise.all([getDocs(actualQuery),compact?Promise.resolve(null):getDocs(collection(firestoreDb,'actual_plan_import_logs'))])
+      const jumpIds=new Set(jumpRequest?.actualReportIds||[])
+      const allRows=a.docs.map(x=>row(x.id,x.data() as Record<string,unknown>))
+      const rr=(jumpIds.size?allRows.filter(item=>jumpIds.has(item.id)||jumpIds.has(item.actualReportId)):allRows).sort((x,y)=>x.date.localeCompare(y.date)||x.shift.localeCompare(y.shift,undefined,{numeric:true})||(x.planningOrder||999999)-(y.planningOrder||999999)||x.pid.localeCompare(y.pid,undefined,{numeric:true}))
       const ll=b?b.docs.map(x=>log(x.id,x.data() as Record<string,unknown>)).sort((x,y)=>y.importedAt.localeCompare(x.importedAt)).slice(0,10):[]
-      setRows(rr);setLogs(ll);setSelectedIds([]);setMessage('Actual '+dateFilter+': '+rr.length+' record.')
+      setRows(rr);setLogs(ll);setSelectedIds([]);setMessage(jumpRequest?'Sumber '+jumpRequest.label+' · '+jumpRequest.monthlyPlanLineId+': '+rr.length+' record Actual.':'Actual '+dateFilter+': '+rr.length+' record.')
     }catch(e){setMessage(e instanceof Error?e.message:'Actual Plan gagal dimuat.')}finally{setBusy(false)}
   }
-  useEffect(()=>{void load()},[selectedDate,refreshKey])
+  useEffect(()=>{void load()},[selectedDate,refreshKey,jumpRequest?.monthlyPlanLineId,jumpRequest?.actualReportIds.join('|'),jumpRequest?.label])
 
   const months=useMemo(()=>[...new Set(rows.map(x=>x.monthKey).filter(Boolean))].sort().reverse(),[rows])
   const companies=useMemo(()=>[...new Set(rows.map(x=>x.companyCode).filter(Boolean))].sort(),[rows])
@@ -109,7 +113,8 @@ export default function ActualPlanListPanel({user,selectedDate,compact=false,ref
   }
 
   if(compact)return <section className="actual-period-saved">
-    <div className="section-head compact-saved-head"><div><div className="eyebrow">ACTUAL TERSIMPAN</div><h3>Actual Plan · {selectedDate||'-'}</h3><p className="muted">{filtered.length} record. Edit, duplikat, urutkan, Copy WA, salin tanggal, dan hapus memakai card seperti Daily Plan.</p></div><YinYangRefreshButton busy={busy} label="Refresh" compact onClick={()=>void load()}/></div>
+    {jumpRequest&&<div className="actual-jump-banner"><span>Sumber Actual</span><strong>{jumpRequest.label}</strong><small>{jumpRequest.monthlyPlanLineId} · {rows.length} record ditampilkan</small></div>}
+    <div className="section-head compact-saved-head"><div><div className="eyebrow">ACTUAL TERSIMPAN</div><h3>{jumpRequest?'Actual Sumber · '+jumpRequest.label:'Actual Plan · '+(selectedDate||'-')}</h3><p className="muted">{filtered.length} record. Edit, duplikat, urutkan, Copy WA, salin tanggal, dan hapus memakai card seperti Daily Plan.</p></div><YinYangRefreshButton busy={busy} label="Refresh" compact onClick={()=>void load()}/></div>
     {message&&<div className="alert">{message}</div>}
     <div className="plan-summary-grid daily-draft-summary"><div><span>Record</span><strong>{filtered.length}</strong></div><div><span>Total Actual</span><strong>{ha(totals.area)}</strong></div><div><span>Total HK</span><strong>{totals.man}</strong></div><div><span>Daily Linked</span><strong>{totals.linked}</strong></div></div>
     <div className="panel daily-bulk-actions compact-bulk-actions"><div><strong>{selectedRows.length} Actual dipilih</strong><span className="muted">{readOnly?'Mode hanya lihat':'Aksi massal untuk Actual tersimpan'}</span></div><div className="row-actions"><button type="button" onClick={toggleAll}>{filtered.length&&filtered.every(row=>selectedIds.includes(row.id))?'Batal Semua':'Pilih Semua'}</button><button type="button" onClick={()=>void copyWa(selectedRows)} disabled={!selectedRows.length}>Copy WA</button>{!readOnly&&<><label className="daily-copy-date"><span>Copy tanggal</span><input type="date" value={copyDate} onChange={e=>setCopyDate(e.target.value)}/></label><button type="button" onClick={()=>void copyRowsToDate(selectedRows,copyDate)} disabled={!selectedRows.length||busy}>Salin</button></>}</div></div>
