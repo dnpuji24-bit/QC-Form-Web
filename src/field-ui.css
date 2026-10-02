@@ -3331,3 +3331,13 @@
 #monthly-period-results{scroll-margin-top:120px}
 @media(max-width:760px){.monthly-activity-overview{padding:10px}.monthly-activity-overview-head{align-items:flex-start}.monthly-activity-overview-head p{font-size:.7rem}.monthly-activity-summary-grid{grid-template-columns:1fr 1fr;gap:6px}.monthly-activity-summary-card{padding:9px!important}.monthly-activity-summary-values{grid-template-columns:1fr 1fr}.monthly-all-week-note{align-items:flex-start;flex-direction:column}.monthly-all-week-note strong{white-space:normal}}
 @media(max-width:480px){.monthly-activity-summary-grid{grid-template-columns:1fr}.monthly-activity-summary-card{grid-template-columns:minmax(0,1fr)}.monthly-activity-summary-values{grid-template-columns:repeat(4,minmax(0,1fr))}.monthly-activity-summary-values span{padding:5px;font-size:.58rem}.monthly-activity-summary-values b{font-size:.67rem}}
+
+/* Monthly actual source provenance */
+.monthly-actual-metric{min-width:0}.monthly-actual-source-inline{display:block;margin-top:3px;color:#475569!important;font-size:.58rem!important;font-weight:750!important;line-height:1.25;white-space:normal}
+.monthly-actual-source-strip{grid-column:1/-1;display:flex;align-items:flex-start;gap:9px;padding:8px 10px;border:1px solid #dbeafe;border-radius:10px;background:#f8fbff}
+.monthly-actual-source-title{flex:0 0 auto;padding-top:4px;font-size:.66rem;font-weight:900;color:#475569;text-transform:uppercase;letter-spacing:.04em}
+.monthly-actual-source-strip>div{display:flex;flex-wrap:wrap;gap:6px}
+.monthly-actual-source-chip{display:grid;grid-template-columns:auto auto;gap:1px 7px;align-items:center;padding:5px 8px;border:1px solid #dbeafe;border-radius:8px;background:#fff}
+.monthly-actual-source-chip b{font-size:.66rem;color:#1e3a8a}.monthly-actual-source-chip strong{font-size:.7rem;color:#0f172a}.monthly-actual-source-chip small{grid-column:1/-1;font-size:.58rem;color:#64748b}
+.monthly-table-actual-source{display:grid;gap:2px;margin-top:4px}.monthly-table-actual-source span{font-size:.62rem;color:#64748b;line-height:1.25}
+@media(max-width:760px){.monthly-actual-source-strip{align-items:stretch;flex-direction:column;gap:5px;padding:7px 8px}.monthly-actual-source-title{padding-top:0}.monthly-actual-source-chip{padding:5px 7px}}
