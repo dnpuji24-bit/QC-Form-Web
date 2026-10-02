@@ -99,7 +99,7 @@ function ActivityCompositionPie({rows,basisLabel}:{rows:ActivityPieRow[];basisLa
 export default function PlanSummaryDashboard(){
   const now=new Date(),currentYear=now.getFullYear()
   const[selectedYear,setSelectedYear]=useState(String(currentYear)),[selectedMonth,setSelectedMonth]=useState(String(now.getMonth()+1).padStart(2,'0')),[selectedWeek,setSelectedWeek]=useState('ALL')
-  const[monthly,setMonthly]=useState<MonthlyRow[]>([]),[daily,setDaily]=useState<DailyRow[]>([]),[actual,setActual]=useState<ActualRow[]>([]),[masterPaddocks,setMasterPaddocks]=useState<MasterPaddockRow[]>([]),[masterActivities,setMasterActivities]=useState<MasterActivityRow[]>([])
+  const[monthly,setMonthly]=useState<MonthlyRow[]>([]),[daily,setDaily]=useState<DailyRow[]>([]),[actual,setActual]=useState<ActualRow[]>([]),[allMonthly,setAllMonthly]=useState<MonthlyRow[]>([]),[allActual,setAllActual]=useState<ActualRow[]>([]),[masterPaddocks,setMasterPaddocks]=useState<MasterPaddockRow[]>([]),[masterActivities,setMasterActivities]=useState<MasterActivityRow[]>([])
   const[busy,setBusy]=useState(false),[message,setMessage]=useState('')
   const[company,setCompany]=useState('ALL'),[farm,setFarm]=useState('ALL'),[shift,setShift]=useState('ALL'),[foreman,setForeman]=useState('ALL'),[jobType,setJobType]=useState<JobType>('ALL'),[activityBasis,setActivityBasis]=useState<ActivityBasis>('ACTUAL'),[paddockFilter,setPaddockFilter]=useState('')
   const monthKey=selectedYear+'-'+selectedMonth
@@ -124,7 +124,16 @@ export default function PlanSummaryDashboard(){
       setMessage('Summary '+monthKey+' siap. Filter di bawah dipakai bersama untuk grafik produktivitas dan Summary Activity per Tanggal.')
     }catch(error){setMessage(error instanceof Error?error.message:'Summary Plan gagal dimuat.')}finally{setBusy(false)}
   }
+  async function loadPaddockHistory(){
+    if(!firestoreDb)return
+    try{
+      const[m,a]=await Promise.all([getDocs(collection(firestoreDb,'monthly_plans')),getDocs(collection(firestoreDb,'daily_reports'))])
+      setAllMonthly(m.docs.map(x=>monthlyFromData(x.data() as Record<string,unknown>)))
+      setAllActual(a.docs.map(x=>actualFromData(x.data() as Record<string,unknown>,x.id)))
+    }catch(error){console.info('Riwayat penuh Paddock × Activity belum dapat dimuat.',error)}
+  }
   useEffect(()=>{void load()},[monthKey])
+  useEffect(()=>{void loadPaddockHistory()},[])
 
   const companies=useMemo(()=>[...new Set([...monthly.map(x=>x.companyCode),...daily.map(x=>x.companyCode),...actual.map(x=>x.companyCode)].filter(Boolean))].sort(),[monthly,daily,actual])
   const farms=useMemo(()=>[...new Set([...monthly,...daily,...actual].filter(row=>company==='ALL'||row.companyCode===company).map(row=>row.farm).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[monthly,daily,actual,company])
@@ -153,30 +162,33 @@ export default function PlanSummaryDashboard(){
   const activityNames=useMemo(()=>[...new Set([...monthlyScope.map(x=>x.activity),...dailyScope.map(x=>x.activity),...actualScope.map(x=>x.activity)].filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[monthlyScope,dailyScope,actualScope])
   const dayMatrixRows=useMemo(()=>activityNames.map(activityName=>({activity:activityName,days:selectedDays.map(date=>({date,plan:dailyScope.filter(x=>x.activity===activityName&&x.date===date).reduce((sum,x)=>sum+x.areaHa,0),actual:actualScope.filter(x=>x.activity===activityName&&x.date===date).reduce((sum,x)=>sum+x.actualAreaHa,0)}))})),[activityNames,selectedDays,dailyScope,actualScope])
 
-  const matrixMonthly=monthlyScope
-  const matrixDaily=dailyScope
-  const matrixActual=actualScope
-  const matrixActivities=activityNames
+  const matrixMonthly=allMonthly
+  const matrixActual=allActual
+  const matrixActivities=useMemo(()=>[...new Set([
+    ...masterActivities.filter(row=>row.active).map(row=>row.activity),
+    ...matrixMonthly.map(row=>row.activity),
+    ...matrixActual.map(row=>row.activity),
+  ].filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[masterActivities,matrixMonthly,matrixActual])
   const masterByPid=useMemo(()=>new Map(masterPaddocks.map(row=>[row.pid,row])),[masterPaddocks])
   const paddockActivityMatrix=useMemo<PaddockActivityMatrixRow[]>(()=>{
-    const pids=[...new Set([...matrixMonthly.map(x=>x.pid),...matrixDaily.map(x=>x.pid),...matrixActual.map(x=>x.pid)].filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}))
+    const pids=[...new Set([...masterPaddocks.map(x=>x.pid),...matrixMonthly.map(x=>x.pid),...matrixActual.map(x=>x.pid)].filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}))
     return pids.map(pid=>{
       const mm=matrixMonthly.filter(x=>x.pid===pid),aa=matrixActual.filter(x=>x.pid===pid),meta=masterByPid.get(pid),fallbackArea=Math.max(0,...mm.map(x=>x.targetAreaHa))
       const cells=matrixActivities.map(activityName=>{
-        const actualRows=aa.filter(x=>x.activity===activityName),manual=mm.filter(x=>x.activity===activityName).reduce((sum,x)=>sum+x.manualActualAreaHa,0),area=actualRows.reduce((sum,x)=>sum+x.actualAreaHa,0)+manual,dates=[...new Set(actualRows.map(x=>x.date).filter(Boolean))].sort()
+        const actualRows=aa.filter(x=>normalizeActivity(x.activity)===normalizeActivity(activityName)),manual=mm.filter(x=>normalizeActivity(x.activity)===normalizeActivity(activityName)).reduce((sum,x)=>sum+x.manualActualAreaHa,0),area=actualRows.reduce((sum,x)=>sum+x.actualAreaHa,0)+manual,dates=[...new Set(actualRows.map(x=>x.date).filter(Boolean))].sort()
         return{activity:activityName,area,dates,manual}
       })
-      const source=meta||mm[0]||matrixDaily.find(x=>x.pid===pid)||aa[0]
+      const source=meta||mm[0]||aa[0]
       return{pid,companyCode:source?.companyCode||'',farm:source?.farm||'',paddockAreaHa:meta?.areaPlantedHa||fallbackArea,cells}
     })
-  },[matrixMonthly,matrixDaily,matrixActual,matrixActivities,masterByPid])
+  },[matrixMonthly,matrixActual,matrixActivities,masterPaddocks,masterByPid])
   const paddockOptions=useMemo(()=>paddockActivityMatrix.map(row=>row.pid).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[paddockActivityMatrix])
   const filteredPaddockActivityMatrix=useMemo(()=>{const needle=paddockFilter.trim().toUpperCase();return needle?paddockActivityMatrix.filter(row=>row.pid.includes(needle)):paddockActivityMatrix},[paddockActivityMatrix,paddockFilter])
 
   function resetFilters(){setSelectedWeek('ALL');setCompany('ALL');setFarm('ALL');setShift('ALL');setForeman('ALL');setJobType('ALL')}
 
   return <section className="plan-summary-dashboard">
-    <div className="section-head summary-compact-head"><div><div className="eyebrow">SUMMARY PLAN</div><h2>Dashboard Daily Plan & Aktual</h2><p className="muted">Produktivitas harian, pencapaian Monthly Plan, dan Summary Activity per tanggal dalam satu filter.</p></div><YinYangRefreshButton busy={busy} label="Refresh Summary" onClick={()=>void load()}/></div>
+    <div className="section-head summary-compact-head"><div><div className="eyebrow">SUMMARY PLAN</div><h2>Dashboard Daily Plan & Aktual</h2><p className="muted">Produktivitas harian, pencapaian Monthly Plan, dan Summary Activity per tanggal dalam satu filter.</p></div><YinYangRefreshButton busy={busy} label="Refresh Summary" onClick={()=>void Promise.all([load(),loadPaddockHistory()])}/></div>
     {message&&<div className="alert summary-compact-alert">{message}</div>}
 
     <section className="panel summary-filter-panel premium-filter-panel">
@@ -222,7 +234,8 @@ export default function PlanSummaryDashboard(){
     </section>
 
     <section className="panel summary-matrix-panel">
-      <div className="section-head"><div><div className="eyebrow">PADDOCK × ACTIVITY</div><h3>Summary Paddock per Kegiatan</h3></div><strong>{filteredPaddockActivityMatrix.length} / {paddockActivityMatrix.length} paddock · {matrixActivities.length} activity</strong></div>
+      <div className="section-head"><div><div className="eyebrow">PADDOCK × ACTIVITY · SELURUH HISTORI</div><h3>Summary Paddock per Kegiatan</h3><p className="muted">Menampilkan seluruh riwayat Actual per paddock dan tidak mengikuti filter dashboard di atas. Paddock yang belum pernah dikerjakan tetap ditampilkan dari Master Paddock.</p></div><strong>{filteredPaddockActivityMatrix.length} / {paddockActivityMatrix.length} paddock · {matrixActivities.length} activity</strong></div>
+      <div className="summary-matrix-scope summary-paddock-all-history-scope"><span>Cakupan</span><strong>Seluruh data / semua periode</strong><small>Filter Tahun, Bulan, Week, Company, Farm, Shift, Mandor, dan Jenis Pekerjaan di atas tidak memengaruhi tabel ini.</small></div>
       <div className="summary-paddock-filter"><label><span>Filter Paddock / PID</span><input list="summary-paddock-filter-options" value={paddockFilter} onChange={e=>setPaddockFilter(e.target.value.toUpperCase())} placeholder="Contoh: A-007 / JAGF-1-A-007"/><datalist id="summary-paddock-filter-options">{paddockOptions.map(pid=><option key={pid} value={pid}/>)}</datalist><small>Bisa ketik kode pendek seperti A-007 atau PID lengkap.</small></label>{paddockFilter&&<button type="button" onClick={()=>setPaddockFilter('')}>Reset Paddock</button>}</div>
       <div className="summary-wide-table summary-paddock-table-scroll"><table className="summary-paddock-activity-table"><colgroup><col className="summary-col-paddock"/><col className="summary-col-paddock-area"/>{matrixActivities.map(name=><Fragment key={name}><col className="summary-col-activity-area"/><col className="summary-col-activity-date"/></Fragment>)}</colgroup><thead><tr><th rowSpan={2} className="summary-sticky-col first">Paddock</th><th rowSpan={2} className="summary-sticky-col second">Luas Paddock</th>{matrixActivities.map(name=><th key={name} colSpan={2} className="summary-activity-head">{name}</th>)}</tr><tr>{matrixActivities.map(name=><Fragment key={name}><th>Luas</th><th>Tanggal</th></Fragment>)}</tr></thead><tbody>{filteredPaddockActivityMatrix.map(row=><tr key={row.pid}><td className="summary-sticky-col first"><strong>{row.pid}</strong><br/><span className="muted">{row.farm||'-'}</span></td><td className="summary-sticky-col second"><strong>{row.paddockAreaHa?fmtHa(row.paddockAreaHa):'-'}</strong></td>{row.cells.map(cell=><Fragment key={row.pid+'|'+cell.activity}><td className={cell.area>0?'summary-worked-cell':''}>{cell.area>0?fmtHa(cell.area):'-'}{cell.manual>0&&<small className="summary-manual-tag">Manual {fmtHa(cell.manual)}</small>}</td><td>{cell.dates.length?cell.dates.map(shortDate).join(', '):cell.manual>0?'Manual':'-'}</td></Fragment>)}</tr>)}</tbody></table></div>
       {!filteredPaddockActivityMatrix.length&&<div className="daily-draft-empty">Tidak ada paddock yang cocok dengan filter <strong>{paddockFilter||'-'}</strong>.</div>}
