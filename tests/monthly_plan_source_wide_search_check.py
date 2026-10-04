@@ -11,7 +11,7 @@ for token in [
     "const sourceMatches=useMemo",
     "effectiveRows=searchingSource?sourceMatches:rows",
     "effectiveDaily=searchingSource?searchDaily:daily",
-    "const filtered=useMemo(()=>searchingSource?viewRows:",
+    "const filtered=useMemo(()=>searchingSource?scopeRows:scopeRows.filter",
     "Search seluruh sumber Firestore",
     "filter periode/week/company/farm/status diabaikan",
     "searchingSource?row.monthKey+' · ':''",
