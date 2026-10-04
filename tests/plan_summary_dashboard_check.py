@@ -8,7 +8,7 @@ css=(root/'src'/'field-ui.css').read_text(encoding='utf-8')
 for token in [
     "PlanSummaryDashboard",
     "type Tab='summary'|'calendar'|'monthly'|'daily'|'actual'|'reconciliation'",
-    "setTab('summary')",
+    "navigateTab('summary')",
     ">Summary</button>",
 ]:
     assert token in workspace, f'Missing Plan Summary navigation token: {token}'
@@ -98,4 +98,4 @@ for token in [
 ]:
     assert token in css, f'Missing activity composition pie style: {token}'
 
-print('Plan Summary dashboard check passed: premium responsive filters, Daily-vs-Actual productivity, and Monthly progress are wired.')
+print('Plan Summary dashboard check passed: history-aware navigation, premium responsive filters, Daily-vs-Actual productivity, and Monthly progress are wired.')
