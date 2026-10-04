@@ -16,7 +16,7 @@ for token in [
     "const sourceMatches=useMemo",
     "const filtered=useMemo(()=>searchingSource?scopeRows:scopeRows.filter",
     "DailyRef={id:string;dailyPlanId:string",
-    "dailyByMonthlyId",
+    "linkedDailyForRow(row:ViewRow)",
     "Daily Plan terkait",
     "Buka Daily →",
     "onOpenDailyPlan?.({date,monthlyPlanLineId:row.planLineId,pid:row.pid})",
