@@ -9,7 +9,7 @@ for token in [
     "const statusCounts=useMemo",
     'className="monthly-compact-filter-grid"',
     'className="monthly-status-filter"',
-    "Status · {selectedWeek||'Semua Week'}",
+    "Status · {selectedWeek==='ALL'?'Semua Week':selectedWeek||'Semua Week'}",
     "statusCounts[item]||0",
     "monthly-status-badge monthly-status-",
 ]:
@@ -26,4 +26,4 @@ for token in [
     assert token in css, f"Missing Monthly status style: {token}"
 
 assert "background:#dcfce7" in css and "color:#166534" in css, "DONE must render green"
-print("Monthly status badges and week-aware compact status filter are present.")
+print("Monthly status badges and All-Week-aware compact status filter are present.")
