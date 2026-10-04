@@ -8,8 +8,8 @@ for token in [
   "const activitySummary=useMemo",
   "focusActivity(item.activity)",
   'id="monthly-period-results"',
-  "Target {formatHa(item.target)}",
-  "Actual {formatHa(item.actual)}",
+  "Target <b>{formatHa(item.target)}</b>",
+  "Actual <b>{formatHa(item.actual)}</b>",
 ]:
   assert token in panel, f"Missing activity summary token: {token}"
 assert '<option value="ALL">Semua Week</option>' in workspace
