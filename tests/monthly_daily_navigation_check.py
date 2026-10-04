@@ -14,7 +14,7 @@ for token in [
     "searchKey(value:unknown)",
     "replace(/[^a-z0-9]/g,'')",
     "const sourceMatches=useMemo",
-    "const filtered=useMemo(()=>searchingSource?viewRows:",
+    "const filtered=useMemo(()=>searchingSource?scopeRows:scopeRows.filter",
     "DailyRef={id:string;dailyPlanId:string",
     "dailyByMonthlyId",
     "Daily Plan terkait",
