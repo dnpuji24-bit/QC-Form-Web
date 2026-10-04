@@ -125,14 +125,15 @@ export default function PlanSummaryDashboard(){
     }catch(error){setMessage(error instanceof Error?error.message:'Summary Plan gagal dimuat.')}finally{setBusy(false)}
   }
   async function loadPaddockHistoryForPids(pids:string[]){
-    if(!firestoreDb||!pids.length){setPaddockHistoryMonthly([]);setPaddockHistoryActual([]);return}
+    const db=firestoreDb
+    if(!db||!pids.length){setPaddockHistoryMonthly([]);setPaddockHistoryActual([]);return}
     setPaddockHistoryBusy(true);setPaddockHistoryError('')
     try{
       const chunks:Array<string[]>=[]
       for(let i=0;i<pids.length;i+=10)chunks.push(pids.slice(i,i+10))
       const[monthlySnaps,actualSnaps]=await Promise.all([
-        Promise.all(chunks.map(part=>getDocs(fsQuery(collection(firestoreDb,'monthly_plans'),where('pid','in',part))))),
-        Promise.all(chunks.map(part=>getDocs(fsQuery(collection(firestoreDb,'daily_reports'),where('pid','in',part))))),
+        Promise.all(chunks.map(part=>getDocs(fsQuery(collection(db,'monthly_plans'),where('pid','in',part))))),
+        Promise.all(chunks.map(part=>getDocs(fsQuery(collection(db,'daily_reports'),where('pid','in',part))))),
       ])
       setPaddockHistoryMonthly(monthlySnaps.flatMap(snap=>snap.docs.map(x=>monthlyFromData(x.data() as Record<string,unknown>))))
       setPaddockHistoryActual(actualSnaps.flatMap(snap=>snap.docs.map(x=>actualFromData(x.data() as Record<string,unknown>,x.id))))
