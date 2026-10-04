@@ -25,7 +25,7 @@ for token in [
 
 assert "onOpenDailyPlan" in monthly_workspace
 assert "dailyJump" in plan_workspace
-assert "setDailyJump(request);setTab('daily')" in plan_workspace
+assert "setDailyJump(request);navigateTab('daily')" in plan_workspace
 assert "jumpRequest" in daily_workspace
 assert "setSelectedDate(jumpRequest.date)" in daily_workspace
 assert "focusMonthlyPlanLineId" in daily_list
