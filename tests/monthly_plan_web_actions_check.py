@@ -21,7 +21,7 @@ for token in [
     "Actual dari Actual Plan",
     "Plan ID, PID, dan Activity tetap dikunci",
     "Simpan Update Progress",
-    "Buka Lagi",
+    "Buka kembali plan",
 ]:
     assert token in monthly, f'Missing Monthly edit/cancel/progress token: {token}'
 
