@@ -15,7 +15,7 @@ for token in [
     "reopenPlan(",
     "sourceStatus:'CANCELLED'",
     "status:'DONE'",
-    "systemBalanceHa=cancelled?0",
+    "systemBalanceHa=closed?0",
     "progressPct=cancelled?100",
     "Progress Manual / Historis (Ha)",
     "Actual dari Actual Plan",
@@ -36,4 +36,4 @@ for token in [
 assert "sourceStatus:'CANCELLED',status:'DONE'" in monthly
 assert "manualActualAreaHa:manual" in monthly
 assert "lastModifiedSource:'WEB'" in monthly
-print('Monthly web actions check passed: details edit, DONE-on-cancel, reopen, and additive historical progress are wired and Daily availability respects manual progress.')
+print('Monthly web actions check passed: details edit, DONE-on-cancel, finish/reopen, and additive historical progress are wired and Daily availability respects manual progress.')
