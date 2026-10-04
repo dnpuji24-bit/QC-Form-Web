@@ -27,8 +27,10 @@ for token in [
 
 for token in [
     "manualActualAreaHa:number",
-    "(actualByMonthlyId.get(row.planLineId)||0)+row.manualActualAreaHa",
-    "selected.targetAreaHa-selected.manualActualAreaHa-Math.max(scheduled,linkedActual)",
+    "function actualForMonthly(row:Monthly)",
+    "(actualForMonthly(row)+row.manualActualAreaHa)<row.targetAreaHa-0.0001",
+    "const actual=selected?linkedActual+selected.manualActualAreaHa:0",
+    "const remaining=selected?selected.targetAreaHa-actual:0",
     "Progress manual",
 ]:
     assert token in daily, f'Missing Daily manual-progress capacity token: {token}'
@@ -36,4 +38,4 @@ for token in [
 assert "sourceStatus:'CANCELLED',status:'DONE'" in monthly
 assert "manualActualAreaHa:manual" in monthly
 assert "lastModifiedSource:'WEB'" in monthly
-print('Monthly web actions check passed: details edit, DONE-on-cancel, finish/reopen, and additive historical progress are wired and Daily availability respects manual progress.')
+print('Monthly web actions check passed: details edit, DONE-on-cancel, finish/reopen, additive historical progress, and identity-aware Daily capacity are wired.')
