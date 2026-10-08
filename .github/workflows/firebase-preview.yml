@@ -84,7 +84,9 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP/firebase-service-account.json"
 
-      - name: Show preview URL
+      - name: Show React preview URL
         run: |
-          echo "Preview details: ${{ steps.firebase_preview.outputs.details_url }}"
-          echo "Hosting URL: ${{ steps.firebase_preview.outputs.url }}"
+          echo "React Preview: ${{ steps.firebase_preview.outputs.details_url }}/react/"
+          echo "Hosting root (legacy): ${{ steps.firebase_preview.outputs.details_url }}"
+          echo "### React Preview" >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ steps.firebase_preview.outputs.details_url }}/react/" >> "$GITHUB_STEP_SUMMARY"
