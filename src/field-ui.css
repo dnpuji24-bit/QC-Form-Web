@@ -3377,3 +3377,21 @@
 .monthly-over-area-note{color:#92400e;font-weight:800}
 @media(hover:hover) and (pointer:fine){.monthly-variety-chip:hover{border-color:#93c5fd;background:#f8fbff;transform:translateY(-1px)}}
 @media(max-width:760px){.monthly-variety-head{flex-direction:column}.monthly-variety-head .row-actions{width:100%}.monthly-variety-head .row-actions button{flex:1}.monthly-variety-chip{flex:1 1 calc(50% - 8px);justify-content:flex-start}}
+
+/* QC report desktop toolbar visibility guard */
+.report-backdrop{z-index:16000!important}
+.report-dialog{overscroll-behavior:contain}
+.report-toolbar{
+  position:sticky!important;
+  top:0!important;
+  z-index:40!important;
+  background:rgba(248,250,252,.985)!important;
+  border-bottom:1px solid #dbe3ef!important;
+  box-shadow:0 6px 18px rgba(15,23,42,.08)!important;
+}
+.report-toolbar .report-toolbar-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.report-toolbar .report-action-button,.report-toolbar .report-close-button{min-height:40px;white-space:nowrap}
+.report-toolbar .report-close-button{border-color:#fecaca!important;background:#fff1f2!important;color:#b91c1c!important;font-weight:900!important}
+@media(min-width:701px){
+  .report-toolbar{margin:-14px -14px 12px!important;padding:12px 14px!important}
+}
