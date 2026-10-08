@@ -71,6 +71,14 @@ function progressSeries(rows:TimedRow[],kind:'plant'|'harvest'):ProgressEntry[]{
   return[...map.values()].sort((a,b)=>a.date.localeCompare(b.date)||String(a.stage||'').localeCompare(String(b.stage||''),undefined,{numeric:true}))
 }
 
+function isPrimaryPlantingRow(row:SheetRow){
+  const workGroup=normalized(text(rowValue(row,'Work Group'))),workMethod=normalized(text(rowValue(row,'Work Method (COA)','Work Method'))),stage=normalized(text(rowValue(row,'Planting Stage (pc,r1,r2..)')))
+  const activity=`${workGroup} ${workMethod}`.trim()
+  if(activity.includes('harvest')||activity.includes('sulam'))return false
+  if(activity.includes('plant')||activity.includes('tanam'))return true
+  return !activity&&stage==='pc'
+}
+
 function varietyBreakdownFromRows(rows:TimedRow[]):VarietyArea[]{
   const map=new Map<string,number>()
   for(const item of rows){
@@ -94,15 +102,19 @@ function parseWorkbook(buffer:ArrayBuffer,fileName:string,companies:CompanyRecor
     return true
   }
 
+  let ignoredNonPlantRows=0
   plantRaw.forEach((row,index)=>{
     const pid=text(rowValue(row,'PID')),sourceRow=index+2
     if(!pid){issues.push({level:'ERROR',message:`Area Plant baris ${sourceRow}: PID kosong.`});return}
     if(!validCompany(pid,'Area Plant',sourceRow))return
+    if(!isPrimaryPlantingRow(row)){ignoredNonPlantRows+=1;return}
     const progress=numberValue(rowValue(row,'Progres (Ha)','Progress (Ha)','Progres (Ha) '))
     if(!Number.isFinite(progress)||progress<0){issues.push({level:'ERROR',pid,message:`Area Plant baris ${sourceRow}: Progres (Ha) tidak valid.`});return}
     const date=excelDate(rowValue(row,'Progress Date'));if(!date){issues.push({level:'ERROR',pid,message:`Area Plant baris ${sourceRow}: Progress Date tidak valid.`});return}
     const rows=plantByPid.get(pid)||[];rows.push({date,row,sourceRow});plantByPid.set(pid,rows)
   })
+
+  if(ignoredNonPlantRows>0)issues.push({level:'INFO',message:`Area Plant: ${ignoredNonPlantRows} baris non-planting (mis. Harvest/Sulam) diabaikan agar crop cycle dan luas per variety tidak tercampur.`})
 
   harvestRaw.forEach((row,index)=>{
     const pid=text(rowValue(row,'PID')),sourceRow=index+2
