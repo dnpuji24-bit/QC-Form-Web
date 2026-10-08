@@ -3358,3 +3358,22 @@
 .summary-paddock-pager-actions{display:flex;gap:6px}.summary-paddock-pager-actions button{min-height:34px;padding:6px 10px;border-radius:8px}
 .summary-paddock-loading{margin:8px 0!important;padding:8px 10px!important;font-size:.75rem!important}
 @media(max-width:760px){.summary-paddock-pager{align-items:stretch;flex-direction:column}.summary-paddock-pager>strong{order:-1}.summary-paddock-pager-actions{display:grid;grid-template-columns:1fr 1fr}.summary-paddock-pager-actions button{width:100%}}
+
+/* Monthly multi-variety selector */
+.monthly-variety-selector{margin-top:10px;padding:12px;border:1px solid #cfe0ff;border-radius:14px;background:#f8fbff}
+.monthly-variety-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.monthly-variety-head>div:first-child{display:flex;flex-direction:column;gap:3px;min-width:0}
+.monthly-variety-head strong{font-size:.88rem;color:#172033}
+.monthly-variety-head small{font-size:.72rem;color:#64748b}
+.monthly-variety-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.monthly-variety-chip{display:inline-flex;align-items:center;gap:7px;min-height:42px;padding:8px 11px;border:1px solid #cbd5e1;border-radius:12px;background:#fff;color:#334155;cursor:pointer;font-family:inherit;transition:background .16s ease,border-color .16s ease,transform .16s ease}
+.monthly-variety-chip>span{display:grid;place-items:center;width:20px;height:20px;border-radius:999px;background:#f1f5f9;font-weight:900}
+.monthly-variety-chip>strong{font-size:.82rem}.monthly-variety-chip>small{font-size:.7rem;color:#64748b}
+.monthly-variety-chip.selected{border-color:#60a5fa;background:#eff6ff;color:#1d4ed8}
+.monthly-variety-chip.selected>span{background:#dbeafe;color:#1d4ed8}
+.monthly-variety-chip:focus-visible{outline:3px solid rgba(59,130,246,.22);outline-offset:2px}
+.monthly-selected-variety-total{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px;padding-top:9px;border-top:1px dashed #cbd5e1;font-size:.72rem;color:#64748b}
+.monthly-selected-variety-total strong{color:#0f172a}.monthly-selected-variety-total span{color:#92400e}
+.monthly-over-area-note{color:#92400e;font-weight:800}
+@media(hover:hover) and (pointer:fine){.monthly-variety-chip:hover{border-color:#93c5fd;background:#f8fbff;transform:translateY(-1px)}}
+@media(max-width:760px){.monthly-variety-head{flex-direction:column}.monthly-variety-head .row-actions{width:100%}.monthly-variety-head .row-actions button{flex:1}.monthly-variety-chip{flex:1 1 calc(50% - 8px);justify-content:flex-start}}
