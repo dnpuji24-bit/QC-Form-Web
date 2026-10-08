@@ -37,7 +37,7 @@ function validate(result:FertilizerScanResult,master:MasterData){
 }
 async function filePart(file:Blob,mimeType:string):Promise<InlineDataPart>{
   const data=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(new Error('Foto laporan tidak dapat dibaca.'));reader.onloadend=()=>{const raw=String(reader.result||''),comma=raw.indexOf(',');resolve(comma>=0?raw.slice(comma+1):raw)};reader.readAsDataURL(file)})
-  return{inlineData:{data,mimeType}}
+  return{type:'inlineData',inlineData:{data,mimeType}}
 }
 function compactMaster(master:MasterData){
   const plans=((master.plans||master.plan||[])as PlanMaster[]).filter(p=>{const c=text(p.category||p.keterangan).toLowerCase();return !c||/fertil|pupuk/.test(c)})
