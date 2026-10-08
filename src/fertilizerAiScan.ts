@@ -1,4 +1,4 @@
-import { getAI, getGenerativeModel, getTemplateGenerativeModel, GoogleAIBackend, Schema } from 'firebase/ai'
+import { getAI, getGenerativeModel, getTemplateGenerativeModel, GoogleAIBackend, Schema, type InlineDataPart } from 'firebase/ai'
 import { firebaseApp } from './firebase'
 import type { MasterData, MaterialMaster, PlanMaster, User } from './types'
 import { loadFertilizerScanLearningExamples } from './fertilizerScanFeedback'
@@ -35,7 +35,7 @@ function validate(result:FertilizerScanResult,master:MasterData){
   })
   return warnings
 }
-async function filePart(file:Blob,mimeType:string){
+async function filePart(file:Blob,mimeType:string):Promise<InlineDataPart>{
   const data=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(new Error('Foto laporan tidak dapat dibaca.'));reader.onloadend=()=>{const raw=String(reader.result||''),comma=raw.indexOf(',');resolve(comma>=0?raw.slice(comma+1):raw)};reader.readAsDataURL(file)})
   return{inlineData:{data,mimeType}}
 }
@@ -112,7 +112,7 @@ export async function scanFertilizerReportWithGemini(file:File,master:MasterData
     try{
       const templateId=templateByModel[modelName]
       const generated=templateId
-        ?await templateModel.generateContent(templateId,templateInputs)
+        ?await templateModel.generateContent({templateId,templateVariables:templateInputs})
         :await getGenerativeModel(ai,{model:modelName,generationConfig:{responseMimeType:'application/json',responseSchema,temperature:0.1}}).generateContent([prompt,image])
       const raw=generated.response.text()
       try{parsed=JSON.parse(raw)}catch{throw new Error('Gemini mengembalikan JSON yang tidak dapat dibaca.')}
