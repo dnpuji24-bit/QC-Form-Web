@@ -7,11 +7,11 @@ for token in [
     "function plantAreaFromData",
     "varietyAreaTotalHa",
     "plantProgress",
-    "<span>Plant Area <strong>{planHa(info.paddock.plantAreaHa)}</strong></span>",
+    "<span>Plant Area Total <strong>{planHa(info.paddock.plantAreaHa)}</strong></span>",
     "plantAreaHa:p.plantAreaHa",
 ]:
     assert token in source, f"Missing Monthly Plant Area token: {token}"
 
 assert "<span>Area Paddock <strong>{planHa(info.paddock.areaPaddockHa)}</strong></span>" not in source
 
-print("Monthly paddock info check passed: Plant Area is displayed instead of total paddock area, with snapshot persistence.")
+print("Monthly paddock info check passed: Plant Area Total is displayed with snapshot persistence.")
