@@ -23,6 +23,10 @@ assert "el.classList.remove('report-export-capture')" in app
 assert 'Cetak / PDF' in app
 assert 'report-close-button' in app
 assert 'report-toolbar-actions' in app
+assert "import { createPortal } from 'react-dom'" in app
+assert 'createPortal(modal,document.body)' in app
+assert "document.body.style.overflow='hidden'" in app
+assert "event.key==='Escape'" in app
 assert 'Mobile report preview: keep original two-column report geometry, only tune readability' in field
 assert '.report-dialog .report-sheet:not(.report-export-capture)' in field
 assert '.report-dialog .report-sheet.report-export-capture' in field
