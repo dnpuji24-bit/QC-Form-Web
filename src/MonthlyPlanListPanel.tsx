@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { collection, doc, getDoc, getDocs, query as fsQuery, serverTimestamp, setDoc, where, writeBatch } from 'firebase/firestore'
 import { firebaseAuth, firebaseAuthPersistenceReady, firestoreDb } from './firebase'
 import type { User } from './types'
@@ -71,6 +72,14 @@ export default function MonthlyPlanListPanel({user,selectedMonth,selectedWeek,co
     setMessage('Monthly '+monthFilter+': '+next.length+' Plan Line. Actual = Actual Plan terhubung + progress manual/historis.')
   }catch(error){setMessage(error instanceof Error?error.message:'Monthly Plan gagal dimuat.')}finally{setBusy(false)}}
   useEffect(()=>{void load()},[selectedMonth,refreshKey])
+  useEffect(()=>{
+    if(!exportOpen)return
+    const previousOverflow=document.body.style.overflow
+    document.body.style.overflow='hidden'
+    const handleKey=(event:KeyboardEvent)=>{if(event.key==='Escape'&&!exporting)setExportOpen(false)}
+    document.addEventListener('keydown',handleKey)
+    return()=>{document.body.style.overflow=previousOverflow;document.removeEventListener('keydown',handleKey)}
+  },[exportOpen,exporting])
 
   const searchNeedle=searchKey(query),searchingSource=Boolean(searchNeedle)
   useEffect(()=>{if(searchingSource&&activityFilter!=='ALL')setActivityFilter('ALL')},[searchingSource])
@@ -220,13 +229,13 @@ export default function MonthlyPlanListPanel({user,selectedMonth,selectedWeek,co
     try{for(let start=0;start<targets.length;start+=450){const batch=writeBatch(firestoreDb);targets.slice(start,start+450).forEach(row=>batch.delete(doc(firestoreDb!,'monthly_plans',row.id)));await batch.commit()}const deletedIds=new Set(targets.map(row=>row.id));setRows(current=>current.filter(row=>!deletedIds.has(row.id)));setMessage('Hapus selesai: '+targets.length+' Monthly Plan dihapus. Daily/Actual downstream tidak dihapus.')}catch(error){setMessage(error instanceof Error?error.message:'Monthly Plan gagal dihapus.')}finally{setBusy(false)}
   }
 
-  const exportDialog=exportOpen?<div className="monthly-export-backdrop" role="dialog" aria-modal="true" aria-label="Export Monthly Plan ke Excel"><div className="monthly-export-dialog">
-    <div className="monthly-export-title"><div className="monthly-export-logo"><ExcelIcon/></div><div><span className="eyebrow">EXPORT MONTHLY PLAN</span><h3>Export ke Excel</h3><p>Pilih rentang bulan dan Week. Data diambil langsung dari Firestore, termasuk Daily, Actual, Balance, dan Status.</p></div><button type="button" className="monthly-export-close" onClick={()=>setExportOpen(false)} aria-label="Tutup">×</button></div>
+  const exportDialog=exportOpen?createPortal(<div className="monthly-export-backdrop" role="dialog" aria-modal="true" aria-label="Export Monthly Plan ke Excel" onMouseDown={event=>{if(event.target===event.currentTarget&&!exporting)setExportOpen(false)}}><div className="monthly-export-dialog" onMouseDown={event=>event.stopPropagation()}>
+    <div className="monthly-export-title"><div className="monthly-export-logo"><ExcelIcon/></div><div><span className="eyebrow">EXPORT MONTHLY PLAN</span><h3>Export ke Excel</h3><p>Pilih rentang bulan dan Week. Data diambil langsung dari Firestore, termasuk Daily, Actual, Balance, dan Status.</p></div><button type="button" className="monthly-export-close" disabled={exporting} onClick={()=>setExportOpen(false)} aria-label="Tutup">×</button></div>
     <div className="monthly-export-range"><label><span>Bulan Mulai</span><input type="month" value={exportFrom} onChange={e=>setExportFrom(e.target.value)}/></label><label><span>Bulan Sampai</span><input type="month" value={exportTo} onChange={e=>setExportTo(e.target.value)}/></label></div>
     <fieldset className="monthly-export-week-box"><legend>Week yang diexport</legend><div className="monthly-export-weeks">{EXPORT_WEEKS.map(item=><label className={exportWeeks.includes(item)?'selected':''} key={item}><input type="checkbox" checked={exportWeeks.includes(item)} onChange={()=>toggleExportWeek(item)}/><span>{item}</span></label>)}</div><div className="monthly-export-week-actions"><button type="button" onClick={()=>setExportWeeks([...EXPORT_WEEKS])}>Semua Week</button><button type="button" onClick={()=>setExportWeeks([])}>Kosongkan</button></div></fieldset>
     <div className="monthly-export-note">Rentang bersifat inklusif. Contoh 2026-08 s.d. 2026-10 dengan W2 + W4 akan mengekspor W2 dan W4 dari ketiga bulan tersebut.</div>
     <div className="monthly-export-actions"><button type="button" className="secondary" disabled={exporting} onClick={()=>setExportOpen(false)}>Batal</button><button type="button" className="monthly-excel-confirm" disabled={exporting||!exportWeeks.length} onClick={()=>void exportMonthlyExcel()}><ExcelIcon/>{exporting?'Menyiapkan Excel…':'Export Excel'}</button></div>
-  </div></div>:null
+  </div></div>,document.body):null
 
   const editPanel=editing&&editMode?<form id="monthly-edit-panel" className="panel daily-single-form monthly-inline-edit-panel" onSubmit={editMode==='details'?saveDetails:saveProgress}>
     <div className="daily-form-toolbar"><div><div className="eyebrow">{editMode==='details'?'EDIT MONTHLY PLAN':'UPDATE PROGRESS MANUAL'}</div><h3>{editing.planLineId} · {editing.pid}</h3><p className="muted">{editMode==='details'?'Periode, target dan atribut dapat diubah. Plan ID, PID, dan Activity tetap dikunci agar link Daily/Actual tidak putus.':'Progress manual adalah progress historis/eksternal yang belum memiliki Actual Plan.'}</p></div><button type="button" onClick={closeEdit}>Batal</button></div>
