@@ -4,6 +4,7 @@ import { firebaseAuth, firestoreDb } from './firebase'
 import type { User } from './types'
 import { canEditAccess } from './accessControl'
 import YinYangRefreshButton from './YinYangRefreshButton'
+import MasterMaterialImportExportPanel from './MasterMaterialImportExportPanel'
 
 type Props={user:User}
 type View='VALIDATION'|'COMPOSITION'|'MATERIAL'
@@ -169,6 +170,7 @@ export default function MasterActivityManagePanel({user}:Props){
     </>}
 
     {view==='MATERIAL'&&<>
+      <MasterMaterialImportExportPanel user={user} onImported={()=>load('Master Bahan diperbarui dari file terpisah.')} />
       <div className="panel form-stack"><div className="section-head"><div><h3>{materialForm.id?'Edit Master Bahan':'Tambah Master Bahan'}</h3><p className="muted">Nama Material ACTIVE harus unik. Bahan Aktif boleh sama untuk beberapa produk komersial.</p></div>{materialForm.id&&<button type="button" onClick={resetMaterial}>Batal Edit</button>}</div><div className="form-grid"><label>Material<input value={materialForm.materialName} onChange={e=>setMaterialForm({...materialForm,materialName:e.target.value})} placeholder="Nama produk/material"/></label><label>Bahan Aktif / Komposisi Utama<input value={materialForm.activeIngredient} onChange={e=>setMaterialForm({...materialForm,activeIngredient:e.target.value})}/></label><label>Satuan<input value={materialForm.unit} onChange={e=>setMaterialForm({...materialForm,unit:e.target.value})} placeholder="Liter / Kg"/></label><label>Kategori<select value={materialForm.category} onChange={e=>setMaterialForm({...materialForm,category:e.target.value})}>{categoryOptions.map(option=><option key={option} value={option}>{option}</option>)}</select></label><label>Status<select value={materialForm.active?'ACTIVE':'INACTIVE'} onChange={e=>setMaterialForm({...materialForm,active:e.target.value==='ACTIVE'})}><option value="ACTIVE">ACTIVE</option><option value="INACTIVE">INACTIVE</option></select></label></div><div className="row-actions"><button type="button" className="primary" disabled={busy} onClick={()=>void saveMaterial()}>{materialForm.id?'Simpan Perubahan':'Tambah Bahan'}</button></div></div>
       <div className="panel"><div className="table-wrap"><table><thead><tr><th>Material</th><th>Bahan Aktif</th><th>Satuan</th><th>Kategori</th><th>Status</th><th>Aksi</th></tr></thead><tbody>{materials.map(row=><tr key={row.id}><td><strong>{row.materialName}</strong></td><td>{row.activeIngredient}</td><td>{row.unit}</td><td>{row.category}</td><td>{row.active?'ACTIVE':'INACTIVE'}</td><td><div className="row-actions"><button type="button" onClick={()=>editMaterial(row)}>Edit</button><button type="button" disabled={user.role!=='owner'} onClick={()=>void deleteMaterial(row)}>Hapus</button></div></td></tr>)}</tbody></table></div></div>
     </>}
