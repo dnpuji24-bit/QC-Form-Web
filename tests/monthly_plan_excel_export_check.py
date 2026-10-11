@@ -19,6 +19,10 @@ for token in [
     "Progress (%)",
     "XLSX.writeFile",
     "monthly-excel-trigger",
+    "createPortal(<div className=\"monthly-export-backdrop\"",
+    "document.body):null",
+    "document.body.style.overflow='hidden'",
+    "event.key==='Escape'",
 ]:
     assert token in listing, f"Missing Monthly Plan Excel export token: {token}"
 
