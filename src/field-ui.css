@@ -3395,3 +3395,26 @@
 @media(min-width:701px){
   .report-toolbar{margin:-14px -14px 12px!important;padding:12px 14px!important}
 }
+
+/* Dedicated Master Bahan import/export */
+.material-io-panel{border-color:#cfe0ff!important;background:linear-gradient(180deg,#fff 0%,#f8fbff 100%)}
+.material-io-panel .section-head{align-items:flex-start}
+.material-export-button{display:inline-flex!important;align-items:center;justify-content:center;min-height:40px;padding:8px 13px!important;border:1px solid #0f6f3f!important;border-radius:11px!important;background:#14864b!important;color:#fff!important;font-weight:900!important;box-shadow:0 7px 18px rgba(20,134,75,.14)}
+.material-export-button:hover{background:#0f7440!important}
+.material-io-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr);gap:14px;margin-top:12px}
+.material-io-grid>label{display:grid;gap:7px;padding:13px;border:1px solid #dbe3ef;border-radius:13px;background:#fff;font-weight:850;color:#334155}
+.material-io-grid>label input[type=file]{width:100%;padding:10px;border:1px dashed #93c5fd;border-radius:10px;background:#f8fbff}
+.material-io-grid>label small,.material-io-rules small{color:#64748b;font-size:.72rem;line-height:1.45}
+.material-io-rules{display:flex;flex-direction:column;gap:5px;padding:13px;border:1px solid #dbe3ef;border-radius:13px;background:#f8fafc;color:#334155}
+.material-io-rules>strong{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:#64748b}
+.material-io-rules>span{font-weight:850;line-height:1.5}
+.material-import-stats{margin:12px 0 0!important}
+.material-preview-head{margin-top:14px;padding-top:12px;border-top:1px solid #e2e8f0}
+.material-preview-head h4{margin:0 0 3px;font-size:1rem}
+@media(max-width:800px){
+  .material-io-grid{grid-template-columns:1fr}
+  .material-io-panel .section-head{gap:10px}
+  .material-export-button{width:100%}
+  .material-preview-head{align-items:stretch;flex-direction:column}
+  .material-preview-head>button{width:100%}
+}
