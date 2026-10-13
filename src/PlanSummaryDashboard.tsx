@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { collection, getDocs, query as fsQuery, where } from 'firebase/firestore'
 import { firestoreDb } from './firebase'
 import YinYangRefreshButton from './YinYangRefreshButton'
+import { exportAllPlanSummary } from './planSummaryExcelExport'
 
 type JobType='ALL'|'SPRAY'|'FERTILIZER'
 type ActivityBasis='ACTUAL'|'PLAN'
@@ -101,6 +102,7 @@ export default function PlanSummaryDashboard(){
   const[selectedYear,setSelectedYear]=useState(String(currentYear)),[selectedMonth,setSelectedMonth]=useState(String(now.getMonth()+1).padStart(2,'0')),[selectedWeek,setSelectedWeek]=useState('ALL')
   const[monthly,setMonthly]=useState<MonthlyRow[]>([]),[daily,setDaily]=useState<DailyRow[]>([]),[actual,setActual]=useState<ActualRow[]>([]),[paddockHistoryMonthly,setPaddockHistoryMonthly]=useState<MonthlyRow[]>([]),[paddockHistoryActual,setPaddockHistoryActual]=useState<ActualRow[]>([]),[masterPaddocks,setMasterPaddocks]=useState<MasterPaddockRow[]>([]),[masterActivities,setMasterActivities]=useState<MasterActivityRow[]>([])
   const[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[paddockHistoryBusy,setPaddockHistoryBusy]=useState(false),[paddockHistoryError,setPaddockHistoryError]=useState('')
+  const[excelBusy,setExcelBusy]=useState(false),[excelProgress,setExcelProgress]=useState(''),[excelMessage,setExcelMessage]=useState('')
   const[company,setCompany]=useState('ALL'),[farm,setFarm]=useState('ALL'),[shift,setShift]=useState('ALL'),[foreman,setForeman]=useState('ALL'),[jobType,setJobType]=useState<JobType>('ALL'),[activityBasis,setActivityBasis]=useState<ActivityBasis>('ACTUAL'),[paddockFilter,setPaddockFilter]=useState(''),[paddockPage,setPaddockPage]=useState(1),[paddockPageSize,setPaddockPageSize]=useState(50),[paddockHistoryRefreshKey,setPaddockHistoryRefreshKey]=useState(0)
   const monthKey=selectedYear+'-'+selectedMonth
   const yearOptions=useMemo(()=>Array.from({length:7},(_,i)=>String(currentYear-4+i)),[currentYear])
@@ -196,11 +198,38 @@ export default function PlanSummaryDashboard(){
   }),[visibleMasterPaddocks,monthlyByPid,actualByPid,matrixActivities])
   const paddockOptions=useMemo(()=>masterPaddocks.map(row=>row.pid).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[masterPaddocks])
 
+  async function downloadAllSummary(){
+    const db=firestoreDb
+    if(!db||!masterPaddocks.length){setExcelMessage('Master Paddock belum tersedia. Refresh Summary terlebih dahulu.');return}
+    setExcelBusy(true);setExcelMessage('');setExcelProgress('Menyiapkan seluruh histori Master Paddock…')
+    try{
+      const result=await exportAllPlanSummary({
+        db,paddocks:masterPaddocks,masterActivityNames:masterActivities.filter(row=>row.active).map(row=>row.activity),
+        period:monthKey+(selectedWeek==='ALL'?' · Semua Week':' · '+selectedWeek),
+        filterLabels:[
+          company==='ALL'?'Semua Company':company,
+          farm==='ALL'?'Semua Farm':farm,
+          shift==='ALL'?'Semua Shift':'Shift '+shift,
+          foreman==='ALL'?'Semua Mandor':foreman,
+          jobType==='ALL'?'Semua Jenis':jobType,
+          'Komposisi '+(activityBasis==='ACTUAL'?'Actual':'Daily Plan'),
+        ],
+        monthlyTarget,monthlyActual,manualActual,
+        productivity:productivityRows,activityDays:dayMatrixRows,activityShares:activityPieRows,
+        onProgress:setExcelProgress,
+      })
+      setExcelMessage('Export Excel selesai: '+result.paddocks+' PID, '+result.activities+' activity dan '+result.detailRows+' baris detail. Semua histori dicakup, tanpa batas pagination atau filter paddock.')
+    }catch(error){setExcelMessage('Export Excel gagal: '+(error instanceof Error?error.message:'Tidak dapat menyiapkan file. Data belum diunduh.'))}
+    finally{setExcelBusy(false);setExcelProgress('')}
+  }
+
   function resetFilters(){setSelectedWeek('ALL');setCompany('ALL');setFarm('ALL');setShift('ALL');setForeman('ALL');setJobType('ALL')}
 
   return <section className="plan-summary-dashboard">
-    <div className="section-head summary-compact-head"><div><div className="eyebrow">SUMMARY PLAN</div><h2>Dashboard Daily Plan & Aktual</h2><p className="muted">Produktivitas harian, pencapaian Monthly Plan, dan Summary Activity per tanggal dalam satu filter.</p></div><YinYangRefreshButton busy={busy||paddockHistoryBusy} label="Refresh Summary" onClick={()=>{void load();setPaddockHistoryRefreshKey(key=>key+1)}}/></div>
+    <div className="section-head summary-compact-head"><div><div className="eyebrow">SUMMARY PLAN</div><h2>Dashboard Daily Plan & Aktual</h2><p className="muted">Produktivitas harian, pencapaian Monthly Plan, dan Summary Activity per tanggal dalam satu filter.</p></div><div className="row-actions summary-export-head-actions"><button type="button" className="summary-excel-button" disabled={excelBusy||busy||!masterPaddocks.length} onClick={()=>void downloadAllSummary()}>{excelBusy?'Menyiapkan Excel…':'Export Excel Semua Data'}</button><YinYangRefreshButton busy={busy||paddockHistoryBusy} label="Refresh Summary" onClick={()=>{void load();setPaddockHistoryRefreshKey(key=>key+1)}}/></div></div>
     {message&&<div className="alert summary-compact-alert">{message}</div>}
+    {excelProgress&&<div className="alert summary-excel-progress" role="status">{excelProgress}</div>}
+    {excelMessage&&<div className="alert summary-excel-progress" role="status">{excelMessage}</div>}
 
     <section className="panel summary-filter-panel premium-filter-panel">
       <div className="premium-filter-head">
@@ -245,7 +274,7 @@ export default function PlanSummaryDashboard(){
     </section>
 
     <section className="panel summary-matrix-panel">
-      <div className="section-head"><div><div className="eyebrow">PADDOCK × ACTIVITY · SELURUH HISTORI</div><h3>Summary Paddock per Kegiatan</h3><p className="muted">Semua Master Paddock tetap tersedia, tetapi riwayat Actual dimuat per halaman agar dashboard tidak berat atau crash.</p></div><strong>{filteredMasterPaddocks.length} / {masterPaddocks.length} paddock · {matrixActivities.length} activity</strong></div>
+      <div className="section-head"><div><div className="eyebrow">PADDOCK × ACTIVITY · SELURUH HISTORI</div><h3>Summary Paddock per Kegiatan</h3><p className="muted">Semua Master Paddock tetap tersedia, tetapi riwayat Actual dimuat per halaman agar dashboard tidak berat atau crash.</p></div><div className="summary-export-section-actions"><strong>{filteredMasterPaddocks.length} / {masterPaddocks.length} paddock · {matrixActivities.length} activity</strong><button type="button" className="summary-excel-button" disabled={excelBusy||busy||!masterPaddocks.length} onClick={()=>void downloadAllSummary()}>{excelBusy?'Memproses…':'Export Semua PID'}</button></div></div>
       <div className="summary-matrix-scope summary-paddock-all-history-scope"><span>Cakupan</span><strong>Seluruh data / semua periode</strong><small>Filter dashboard di atas tidak memengaruhi tabel ini. Sistem hanya mengambil histori untuk PID yang sedang terlihat.</small></div>
       <div className="summary-paddock-filter"><label><span>Filter Paddock / PID</span><input list="summary-paddock-filter-options" value={paddockFilter} onChange={e=>setPaddockFilter(e.target.value.toUpperCase())} placeholder="Contoh: A-007 / JAGF-1-A-007"/><datalist id="summary-paddock-filter-options">{paddockOptions.map(pid=><option key={pid} value={pid}/>)}</datalist><small>Pencarian tetap mencakup seluruh {masterPaddocks.length} Master Paddock.</small></label>{paddockFilter&&<button type="button" onClick={()=>setPaddockFilter('')}>Reset Paddock</button>}</div>
       <div className="summary-paddock-pager"><div><span>Baris per halaman</span><select value={paddockPageSize} onChange={e=>setPaddockPageSize(Number(e.target.value))}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select></div><strong>Halaman {Math.min(paddockPage,paddockPageCount)} / {paddockPageCount}</strong><div className="summary-paddock-pager-actions"><button type="button" disabled={paddockPage<=1||paddockHistoryBusy} onClick={()=>setPaddockPage(page=>Math.max(1,page-1))}>← Sebelumnya</button><button type="button" disabled={paddockPage>=paddockPageCount||paddockHistoryBusy} onClick={()=>setPaddockPage(page=>Math.min(paddockPageCount,page+1))}>Berikutnya →</button></div></div>
