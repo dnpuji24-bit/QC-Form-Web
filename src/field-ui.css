@@ -3418,3 +3418,13 @@
   .material-preview-head{align-items:stretch;flex-direction:column}
   .material-preview-head>button{width:100%}
 }
+
+/* Summary complete Excel export actions */
+.summary-export-head-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}
+.summary-excel-button{display:inline-flex!important;align-items:center;justify-content:center;min-height:39px;padding:9px 13px!important;border:1px solid #0d7541!important;border-radius:11px!important;background:#128047!important;color:#fff!important;font-size:.79rem!important;font-weight:900!important;white-space:nowrap;box-shadow:0 7px 17px rgba(18,128,71,.13)}
+.summary-excel-button:hover:not(:disabled){background:#096f3b!important;box-shadow:0 8px 22px rgba(18,128,71,.21)}
+.summary-excel-button:disabled{opacity:.6!important;cursor:wait}
+.summary-excel-progress{border-color:#bfdad0!important;background:#effaf4!important;color:#11683b!important;white-space:normal;word-break:break-word}
+.summary-export-section-actions{display:flex;align-items:center;justify-content:flex-end;gap:11px;flex-wrap:wrap}
+.summary-export-section-actions>strong{white-space:nowrap;font-size:.82rem}
+@media(max-width:800px){.summary-export-head-actions{justify-content:flex-start;width:100%}.summary-export-head-actions .summary-excel-button{flex:1}.summary-export-section-actions{justify-content:flex-start;width:100%}.summary-export-section-actions .summary-excel-button{flex:1}}
