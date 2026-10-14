@@ -1,48 +1,60 @@
 from pathlib import Path
-import re, math
+import math
 root=Path(__file__).resolve().parents[1]
 source=(root/'src'/'nozzlePerformance.ts').read_text(encoding='utf-8')
 panel=(root/'src'/'NozzleCalculatorPanel.tsx').read_text(encoding='utf-8')
+workspace=(root/'src'/'NozzleCalculatorWorkspace.tsx').read_text(encoding='utf-8')
 resource=(root/'src'/'MasterOperationalResourcePanel.tsx').read_text(encoding='utf-8')
-css=(root/'src'/'field-ui.css').read_text(encoding='utf-8')
+importer=(root/'src'/'NozzleSpecificationImportPanel.tsx').read_text(encoding='utf-8')
+parser=(root/'src'/'nozzleSpecificationImport.ts').read_text(encoding='utf-8')
+portal=(root/'src'/'PortalRouter.tsx').read_text(encoding='utf-8')
+rules=(root/'firestore.rules').read_text(encoding='utf-8')
 
-# TeeJet user-supplied workbook page 21: verify known pressure/flow/droplet points.
 for token in [
-    "code:'TTI60-11004VP',color:'Merah',flow:[1.12,1.29,1.58,1.82,2.04,2.23,2.41],drop:['UC','UC','UC','XC','XC','VC','VC']",
-    "code:'TTI60-11005VP',color:'Coklat',flow:[1.39,1.61,1.97,2.27,2.54,2.79,3.01],drop:['UC','UC','UC','XC','XC','VC','VC']",
-    "const PRESSURES=[1.5,2,3,4,5,6,7]",
+    "NOZZLE_SPEC_COLLECTION='master_nozzle_specs'",
+    "export function findNozzleSpec",
+    "export function matchingNozzleCode",
+    "nozzleSpecFromData",
+    "return 600*flowLpm/(rateLha*spacingMeters)",
     "source:exact?'tabel':'estimasi debit'",
     "droplet:exact?exact.droplet:null",
-    "const normalized=name.toUpperCase().replace(/[^A-Z0-9]/g,'')",
-    "normalized.startsWith(prefix)&&suffixes.has(normalized.slice(prefix.length))",
-    "return 600*flowLpm/(rateLha*spacingMeters)",
 ]:
-    assert token in source, f'Missing TeeJet calibration token: {token}'
+    assert token in source, f'Missing dynamic nozzle calculation token: {token}'
 
-# 400 L/ha, 50.8cm: red at 4bar=1.82lpm, brown at 4bar=2.27lpm.
+# A reference dataset may not be hardcoded into the calculator: upload is the source of truth.
+assert 'TTI60_NOZZLES' not in source
+assert 'TTI60_NOZZLES' not in panel
+assert "code:'TTI60-11004VP',color:'Merah',flow:" not in source
 assert math.isclose(600*1.82/(400*.508),5.374015748,abs_tol=1e-7)
 assert math.isclose(600*2.27/(400*.508),6.702755906,abs_tol=1e-7)
 
 for token in [
-    "NozzleCalculatorPanel",
-    "Nozzle digunakan",
-    "Water rate (L/ha)",
-    "Target kategori droplet",
-    "Jarak nozzle (cm)",
-    "Jumlah nozzle aktif",
-    "Kecepatan operasional min",
-    "Kecepatan operasional maks",
-    "Kecepatan preferensi",
-    "Pengaturan tekanan",
-    "Otomatis",
-    "Manual (bar)",
-    "Tekanan aktual yang digunakan (bar) — wajib diisi",
-    "Tidak ada kombinasi tekanan + droplet",
-    "Kategori droplet pada tekanan",
-    "Alternatif tekanan pada nozzle",
-    "Sumber: TeeJet Spray Tips Pocket Guide",
+    'Nozzle digunakan','Water rate (L/ha)','Target kategori droplet',
+    'Jarak nozzle (cm)','Jumlah nozzle aktif','Kecepatan operasional min',
+    'Kecepatan operasional maks','Kecepatan preferensi','Pengaturan tekanan',
+    'Otomatis','Manual (bar)','Tekanan aktual yang digunakan (bar) — wajib diisi',
+    'Tidak ada kombinasi tekanan + droplet','Kategori droplet pada tekanan',
+    'Alternatif tekanan pada nozzle','Spesifikasi hasil upload',
+    'Master Nozzle aktif yang memiliki spesifikasi',
 ]:
-    assert token in panel, f'Missing user-facing Nozzle calculator token: {token}'
-assert "kind==='nozzle'&&<NozzleCalculatorPanel resources={rows}/>" in resource
-assert "Master nozzle performance calculator" in css
-print('Nozzle performance calculator regression: OK')
+    assert token in panel, f'Missing nozzle calculator display token: {token}'
+
+for token in ['collection(firestoreDb,NOZZLE_SPEC_COLLECTION)','loadOperationalResources(\'nozzle\')','<NozzleCalculatorPanel resources={resources} specs={specs}/>']:
+    assert token in workspace, f'Standalone calculator not sourcing Firestore: {token}'
+
+for token in ['parseNozzleWorkbook','Konfirmasi Update / Import Nozzle','sourceFileName:preview.fileName',
+              'master_nozzle_specs' if False else 'NOZZLE_SPEC_COLLECTION',
+              'writeBatch(db)','OPERATIONAL_RESOURCE_COLLECTIONS.nozzle',
+              'matchingNozzleCode(row.name,spec.code)']:
+    assert token in importer, f'Uploader token missing: {token}'
+
+for token in ['warna nozzle','jenis nozzle','tekanan (bar)','ukuran droplet','lerap rating','debit (l/menit)',
+              'const headerIndex=rows.findIndex','seen.has(key)','group.points.push(point)']:
+    assert token in parser, f'Excel parser token missing: {token}'
+
+assert "kind==='nozzle'&&<NozzleSpecificationImportPanel user={user}" in resource
+assert '<NozzleCalculatorPanel' not in resource
+assert "dataView==='nozzle-calculator'" in portal
+assert 'Kalkulator Nozzle' in portal
+assert 'match /master_nozzle_specs/{specId}' in rules
+print('Nozzle calculator separate menu and Firestore Excel upload regression: OK')
