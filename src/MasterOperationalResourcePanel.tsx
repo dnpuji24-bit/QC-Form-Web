@@ -5,6 +5,7 @@ import type { User } from './types'
 import { canEditAccess } from './accessControl'
 import { OPERATIONAL_RESOURCE_COLLECTIONS, type OperationalResourceKind } from './masterOperationalResources'
 import YinYangRefreshButton from './YinYangRefreshButton'
+import NozzleCalculatorPanel from './NozzleCalculatorPanel'
 
 type Props={user:User}
 type Row={id:string;name:string;active:boolean;parentUnitId?:string;parentUnitName?:string}
@@ -152,6 +153,7 @@ export default function MasterOperationalResourcePanel({user}:Props){
       </div>
     </div>
 
+    {kind==='nozzle'&&<NozzleCalculatorPanel resources={rows}/>}
     <div className="panel resource-table-panel">
       <div className="section-head"><div><h3>{meta.title}</h3></div><span className="badge">{rows.length} data</span></div>
       <div className="table-wrap"><table><thead><tr><th>{meta.singular}</th>{kind==='unit_number'&&<th>Jenis Unit / Equipment</th>}<th>Status</th><th>Aksi</th></tr></thead><tbody>
