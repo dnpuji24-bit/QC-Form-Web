@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
   calculationsForNozzle,DROPLET_LABELS,manualPressureCalculation,matchTTI60Nozzle,
-  TTI60_NOZZLES,tractorSpeedKmh,type Calculation,type DropletClass,
+  TTI60_NOZZLES,type DropletClass,
 } from './nozzlePerformance'
 
 type ResourceNozzle={id:string;name:string;active:boolean}
