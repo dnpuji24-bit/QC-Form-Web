@@ -164,6 +164,12 @@ service cloud.firestore {
       allow delete: if activeUser() && role() == 'owner';
     }
 
+    match /master_nozzle_specs/{specId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
     match /master_droppers/{dropperId} {
       allow read: if activeUser();
       allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
