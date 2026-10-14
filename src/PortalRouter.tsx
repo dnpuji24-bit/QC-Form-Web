@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import CompanyMasterPanel from './CompanyMasterPanel'
 import MasterActivityWorkspace from './MasterActivityWorkspace'
+import NozzleCalculatorWorkspace from './NozzleCalculatorWorkspace'
 import MasterPaddockWorkspace from './MasterPaddockWorkspace'
 import PlanWorkspace, { type PlanWorkspaceHandle } from './PlanWorkspace'
 import { UsersApproval } from './AdminPages'
@@ -11,7 +12,7 @@ import type { User } from './types'
 import './portal.css'
 
 type PortalMode='chooser'|'qc'|'data-unm'|'users'
-type DataView='home'|'plan'|'master-paddock'|'master-activity'|'company'
+type DataView='home'|'plan'|'master-paddock'|'master-activity'|'company'|'nozzle-calculator'
 
 const MODE_KEY='unm_portal_mode'
 const TOKEN_KEY='qc_token'
@@ -97,12 +98,14 @@ export default function PortalRouter(){
           {(['data_plan_summary','data_plan_monthly','data_plan_daily','data_plan_actual','data_plan_reconciliation'] as const).some(key=>canViewAccess(user,key))&&<button className="portal-card" type="button" onClick={()=>setDataView('plan')}><span className="portal-icon">PL</span><strong>Plan</strong><p>Monthly Plan dan Daily Plan. Activity ACTIVE akan menjadi sumber pilihan kegiatan dan komposisi bahan.</p><span className="portal-link">Buka Plan →</span></button>}
           {(canViewAccess(user,'data_master_paddock_list')||canViewAccess(user,'data_master_paddock_import'))&&<button className="portal-card" type="button" onClick={()=>setDataView('master-paddock')}><span className="portal-icon">MP</span><strong>Master Paddock</strong><p>Lihat daftar paddock Firestore serta update/import per Company dengan filter Farm opsional.</p><span className="portal-link">Buka Master Paddock →</span></button>}
           {(['data_master_activity_list','data_master_activity_manage','data_master_activity_resources','data_master_activity_import'] as const).some(key=>canViewAccess(user,key))&&<button className="portal-card" type="button" onClick={()=>setDataView('master-activity')}><span className="portal-icon">MA</span><strong>Master Activity</strong><p>Kelola Activity, komposisi bahan/dosis, Master Material, dan status ACTIVE/INACTIVE.</p><span className="portal-link">Buka Master Activity →</span></button>}
+          {canViewAccess(user,'data_master_activity_resources')&&<button className="portal-card" type="button" onClick={()=>setDataView('nozzle-calculator')}><span className="portal-icon">NZ</span><strong>Kalkulator Nozzle</strong><p>Hitung tekanan, debit, kategori droplet, dan kecepatan traktor berdasarkan spesifikasi nozzle hasil upload.</p><span className="portal-link">Buka Kalkulator Nozzle →</span></button>}
           {canViewAccess(user,'data_company')&&<button className="portal-card" type="button" onClick={()=>setDataView('company')}><span className="portal-icon">CO</span><strong>Company & Prefix</strong><p>Tambah, edit, aktif/nonaktifkan Company serta mapping prefix PID seperti JAGF → GPA.</p><span className="portal-link">Buka Company →</span></button>}
         </section>
       </>}
       {dataView==='plan'&&<section className="portal-workspace-view"><div className="portal-section-head compact-page-head"><div><span className="portal-kicker">DATA UnM / PLAN</span><h2>Plan</h2><p>Monthly, Daily, Actual dan rekonsiliasi.</p></div><button type="button" onClick={()=>{if(!planWorkspaceRef.current?.goBack())setDataView('home')}}>← Kembali</button></div><PlanWorkspace ref={planWorkspaceRef} user={user}/></section>}
       {dataView==='master-paddock'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM</span><h2>Master Paddock</h2><p>Lihat data Firestore atau lakukan update dari Area Plant dan Area Harvest.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><MasterPaddockWorkspace user={user}/></section>}
       {dataView==='master-activity'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM</span><h2>Master Activity</h2><p>Activity, komposisi bahan per hektar, Master Material, dan status penggunaan di Plan.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><MasterActivityWorkspace user={user}/></section>}
+      {dataView==='nozzle-calculator'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM / PERHITUNGAN</span><h2>Kalkulator Nozzle</h2><p>Perhitungan tractor spraying dari spesifikasi Excel yang tersimpan di Master Nozzle.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><NozzleCalculatorWorkspace/></section>}
       {dataView==='company'&&<section><div className="portal-section-head"><div><span className="portal-kicker">DATA UnM</span><h2>Company & Prefix</h2><p>Master klasifikasi perusahaan MSG berdasarkan prefix PID.</p></div><button type="button" onClick={()=>setDataView('home')}>← Kembali</button></div><CompanyMasterPanel user={user}/></section>}
     </div></main>
   </div>
