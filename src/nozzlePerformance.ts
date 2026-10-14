@@ -33,9 +33,12 @@ export const TTI60_NOZZLES:NozzleSpec[]=SOURCE.map(series=>({
  *  Do not match other nozzle families or guesses, since their spectra differ.
  */
 export function matchTTI60Nozzle(name:string):NozzleSpec|undefined{
-  const normalized=name.toUpperCase().replace(/\s+/g,'').replace(/[^A-Z0-9]/g,'')
-  return TTI60_NOZZLES.find(item=>normalized.startsWith(item.code.replace(/VP$/,''))
-    &&(normalized===item.code||normalized===item.code.replace(/VP$/,'')||normalized.startsWith(item.code.replace(/VP$/,'')+'MERAH')||normalized.startsWith(item.code.replace(/VP$/,'')+'COKLAT')||normalized.startsWith(item.code.replace(/VP$/,'')+'KUNING')||normalized.startsWith(item.code.replace(/VP$/,'')+'BIRU')||normalized.startsWith(item.code.replace(/VP$/,'')+'UNGU')||normalized.startsWith(item.code.replace(/VP$/,'')+'SILVER')||normalized.startsWith(item.code.replace(/VP$/,'')+'PUTIH')))
+  const normalized=name.toUpperCase().replace(/[^A-Z0-9]/g,'')
+  const suffixes=new Set(['','VP','MERAH','VPMERAH','COKLAT','VPCOKLAT','KUNING','VPKUNING','BIRU','VPBIRU','UNGU','VPUNGU','SILVER','VPSILVER','PUTIH','VPPUTIH'])
+  return TTI60_NOZZLES.find(item=>{
+    const prefix=item.code.toUpperCase().replace(/[^A-Z0-9]/g,'').replace(/VP$/,'')
+    return normalized.startsWith(prefix)&&suffixes.has(normalized.slice(prefix.length))
+  })
 }
 /** Water rate = 600 × flow (L/min per tip) / (speed km/h × spacing m). */
 export function tractorSpeedKmh(flowLpm:number,rateLha:number,spacingMeters:number){
