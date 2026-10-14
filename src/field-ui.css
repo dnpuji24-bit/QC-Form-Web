@@ -3428,3 +3428,38 @@
 .summary-export-section-actions{display:flex;align-items:center;justify-content:flex-end;gap:11px;flex-wrap:wrap}
 .summary-export-section-actions>strong{white-space:nowrap;font-size:.82rem}
 @media(max-width:800px){.summary-export-head-actions{justify-content:flex-start;width:100%}.summary-export-head-actions .summary-excel-button{flex:1}.summary-export-section-actions{justify-content:flex-start;width:100%}.summary-export-section-actions .summary-excel-button{flex:1}}
+
+/* Master nozzle performance calculator */
+.nozzle-calc-panel{border:1px solid #cbdcf9!important;background:linear-gradient(180deg,#fff 0%,#f8fbff 100%);box-shadow:0 8px 24px rgba(15,39,84,.045)}
+.nozzle-calc-panel .section-head{align-items:flex-start}
+.nozzle-calc-panel .section-head h3{margin:3px 0 5px;color:#102a4b}
+.nozzle-calc-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0}
+.nozzle-calc-grid label,.nozzle-pressure-control>label{display:flex;flex-direction:column;gap:6px;color:#334155;font-size:.76rem;font-weight:850;min-width:0}
+.nozzle-calc-grid label:first-child{grid-column:span 2}
+.nozzle-calc-grid input,.nozzle-calc-grid select,.nozzle-pressure-control input{width:100%;min-height:43px;border:1px solid #cbd5e1;border-radius:10px;padding:8px 11px;background:#fff;color:#0f172a;box-sizing:border-box;font-size:.86rem}
+.nozzle-calc-grid label>small,.nozzle-pressure-control label>small{line-height:1.45;color:#64748b;font-size:.7rem;font-weight:500}
+.nozzle-pressure-control{padding:14px;border:1px solid #dbeafe;background:#f5f9ff;border-radius:13px;margin-bottom:12px}
+.nozzle-pressure-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+.nozzle-pressure-head>strong{color:#17243d}
+.nozzle-pressure-head .row-actions button{border-radius:9px;min-height:36px}
+.nozzle-pressure-head .row-actions button.active{background:#dbeafe;border-color:#93c5fd;color:#1d4ed8}
+.nozzle-pressure-control>label{max-width:380px}
+.nozzle-pressure-control p{margin:0;font-size:.78rem}
+.nozzle-result{border:1px solid #bfdbfe;border-radius:14px;padding:14px;background:#eef6ff;margin-top:13px}
+.nozzle-result-label{font-weight:900;letter-spacing:.06em;font-size:.7rem;color:#1d4ed8;margin-bottom:12px}
+.nozzle-result-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.nozzle-result-stats>div{display:flex;flex-direction:column;gap:5px;padding:12px;background:#fff;border:1px solid #dbeafe;border-radius:11px;min-height:72px}
+.nozzle-result-stats>div>span{font-size:.7rem;color:#64748b}
+.nozzle-result-stats strong{font-size:1.05rem;color:#0f172a}
+.nozzle-result-stats strong small{font-size:.67rem;color:#475569;font-weight:650}
+.nozzle-result-stats .nozzle-okay{color:#15803d}.nozzle-result-stats .nozzle-warning{color:#b45309}
+.nozzle-result-formula{display:block;margin-top:10px;color:#425c78;font-size:.72rem;line-height:1.5}
+.nozzle-candidate-table{margin-top:18px}
+.nozzle-candidate-table .section-head h4{margin:0 0 5px}
+.nozzle-candidate-table td small{display:block;font-size:.69rem;color:#64748b}
+.nozzle-candidate-table table th{white-space:nowrap}
+.nozzle-row-chosen td{background:#dbeafe!important}
+.nozzle-source-caption{padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:11px;margin-top:12px;font-size:.72rem;line-height:1.6;color:#475569}
+@media(max-width:1100px){.nozzle-calc-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.nozzle-result-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.nozzle-calc-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.nozzle-calc-grid label:first-child{grid-column:span 2}.nozzle-pressure-head{align-items:flex-start;flex-direction:column}.nozzle-pressure-head .row-actions{width:100%}.nozzle-pressure-head .row-actions button{flex:1}}
+@media(max-width:450px){.nozzle-calc-grid{grid-template-columns:1fr}.nozzle-calc-grid label:first-child{grid-column:span 1}.nozzle-result-stats{grid-template-columns:1fr 1fr}}
