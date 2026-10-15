@@ -63,6 +63,13 @@ assert "INACTIVE'+(activateInactive?' → ACTIVE':' (tetap)')" in importer
 assert "NOZZLE_SPEC_COLLECTION" in resource
 assert "nozzleSpecs.find(item=>matchingNozzleCode(row.name,item.code))" in resource
 assert "nama untuk model sama" in resource
+assert 'inactiveWithSpecs=useMemo' in resource
+assert 'async function activateImportedNozzles()' in resource
+assert 'Aktifkan {inactiveWithSpecs.length} nozzle dari Excel' in resource
+assert "aliases.some(row=>row.active)" in resource
+assert 'writerContext(user)' in resource
+assert 'writeBatch(context.db)' in resource
+assert 'Nozzle tanpa spesifikasi tidak diubah' in resource
 assert "kind==='nozzle'&&<NozzleSpecificationImportPanel user={user}" in resource
 assert '<NozzleCalculatorPanel' not in resource
 assert "dataView==='nozzle-calculator'" in portal
