@@ -3487,3 +3487,13 @@
 .nozzle-spec-exists{background:#dcfce7;color:#166534;font-size:.73rem;font-weight:850;padding:5px 8px;border-radius:8px;white-space:normal}
 .nozzle-spec-duplicate{background:#fef3c7;color:#92400e;font-size:.7rem;padding:3px 7px;border-radius:6px}
 .nozzle-inactive-note{display:block;font-size:.68rem;max-width:190px;line-height:1.3;margin-top:5px;color:#b45309}
+
+/* Nozzle master reactivation action */
+.nozzle-reactivate-action{background:#e9f9ee!important;border:1px solid #86efac!important;border-radius:11px!important;color:#166534!important;min-height:38px;font-weight:900!important;padding:8px 12px!important}
+.nozzle-reactivate-action:hover{background:#dcfce7!important}
+.nozzle-reactivate-action:disabled{opacity:.5!important;cursor:not-allowed}
+.nozzle-resource-spec-status{display:flex;flex-direction:column;gap:4px}
+.nozzle-spec-exists{font-weight:800;color:#15803d}
+.nozzle-inactive-note{display:block;font-size:.68rem;color:#a16207;margin-top:4px}
+.nozzle-spec-duplicate{color:#b45309;font-size:.69rem}
+@media(max-width:760px){.resource-table-panel .section-head{flex-wrap:wrap}.nozzle-reactivate-action{width:100%}}
