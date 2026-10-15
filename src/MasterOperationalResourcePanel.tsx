@@ -6,6 +6,7 @@ import { canEditAccess } from './accessControl'
 import { OPERATIONAL_RESOURCE_COLLECTIONS, type OperationalResourceKind } from './masterOperationalResources'
 import YinYangRefreshButton from './YinYangRefreshButton'
 import NozzleSpecificationImportPanel from './NozzleSpecificationImportPanel'
+import { NOZZLE_SPEC_COLLECTION,matchingNozzleCode,nozzleSpecFromData,type NozzleSpec } from './nozzlePerformance'
 
 type Props={user:User}
 type Row={id:string;name:string;active:boolean;parentUnitId?:string;parentUnitName?:string}
@@ -51,6 +52,7 @@ export default function MasterOperationalResourcePanel({user}:Props){
   const[kind,setKind]=useState<OperationalResourceKind>('unit')
   const[rows,setRows]=useState<Row[]>([])
   const[unitRows,setUnitRows]=useState<Row[]>([])
+  const[nozzleSpecs,setNozzleSpecs]=useState<NozzleSpec[]>([])
   const[value,setValue]=useState('')
   const[parentUnitId,setParentUnitId]=useState('')
   const[editingId,setEditingId]=useState('')
@@ -63,13 +65,15 @@ export default function MasterOperationalResourcePanel({user}:Props){
     if(!firestoreDb)return
     setBusy(true)
     try{
-      const [snap,unitsSnap]=await Promise.all([
+      const [snap,unitsSnap,specSnap]=await Promise.all([
         getDocs(collection(firestoreDb,collectionName)),
         getDocs(collection(firestoreDb,OPERATIONAL_RESOURCE_COLLECTIONS.unit)),
+        kind==='nozzle'?getDocs(collection(firestoreDb,NOZZLE_SPEC_COLLECTION)):Promise.resolve(null),
       ])
       const next=snap.docs.map(item=>{const row=item.data() as Record<string,unknown>;return{id:item.id,name:text(row.name||row.label||row.value||item.id),active:row.active!==false,parentUnitId:text(row.parentUnitId)||undefined,parentUnitName:text(row.parentUnitName)||undefined}}).filter(row=>row.name).sort((a,b)=>(a.parentUnitName||'').localeCompare(b.parentUnitName||'',undefined,{numeric:true})||a.name.localeCompare(b.name,undefined,{numeric:true}))
       const units=unitsSnap.docs.map(item=>{const row=item.data() as Record<string,unknown>;return{id:item.id,name:text(row.name||row.label||row.value||item.id),active:row.active!==false}}).filter(row=>row.name&&row.active).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}))
       setRows(next);setUnitRows(units)
+      setNozzleSpecs(specSnap?specSnap.docs.flatMap(item=>{const spec=nozzleSpecFromData(item.data() as Record<string,unknown>);return spec?[spec]:[]}):[])
       if(nextMessage)setMessage(nextMessage)
     }catch(error){setMessage(error instanceof Error?error.message:'Master Resource gagal dimuat.')}
     finally{setBusy(false)}
@@ -156,9 +160,9 @@ export default function MasterOperationalResourcePanel({user}:Props){
     {kind==='nozzle'&&<NozzleSpecificationImportPanel user={user} onImported={()=>load('Spesifikasi nozzle berhasil diunggah dan Master Nozzle diperbarui.')} />}
     <div className="panel resource-table-panel">
       <div className="section-head"><div><h3>{meta.title}</h3></div><span className="badge">{rows.length} data</span></div>
-      <div className="table-wrap"><table><thead><tr><th>{meta.singular}</th>{kind==='unit_number'&&<th>Jenis Unit / Equipment</th>}<th>Status</th><th>Aksi</th></tr></thead><tbody>
-        {rows.map(row=><tr key={row.id}><td><strong>{row.name}</strong></td>{kind==='unit_number'&&<td>{row.parentUnitName||'-'}</td>}<td><span className="badge">{row.active?'ACTIVE':'INACTIVE'}</span></td><td><div className="row-actions"><button type="button" onClick={()=>startEdit(row)}>Edit</button><button type="button" onClick={()=>void toggle(row)}>{row.active?'Nonaktifkan':'Aktifkan'}</button><button type="button" className="danger" disabled={user.role!=='owner'} onClick={()=>void remove(row)}>Hapus</button></div></td></tr>)}
-        {!rows.length&&<tr><td colSpan={kind==='unit_number'?4:3} className="empty">Belum ada data {meta.singular}.</td></tr>}
+      <div className="table-wrap"><table><thead><tr><th>{meta.singular}</th>{kind==='unit_number'&&<th>Jenis Unit / Equipment</th>}{kind==='nozzle'&&<th>Spesifikasi Excel</th>}<th>Status</th><th>Aksi</th></tr></thead><tbody>
+        {rows.map(row=><tr key={row.id}><td><strong>{row.name}</strong></td>{kind==='unit_number'&&<td>{row.parentUnitName||'-'}</td>}{kind==='nozzle'&&<td>{(()=>{const spec=nozzleSpecs.find(item=>matchingNozzleCode(row.name,item.code));const aliases=rows.filter(item=>matchingNozzleCode(item.name,row.name));return <div className="nozzle-resource-spec-status">{spec?<span className="nozzle-spec-exists">✓ {spec.points.length} tekanan · {spec.code}</span>:<span className="muted">Belum ada data</span>}{aliases.length>1&&<small className="nozzle-spec-duplicate">{aliases.length} nama untuk model sama</small>}</div>})()}</td>}<td><span className="badge">{row.active?'ACTIVE':'INACTIVE'}</span>{kind==='nozzle'&&!row.active&&nozzleSpecs.some(item=>matchingNozzleCode(row.name,item.code))&&<small className="nozzle-inactive-note">Spesifikasi tersedia, tetapi nozzle dinonaktifkan.</small>}</td><td><div className="row-actions"><button type="button" onClick={()=>startEdit(row)}>Edit</button><button type="button" onClick={()=>void toggle(row)}>{row.active?'Nonaktifkan':'Aktifkan'}</button><button type="button" className="danger" disabled={user.role!=='owner'} onClick={()=>void remove(row)}>Hapus</button></div></td></tr>)}
+        {!rows.length&&<tr><td colSpan={kind==='unit_number'||kind==='nozzle'?4:3} className="empty">Belum ada data {meta.singular}.</td></tr>}
       </tbody></table></div>
     </div>
   </section>
