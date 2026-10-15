@@ -23,6 +23,10 @@ for token in [
 
 # A reference dataset may not be hardcoded into the calculator: upload is the source of truth.
 assert 'TTI60_NOZZLES' not in source
+assert 'export function canonicalNozzleCode' in source
+assert "const tti=clean.match(/^(TTI60)(110)(\\d+)$/)" in source
+assert 'left===right' in source
+assert 'TTI60-11025' not in panel or 'Nozzle digunakan' in panel
 assert 'TTI60_NOZZLES' not in panel
 assert "code:'TTI60-11004VP',color:'Merah',flow:" not in source
 assert math.isclose(600*1.82/(400*.508),5.374015748,abs_tol=1e-7)
@@ -52,6 +56,13 @@ for token in ['warna nozzle','jenis nozzle','tekanan (bar)','ukuran droplet','le
               'const headerIndex=rows.findIndex','seen.has(key)','group.points.push(point)']:
     assert token in parser, f'Excel parser token missing: {token}'
 
+assert "const[activateInactive,setActivateInactive]=useState(false)" in importer
+assert "matchingNozzleCode(row.name,spec.code)" in importer
+assert "registered&&activateInactive&&!matches.some(row=>row.active)" in importer
+assert "INACTIVE'+(activateInactive?' → ACTIVE':' (tetap)')" in importer
+assert "NOZZLE_SPEC_COLLECTION" in resource
+assert "nozzleSpecs.find(item=>matchingNozzleCode(row.name,item.code))" in resource
+assert "nama untuk model sama" in resource
 assert "kind==='nozzle'&&<NozzleSpecificationImportPanel user={user}" in resource
 assert '<NozzleCalculatorPanel' not in resource
 assert "dataView==='nozzle-calculator'" in portal
