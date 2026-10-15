@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore'
 import { firebaseAuth, firestoreDb } from './firebase'
 import type { User } from './types'
 import { canEditAccess } from './accessControl'
@@ -82,6 +82,14 @@ export default function MasterOperationalResourcePanel({user}:Props){
   useEffect(()=>{setValue('');setParentUnitId('');setEditingId('');setMessage('');void load()},[kind])
 
   const activeCount=useMemo(()=>rows.filter(row=>row.active).length,[rows])
+  // Importing manufacturer specifications never silently changes manual ACTIVE/INACTIVE.
+  // Offer an explicit one-click repair for models with a validated specification but no active master alias.
+  const inactiveWithSpecs=useMemo(()=>nozzleSpecs.flatMap(spec=>{
+    const aliases=rows.filter(row=>matchingNozzleCode(row.name,spec.code))
+    if(!aliases.length||aliases.some(row=>row.active))return[]
+    return[aliases.slice().sort((a,b)=>a.id.localeCompare(b.id))[0]]
+  }),[rows,nozzleSpecs])
+
   const selectedParent=unitRows.find(row=>row.id===parentUnitId)
 
   function switchGroup(next:GroupKey){setGroup(next);setKind(GROUPS[next].kinds[0])}
@@ -107,6 +115,23 @@ export default function MasterOperationalResourcePanel({user}:Props){
       setValue('');setParentUnitId('');setEditingId('')
       await load(meta.singular+' berhasil disimpan.')
     }catch(error){setMessage(error instanceof Error?error.message:'Master Resource gagal disimpan.')}
+    finally{setBusy(false)}
+  }
+
+
+  async function activateImportedNozzles(){
+    if(kind!=='nozzle'||!inactiveWithSpecs.length)return
+    if(!window.confirm('Aktifkan '+inactiveWithSpecs.length+' model Master Nozzle yang sudah memiliki tabel tekanan/debit dari Excel?\\n\\n'+inactiveWithSpecs.map(row=>'• '+row.name).join('\\n')+'\\n\\nNozzle tanpa spesifikasi tidak diubah. Tidak ada baris yang dihapus.'))return
+    setBusy(true)
+    try{
+      const context=await writerContext(user)
+      const batch=writeBatch(context.db)
+      for(const row of inactiveWithSpecs){
+        batch.set(doc(context.db,collectionName,row.id),{active:true,updatedAt:serverTimestamp(),updatedBy:context.username},{merge:true})
+      }
+      await batch.commit()
+      await load(inactiveWithSpecs.length+' nozzle dengan data Excel berhasil diaktifkan. Data nama dan spesifikasi tidak diubah.')
+    }catch(error){setMessage(error instanceof Error?error.message:'Aktivasi nozzle gagal.')}
     finally{setBusy(false)}
   }
 
@@ -159,7 +184,7 @@ export default function MasterOperationalResourcePanel({user}:Props){
 
     {kind==='nozzle'&&<NozzleSpecificationImportPanel user={user} onImported={()=>load('Spesifikasi nozzle berhasil diunggah dan Master Nozzle diperbarui.')} />}
     <div className="panel resource-table-panel">
-      <div className="section-head"><div><h3>{meta.title}</h3></div><span className="badge">{rows.length} data</span></div>
+      <div className="section-head"><div><h3>{meta.title}</h3>{kind==='nozzle'&&<p className="muted">Nozzle INACTIVE tetap tersimpan dan dapat mempunyai spesifikasi Excel. Klik Aktifkan untuk menggunakannya; data spesifikasi tidak dihapus ketika status diubah.</p>}</div><div className="row-actions">{kind==='nozzle'&&inactiveWithSpecs.length>0&&canEditAccess(user,'data_master_activity_resources')&&<button type="button" className="nozzle-reactivate-action" disabled={busy} onClick={()=>void activateImportedNozzles()}>Aktifkan {inactiveWithSpecs.length} nozzle dari Excel</button>}<span className="badge">{rows.length} data</span></div></div>
       <div className="table-wrap"><table><thead><tr><th>{meta.singular}</th>{kind==='unit_number'&&<th>Jenis Unit / Equipment</th>}{kind==='nozzle'&&<th>Spesifikasi Excel</th>}<th>Status</th><th>Aksi</th></tr></thead><tbody>
         {rows.map(row=><tr key={row.id}><td><strong>{row.name}</strong></td>{kind==='unit_number'&&<td>{row.parentUnitName||'-'}</td>}{kind==='nozzle'&&<td>{(()=>{const spec=nozzleSpecs.find(item=>matchingNozzleCode(row.name,item.code));const aliases=rows.filter(item=>matchingNozzleCode(item.name,row.name));return <div className="nozzle-resource-spec-status">{spec?<span className="nozzle-spec-exists">✓ {spec.points.length} tekanan · {spec.code}</span>:<span className="muted">Belum ada data</span>}{aliases.length>1&&<small className="nozzle-spec-duplicate">{aliases.length} nama untuk model sama</small>}</div>})()}</td>}<td><span className="badge">{row.active?'ACTIVE':'INACTIVE'}</span>{kind==='nozzle'&&!row.active&&nozzleSpecs.some(item=>matchingNozzleCode(row.name,item.code))&&<small className="nozzle-inactive-note">Spesifikasi tersedia, tetapi nozzle dinonaktifkan.</small>}</td><td><div className="row-actions"><button type="button" onClick={()=>startEdit(row)}>Edit</button><button type="button" onClick={()=>void toggle(row)}>{row.active?'Nonaktifkan':'Aktifkan'}</button><button type="button" className="danger" disabled={user.role!=='owner'} onClick={()=>void remove(row)}>Hapus</button></div></td></tr>)}
         {!rows.length&&<tr><td colSpan={kind==='unit_number'||kind==='nozzle'?4:3} className="empty">Belum ada data {meta.singular}.</td></tr>}
