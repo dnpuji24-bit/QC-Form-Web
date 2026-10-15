@@ -9,9 +9,19 @@ export const DROPLET_LABELS:Record<DropletClass,string>={
  XC:'Extremely Coarse (Ekstrem Kasar)',UC:'Ultra Coarse (Ultra Kasar)',
 }
 export function nozzleSpecId(code:string){return code.toUpperCase().replace(/[^A-Z0-9]/g,'').toLowerCase()}
+/** Canonicalizes the nozzle model without changing its stored/original name.
+ *  TeeJet TTI60 legacy variants like 11025 and 110025 (size 025),
+ *  and VP suffix / color labels, refer to the same physical model.
+ */
+export function canonicalNozzleCode(value:string){
+ const clean=value.toUpperCase().replace(/\([^)]*\)/g,'').replace(/[^A-Z0-9]/g,'').replace(/VP$/,'')
+ const tti=clean.match(/^(TTI60)(110)(\d+)$/)
+ if(tti)return tti[1]+tti[2]+String(Number(tti[3]))
+ return clean
+}
 export function matchingNozzleCode(name:string,code:string){
- const strip=(str:string)=>str.toUpperCase().replace(/\([^)]*\)/g,'').replace(/[^A-Z0-9]/g,'').replace(/VP$/,'')
- return Boolean(strip(name))&&strip(name)===strip(code)
+ const left=canonicalNozzleCode(name),right=canonicalNozzleCode(code)
+ return Boolean(left&&right&&left===right)
 }
 export function findNozzleSpec(name:string,specs:NozzleSpec[]){
  return specs.find(spec=>matchingNozzleCode(name,spec.code))
