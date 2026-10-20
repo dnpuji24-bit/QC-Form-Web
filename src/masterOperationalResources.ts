@@ -11,6 +11,8 @@ export type OperationalResourceKind=
   |'assistant'
   |'water_quality'
   |'weather_condition'
+  |'activity_type'
+  |'activity_category'
 
 export type OperationalResource={
   id:string
@@ -30,6 +32,8 @@ export const OPERATIONAL_RESOURCE_COLLECTIONS:Record<OperationalResourceKind,str
   assistant:'master_assistants',
   water_quality:'master_water_qualities',
   weather_condition:'master_weather_conditions',
+  activity_type:'master_activity_types',
+  activity_category:'master_activity_categories',
 }
 
 function text(value:unknown){return value===null||value===undefined?'':String(value).trim()}
