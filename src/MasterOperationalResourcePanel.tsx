@@ -7,16 +7,18 @@ import { OPERATIONAL_RESOURCE_COLLECTIONS, type OperationalResourceKind } from '
 import YinYangRefreshButton from './YinYangRefreshButton'
 import NozzleSpecificationImportPanel from './NozzleSpecificationImportPanel'
 import { NOZZLE_SPEC_COLLECTION,matchingNozzleCode,nozzleSpecFromData,type NozzleSpec } from './nozzlePerformance'
+import { classificationRows,classificationName,classificationId,type ActivityClassificationKind } from './activityClassifications'
 
 type Props={user:User}
-type Row={id:string;name:string;active:boolean;parentUnitId?:string;parentUnitName?:string}
+type Row={id:string;name:string;active:boolean;builtIn?:boolean;parentUnitId?:string;parentUnitName?:string}
 type Profile={active?:boolean;role?:string;username?:string}
-type GroupKey='unit'|'supervision'|'field'
+type GroupKey='unit'|'supervision'|'field'|'classification'
 
 const GROUPS:Record<GroupKey,{label:string;hint:string;kinds:OperationalResourceKind[]}>={
   unit:{label:'Unit & Equipment',hint:'Jenis unit, nomor unit, nozzle, dan dropper.',kinds:['unit','unit_number','nozzle','dropper']},
   supervision:{label:'Supervisi',hint:'Shift, Mandor / Foreman, dan Asisten.',kinds:['shift','foreman','assistant']},
   field:{label:'Kondisi Lapangan',hint:'Water Quality dan Weather Condition.',kinds:['water_quality','weather_condition']},
+  classification:{label:'Klasifikasi Activity',hint:'Atur Type dan Activity Category untuk Master Activity.',kinds:['activity_type','activity_category']},
 }
 
 const META:Record<OperationalResourceKind,{title:string;singular:string;placeholder:string;example:string}>={
@@ -29,6 +31,8 @@ const META:Record<OperationalResourceKind,{title:string;singular:string;placehol
   assistant:{title:'Asisten',singular:'Asisten',placeholder:'Contoh: Alberto',example:'Nama Asisten untuk Form QC'},
   water_quality:{title:'Water Quality',singular:'Water Quality',placeholder:'Contoh: Clear / Good',example:'Kualitas air untuk Form QC Spraying'},
   weather_condition:{title:'Weather Condition',singular:'Weather Condition',placeholder:'Contoh: Cerah',example:'Kondisi cuaca untuk Form QC Spraying'},
+  activity_type:{title:'Activity Type',singular:'Type',placeholder:'Contoh: OTHERS / MECHANICAL',example:'SPRAY dan FERTILIZER khusus form QC; OTHERS untuk aktivitas non-QC.'},
+  activity_category:{title:'Activity Category',singular:'Activity Category',placeholder:'Contoh: RODENTICIDE / OTHER',example:'Kategori aktivitas ini akan muncul di List Validasi Master Activity.'},
 }
 
 function text(value:unknown){return value===null||value===undefined?'':String(value).trim()}
@@ -60,6 +64,7 @@ export default function MasterOperationalResourcePanel({user}:Props){
   const[message,setMessage]=useState('')
   const meta=META[kind]
   const collectionName=OPERATIONAL_RESOURCE_COLLECTIONS[kind]
+  const isClassification=kind==='activity_type'||kind==='activity_category'
 
   async function load(nextMessage=''){
     if(!firestoreDb)return
@@ -72,7 +77,7 @@ export default function MasterOperationalResourcePanel({user}:Props){
       ])
       const next=snap.docs.map(item=>{const row=item.data() as Record<string,unknown>;return{id:item.id,name:text(row.name||row.label||row.value||item.id),active:row.active!==false,parentUnitId:text(row.parentUnitId)||undefined,parentUnitName:text(row.parentUnitName)||undefined}}).filter(row=>row.name).sort((a,b)=>(a.parentUnitName||'').localeCompare(b.parentUnitName||'',undefined,{numeric:true})||a.name.localeCompare(b.name,undefined,{numeric:true}))
       const units=unitsSnap.docs.map(item=>{const row=item.data() as Record<string,unknown>;return{id:item.id,name:text(row.name||row.label||row.value||item.id),active:row.active!==false}}).filter(row=>row.name&&row.active).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}))
-      setRows(next);setUnitRows(units)
+      setRows(kind==='activity_type'||kind==='activity_category'?classificationRows(kind,snap.docs.map(item=>({id:item.id,data:item.data() as Record<string,unknown>}))):next);setUnitRows(units)
       setNozzleSpecs(specSnap?specSnap.docs.flatMap(item=>{const spec=nozzleSpecFromData(item.data() as Record<string,unknown>);return spec?[spec]:[]}):[])
       if(nextMessage)setMessage(nextMessage)
     }catch(error){setMessage(error instanceof Error?error.message:'Master Resource gagal dimuat.')}
@@ -95,7 +100,7 @@ export default function MasterOperationalResourcePanel({user}:Props){
   function switchGroup(next:GroupKey){setGroup(next);setKind(GROUPS[next].kinds[0])}
 
   async function save(){
-    const name=value.trim()
+    const name=isClassification?classificationName(value):value.trim()
     if(!name){setMessage(meta.singular+' wajib diisi.');return}
     if(kind==='unit_number'&&!selectedParent){setMessage('Pilih Jenis Unit / Equipment untuk No. Unit tersebut.');return}
     const duplicate=rows.find(row=>row.id!==editingId&&row.name.toLowerCase()===name.toLowerCase()&&(kind!=='unit_number'||row.parentUnitId===selectedParent?.id))
@@ -103,7 +108,7 @@ export default function MasterOperationalResourcePanel({user}:Props){
     setBusy(true)
     try{
       const context=await writerContext(user)
-      const targetId=kind==='unit_number'?slug((selectedParent?.name||'unit')+'-'+name):slug(name)
+      const targetId=isClassification?classificationId(name):kind==='unit_number'?slug((selectedParent?.name||'unit')+'-'+name):slug(name)
       const payload:Record<string,unknown>={name,active:true,updatedAt:serverTimestamp(),updatedBy:context.username,source:'WEB_MANUAL'}
       if(kind==='unit_number'){payload.parentUnitId=selectedParent?.id||'';payload.parentUnitName=selectedParent?.name||''}
       await setDoc(doc(context.db,collectionName,targetId),payload,{merge:true})
@@ -146,6 +151,7 @@ export default function MasterOperationalResourcePanel({user}:Props){
   }
 
   async function remove(row:Row){
+    if(kind==='activity_type'||kind==='activity_category'){setMessage('Type/Category tidak boleh dihapus karena mungkin telah dipakai Activity. Gunakan Nonaktifkan agar riwayat tetap aman.');return}
     if(user.role!=='owner'){setMessage('Hanya Owner yang dapat menghapus Master Resource.');return}
     if(!window.confirm('Hapus '+meta.singular+' "'+row.name+'"?'))return
     setBusy(true)
@@ -158,7 +164,7 @@ export default function MasterOperationalResourcePanel({user}:Props){
     finally{setBusy(false)}
   }
 
-  function startEdit(row:Row){setEditingId(row.id);setValue(row.name);setParentUnitId(row.parentUnitId||'')}
+  function startEdit(row:Row){if(isClassification){setMessage('Type/Category bersifat referensi. Untuk mengganti nama, tambahkan nilai baru kemudian nonaktifkan nilai lama agar Activity lama tidak berubah.');return}setEditingId(row.id);setValue(row.name);setParentUnitId(row.parentUnitId||'')}
 
   return <section className="master-resource-panel">
     <div className="section-head master-resource-title"><div><div className="eyebrow">FIRESTORE INPUT MASTER</div><h2>Master Resource Operasional</h2></div><YinYangRefreshButton busy={busy} label="Refresh" onClick={()=>void load()}/></div>
@@ -173,6 +179,7 @@ export default function MasterOperationalResourcePanel({user}:Props){
 
     {message&&<div className="alert">{message}</div>}
 
+    {isClassification&&<div className="alert">Daftar Type dan Activity Category bersumber dari Firestore. Nilai bawaan seperti SPRAY, FERTILIZER, OTHERS dan OTHER bisa dinonaktifkan, tetapi tidak dihapus. Activity yang sudah tersimpan tetap menyimpan nilai historisnya. Type OTHERS tidak membuka form QC Spray/Fertilizer.</div>}
     <div className="panel resource-editor">
       <div className="section-head"><div><h3>{editingId?'Edit ':'Tambah '}{meta.singular}</h3></div><span className="badge">{activeCount} ACTIVE</span></div>
       <div className={`form-grid ${kind==='unit_number'?'resource-unit-link-grid':''}`}>
@@ -186,7 +193,7 @@ export default function MasterOperationalResourcePanel({user}:Props){
     <div className="panel resource-table-panel">
       <div className="section-head"><div><h3>{meta.title}</h3>{kind==='nozzle'&&<p className="muted">Nozzle INACTIVE tetap tersimpan dan dapat mempunyai spesifikasi Excel. Klik Aktifkan untuk menggunakannya; data spesifikasi tidak dihapus ketika status diubah.</p>}</div><div className="row-actions">{kind==='nozzle'&&inactiveWithSpecs.length>0&&canEditAccess(user,'data_master_activity_resources')&&<button type="button" className="nozzle-reactivate-action" disabled={busy} onClick={()=>void activateImportedNozzles()}>Aktifkan {inactiveWithSpecs.length} nozzle dari Excel</button>}<span className="badge">{rows.length} data</span></div></div>
       <div className="table-wrap"><table><thead><tr><th>{meta.singular}</th>{kind==='unit_number'&&<th>Jenis Unit / Equipment</th>}{kind==='nozzle'&&<th>Spesifikasi Excel</th>}<th>Status</th><th>Aksi</th></tr></thead><tbody>
-        {rows.map(row=><tr key={row.id}><td><strong>{row.name}</strong></td>{kind==='unit_number'&&<td>{row.parentUnitName||'-'}</td>}{kind==='nozzle'&&<td>{(()=>{const spec=nozzleSpecs.find(item=>matchingNozzleCode(row.name,item.code));const aliases=rows.filter(item=>matchingNozzleCode(item.name,row.name));return <div className="nozzle-resource-spec-status">{spec?<span className="nozzle-spec-exists">✓ {spec.points.length} tekanan · {spec.code}</span>:<span className="muted">Belum ada data</span>}{aliases.length>1&&<small className="nozzle-spec-duplicate">{aliases.length} nama untuk model sama</small>}</div>})()}</td>}<td><span className="badge">{row.active?'ACTIVE':'INACTIVE'}</span>{kind==='nozzle'&&!row.active&&nozzleSpecs.some(item=>matchingNozzleCode(row.name,item.code))&&<small className="nozzle-inactive-note">Spesifikasi tersedia, tetapi nozzle dinonaktifkan.</small>}</td><td><div className="row-actions"><button type="button" onClick={()=>startEdit(row)}>Edit</button><button type="button" onClick={()=>void toggle(row)}>{row.active?'Nonaktifkan':'Aktifkan'}</button><button type="button" className="danger" disabled={user.role!=='owner'} onClick={()=>void remove(row)}>Hapus</button></div></td></tr>)}
+        {rows.map(row=><tr key={row.id}><td><strong>{row.name}</strong></td>{kind==='unit_number'&&<td>{row.parentUnitName||'-'}</td>}{kind==='nozzle'&&<td>{(()=>{const spec=nozzleSpecs.find(item=>matchingNozzleCode(row.name,item.code));const aliases=rows.filter(item=>matchingNozzleCode(item.name,row.name));return <div className="nozzle-resource-spec-status">{spec?<span className="nozzle-spec-exists">✓ {spec.points.length} tekanan · {spec.code}</span>:<span className="muted">Belum ada data</span>}{aliases.length>1&&<small className="nozzle-spec-duplicate">{aliases.length} nama untuk model sama</small>}</div>})()}</td>}<td><span className="badge">{row.active?'ACTIVE':'INACTIVE'}</span>{kind==='nozzle'&&!row.active&&nozzleSpecs.some(item=>matchingNozzleCode(row.name,item.code))&&<small className="nozzle-inactive-note">Spesifikasi tersedia, tetapi nozzle dinonaktifkan.</small>}</td><td><div className="row-actions"><button type="button" disabled={isClassification} title={isClassification?'Buat nilai baru lalu nonaktifkan nilai lama untuk menjaga histori':'Edit'} onClick={()=>startEdit(row)}>Edit</button><button type="button" onClick={()=>void toggle(row)}>{row.active?'Nonaktifkan':'Aktifkan'}</button><button type="button" className="danger" disabled={user.role!=='owner'||isClassification} onClick={()=>void remove(row)}>Hapus</button></div></td></tr>)}
         {!rows.length&&<tr><td colSpan={kind==='unit_number'||kind==='nozzle'?4:3} className="empty">Belum ada data {meta.singular}.</td></tr>}
       </tbody></table></div>
     </div>
