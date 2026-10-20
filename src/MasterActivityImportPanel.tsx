@@ -5,6 +5,7 @@ import { firebaseAuth, firestoreDb } from './firebase'
 import { FALLBACK_COMPANIES, type CompanyRecord } from './companyMaster'
 import type { User } from './types'
 import { canEditAccess } from './accessControl'
+import { activityRequiresRecipe } from './activityClassifications'
 
 type Props={user:User;onOpenManage?:()=>void}
 type SheetRow=Record<string,unknown>
@@ -29,7 +30,7 @@ function normalized(value:string){return value.trim().toLowerCase().replace(/\s+
 function text(value:unknown){return value===null||value===undefined?'':String(value).trim()}
 function rowValue(row:SheetRow,...names:string[]){const lookup=new Map(Object.keys(row).map(key=>[normalized(key),row[key]]));for(const name of names){const value=lookup.get(normalized(name));if(value!==undefined)return value}return undefined}
 function numberValue(value:unknown){if(typeof value==='number'&&Number.isFinite(value))return value;const raw=text(value);if(!raw)return NaN;const cleaned=raw.includes(',')?raw.replace(/\./g,'').replace(',','.'):raw;const parsed=Number(cleaned);return Number.isFinite(parsed)?parsed:NaN}
-function normalizeType(value:string){const key=normalized(value);if(key==='spray')return'SPRAY';if(key==='fertilizer'||key==='fertiliser')return'FERTILIZER';return value.trim().toUpperCase()}
+function normalizeType(value:string){const key=normalized(value);if(key==='spray')return'SPRAY';if(key==='fertilizer'||key==='fertiliser')return'FERTILIZER';if(key==='others'||key==='other')return'OTHERS';return value.trim().toUpperCase()}
 function normalizeCategory(value:string){return value.trim().toUpperCase().replace(/\s+/g,'_')}
 function normalizeMaterialCategory(value:string){const key=normalized(value);const map:Record<string,string>={herbisida:'HERBICIDE',insektisida:'INSECTICIDE',fungisida:'FUNGICIDE',fertilizer:'FERTILIZER',adjuvant:'ADJUVANT',others:'OTHER',other:'OTHER'};return map[key]||value.trim().toUpperCase().replace(/\s+/g,'_')}
 function slug(value:string){const result=value.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');return result.slice(0,80)||'item'}
@@ -85,7 +86,7 @@ function parseWorkbook(buffer:ArrayBuffer,fileName:string,scope:string,codes:Exi
     const description=text(rowValue(row,'Deskripsi')),activity=text(rowValue(row,'Activity')),type=normalizeType(text(rowValue(row,'Type'))),activityCategory=normalizeCategory(text(rowValue(row,'Activity Category'))),sourceRow=index+2
     if(!description&&!activity&&!type&&!activityCategory)return
     if(!description||!activity||!type||!activityCategory){issues.push({level:'ERROR',item:description||`Baris ${sourceRow}`,message:`${VALIDATION_SHEET} baris ${sourceRow}: Deskripsi, Activity, Type, dan Activity Category wajib terisi.`});return}
-    if(!['SPRAY','FERTILIZER'].includes(type))issues.push({level:'WARNING',item:description,message:`Type ${type} belum termasuk SPRAY/FERTILIZER. Nilai tetap disimpan sesuai file.`})
+    if(!['SPRAY','FERTILIZER','OTHERS'].includes(type))issues.push({level:'WARNING',item:description,message:`Type ${type} belum termasuk SPRAY/FERTILIZER. Nilai tetap disimpan sesuai file.`})
     const key=normalized(description),occurrence=(descriptionOccurrences.get(key)||0)+1;descriptionOccurrences.set(key,occurrence);knownDescriptions.add(key)
     if(occurrence>1)issues.push({level:'WARNING',item:description,message:`Duplikat Deskripsi pada ${VALIDATION_SHEET}: ${description}. Import tetap diizinkan sebagai record terpisah untuk Review Pasca Import.`})
     activityBases.push({description,activity,type,activityCategory,sourceRow,occurrence})
@@ -119,8 +120,8 @@ function parseWorkbook(buffer:ArrayBuffer,fileName:string,scope:string,codes:Exi
   function codeFor(docId:string){const existing=activityCodeByDoc.get(docId);if(existing)return existing;let candidate='';do{candidate=`ACT-${String(nextRef.value++).padStart(3,'0')}`}while(usedCodes.has(candidate));usedCodes.add(candidate);activityCodeByDoc.set(docId,candidate);return candidate}
 
   const activities:ParsedActivity[]=activityBases.map(base=>{
-    const key=normalized(base.description),components=(componentsByDescription.get(key)||[]).sort((a,b)=>a.sequence-b.sequence||a.activeIngredient.localeCompare(b.activeIngredient)),active=components.length>0
-    if(!active)issues.push({level:'INFO',item:base.description,message:'Tidak memiliki komposisi bahan/dosis; otomatis disimpan sebagai INACTIVE dan tidak muncul di pilihan Plan.'})
+    const key=normalized(base.description),components=(componentsByDescription.get(key)||[]).sort((a,b)=>a.sequence-b.sequence||a.activeIngredient.localeCompare(b.activeIngredient)),active=components.length>0||!activityRequiresRecipe(base.type)
+    if(!active)issues.push({level:'INFO',item:base.description,message:'Type SPRAY/FERTILIZER tanpa komposisi: disimpan INACTIVE. Type OTHERS atau non-QC lain tidak memerlukan komposisi.'})
     components.forEach(component=>{
       const products=materialByIngredient.get(normalized(component.activeIngredient))||[]
       if(!products.length)issues.push({level:'ERROR',item:base.description,message:`Bahan Aktif "${component.activeIngredient}" belum ada di sheet ${MATERIAL_SHEET}.`})
