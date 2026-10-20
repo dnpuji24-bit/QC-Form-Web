@@ -35,7 +35,7 @@ for token in [
     'const typeOptions=useMemo',
     "activityRequiresRecipe(type)",
     "!activityRequiresRecipe(row.type)",
-    "Type OTHERS atau non-QC lain dapat ACTIVE tanpa komposisi.",
+    "Tipe OTHERS atau non-QC lain dapat ACTIVE tanpa komposisi.",
     'typeOptions.map(option=><option',
     'categoryOptions.map(option=><option',
 ]:
