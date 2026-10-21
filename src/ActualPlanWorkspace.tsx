@@ -26,7 +26,7 @@ export default function ActualPlanWorkspace({user,prefillDailyPlanIds=[],jumpReq
       {canPlan&&<button type="button" className={view==='plan'?'active':''} onClick={()=>setView('plan')}>Actual per Tanggal</button>}
       {canImport&&<button type="button" className={view==='import'?'active':''} onClick={()=>setView('import')}>Update / Import Excel</button>}
     </div>
-    {(canPlan||canImport)&&<div className="plan-period-export-row"><PlanPeriodExcelExport kind="actual" /></div>
+    {(canPlan||canImport)&&<div className="plan-period-export-row"><PlanPeriodExcelExport kind="actual" /></div>}
     {view==='plan'?<div className="period-workspace">
       {editPlan&&<ActualPlanWebEntryPanel user={user} prefillDailyPlanIds={prefillDailyPlanIds} selectedDate={selectedDate} onDateChange={setSelectedDate} onSaved={()=>setRefreshKey(x=>x+1)} composerRequest={composerRequest} onComposerRequestHandled={()=>setComposerRequest(null)}/>}
       {!editPlan&&<div className="alert">Mode Hanya Lihat: input dan perubahan Actual Plan dinonaktifkan.</div>}
