@@ -40,6 +40,13 @@ export default function App(){
  const[token,setToken]=useState(()=>readToken()),[user,setUser]=useState<User|null>(()=>readUser()),[records,setRecords]=useState<QcRecord[]>([]),[master,setMaster]=useState<MasterData>(()=>readMaster()),[view,setView]=useState<View>('dashboard'),[editingSprayRecords,setEditingSprayRecords]=useState<QcRecord[]>([]),[editingFertilizerRecords,setEditingFertilizerRecords]=useState<QcRecord[]>([]),[recordPreset,setRecordPreset]=useState<RecordPreset>({}),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[sessionNeedsVerification,setSessionNeedsVerification]=useState(false)
  useEffect(()=>{if(token&&user)void refreshSession()},[])
  useEffect(()=>{
+  if(!token||!user)return
+  // Re-check an interrupted Apps Script session only after the network returns.
+  const onReconnect=()=>{void refreshSession()}
+  window.addEventListener('online',onReconnect)
+  return()=>window.removeEventListener('online',onReconnect)
+ },[token,user?.username])
+ useEffect(()=>{
   if(!token||!user||!firebaseAuth)return
   let stopRecords:()=>void=()=>{}
   const stopAuth=onAuthStateChanged(firebaseAuth,fbUser=>{
