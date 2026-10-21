@@ -5,22 +5,22 @@ helper=(root/'src/activityAchievement.ts').read_text(encoding='utf-8')
 styles=(root/'src/field-ui.css').read_text(encoding='utf-8')
 
 for token in [
-    "import { aggregateActivityShares, calculateActivityAchievement",
+    "import { aggregateActivityShares, calculateMonthlyActivityAchievement",
     "const[selectedYear,setSelectedYear]",
     "[selectedActivity,setSelectedActivity]=useState<string|null>(null)",
     "const activityPieRows=useMemo<ActivityPieRow[]>(()=>aggregateActivityShares",
     "const selectedAchievement=useMemo(",
-    "calculateActivityAchievement(selectedActivity,dailyScope,actualScope)",
+    "calculateMonthlyActivityAchievement(selectedActivity,monthlyScope,monthlyLinked.rows,monthly)",
     "ActivityCompositionPie({rows,basisLabel,onSelect}",
     "onSelect(row.activity)",
     "onClick={()=>onSelect(row.activity)}",
     "onKeyDown={e=>{if(e.key==='Enter'||e.key===' ')",
     "role=\"button\" tabIndex={0}",
     "ActivityAchievementDetail({stats,onBack}",
-    "Daily Plan",
+    "Target Monthly Plan",
     "Actual",
     "percentage===null?'—':fmtPct(percentage)",
-    "persentase tidak tersedia" if False else "Persentase tidak tersedia: tidak ada luas Daily Plan",
+    "Persentase tidak tersedia: tidak ada target Monthly Plan",
     "onBack={()=>setSelectedActivity(null)}",
     "onSelect={setSelectedActivity}",
     "selectedAchievement?<ActivityAchievementDetail",
@@ -32,12 +32,17 @@ for token in [
 for token in [
     "export function activityMatchKey",
     "export function aggregateActivityShares",
-    "export function calculateActivityAchievement",
-    "activityMatchKey(row.activity||'Tanpa Activity')===activityKey",
+    "export function calculateMonthlyActivityAchievement",
+    "monthlyRows.filter(row=>!row.cancelled",
     "percentage:plan>0?completed/plan*100:null",
+    "const completed=linked+manual",
+    "linkedActualRows:readonly MonthlyAchievementActualRow[]",
+    "const allActive=identityRows.filter(row=>!row.cancelled)",
+    "seenIds.add(actual.id)",
+    "candidates.length!==1",
     "remaining:Math.max(0,plan-completed)",
     "over:Math.max(0,completed-plan)",
-    "planRecords:daily.length,actualRecords:actual.length",
+    "planRecords:selected.length,actualRecords",
     "toLocaleLowerCase('id-ID')",
 ]:
     assert token in helper, f'Activity progress aggregation regression: {token}'
@@ -53,5 +58,15 @@ for token in [
 ]:
     assert token in styles, f'Progress comparison CSS missing: {token}'
 
+for token in [
+    "where('monthlyPlanLineId','in',part)",
+    "setMonthlyLinked({monthKey,rows,ready:true,error:''})",
+    "setMonthlyLinked({monthKey,rows:[],ready:true,error:",
+    "all completion dates" if False else "even when the work was completed in a later month",
+    "progress manual/historis",
+    "Shift dan Mandor tidak digunakan",
+    "Jadwal ulang Daily tidak menambah target",
+]:
+    assert token in dashboard, f'Monthly reconciliation detail missing: {token}'
 assert "getDocs(collection(firestoreDb,'monthly_plans'))" not in dashboard
-print('Clickable Activity composition to filtered Daily Plan vs Actual achievement: OK')
+print('Clickable Activity composition to reconciled Monthly Plan target vs linked Actual + manual: OK')
