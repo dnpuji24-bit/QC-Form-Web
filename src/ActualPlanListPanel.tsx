@@ -8,6 +8,7 @@ import type { PlanMaterialLine } from './planInputUtils'
 import type { User } from './types'
 import { canEditAccess } from './accessControl'
 import YinYangRefreshButton from './YinYangRefreshButton'
+import { getPlanDocsWithCache, planOfflineMessage } from './planOfflineReads'
 
 type Props={
   user:User
@@ -45,7 +46,7 @@ export default function ActualPlanListPanel({user,selectedDate,compact=false,ref
     setBusy(true)
     try{
       const actualQuery=jumpRequest?.monthlyPlanLineId?fsQuery(collection(firestoreDb,'daily_reports'),where('monthlyPlanLineId','==',jumpRequest.monthlyPlanLineId)):fsQuery(collection(firestoreDb,'daily_reports'),where('date','==',dateFilter))
-      const[a,b]=await Promise.all([getDocs(actualQuery),compact?Promise.resolve(null):getDocs(collection(firestoreDb,'actual_plan_import_logs'))])
+      const[a,b]=await Promise.all([getPlanDocsWithCache(actualQuery),compact?Promise.resolve(null):getDocs(collection(firestoreDb,'actual_plan_import_logs'))])
       const jumpIds=new Set(jumpRequest?.actualReportIds||[])
       const allRows=a.docs.map(x=>row(x.id,x.data() as Record<string,unknown>))
       const rr=(jumpIds.size?allRows.filter(item=>jumpIds.has(item.id)||jumpIds.has(item.actualReportId)):allRows).sort((x,y)=>x.date.localeCompare(y.date)||x.shift.localeCompare(y.shift,undefined,{numeric:true})||(x.planningOrder||999999)-(y.planningOrder||999999)||x.pid.localeCompare(y.pid,undefined,{numeric:true}))
