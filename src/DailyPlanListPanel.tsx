@@ -7,6 +7,7 @@ import { groupSavedDailyRows, type DailyComposerRequest, type SavedDailyGroup, t
 import type { User } from './types'
 import { canEditAccess } from './accessControl'
 import YinYangRefreshButton from './YinYangRefreshButton'
+import { getPlanDocsWithCache, planOfflineMessage } from './planOfflineReads'
 
 type Props={
   user:User
@@ -47,9 +48,9 @@ export default function DailyPlanListPanel({user,onCopyToActual,selectedDate,com
     const dateFilter=selectedDate||new Date().toISOString().slice(0,10)
     setBusy(true);setMessage('Memuat Daily Plan '+dateFilter+'…')
     try{
-      const planSnap=await getDocs(fsQuery(collection(firestoreDb,'daily_plans'),where('date','==',dateFilter)))
+      const planSnap=await getPlanDocsWithCache(fsQuery(collection(firestoreDb,'daily_plans'),where('date','==',dateFilter)))
       const next=planSnap.docs.map(x=>rowFromData(x.id,x.data() as Record<string,unknown>)).sort((a,b)=>a.shift.localeCompare(b.shift,undefined,{numeric:true})||(a.planningOrder||999999)-(b.planningOrder||999999)||a.pid.localeCompare(b.pid,undefined,{numeric:true}))
-      setRows(next);setSelectedGroupKeys([]);setMessage('Daily Plan '+dateFilter+': '+next.length+' PID · '+groupSavedDailyRows(next).length+' kegiatan.')
+      setRows(next);setSelectedGroupKeys([]);setMessage(planSnap.metadata.fromCache?planOfflineMessage(dateFilter,next.length,'Daily'):'Daily Plan '+dateFilter+': '+next.length+' PID · '+groupSavedDailyRows(next).length+' kegiatan.')
     }catch(error){setMessage(error instanceof Error?error.message:'Daily Plan gagal dimuat.')}finally{setBusy(false)}
   }
   useEffect(()=>{void load()},[selectedDate,refreshKey])
