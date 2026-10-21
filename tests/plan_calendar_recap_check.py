@@ -4,13 +4,16 @@ workspace=(root/'src'/'PlanWorkspace.tsx').read_text(encoding='utf-8')
 calendar=(root/'src'/'PlanCalendarRecap.tsx').read_text(encoding='utf-8')
 css=(root/'src'/'field-ui.css').read_text(encoding='utf-8')
 
+portal=(root/'src'/'PortalRouter.tsx').read_text(encoding='utf-8')
 for token in [
     "import PlanCalendarRecap from './PlanCalendarRecap'",
-    "'calendar'",
-    ">Calendar Rekap</button>",
+    "mode==='calendar'&&canCalendar",
+    "choose('calendar')",
     "<PlanCalendarRecap/>",
 ]:
-    assert token in workspace, f"Missing PlanWorkspace Calendar Rekap token: {token}"
+    assert token in portal, f"Missing Calendar shortcut from Operational Portal: {token}"
+
+assert '>Calendar Rekap</button>' not in workspace
 
 for token in [
     "type ViewMode='day'|'week'|'month'",
