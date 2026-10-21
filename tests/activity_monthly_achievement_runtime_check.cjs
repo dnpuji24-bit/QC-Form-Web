@@ -1,13 +1,8 @@
 const assert=require('node:assert/strict')
-const fs=require('node:fs')
 const path=require('node:path')
-const {transformSync}=require('esbuild')
-
-const source=fs.readFileSync(path.join(__dirname,'..','src','activityAchievement.ts'),'utf8')
-const transformed=transformSync(source,{loader:'ts',format:'cjs',target:'es2020'}).code
-const localModule={exports:{}}
-new Function('module','exports',transformed)(localModule,localModule.exports)
-const {calculateMonthlyActivityAchievement}=localModule.exports
+// Node.js 22 strips TypeScript types natively. This avoids depending on
+// external packages for the math regression.
+const {calculateMonthlyActivityAchievement}=require(path.join(__dirname,'..','src','activityAchievement.ts'))
 
 const month=(description,target=5.94,manual=0,override={})=>({
   planLineId:'MP-01',pid:'JAGF-1-A-001',activity:'Knockdown',
