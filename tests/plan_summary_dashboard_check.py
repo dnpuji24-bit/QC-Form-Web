@@ -5,13 +5,16 @@ workspace=(root/'src'/'PlanWorkspace.tsx').read_text(encoding='utf-8')
 summary=(root/'src'/'PlanSummaryDashboard.tsx').read_text(encoding='utf-8')
 css=(root/'src'/'field-ui.css').read_text(encoding='utf-8')
 
+portal=(root/'src'/'PortalRouter.tsx').read_text(encoding='utf-8')
 for token in [
-    "PlanSummaryDashboard",
-    "type Tab='summary'|'calendar'|'monthly'|'daily'|'actual'|'reconciliation'",
-    "navigateTab('summary')",
-    ">Summary</button>",
+    "import PlanSummaryDashboard from './PlanSummaryDashboard'",
+    "mode==='summary'&&canSummary",
+    "choose('summary')",
+    "<PlanSummaryDashboard/>",
 ]:
-    assert token in workspace, f'Missing Plan Summary navigation token: {token}'
+    assert token in portal, f'Missing Summary shortcut from Operational Portal: {token}'
+
+assert "navigateTab('summary')" not in workspace
 
 for token in [
     "Dashboard Daily Plan & Aktual",
