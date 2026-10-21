@@ -5,6 +5,7 @@ import ActualPlanWorkspace from './ActualPlanWorkspace'
 import PlanReconciliationPanel from './PlanReconciliationPanel'
 import PlanSummaryDashboard from './PlanSummaryDashboard'
 import PlanCalendarRecap from './PlanCalendarRecap'
+import PlanOfflineBanner from './PlanOfflineBanner'
 import type { User } from './types'
 import { canViewAccess } from './accessControl'
 
@@ -39,6 +40,7 @@ const PlanWorkspace=forwardRef<PlanWorkspaceHandle,Props>(function PlanWorkspace
   }),[user])
   useEffect(()=>{if(allowed[tab])return;const first=(['summary','calendar','monthly','daily','actual','reconciliation'] as Tab[]).find(key=>allowed[key]);if(first){tabHistoryRef.current=[];setTab(first)}},[tab,allowed])
   return <section className="plan-workspace-shell">
+    <PlanOfflineBanner/>
     <div className="segmented plan-primary-nav" aria-label="Menu Plan">
       {allowed.summary&&<button type="button" className={tab==='summary'?'active':''} onClick={()=>navigateTab('summary')}>Summary</button>}
       {allowed.calendar&&<button type="button" className={tab==='calendar'?'active':''} onClick={()=>navigateTab('calendar')}>Calendar Rekap</button>}
