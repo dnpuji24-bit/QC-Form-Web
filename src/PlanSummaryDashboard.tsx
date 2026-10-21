@@ -3,6 +3,7 @@ import { collection, getDocs, query as fsQuery, where } from 'firebase/firestore
 import { firestoreDb } from './firebase'
 import YinYangRefreshButton from './YinYangRefreshButton'
 import { exportAllPlanSummary } from './planSummaryExcelExport'
+import { activityMatchKey, aggregateActivityShares, calculateActivityAchievement, type ActivityAchievement } from './activityAchievement'
 
 type JobType='ALL'|'SPRAY'|'FERTILIZER'
 type ActivityBasis='ACTUAL'|'PLAN'
@@ -82,7 +83,21 @@ function MonthlyProgressDonut({target,actual}:{target:number;actual:number}){
 
 const ACTIVITY_PIE_COLORS=['#2563eb','#f97316','#16a34a','#a855f7','#eab308','#06b6d4','#ef4444','#64748b','#ec4899','#84cc16','#0ea5e9','#f43f5e']
 
-function ActivityCompositionPie({rows,basisLabel}:{rows:ActivityPieRow[];basisLabel:string}){
+/** Transparent sector overlay keeps the original conic-gradient appearance and
+ * makes individual wedges keyboard- and pointer-selectable. */
+function pieSectorPath(startPct:number,endPct:number){
+  const center=100,radius=100
+  const coord=(pct:number)=>{
+    const angle=(pct/100*360-90)*Math.PI/180
+    return [center+radius*Math.cos(angle),center+radius*Math.sin(angle)]
+  }
+  const [sx,sy]=coord(startPct),[ex,ey]=coord(endPct)
+  if(endPct-startPct>=99.999){
+    return 'M 100 100 L 100 0 A 100 100 0 1 1 100 200 A 100 100 0 1 1 100 0 Z'
+  }
+  return 'M 100 100 L '+sx+' '+sy+' A 100 100 0 '+(endPct-startPct>50?1:0)+' 1 '+ex+' '+ey+' Z'
+}
+function ActivityCompositionPie({rows,basisLabel,onSelect}:{rows:ActivityPieRow[];basisLabel:string;onSelect:(activity:string)=>void}){
   const positive=rows.filter(row=>row.value>0),total=positive.reduce((sum,row)=>sum+row.value,0)
   if(!total)return <div className="summary-chart-empty">Belum ada luasan {basisLabel.toLowerCase()} pada filter ini.</div>
   let cursor=0
@@ -90,10 +105,46 @@ function ActivityCompositionPie({rows,basisLabel}:{rows:ActivityPieRow[];basisLa
   const gradient=slices.map(row=>row.color+' '+row.start+'% '+row.end+'%').join(',')
   return <div className="summary-activity-pie-layout">
     <div className="summary-activity-pie-visual">
-      <div className="summary-activity-pie-circle" style={{background:'conic-gradient('+gradient+')'}} role="img" aria-label={'Komposisi Activity berdasarkan '+basisLabel}/>
+      <div className="summary-activity-pie-circle" style={{background:'conic-gradient('+gradient+')'}}>
+        <svg viewBox="0 0 200 200" className="summary-activity-pie-click-map" role="group" aria-label={'Pilih activity dari grafik '+basisLabel}>
+          {slices.map(row=><path key={row.activity} d={pieSectorPath(row.start,row.end)} fill="transparent" stroke="transparent" role="button" tabIndex={0} aria-label={'Lihat pencapaian '+row.activity+' ('+fmtPct(row.percent)+')'} onClick={()=>onSelect(row.activity)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onSelect(row.activity)}}}/>)}
+        </svg>
+      </div>
       <div className="summary-activity-pie-total"><span>Total {basisLabel}</span><strong>{fmtHa(total)}</strong><small>{slices.length} activity</small></div>
+      <small className="summary-activity-pie-hint">Klik warna grafik atau nama activity untuk melihat pencapaian.</small>
     </div>
-    <div className="summary-activity-pie-legend">{slices.map(row=><div key={row.activity} className="summary-activity-pie-legend-row"><span className="summary-activity-pie-swatch" style={{background:row.color}}/><div><strong>{row.activity}</strong><small>{fmtHa(row.value)}</small></div><b>{fmtPct(row.percent)}</b></div>)}</div>
+    <div className="summary-activity-pie-legend">{slices.map(row=><button key={row.activity} type="button" className="summary-activity-pie-legend-row" onClick={()=>onSelect(row.activity)} title={'Lihat Daily Plan vs Actual untuk '+row.activity}><span className="summary-activity-pie-swatch" style={{background:row.color}}/><span className="summary-activity-pie-legend-text"><strong>{row.activity}</strong><small>{fmtHa(row.value)}</small></span><b>{fmtPct(row.percent)}</b></button>)}</div>
+  </div>
+}
+
+function ActivityAchievementDetail({stats,onBack}:{stats:ActivityAchievement;onBack:()=>void}){
+  const {plan,actual,percentage,remaining,over,planRecords,actualRecords,activity}=stats
+  const clamped=percentage===null?0:Math.max(0,Math.min(percentage,100))
+  const max=Math.max(plan,actual,1)
+  return <div className="summary-achievement-detail">
+    <div className="summary-achievement-heading">
+      <div><span className="eyebrow">PLAN VS ACTUAL · ACTIVITY TERPILIH</span><h4>{activity}</h4><p>Perbandingan Daily Plan dan Actual pada filter Summary yang sedang aktif.</p></div>
+      <button type="button" className="summary-achievement-back" onClick={onBack}>← Semua Activity</button>
+    </div>
+    <div className="summary-achievement-layout">
+      <div className="summary-achievement-ring-block">
+        <div className="summary-achievement-ring" style={{background:'conic-gradient(#16a34a '+clamped+'%, #e2e8f0 '+clamped+'% 100%)'}} role="img" aria-label={percentage===null?'Pencapaian belum dapat dihitung karena Daily Plan nol':'Pencapaian '+fmtPct(percentage)}>
+          <div className="summary-achievement-ring-inner"><strong>{percentage===null?'—':fmtPct(percentage)}</strong><span>Pencapaian</span></div>
+        </div>
+        <p>{percentage===null?'Persentase tidak tersedia: tidak ada luas Daily Plan pada filter ini.':percentage>100?'Actual melebihi Daily Plan.':'Persentase Actual terhadap Daily Plan.'}</p>
+      </div>
+      <div className="summary-achievement-metrics">
+        <div className="summary-achievement-bars">
+          <div><div className="summary-achievement-bar-caption"><span>Daily Plan</span><strong>{fmtHa(plan)}</strong></div><div className="summary-achievement-track"><div className="summary-achievement-fill plan" style={{width:(plan/max*100)+'%'}}/></div></div>
+          <div><div className="summary-achievement-bar-caption"><span>Actual</span><strong>{fmtHa(actual)}</strong></div><div className="summary-achievement-track"><div className="summary-achievement-fill actual" style={{width:(actual/max*100)+'%'}}/></div></div>
+        </div>
+        <div className="summary-achievement-cards">
+          <div><span>Sisa terhadap Daily Plan</span><strong>{fmtHa(remaining)}</strong></div>
+          <div><span>Kelebihan Actual</span><strong className={over>0?'summary-over-value':''}>{fmtHa(over)}</strong></div>
+        </div>
+        <small className="summary-achievement-footnote">{planRecords} record Daily Plan · {actualRecords} record Actual. Sumber: periode, Company, Farm, Shift, Mandor, dan Jenis Pekerjaan yang sama. Progress manual Monthly tanpa tanggal kerja tidak dimasukkan.</small>
+      </div>
+    </div>
   </div>
 }
 
@@ -103,7 +154,7 @@ export default function PlanSummaryDashboard(){
   const[monthly,setMonthly]=useState<MonthlyRow[]>([]),[daily,setDaily]=useState<DailyRow[]>([]),[actual,setActual]=useState<ActualRow[]>([]),[paddockHistoryMonthly,setPaddockHistoryMonthly]=useState<MonthlyRow[]>([]),[paddockHistoryActual,setPaddockHistoryActual]=useState<ActualRow[]>([]),[masterPaddocks,setMasterPaddocks]=useState<MasterPaddockRow[]>([]),[masterActivities,setMasterActivities]=useState<MasterActivityRow[]>([])
   const[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[paddockHistoryBusy,setPaddockHistoryBusy]=useState(false),[paddockHistoryError,setPaddockHistoryError]=useState('')
   const[excelBusy,setExcelBusy]=useState(false),[excelProgress,setExcelProgress]=useState(''),[excelMessage,setExcelMessage]=useState('')
-  const[company,setCompany]=useState('ALL'),[farm,setFarm]=useState('ALL'),[shift,setShift]=useState('ALL'),[foreman,setForeman]=useState('ALL'),[jobType,setJobType]=useState<JobType>('ALL'),[activityBasis,setActivityBasis]=useState<ActivityBasis>('ACTUAL'),[paddockFilter,setPaddockFilter]=useState(''),[paddockPage,setPaddockPage]=useState(1),[paddockPageSize,setPaddockPageSize]=useState(50),[paddockHistoryRefreshKey,setPaddockHistoryRefreshKey]=useState(0)
+  const[company,setCompany]=useState('ALL'),[farm,setFarm]=useState('ALL'),[shift,setShift]=useState('ALL'),[foreman,setForeman]=useState('ALL'),[jobType,setJobType]=useState<JobType>('ALL'),[activityBasis,setActivityBasis]=useState<ActivityBasis>('ACTUAL'),[selectedActivity,setSelectedActivity]=useState<string|null>(null),[paddockFilter,setPaddockFilter]=useState(''),[paddockPage,setPaddockPage]=useState(1),[paddockPageSize,setPaddockPageSize]=useState(50),[paddockHistoryRefreshKey,setPaddockHistoryRefreshKey]=useState(0)
   const monthKey=selectedYear+'-'+selectedMonth
   const yearOptions=useMemo(()=>Array.from({length:7},(_,i)=>String(currentYear-4+i)),[currentYear])
 
@@ -166,7 +217,10 @@ export default function PlanSummaryDashboard(){
   const manualActual=useMemo(()=>activeMonthly.reduce((sum,row)=>sum+row.manualActualAreaHa,0),[activeMonthly])
   const linkedMonthlyActual=useMemo(()=>actual.filter(row=>activePlanIds.has(row.monthlyPlanLineId)).reduce((sum,row)=>sum+row.actualAreaHa,0),[actual,activePlanIds])
   const monthlyActual=linkedMonthlyActual+manualActual
-  const activityPieRows=useMemo<ActivityPieRow[]>(()=>{const map=new Map<string,number>();if(activityBasis==='ACTUAL'){actualScope.forEach(row=>{const label=row.activity||'Tanpa Activity';map.set(label,(map.get(label)||0)+row.actualAreaHa)})}else{dailyScope.forEach(row=>{const label=row.activity||'Tanpa Activity';map.set(label,(map.get(label)||0)+row.areaHa)})}return[...map.entries()].map(([activity,value])=>({activity,value})).filter(row=>row.value>0).sort((a,b)=>b.value-a.value||a.activity.localeCompare(b.activity,undefined,{numeric:true}))},[activityBasis,dailyScope,actualScope])
+  const activityPieRows=useMemo<ActivityPieRow[]>(()=>aggregateActivityShares(activityBasis==='ACTUAL'
+    ?actualScope.map(row=>({activity:row.activity||'Tanpa Activity',value:row.actualAreaHa}))
+    :dailyScope.map(row=>({activity:row.activity||'Tanpa Activity',value:row.areaHa})),[activityBasis,dailyScope,actualScope])
+  const selectedAchievement=useMemo(()=>selectedActivity===null?null:calculateActivityAchievement(selectedActivity,dailyScope,actualScope),[selectedActivity,dailyScope,actualScope])
 
   const activityNames=useMemo(()=>[...new Set([...monthlyScope.map(x=>x.activity),...dailyScope.map(x=>x.activity),...actualScope.map(x=>x.activity)].filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[monthlyScope,dailyScope,actualScope])
   const dayMatrixRows=useMemo(()=>activityNames.map(activityName=>({activity:activityName,days:selectedDays.map(date=>({date,plan:dailyScope.filter(x=>x.activity===activityName&&x.date===date).reduce((sum,x)=>sum+x.areaHa,0),actual:actualScope.filter(x=>x.activity===activityName&&x.date===date).reduce((sum,x)=>sum+x.actualAreaHa,0)}))})),[activityNames,selectedDays,dailyScope,actualScope])
@@ -261,8 +315,8 @@ export default function PlanSummaryDashboard(){
     </div>
 
     <section className="panel summary-activity-composition-panel">
-      <div className="section-head summary-activity-composition-head"><div><div className="eyebrow">KOMPOSISI ACTIVITY</div><h3>Persentase Activity per Jenis Pekerjaan</h3><p className="muted">{jobType==='ALL'?'Semua jenis pekerjaan':jobType==='SPRAY'?'Spray':'Fertilizer'} · persentase berdasarkan luasan {activityBasis==='ACTUAL'?'Actual':'Daily Plan'}.</p></div><div className="summary-pie-basis-toggle" aria-label="Basis diagram activity"><button type="button" className={activityBasis==='ACTUAL'?'active':''} onClick={()=>setActivityBasis('ACTUAL')}>Actual</button><button type="button" className={activityBasis==='PLAN'?'active':''} onClick={()=>setActivityBasis('PLAN')}>Daily Plan</button></div></div>
-      <ActivityCompositionPie rows={activityPieRows} basisLabel={activityBasis==='ACTUAL'?'Actual Ha':'Daily Plan Ha'}/>
+      <div className="section-head summary-activity-composition-head"><div><div className="eyebrow">KOMPOSISI ACTIVITY</div><h3>Persentase Activity per Jenis Pekerjaan</h3><p className="muted">{jobType==='ALL'?'Semua jenis pekerjaan':jobType==='SPRAY'?'Spray':'Fertilizer'} · {selectedAchievement?'pencapaian Daily Plan vs Actual untuk '+selectedAchievement.activity:'persentase berdasarkan luasan '+(activityBasis==='ACTUAL'?'Actual':'Daily Plan')+'. Klik activity untuk melihat pencapaian.'}</p></div>{!selectedAchievement&&<div className="summary-pie-basis-toggle" aria-label="Basis diagram activity"><button type="button" className={activityBasis==='ACTUAL'?'active':''} onClick={()=>setActivityBasis('ACTUAL')}>Actual</button><button type="button" className={activityBasis==='PLAN'?'active':''} onClick={()=>setActivityBasis('PLAN')}>Daily Plan</button></div>}</div>
+      {selectedAchievement?<ActivityAchievementDetail stats={selectedAchievement} onBack={()=>setSelectedActivity(null)}/>:<ActivityCompositionPie rows={activityPieRows} basisLabel={activityBasis==='ACTUAL'?'Actual Ha':'Daily Plan Ha'} onSelect={setSelectedActivity}/>}
     </section>
 
     <section className="panel summary-day-matrix-panel">
