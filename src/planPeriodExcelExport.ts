@@ -1,4 +1,4 @@
-import { collection, documentId, getDocs, limit, orderBy, query, startAfter, where, type Firestore, type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore'
+import { collection, documentId, getDocs, limit, orderBy, query, startAfter, where, type Firestore, type QueryDocumentSnapshot, type DocumentData, type Query, type QuerySnapshot } from 'firebase/firestore'
 
 export type PlanExportKind='daily'|'actual'
 export type DateBounds={start:string;end:string}
@@ -86,10 +86,10 @@ export async function fetchPlanExportRows(input:ExportInput):Promise<DocRow[]>{
     where('date','>=',bounds.start),where('date','<=',bounds.end),
     orderBy('date','asc'),orderBy(documentId(),'asc'),
   ]
-  const q=cursor
+  const q:Query<DocumentData>=cursor
    ?query(collection(db,COLLECTIONS[kind]),...clauses,startAfter(cursor),limit(250))
    :query(collection(db,COLLECTIONS[kind]),...clauses,limit(250))
-  const snap=await getDocs(q)
+  const snap:QuerySnapshot<DocumentData>=await getDocs(q)
   for(const d of snap.docs)if(!seen.has(d.id)){seen.add(d.id);rows.push({id:d.id,data:d.data() as Record<string,unknown>})}
   onProgress('Mengambil '+PRETTY[kind]+': '+rows.length+' record…')
   if(snap.size<250)break
