@@ -55,6 +55,12 @@ export default function ActualPlanListPanel({user,selectedDate,compact=false,ref
     }catch(e){setMessage(e instanceof Error?e.message:'Actual Plan gagal dimuat.')}finally{setBusy(false)}
   }
   useEffect(()=>{void load()},[selectedDate,refreshKey,jumpRequest?.monthlyPlanLineId,jumpRequest?.actualReportIds.join('|'),jumpRequest?.label])
+  useEffect(()=>{
+    const onReconnect=()=>{void load()}
+    window.addEventListener('online',onReconnect)
+    return()=>window.removeEventListener('online',onReconnect)
+  },[selectedDate,refreshKey])
+
 
   const months=useMemo(()=>[...new Set(rows.map(x=>x.monthKey).filter(Boolean))].sort().reverse(),[rows])
   const companies=useMemo(()=>[...new Set(rows.map(x=>x.companyCode).filter(Boolean))].sort(),[rows])
