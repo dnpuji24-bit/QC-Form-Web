@@ -9,7 +9,7 @@ for label,content in [('Daily Plan',daily),('Actual Plan',actual)]:
     kind='daily' if label.startswith('Daily') else 'actual'
     assert "import PlanPeriodExcelExport from './PlanPeriodExcelExport'" in content
     assert f'<PlanPeriodExcelExport kind="{kind}" />' in content
-    assert content.index(f'<PlanPeriodExcelExport kind="{kind}" />') < content.index("view==='plan'"), f'{label} export must appear in both Plan and Import tabs'
+    assert content.index(f'<PlanPeriodExcelExport kind="{kind}" />') < content.index("{view==='plan'?<div className="), f'{label} export must appear in both Plan and Import tabs'
     assert 'canPlan||canImport' in content, 'View-only users need export access'
 
 for token in [
