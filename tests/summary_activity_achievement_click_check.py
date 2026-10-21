@@ -23,7 +23,7 @@ for token in [
     "Persentase tidak tersedia: tidak ada target Monthly Plan",
     "onBack={()=>setSelectedActivity(null)}",
     "onSelect={setSelectedActivity}",
-    "selectedAchievement?<ActivityAchievementDetail",
+    "selectedAchievement&&<ActivityAchievementDetail",
     "summary-achievement-fill plan",
     "summary-achievement-fill actual",
 ]:
