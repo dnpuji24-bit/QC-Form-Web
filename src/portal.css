@@ -40,3 +40,16 @@
 .portal-card.users-card{background:linear-gradient(145deg,#f8fafc,#eef4ff);border-color:#c7d2fe}
 .portal-card.users-card .portal-icon{background:#0f172a}
 @media(max-width:760px){.chooser-layer .portal-grid{grid-template-columns:1fr}.portal-card.users-card{min-height:190px}}
+
+/* Main portal reporting destinations */
+.chooser-layer .portal-summary-card{background:linear-gradient(150deg,#eef5ff 0%,#fff 90%);border-color:#bfd5ff}
+.chooser-layer .portal-summary-card .portal-icon{background:#1d4ed8}
+.chooser-layer .portal-calendar-card{background:linear-gradient(150deg,#f0fdf9 0%,#fff 90%);border-color:#b9eee0}
+.chooser-layer .portal-calendar-card .portal-icon{background:#0f766e}
+.portal-report-content{max-width:1500px}
+.portal-report-content>.portal-section-head{margin-bottom:14px}
+.portal-report-content>.plan-offline-warning{margin-bottom:16px}
+@media(max-width:760px){
+ .chooser-layer .portal-summary-card,.chooser-layer .portal-calendar-card{min-height:180px}
+ .portal-report-content{padding:14px 12px 60px}
+}
