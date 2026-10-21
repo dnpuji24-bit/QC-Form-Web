@@ -1,10 +1,10 @@
 const assert=require('node:assert/strict')
 const fs=require('node:fs')
 const path=require('node:path')
-const ts=require('typescript')
+const {transformSync}=require('esbuild')
 
 const source=fs.readFileSync(path.join(__dirname,'..','src','activityAchievement.ts'),'utf8')
-const transformed=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText
+const transformed=transformSync(source,{loader:'ts',format:'cjs',target:'es2020'}).code
 const localModule={exports:{}}
 new Function('module','exports',transformed)(localModule,localModule.exports)
 const {calculateMonthlyActivityAchievement}=localModule.exports
