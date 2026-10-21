@@ -35,13 +35,20 @@ export async function signInFirebaseBridge(email:string,password:string):Promise
   try{
     await firebaseAuthPersistenceReady
     const existingEmail=String(firebaseAuth.currentUser?.email||'').trim().toLowerCase()
-    if(firebaseAuth.currentUser&&existingEmail!==targetEmail)await signOut(firebaseAuth)
+    // Firebase replaces the previous identity only AFTER the new credentials succeed.
+    // Do not sign out a valid persisted account before trying a network request.
+    if(firebaseAuth.currentUser&&existingEmail===targetEmail){
+      sessionStorage.setItem(STATUS_KEY,'signed-in')
+      sessionStorage.removeItem(ERROR_KEY)
+      return true
+    }
     await signInWithEmailAndPassword(firebaseAuth,targetEmail,password)
     sessionStorage.setItem(STATUS_KEY,'signed-in')
     sessionStorage.removeItem(ERROR_KEY)
     return true
   }catch(error){
-    try{if(firebaseAuth.currentUser)await signOut(firebaseAuth)}catch{}
+    // A transient outage must not delete the already persisted Firebase session.
+    // The caller checks identity mismatch before allowing the other account to enter.
     const detail=describeAuthError(error)
     sessionStorage.setItem(STATUS_KEY,'failed')
     sessionStorage.setItem(ERROR_KEY,detail)
