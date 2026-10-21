@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { collection, doc, getDoc, getDocs, query as fsQuery, serverTimestamp, where, writeBatch } from 'firebase/firestore'
+import { collection, doc, getDoc, query as fsQuery, serverTimestamp, where, writeBatch } from 'firebase/firestore'
 import { firebaseAuth, firebaseAuthPersistenceReady, firestoreDb } from './firebase'
 import DailyActionIcon from './DailyPlanActionIcon'
 import { dailyPlansToWhatsApp, type DailyPlanTransfer } from './dailyPlanActions'
@@ -9,6 +9,7 @@ import type { User } from './types'
 import { canEditAccess } from './accessControl'
 import { loadAllOperationalResources } from './masterOperationalResources'
 import YinYangRefreshButton from './YinYangRefreshButton'
+import { getPlanDocsWithCache } from './planOfflineReads'
 
 type Props={user:User;selectedDate?:string;onDateChange?:(date:string)=>void;onSaved?:()=>void;composerRequest?:DailyComposerRequest;onComposerRequestHandled?:()=>void}
 type Monthly={id:string;planLineId:string;monthKey:string;week:string;companyCode:string;farm:string;pid:string;description:string;activity:string;targetAreaHa:number;manualActualAreaHa:number;sourceStatus:string;status:string;type:string;activityCategory:string;stage:string;masterVariety:string;componentsSnapshot:unknown[]}
@@ -95,7 +96,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
   const initial={...storedInitial,date:selectedDate||storedInitial.date}
   const[monthly,setMonthly]=useState<Monthly[]>([]),[activityMonthly,setActivityMonthly]=useState<Monthly[]>([]),[daily,setDaily]=useState<Daily[]>([]),[linkedDaily,setLinkedDaily]=useState<Daily[]>([]),[actuals,setActuals]=useState<Actual[]>([]),[linkedActuals,setLinkedActuals]=useState<Actual[]>([]),[paddocks,setPaddocks]=useState<MasterPaddock[]>([]),[activities,setActivities]=useState<MasterActivity[]>([])
   const[resourceUnits,setResourceUnits]=useState<string[]>([]),[resourceShifts,setResourceShifts]=useState<string[]>([]),[resourceForemen,setResourceForemen]=useState<string[]>([])
-  const[state,setState]=useState<DraftState>(initial),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[draggingId,setDraggingId]=useState(''),[persistedEdit,setPersistedEdit]=useState<PersistedEditContext|null>(null)
+  const[state,setState]=useState<DraftState>(initial),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[draggingId,setDraggingId]=useState(''),[persistedEdit,setPersistedEdit]=useState<PersistedEditContext|null>(()=>readPlanDraft<PersistedEditContext|null>(draftKey+'_saved_edit',null))
   const[activityOpen,setActivityOpen]=useState(false),[pidSearchBusy,setPidSearchBusy]=useState(false)
   const[pidMonthly,setPidMonthly]=useState<Monthly[]>([])
   const saveFeedbackRef=useRef<HTMLDivElement|null>(null)
@@ -107,22 +108,22 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
   function dailyForMonthly(row:Monthly){return availableDaily.filter(item=>sameMonthlyIdentity(row,item,availableMonthly))}
   const selectableMonthly=useMemo(()=>availableMonthly.filter(row=>!monthlyStatusClosed(row)&&(actualForMonthly(row)+row.manualActualAreaHa)<row.targetAreaHa-0.0001),[availableMonthly,effectiveActuals,availableDaily])
 
-  async function loadMasters(){if(!firestoreDb)return;try{const[p,a]=await Promise.all([getDocs(collection(firestoreDb,'master_paddocks')),getDocs(collection(firestoreDb,'master_activities'))]);setPaddocks(p.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{pid:planText(r.pid||x.id).toUpperCase(),companyCode:planText(r.companyCode).toUpperCase(),farm:planText(r.farm),stage:planText(r.currentStage||r.stage),variety:planText(r.variety)}}));setActivities(a.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,description:planText(r.description),activity:planText(r.activity),type:planText(r.type),activityCategory:planText(r.activityCategory||r.category),active:r.active!==false,componentsSnapshot:Array.isArray(r.components)?r.components:Array.isArray(r.componentsSnapshot)?r.componentsSnapshot:[]}}).filter(x=>x.activity||x.description))}catch(e){setMessage(e instanceof Error?e.message:'Master data gagal dimuat.')}}
+  async function loadMasters(){if(!firestoreDb)return;try{const[p,a]=await Promise.all([getPlanDocsWithCache(collection(firestoreDb,'master_paddocks')),getPlanDocsWithCache(collection(firestoreDb,'master_activities'))]);setPaddocks(p.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{pid:planText(r.pid||x.id).toUpperCase(),companyCode:planText(r.companyCode).toUpperCase(),farm:planText(r.farm),stage:planText(r.currentStage||r.stage),variety:planText(r.variety)}}));setActivities(a.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,description:planText(r.description),activity:planText(r.activity),type:planText(r.type),activityCategory:planText(r.activityCategory||r.category),active:r.active!==false,componentsSnapshot:Array.isArray(r.components)?r.components:Array.isArray(r.componentsSnapshot)?r.componentsSnapshot:[]}}).filter(x=>x.activity||x.description))}catch(e){setMessage(e instanceof Error?e.message:'Master data gagal dimuat.')}}
   async function loadPeriod(date=state.date){
     if(!firestoreDb||!date)return
     setBusy(true)
     try{
       const{monthKey,startDate,nextStartDate}=monthBounds(date),monthlyCollection=collection(firestoreDb,'monthly_plans')
       const[byMonthKey,byStartDate,d]=await Promise.all([
-        getDocs(fsQuery(monthlyCollection,where('monthKey','==',monthKey))),
-        getDocs(fsQuery(monthlyCollection,where('startDate','>=',startDate),where('startDate','<',nextStartDate))),
-        getDocs(fsQuery(collection(firestoreDb,'daily_plans'),where('monthKey','==',monthKey))),
+        getPlanDocsWithCache(fsQuery(monthlyCollection,where('monthKey','==',monthKey))),
+        getPlanDocsWithCache(fsQuery(monthlyCollection,where('startDate','>=',startDate),where('startDate','<',nextStartDate))),
+        getPlanDocsWithCache(fsQuery(collection(firestoreDb,'daily_plans'),where('monthKey','==',monthKey))),
       ])
       const mergedMonthly=new Map<string,(typeof byMonthKey.docs)[number]>()
       ;[...byMonthKey.docs,...byStartDate.docs].forEach(item=>mergedMonthly.set(item.id,item))
       const monthlyRows=[...mergedMonthly.values()].map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,planLineId:planText(r.planLineId||x.id),monthKey:planText(r.monthKey),week:planText(r.week),companyCode:planText(r.companyCode),farm:planText(r.farm),pid:planText(r.pid),description:planText(r.description),activity:planText(r.activity),targetAreaHa:planNum(r.targetAreaHa),manualActualAreaHa:planNum(r.manualActualAreaHa),sourceStatus:planText(r.sourceStatus),status:planText(r.status),type:planText(r.type),activityCategory:planText(r.activityCategory),stage:planText(r.stage),masterVariety:planText(r.masterVariety),componentsSnapshot:Array.isArray(r.componentsSnapshot)?r.componentsSnapshot:[]}}).sort((a,b)=>a.week.localeCompare(b.week,undefined,{numeric:true})||a.planLineId.localeCompare(b.planLineId,undefined,{numeric:true}))
       const ids=[...new Set(monthlyRows.map(row=>row.planLineId).filter(Boolean))],periodActuals:Actual[]=[]
-      for(let i=0;i<ids.length;i+=30){const part=ids.slice(i,i+30),snap=await getDocs(fsQuery(collection(firestoreDb,'daily_reports'),where('monthlyPlanLineId','in',part)));snap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;periodActuals.push({id:x.id,monthlyPlanLineId:planText(r.monthlyPlanLineId),pid:planText(r.pid||r.paddockRaw).toUpperCase(),activity:planText(r.activity),description:planText(r.description||r.activity),actualAreaHa:planNum(r.actualAreaHa)})})}
+      for(let i=0;i<ids.length;i+=30){const part=ids.slice(i,i+30),snap=await getPlanDocsWithCache(fsQuery(collection(firestoreDb,'daily_reports'),where('monthlyPlanLineId','in',part)));snap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;periodActuals.push({id:x.id,monthlyPlanLineId:planText(r.monthlyPlanLineId),pid:planText(r.pid||r.paddockRaw).toUpperCase(),activity:planText(r.activity),description:planText(r.description||r.activity),actualAreaHa:planNum(r.actualAreaHa)})})}
       setMonthly(monthlyRows)
       setActuals(periodActuals)
       setDaily(d.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{dailyPlanId:planText(r.dailyPlanId||x.id),monthlyPlanLineId:planText(r.monthlyPlanLineId),date:planText(r.date),shift:planText(r.shift),pid:planText(r.pid||r.paddockRaw).toUpperCase(),activity:planText(r.activity),description:planText(r.description||r.activity),areaHa:planNum(r.areaHa)}}))
@@ -136,8 +137,8 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
     try{
       const monthlyCollection=collection(firestoreDb,'monthly_plans')
       const[byDescription,byActivity]=await Promise.all([
-        getDocs(fsQuery(monthlyCollection,where('description','==',label))),
-        getDocs(fsQuery(monthlyCollection,where('activity','==',label))),
+        getPlanDocsWithCache(fsQuery(monthlyCollection,where('description','==',label))),
+        getPlanDocsWithCache(fsQuery(monthlyCollection,where('activity','==',label))),
       ])
       if(token!==activityLookupRef.current)return
       const docs=new Map<string,(typeof byDescription.docs)[number]>()
@@ -149,8 +150,8 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
       for(let i=0;i<ids.length;i+=30){
         const part=ids.slice(i,i+30)
         const[dailySnap,actualSnap]=await Promise.all([
-          getDocs(fsQuery(collection(firestoreDb,'daily_plans'),where('monthlyPlanLineId','in',part))),
-          getDocs(fsQuery(collection(firestoreDb,'daily_reports'),where('monthlyPlanLineId','in',part))),
+          getPlanDocsWithCache(fsQuery(collection(firestoreDb,'daily_plans'),where('monthlyPlanLineId','in',part))),
+          getPlanDocsWithCache(fsQuery(collection(firestoreDb,'daily_reports'),where('monthlyPlanLineId','in',part))),
         ])
         dailySnap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;linked.push({dailyPlanId:planText(r.dailyPlanId||x.id),monthlyPlanLineId:planText(r.monthlyPlanLineId),date:planText(r.date),shift:planText(r.shift),pid:planText(r.pid||r.paddockRaw).toUpperCase(),activity:planText(r.activity),description:planText(r.description||r.activity),areaHa:planNum(r.areaHa)})})
         actualSnap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;linkedActual.push({id:x.id,monthlyPlanLineId:planText(r.monthlyPlanLineId),pid:planText(r.pid||r.paddockRaw).toUpperCase(),activity:planText(r.activity),description:planText(r.description||r.activity),actualAreaHa:planNum(r.actualAreaHa)})})
@@ -176,7 +177,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
     try{
       const docs=new Map<string,any>()
       for(const pid of candidatePids.slice(0,12)){
-        const snap=await getDocs(fsQuery(collection(db,'monthly_plans'),where('pid','==',pid)))
+        const snap=await getPlanDocsWithCache(fsQuery(collection(db,'monthly_plans'),where('pid','==',pid)))
         snap.docs.forEach(item=>docs.set(item.id,item))
       }
       if(token!==pidLookupRef.current)return
@@ -187,8 +188,8 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
       for(let i=0;i<ids.length;i+=30){
         const part=ids.slice(i,i+30)
         const[dailySnap,actualSnap]=await Promise.all([
-          getDocs(fsQuery(collection(db,'daily_plans'),where('monthlyPlanLineId','in',part))),
-          getDocs(fsQuery(collection(db,'daily_reports'),where('monthlyPlanLineId','in',part))),
+          getPlanDocsWithCache(fsQuery(collection(db,'daily_plans'),where('monthlyPlanLineId','in',part))),
+          getPlanDocsWithCache(fsQuery(collection(db,'daily_reports'),where('monthlyPlanLineId','in',part))),
         ])
         dailySnap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;linked.push({dailyPlanId:planText(r.dailyPlanId||x.id),monthlyPlanLineId:planText(r.monthlyPlanLineId),date:planText(r.date),shift:planText(r.shift),pid:planText(r.pid||r.paddockRaw).toUpperCase(),activity:planText(r.activity),description:planText(r.description||r.activity),areaHa:planNum(r.areaHa)})})
         actualSnap.docs.forEach(x=>{const r=x.data() as Record<string,unknown>;linkedActual.push({id:x.id,monthlyPlanLineId:planText(r.monthlyPlanLineId),pid:planText(r.pid||r.paddockRaw).toUpperCase(),activity:planText(r.activity),description:planText(r.description||r.activity),actualAreaHa:planNum(r.actualAreaHa)})})
@@ -204,6 +205,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
   useEffect(()=>{if(selectedDate&&selectedDate!==state.date)setState(current=>({...current,date:selectedDate}))},[selectedDate])
   useEffect(()=>{if(state.active.sourceType!=='MONTHLY')return;const label=state.active.activitySearch.trim(),key=searchKey(label);if(!key)return;const exact=availableMonthly.some(row=>searchKey(row.activity||row.description)===key)||activities.some(row=>row.active&&searchKey(row.activity)===key);if(exact)void loadMonthlyActivity(label)},[state.active.sourceType,state.active.activitySearch,availableMonthly,activities])
   useEffect(()=>{writePlanDraft(draftKey,state)},[state,draftKey])
+  useEffect(()=>{if(persistedEdit)writePlanDraft(draftKey+'_saved_edit',persistedEdit);else clearPlanDraft(draftKey+'_saved_edit')},[persistedEdit,draftKey])
   useEffect(()=>{
     if(!composerRequest)return
     const group=composerRequest.group
@@ -280,6 +282,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
   }
 
   async function savePersistedEdit(e:FormEvent){
+    if(!navigator.onLine){e.preventDefault();showSaveFeedback('Offline: perubahan tetap tersimpan di draft perangkat. Simpan Perubahan setelah internet kembali; belum terkirim ke Firestore.');return}
     e.preventDefault()
     if(!persistedEdit)return
     const error=validateGroup(activeInfo)
@@ -292,11 +295,11 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
       if(removed.length){
         const removedDailyIds=removed.map(row=>row.dailyPlanId).filter(Boolean)
         for(let i=0;i<removedDailyIds.length;i+=30){
-          const linked=await getDocs(fsQuery(collection(db,'daily_reports'),where('dailyPlanId','in',removedDailyIds.slice(i,i+30))))
+          const linked=await getPlanDocsWithCache(fsQuery(collection(db,'daily_reports'),where('dailyPlanId','in',removedDailyIds.slice(i,i+30))))
           if(!linked.empty){setMessage('PID tidak dapat dihapus karena sudah memiliki Actual Plan terkait. Edit atau hapus Actual terlebih dahulu.');setBusy(false);return}
         }
       }
-      const targetSnap=await getDocs(fsQuery(collection(db,'daily_plans'),where('date','==',state.date))),prefix='DP-'+state.date.replaceAll('-','')+'-'
+      const targetSnap=await getPlanDocsWithCache(fsQuery(collection(db,'daily_plans'),where('date','==',state.date))),prefix='DP-'+state.date.replaceAll('-','')+'-'
       let seq=targetSnap.docs.map(item=>{const data=item.data() as Record<string,unknown>,id=planText(data.dailyPlanId||item.id);return id.startsWith(prefix)?Number(id.slice(prefix.length)):0}).filter(Number.isFinite).reduce((m,x)=>Math.max(m,x),0)
       const batch=writeBatch(db),pidCount=activeInfo.pids.length
       for(const row of activeInfo.pids){
@@ -315,7 +318,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
 
       for(const row of activeInfo.pids){
         if(!row.pid.persistedDailyPlanId)continue
-        const linked=await getDocs(fsQuery(collection(db,'daily_reports'),where('dailyPlanId','==',row.pid.persistedDailyPlanId)))
+        const linked=await getPlanDocsWithCache(fsQuery(collection(db,'daily_reports'),where('dailyPlanId','==',row.pid.persistedDailyPlanId)))
         if(linked.empty)continue
         const isMonthly=activeInfo.work.sourceType==='MONTHLY',selected=row.selected,pid=isMonthly?(selected?.pid||row.pid.pid.toUpperCase()):row.pid.pid.toUpperCase(),syncBatch=writeBatch(db)
         linked.docs.forEach(item=>{const data=item.data() as Record<string,unknown>,actualArea=planNum(data.actualAreaHa),reportPayload:Record<string,unknown>={monthlyPlanLineId:isMonthly?(selected?.planLineId||''):'',monthlyLinkStatus:isMonthly?(selected?'LINKED':'NOT_APPLICABLE'):'NOT_APPLICABLE',plannedDailyAreaHa:row.area,dailyVarianceHa:row.area-actualArea,lastModifiedSource:'WEB',updatedAt:serverTimestamp(),updatedBy:username,pid,paddockRaw:pid,activity:(selected?.activity||activeInfo.work.activitySearch),description:isMonthly?(selected?.description||row.description):activeInfo.work.activitySearch};if(selected)Object.assign(reportPayload,{companyCode:selected.companyCode,farm:selected.farm});syncBatch.set(item.ref,reportPayload,{merge:true})})
@@ -355,6 +358,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
   async function copyWa(infos=draftInfos){if(!infos.length){setMessage('Belum ada draft untuk disalin ke WhatsApp.');return}const wa=dailyPlansToWhatsApp(draftTransfers(infos));try{await navigator.clipboard.writeText(wa);setMessage('Draft Daily Planning disalin ke clipboard. Tinggal paste ke WhatsApp.')}catch{window.prompt('Salin Daily Planning berikut:',wa)}}
 
   async function saveAll(){
+    if(!navigator.onLine){showSaveFeedback('Offline: draft tetap tersimpan di perangkat. Simpan Semua saat online untuk sinkronisasi Firestore.');return}
     if(!draftInfos.length){showSaveFeedback('Belum ada Draft Daily Planning yang akan disimpan. Tambahkan kegiatan dengan tombol Simpan ke Draft terlebih dahulu.');return}
     for(const info of draftInfos){const error=validateGroup(info);if(error){showSaveFeedback('Periksa draft '+(info.work.activitySearch||'-')+': '+error);return}}
     const allPidRows=draftInfos.flatMap(g=>g.pids.map(p=>({g,p})))
