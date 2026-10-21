@@ -1,9 +1,9 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { collection, getDocs, query as fsQuery, where } from 'firebase/firestore'
 import { firestoreDb } from './firebase'
 import YinYangRefreshButton from './YinYangRefreshButton'
 import { exportAllPlanSummary } from './planSummaryExcelExport'
-import { aggregateActivityShares, calculateActivityAchievement, type ActivityAchievement } from './activityAchievement'
+import { aggregateActivityShares, calculateMonthlyActivityAchievement, type MonthlyAchievementActualRow, type MonthlyActivityAchievement } from './activityAchievement'
 
 type JobType='ALL'|'SPRAY'|'FERTILIZER'
 type ActivityBasis='ACTUAL'|'PLAN'
@@ -117,32 +117,32 @@ function ActivityCompositionPie({rows,basisLabel,onSelect}:{rows:ActivityPieRow[
   </div>
 }
 
-function ActivityAchievementDetail({stats,onBack}:{stats:ActivityAchievement;onBack:()=>void}){
-  const {plan,actual,percentage,remaining,over,planRecords,actualRecords,activity}=stats
+function ActivityAchievementDetail({stats,onBack}:{stats:MonthlyActivityAchievement;onBack:()=>void}){
+  const {plan,actual,percentage,remaining,over,planRecords,actualRecords,activity,manual,linked,unmatchedActualRecords}=stats
   const clamped=percentage===null?0:Math.max(0,Math.min(percentage,100))
   const max=Math.max(plan,actual,1)
   return <div className="summary-achievement-detail">
     <div className="summary-achievement-heading">
-      <div><span className="eyebrow">PLAN VS ACTUAL · ACTIVITY TERPILIH</span><h4>{activity}</h4><p>Perbandingan Daily Plan dan Actual pada filter Summary yang sedang aktif.</p></div>
+      <div><span className="eyebrow">PLAN VS ACTUAL · ACTIVITY TERPILIH</span><h4>{activity}</h4><p>Target Monthly Plan dibanding Actual terhubung + progress manual. Jadwal ulang Daily tidak menambah target.</p></div>
       <button type="button" className="summary-achievement-back" onClick={onBack}>← Semua Activity</button>
     </div>
     <div className="summary-achievement-layout">
       <div className="summary-achievement-ring-block">
-        <div className="summary-achievement-ring" style={{background:'conic-gradient(#16a34a '+clamped+'%, #e2e8f0 '+clamped+'% 100%)'}} role="img" aria-label={percentage===null?'Pencapaian belum dapat dihitung karena Daily Plan nol':'Pencapaian '+fmtPct(percentage)}>
+        <div className="summary-achievement-ring" style={{background:'conic-gradient(#16a34a '+clamped+'%, #e2e8f0 '+clamped+'% 100%)'}} role="img" aria-label={percentage===null?'Pencapaian belum dapat dihitung karena target Monthly Plan nol':'Pencapaian '+fmtPct(percentage)}>
           <div className="summary-achievement-ring-inner"><strong>{percentage===null?'—':fmtPct(percentage)}</strong><span>Pencapaian</span></div>
         </div>
-        <p>{percentage===null?'Persentase tidak tersedia: tidak ada luas Daily Plan pada filter ini.':percentage>100?'Actual melebihi Daily Plan.':'Persentase Actual terhadap Daily Plan.'}</p>
+        <p>{percentage===null?'Persentase tidak tersedia: tidak ada target Monthly Plan pada filter ini.':percentage>100?'Actual melebihi target Monthly Plan.':'Persentase Actual terhadap target Monthly Plan.'}</p>
       </div>
       <div className="summary-achievement-metrics">
         <div className="summary-achievement-bars">
-          <div><div className="summary-achievement-bar-caption"><span>Daily Plan</span><strong>{fmtHa(plan)}</strong></div><div className="summary-achievement-track"><div className="summary-achievement-fill plan" style={{width:(plan/max*100)+'%'}}/></div></div>
+          <div><div className="summary-achievement-bar-caption"><span>Target Monthly Plan</span><strong>{fmtHa(plan)}</strong></div><div className="summary-achievement-track"><div className="summary-achievement-fill plan" style={{width:(plan/max*100)+'%'}}/></div></div>
           <div><div className="summary-achievement-bar-caption"><span>Actual</span><strong>{fmtHa(actual)}</strong></div><div className="summary-achievement-track"><div className="summary-achievement-fill actual" style={{width:(actual/max*100)+'%'}}/></div></div>
         </div>
         <div className="summary-achievement-cards">
-          <div><span>Sisa terhadap Daily Plan</span><strong>{fmtHa(remaining)}</strong></div>
+          <div><span>Sisa target Monthly</span><strong>{fmtHa(remaining)}</strong></div>
           <div><span>Kelebihan Actual</span><strong className={over>0?'summary-over-value':''}>{fmtHa(over)}</strong></div>
         </div>
-        <small className="summary-achievement-footnote">{planRecords} record Daily Plan · {actualRecords} record Actual. Sumber: periode, Company, Farm, Shift, Mandor, dan Jenis Pekerjaan yang sama. Progress manual Monthly tanpa tanggal kerja tidak dimasukkan.</small>
+        <small className="summary-achievement-footnote">{planRecords} plan line Monthly · {actualRecords} record Actual terhubung ({fmtHa(linked)}) · progress manual/historis {fmtHa(manual)}. Target tidak menjumlahkan penjadwalan ulang Daily. Berlaku filter Tahun, Bulan, Week, Company, Farm, Jenis Pekerjaan. Shift dan Mandor tidak digunakan karena target Monthly tidak memiliki kedua dimensi tersebut.{unmatchedActualRecords>0?' Perhatian: '+unmatchedActualRecords+' record Actual memiliki link Monthly ambigu dan tidak ikut dihitung.':''}</small>
       </div>
     </div>
   </div>
@@ -151,31 +151,64 @@ function ActivityAchievementDetail({stats,onBack}:{stats:ActivityAchievement;onB
 export default function PlanSummaryDashboard(){
   const now=new Date(),currentYear=now.getFullYear()
   const[selectedYear,setSelectedYear]=useState(String(currentYear)),[selectedMonth,setSelectedMonth]=useState(String(now.getMonth()+1).padStart(2,'0')),[selectedWeek,setSelectedWeek]=useState('ALL')
-  const[monthly,setMonthly]=useState<MonthlyRow[]>([]),[daily,setDaily]=useState<DailyRow[]>([]),[actual,setActual]=useState<ActualRow[]>([]),[paddockHistoryMonthly,setPaddockHistoryMonthly]=useState<MonthlyRow[]>([]),[paddockHistoryActual,setPaddockHistoryActual]=useState<ActualRow[]>([]),[masterPaddocks,setMasterPaddocks]=useState<MasterPaddockRow[]>([]),[masterActivities,setMasterActivities]=useState<MasterActivityRow[]>([])
+  const[monthly,setMonthly]=useState<MonthlyRow[]>([]),[monthlyLinked,setMonthlyLinked]=useState<{monthKey:string;rows:MonthlyAchievementActualRow[];ready:boolean;error:string}>({monthKey:'',rows:[],ready:false,error:''}),[daily,setDaily]=useState<DailyRow[]>([]),[actual,setActual]=useState<ActualRow[]>([]),[paddockHistoryMonthly,setPaddockHistoryMonthly]=useState<MonthlyRow[]>([]),[paddockHistoryActual,setPaddockHistoryActual]=useState<ActualRow[]>([]),[masterPaddocks,setMasterPaddocks]=useState<MasterPaddockRow[]>([]),[masterActivities,setMasterActivities]=useState<MasterActivityRow[]>([])
   const[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[paddockHistoryBusy,setPaddockHistoryBusy]=useState(false),[paddockHistoryError,setPaddockHistoryError]=useState('')
   const[excelBusy,setExcelBusy]=useState(false),[excelProgress,setExcelProgress]=useState(''),[excelMessage,setExcelMessage]=useState('')
   const[company,setCompany]=useState('ALL'),[farm,setFarm]=useState('ALL'),[shift,setShift]=useState('ALL'),[foreman,setForeman]=useState('ALL'),[jobType,setJobType]=useState<JobType>('ALL'),[activityBasis,setActivityBasis]=useState<ActivityBasis>('ACTUAL'),[selectedActivity,setSelectedActivity]=useState<string|null>(null),[paddockFilter,setPaddockFilter]=useState(''),[paddockPage,setPaddockPage]=useState(1),[paddockPageSize,setPaddockPageSize]=useState(50),[paddockHistoryRefreshKey,setPaddockHistoryRefreshKey]=useState(0)
   const monthKey=selectedYear+'-'+selectedMonth
+  const loadVersionRef=useRef(0)
   const yearOptions=useMemo(()=>Array.from({length:7},(_,i)=>String(currentYear-4+i)),[currentYear])
 
   async function load(){
-    if(!firestoreDb){setMessage('Firestore belum tersedia.');return}
+    const db=firestoreDb
+    if(!db){setMessage('Firestore belum tersedia.');return}
+    const version=++loadVersionRef.current
+    setMonthlyLinked({monthKey,rows:[],ready:false,error:''})
     setBusy(true);setMessage('Memuat Summary '+monthKey+'…')
     try{
       const[m,d,a,p,activities]=await Promise.all([
-        getDocs(fsQuery(collection(firestoreDb,'monthly_plans'),where('monthKey','==',monthKey))),
-        getDocs(fsQuery(collection(firestoreDb,'daily_plans'),where('monthKey','==',monthKey))),
-        getDocs(fsQuery(collection(firestoreDb,'daily_reports'),where('monthKey','==',monthKey))),
-        getDocs(collection(firestoreDb,'master_paddocks')),
-        getDocs(collection(firestoreDb,'master_activities')),
+        getDocs(fsQuery(collection(db,'monthly_plans'),where('monthKey','==',monthKey))),
+        getDocs(fsQuery(collection(db,'daily_plans'),where('monthKey','==',monthKey))),
+        getDocs(fsQuery(collection(db,'daily_reports'),where('monthKey','==',monthKey))),
+        getDocs(collection(db,'master_paddocks')),
+        getDocs(collection(db,'master_activities')),
       ])
-      setMonthly(m.docs.map(x=>monthlyFromData(x.data() as Record<string,unknown>)))
+      if(version!==loadVersionRef.current)return
+      const monthlyRows=m.docs.map(x=>monthlyFromData(x.data() as Record<string,unknown>))
+      setMonthly(monthlyRows)
       setDaily(d.docs.map(x=>dailyFromData(x.data() as Record<string,unknown>,x.id)))
       setActual(a.docs.map(x=>actualFromData(x.data() as Record<string,unknown>,x.id)))
       setMasterPaddocks(p.docs.map(x=>masterPaddockFromData(x.id,x.data() as Record<string,unknown>)).filter(x=>x.pid))
       setMasterActivities(activities.docs.map(x=>masterActivityFromData(x.data() as Record<string,unknown>)))
-      setMessage('Summary '+monthKey+' siap. Filter di bawah dipakai bersama untuk grafik produktivitas dan Summary Activity per Tanggal.')
-    }catch(error){setMessage(error instanceof Error?error.message:'Summary Plan gagal dimuat.')}finally{setBusy(false)}
+      setMessage('Summary '+monthKey+' siap. Pencapaian per activity memakai target Monthly dan Actual yang ditautkan ke Monthly.')
+      // Monthly achievement needs ALL Actual rows linked to this month's plan
+      // lines, even when the work was completed in a later month.
+      const ids=[...new Set(monthlyRows.map(row=>row.planLineId).filter(Boolean))]
+      const chunks:string[][]=[]
+      for(let i=0;i<ids.length;i+=20)chunks.push(ids.slice(i,i+20))
+      try{
+        const rows:MonthlyAchievementActualRow[]=[]
+        const seenIds=new Set<string>()
+        for(let offset=0;offset<chunks.length;offset+=4){
+          const snaps=await Promise.all(chunks.slice(offset,offset+4).map(part=>
+            getDocs(fsQuery(collection(db,'daily_reports'),where('monthlyPlanLineId','in',part)))))
+          if(version!==loadVersionRef.current)return
+          for(const snap of snaps)for(const doc of snap.docs){
+            if(seenIds.has(doc.id))continue
+            seenIds.add(doc.id)
+            const raw=doc.data() as Record<string,unknown>
+            rows.push({id:doc.id,monthlyPlanLineId:text(raw.monthlyPlanLineId),
+              pid:text(raw.pid||raw.paddockRaw),activity:text(raw.activity),
+              description:text(raw.description||raw.activity),actualAreaHa:num(raw.actualAreaHa)})
+          }
+        }
+        if(version===loadVersionRef.current)setMonthlyLinked({monthKey,rows,ready:true,error:''})
+      }catch(error){
+        if(version!==loadVersionRef.current)return
+        setMonthlyLinked({monthKey,rows:[],ready:true,error:error instanceof Error?error.message:'Gagal membaca Actual yang terhubung.'})
+      }
+    }catch(error){if(version===loadVersionRef.current){setMonthlyLinked({monthKey,rows:[],ready:true,error:'Monthly Plan tidak berhasil dimuat.'});setMessage(error instanceof Error?error.message:'Summary Plan gagal dimuat.')}}
+    finally{if(version===loadVersionRef.current)setBusy(false)}
   }
   async function loadPaddockHistoryForPids(pids:string[]){
     const db=firestoreDb
@@ -220,7 +253,9 @@ export default function PlanSummaryDashboard(){
   const activityPieRows=useMemo<ActivityPieRow[]>(()=>aggregateActivityShares(activityBasis==='ACTUAL'
     ?actualScope.map(row=>({activity:row.activity||'Tanpa Activity',value:row.actualAreaHa}))
     :dailyScope.map(row=>({activity:row.activity||'Tanpa Activity',value:row.areaHa}))),[activityBasis,dailyScope,actualScope])
-  const selectedAchievement=useMemo(()=>selectedActivity===null?null:calculateActivityAchievement(selectedActivity,dailyScope,actualScope),[selectedActivity,dailyScope,actualScope])
+  const selectedAchievement=useMemo(()=>selectedActivity===null||monthlyLinked.monthKey!==monthKey||!monthlyLinked.ready||Boolean(monthlyLinked.error)
+    ?null:calculateMonthlyActivityAchievement(selectedActivity,monthlyScope,monthlyLinked.rows),
+    [selectedActivity,monthlyScope,monthlyLinked,monthKey])
 
   const activityNames=useMemo(()=>[...new Set([...monthlyScope.map(x=>x.activity),...dailyScope.map(x=>x.activity),...actualScope.map(x=>x.activity)].filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[monthlyScope,dailyScope,actualScope])
   const dayMatrixRows=useMemo(()=>activityNames.map(activityName=>({activity:activityName,days:selectedDays.map(date=>({date,plan:dailyScope.filter(x=>x.activity===activityName&&x.date===date).reduce((sum,x)=>sum+x.areaHa,0),actual:actualScope.filter(x=>x.activity===activityName&&x.date===date).reduce((sum,x)=>sum+x.actualAreaHa,0)}))})),[activityNames,selectedDays,dailyScope,actualScope])
@@ -315,8 +350,14 @@ export default function PlanSummaryDashboard(){
     </div>
 
     <section className="panel summary-activity-composition-panel">
-      <div className="section-head summary-activity-composition-head"><div><div className="eyebrow">KOMPOSISI ACTIVITY</div><h3>Persentase Activity per Jenis Pekerjaan</h3><p className="muted">{jobType==='ALL'?'Semua jenis pekerjaan':jobType==='SPRAY'?'Spray':'Fertilizer'} · {selectedAchievement?'pencapaian Daily Plan vs Actual untuk '+selectedAchievement.activity:'persentase berdasarkan luasan '+(activityBasis==='ACTUAL'?'Actual':'Daily Plan')+'. Klik activity untuk melihat pencapaian.'}</p></div>{!selectedAchievement&&<div className="summary-pie-basis-toggle" aria-label="Basis diagram activity"><button type="button" className={activityBasis==='ACTUAL'?'active':''} onClick={()=>setActivityBasis('ACTUAL')}>Actual</button><button type="button" className={activityBasis==='PLAN'?'active':''} onClick={()=>setActivityBasis('PLAN')}>Daily Plan</button></div>}</div>
-      {selectedAchievement?<ActivityAchievementDetail stats={selectedAchievement} onBack={()=>setSelectedActivity(null)}/>:<ActivityCompositionPie rows={activityPieRows} basisLabel={activityBasis==='ACTUAL'?'Actual Ha':'Daily Plan Ha'} onSelect={setSelectedActivity}/>}
+      <div className="section-head summary-activity-composition-head"><div><div className="eyebrow">KOMPOSISI ACTIVITY</div><h3>Persentase Activity per Jenis Pekerjaan</h3><p className="muted">{jobType==='ALL'?'Semua jenis pekerjaan':jobType==='SPRAY'?'Spray':'Fertilizer'} · {selectedActivity?'pencapaian target Monthly Plan vs Actual untuk '+selectedActivity:'persentase berdasarkan luasan '+(activityBasis==='ACTUAL'?'Actual':'Daily Plan')+'. Klik activity untuk melihat pencapaian Monthly.'}</p></div>{!selectedActivity&&<div className="summary-pie-basis-toggle" aria-label="Basis diagram activity"><button type="button" className={activityBasis==='ACTUAL'?'active':''} onClick={()=>setActivityBasis('ACTUAL')}>Actual</button><button type="button" className={activityBasis==='PLAN'?'active':''} onClick={()=>setActivityBasis('PLAN')}>Daily Plan</button></div>}</div>
+      {selectedActivity
+        ?monthlyLinked.monthKey!==monthKey||!monthlyLinked.ready
+          ?<div className="summary-achievement-loading" role="status">Memuat hubungan Monthly Plan dan Actual untuk {selectedActivity}…</div>
+          :monthlyLinked.error
+            ?<div className="summary-achievement-loading" role="alert">Perhitungan pencapaian tidak tersedia: {monthlyLinked.error}. Actual tidak akan dianggap 0 jika datanya gagal dimuat. <button type="button" onClick={()=>void load()}>Coba lagi</button><button type="button" onClick={()=>setSelectedActivity(null)}>← Semua Activity</button></div>
+            :selectedAchievement&&<ActivityAchievementDetail stats={selectedAchievement} onBack={()=>setSelectedActivity(null)}/>
+        :<ActivityCompositionPie rows={activityPieRows} basisLabel={activityBasis==='ACTUAL'?'Actual Ha':'Daily Plan Ha'} onSelect={setSelectedActivity}/>}
     </section>
 
     <section className="panel summary-day-matrix-panel">
