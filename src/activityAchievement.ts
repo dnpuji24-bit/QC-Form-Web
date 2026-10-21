@@ -69,10 +69,13 @@ export function calculateMonthlyActivityAchievement(
   selectedActivity:string,
   monthlyRows:readonly MonthlyAchievementPlanRow[],
   linkedActualRows:readonly MonthlyAchievementActualRow[],
+  identityRows:readonly MonthlyAchievementPlanRow[]=monthlyRows,
 ):MonthlyActivityAchievement{
   const key=activityMatchKey(selectedActivity)
-  const allActive=monthlyRows.filter(row=>!row.cancelled)
-  const selected=allActive.filter(row=>activityMatchKey(row.activity||row.description||'Tanpa Activity')===key)
+  // Identity must be checked against every plan line in this month, including
+  // other weeks/activities hidden by the dashboard filters.
+  const allActive=identityRows.filter(row=>!row.cancelled)
+  const selected=monthlyRows.filter(row=>!row.cancelled&&activityMatchKey(row.activity||row.description||'Tanpa Activity')===key)
   const plan=selected.reduce((sum,row)=>sum+positiveArea(row.targetAreaHa),0)
   const manual=selected.reduce((sum,row)=>sum+positiveArea(row.manualActualAreaHa),0)
   // Evaluate each actual once against ALL monthly lines in the scope, not just
