@@ -3,15 +3,19 @@ from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 css=(root/'src'/'field-ui.css').read_text(encoding='utf-8')
 workspace=(root/'src'/'PlanWorkspace.tsx').read_text(encoding='utf-8')
+portal=(root/'src'/'PortalRouter.tsx').read_text(encoding='utf-8')
 
 for token in [
-    "Summary",
     "Monthly Plan",
     "Daily Plan",
     "Actual Plan",
     "Rekonsiliasi",
 ]:
     assert token in workspace, f'Missing primary Plan menu item: {token}'
+
+for token in ['Summary','Calendar Rekap']:
+    assert token in portal, f'Missing portal reporting card: {token}'
+    assert token not in workspace, f'Reporting shortcut should not appear in Plan tabs: {token}'
 
 for token in [
     "Compact desktop Plan submenus",
