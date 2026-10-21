@@ -51,7 +51,7 @@ export default function ActualPlanListPanel({user,selectedDate,compact=false,ref
       const allRows=a.docs.map(x=>row(x.id,x.data() as Record<string,unknown>))
       const rr=(jumpIds.size?allRows.filter(item=>jumpIds.has(item.id)||jumpIds.has(item.actualReportId)):allRows).sort((x,y)=>x.date.localeCompare(y.date)||x.shift.localeCompare(y.shift,undefined,{numeric:true})||(x.planningOrder||999999)-(y.planningOrder||999999)||x.pid.localeCompare(y.pid,undefined,{numeric:true}))
       const ll=b?b.docs.map(x=>log(x.id,x.data() as Record<string,unknown>)).sort((x,y)=>y.importedAt.localeCompare(x.importedAt)).slice(0,10):[]
-      setRows(rr);setLogs(ll);setSelectedIds([]);setMessage(jumpRequest?'Sumber '+jumpRequest.label+' · '+jumpRequest.monthlyPlanLineId+': '+rr.length+' record Actual.':'Actual '+dateFilter+': '+rr.length+' record.')
+      setRows(rr);setLogs(ll);setSelectedIds([]);setMessage(a.metadata.fromCache?planOfflineMessage(dateFilter,rr.length,'Actual'):(jumpRequest?'Sumber '+jumpRequest.label+' · '+jumpRequest.monthlyPlanLineId+': '+rr.length+' record Actual.':'Actual '+dateFilter+': '+rr.length+' record.'))
     }catch(e){setMessage(e instanceof Error?e.message:'Actual Plan gagal dimuat.')}finally{setBusy(false)}
   }
   useEffect(()=>{void load()},[selectedDate,refreshKey,jumpRequest?.monthlyPlanLineId,jumpRequest?.actualReportIds.join('|'),jumpRequest?.label])
