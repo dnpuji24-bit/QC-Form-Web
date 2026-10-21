@@ -54,6 +54,12 @@ export default function DailyPlanListPanel({user,onCopyToActual,selectedDate,com
     }catch(error){setMessage(error instanceof Error?error.message:'Daily Plan gagal dimuat.')}finally{setBusy(false)}
   }
   useEffect(()=>{void load()},[selectedDate,refreshKey])
+  useEffect(()=>{
+    const onReconnect=()=>{void load()}
+    window.addEventListener('online',onReconnect)
+    return()=>window.removeEventListener('online',onReconnect)
+  },[selectedDate,refreshKey])
+
   useEffect(()=>{if(!selectedDate)return;setCopyDate(selectedDate);setMoveDate(selectedDate)},[selectedDate])
 
   const groups=useMemo(()=>groupSavedDailyRows(rows),[rows])
