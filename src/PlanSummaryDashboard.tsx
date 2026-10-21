@@ -254,8 +254,8 @@ export default function PlanSummaryDashboard(){
     ?actualScope.map(row=>({activity:row.activity||'Tanpa Activity',value:row.actualAreaHa}))
     :dailyScope.map(row=>({activity:row.activity||'Tanpa Activity',value:row.areaHa}))),[activityBasis,dailyScope,actualScope])
   const selectedAchievement=useMemo(()=>selectedActivity===null||monthlyLinked.monthKey!==monthKey||!monthlyLinked.ready||Boolean(monthlyLinked.error)
-    ?null:calculateMonthlyActivityAchievement(selectedActivity,monthlyScope,monthlyLinked.rows),
-    [selectedActivity,monthlyScope,monthlyLinked,monthKey])
+    ?null:calculateMonthlyActivityAchievement(selectedActivity,monthlyScope,monthlyLinked.rows,monthly),
+    [selectedActivity,monthlyScope,monthlyLinked,monthKey,monthly])
 
   const activityNames=useMemo(()=>[...new Set([...monthlyScope.map(x=>x.activity),...dailyScope.map(x=>x.activity),...actualScope.map(x=>x.activity)].filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[monthlyScope,dailyScope,actualScope])
   const dayMatrixRows=useMemo(()=>activityNames.map(activityName=>({activity:activityName,days:selectedDays.map(date=>({date,plan:dailyScope.filter(x=>x.activity===activityName&&x.date===date).reduce((sum,x)=>sum+x.areaHa,0),actual:actualScope.filter(x=>x.activity===activityName&&x.date===date).reduce((sum,x)=>sum+x.actualAreaHa,0)}))})),[activityNames,selectedDays,dailyScope,actualScope])
