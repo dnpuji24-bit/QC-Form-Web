@@ -65,8 +65,8 @@ export default function PortalRouter(){
   const canData=useMemo(()=>dataUnmAllowed(user),[user])
   const canQc=useMemo(()=>qcAllowed(user),[user])
   const canUsers=user?.role==='owner'
-  const canSummary=canViewAccess(user,'data_plan_summary')
-  const canCalendar=canSummary||canViewAccess(user,'data_plan_daily')||canViewAccess(user,'data_plan_actual')
+  const canSummary=Boolean(user&&canViewAccess(user,'data_plan_summary'))
+  const canCalendar=Boolean(user&&(canSummary||canViewAccess(user,'data_plan_daily')||canViewAccess(user,'data_plan_actual')))
   if(!loggedIn||!user)return null
 
   function choose(next:PortalMode){
