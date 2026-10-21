@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { collection, doc, getDoc, getDocs, query as fsQuery, serverTimestamp, setDoc, where, writeBatch } from 'firebase/firestore'
+import { collection, doc, getDoc, query as fsQuery, serverTimestamp, setDoc, where, writeBatch } from 'firebase/firestore'
 import { firebaseAuth, firebaseAuthPersistenceReady, firestoreDb } from './firebase'
 import DailyActionIcon from './DailyPlanActionIcon'
 import { actualPlansToWhatsApp } from './actualPlanActions'
@@ -9,6 +9,7 @@ import { loadAllOperationalResources } from './masterOperationalResources'
 import type { User } from './types'
 import { canEditAccess } from './accessControl'
 import YinYangRefreshButton from './YinYangRefreshButton'
+import { getPlanDocsWithCache } from './planOfflineReads'
 
 type Props={
   user:User
@@ -55,7 +56,7 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
   const initial={...storedInitial,date:selectedDate||storedInitial.date}
   const[daily,setDaily]=useState<Daily[]>([]),[actuals,setActuals]=useState<ActualRef[]>([])
   const[resourceUnits,setResourceUnits]=useState<string[]>([]),[resourceForemen,setResourceForemen]=useState<string[]>([])
-  const[state,setState]=useState<DraftState>(initial),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[draggingId,setDraggingId]=useState(''),[persistedEdit,setPersistedEdit]=useState<PersistedEditContext|null>(null)
+  const[state,setState]=useState<DraftState>(initial),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[draggingId,setDraggingId]=useState(''),[persistedEdit,setPersistedEdit]=useState<PersistedEditContext|null>(()=>readPlanDraft<PersistedEditContext|null>(draftKey+'_saved_edit',null))
   const saveFeedbackRef=useRef<HTMLDivElement|null>(null),prefillHandledRef=useRef('')
 
   async function load(date=state.date){
@@ -63,8 +64,8 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
     setBusy(true)
     try{
       const[d,a]=await Promise.all([
-        getDocs(fsQuery(collection(firestoreDb,'daily_plans'),where('date','==',date))),
-        getDocs(fsQuery(collection(firestoreDb,'daily_reports'),where('date','==',date))),
+        getPlanDocsWithCache(fsQuery(collection(firestoreDb,'daily_plans'),where('date','==',date))),
+        getPlanDocsWithCache(fsQuery(collection(firestoreDb,'daily_reports'),where('date','==',date))),
       ])
       setDaily(d.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,dailyPlanId:planText(r.dailyPlanId||x.id),date:planText(r.date),shift:planText(r.shift),monthlyPlanLineId:planText(r.monthlyPlanLineId),sourceType:planText(r.sourceType),companyCode:planText(r.companyCode),farm:planText(r.farm),pid:planText(r.pid),activity:planText(r.activity),description:planText(r.description),areaHa:planNum(r.areaHa),manpower:planNum(r.manpower),unitName:planText(r.unitName),unitReady:planNum(r.unitReady),unitStandby:planNum(r.unitStandby),unitBreakdown:planNum(r.unitBreakdown),foreman:planText(r.foreman),notes:planText(r.notes),componentsSnapshot:Array.isArray(r.componentsSnapshot)?r.componentsSnapshot:[],materials:materialsFromData(r.materials)}}).sort((a,b)=>a.shift.localeCompare(b.shift,undefined,{numeric:true})||a.dailyPlanId.localeCompare(b.dailyPlanId,undefined,{numeric:true})))
       setActuals(a.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,actualReportId:planText(r.actualReportId||x.id),dailyPlanId:planText(r.dailyPlanId),date:planText(r.date),actualAreaHa:planNum(r.actualAreaHa),planningOrder:planNum(r.planningOrder),workGroupId:planText(r.workGroupId)}}))
@@ -74,6 +75,7 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
   useEffect(()=>{void load(state.date);onDateChange?.(state.date)},[state.date])
   useEffect(()=>{if(selectedDate&&selectedDate!==state.date)setState(current=>({...current,date:selectedDate}))},[selectedDate])
   useEffect(()=>{writePlanDraft(draftKey,state)},[state,draftKey])
+  useEffect(()=>{if(persistedEdit)writePlanDraft(draftKey+'_saved_edit',persistedEdit);else clearPlanDraft(draftKey+'_saved_edit')},[persistedEdit,draftKey])
 
   const actualByDaily=useMemo(()=>{const map=new Map<string,number>();actuals.forEach(row=>{if(row.dailyPlanId)map.set(row.dailyPlanId,(map.get(row.dailyPlanId)||0)+row.actualAreaHa)});return map},[actuals])
   const openDaily=useMemo(()=>daily.filter(row=>(actualByDaily.get(row.dailyPlanId)||0)<row.areaHa-0.0001),[daily,actualByDaily])
@@ -148,6 +150,7 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
   async function copyWa(infos=draftInfos){if(!infos.length){setMessage('Belum ada Draft Actual untuk disalin ke WhatsApp.');return}const wa=actualPlansToWhatsApp(draftTransfers(infos));try{await navigator.clipboard.writeText(wa);setMessage('Draft Actual disalin ke clipboard. Tinggal paste ke WhatsApp.')}catch{window.prompt('Salin Actual berikut:',wa)}}
 
   async function savePersistedEdit(e:FormEvent){
+    if(!navigator.onLine){e.preventDefault();showSaveFeedback('Offline: perubahan tetap tersimpan di draft perangkat. Simpan Perubahan setelah internet kembali; belum terkirim ke Firestore.');return}
     e.preventDefault();if(!persistedEdit)return
     const error=validateInfo(activeInfo);if(error){setMessage(error);return}
     if(activeInfo.area>activeInfo.remaining+0.0001&&!window.confirm('Actual melebihi sisa Daily Plan. Tetap simpan perubahan?'))return
@@ -161,6 +164,7 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
   }
 
   async function saveAll(){
+    if(!navigator.onLine){showSaveFeedback('Offline: draft tetap tersimpan di perangkat. Simpan Semua saat online untuk sinkronisasi Firestore.');return}
     if(!draftInfos.length){showSaveFeedback('Belum ada Draft Actual yang akan disimpan. Klik Simpan ke Draft terlebih dahulu.');return}
     for(const info of draftInfos){const error=validateInfo(info);if(error){showSaveFeedback('Periksa draft '+(info.selected?.pid||'-')+': '+error);return}}
     const over=draftInfos.filter(info=>info.area>info.remaining+0.0001)
@@ -169,7 +173,7 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
     if(duplicates.length&&!window.confirm('Ada Daily Plan yang dipilih lebih dari sekali dalam Draft Actual. Tetap simpan sebagai record terpisah?'))return
     setBusy(true);showSaveFeedback('Menyimpan '+draftInfos.length+' Actual dari Draft…')
     try{
-      const{db,username}=await writer(user),existingSnap=await getDocs(fsQuery(collection(db,'daily_reports'),where('date','==',state.date))),prefix='AR-'+state.date.replaceAll('-','')+'-'
+      const{db,username}=await writer(user),existingSnap=await getPlanDocsWithCache(fsQuery(collection(db,'daily_reports'),where('date','==',state.date))),prefix='AR-'+state.date.replaceAll('-','')+'-'
       let seq=existingSnap.docs.map(item=>{const r=item.data() as Record<string,unknown>,id=planText(r.actualReportId||item.id);return id.startsWith(prefix)?Number(id.slice(prefix.length)):0}).filter(Number.isFinite).reduce((m,x)=>Math.max(m,x),0)
       const batch=writeBatch(db),created:ActualRef[]=[]
       for(const info of draftInfos){
