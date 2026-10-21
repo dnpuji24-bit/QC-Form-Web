@@ -3,7 +3,7 @@ import { collection, getDocs, query as fsQuery, where } from 'firebase/firestore
 import { firestoreDb } from './firebase'
 import YinYangRefreshButton from './YinYangRefreshButton'
 import { exportAllPlanSummary } from './planSummaryExcelExport'
-import { activityMatchKey, aggregateActivityShares, calculateActivityAchievement, type ActivityAchievement } from './activityAchievement'
+import { aggregateActivityShares, calculateActivityAchievement, type ActivityAchievement } from './activityAchievement'
 
 type JobType='ALL'|'SPRAY'|'FERTILIZER'
 type ActivityBasis='ACTUAL'|'PLAN'
@@ -219,7 +219,7 @@ export default function PlanSummaryDashboard(){
   const monthlyActual=linkedMonthlyActual+manualActual
   const activityPieRows=useMemo<ActivityPieRow[]>(()=>aggregateActivityShares(activityBasis==='ACTUAL'
     ?actualScope.map(row=>({activity:row.activity||'Tanpa Activity',value:row.actualAreaHa}))
-    :dailyScope.map(row=>({activity:row.activity||'Tanpa Activity',value:row.areaHa})),[activityBasis,dailyScope,actualScope])
+    :dailyScope.map(row=>({activity:row.activity||'Tanpa Activity',value:row.areaHa}))),[activityBasis,dailyScope,actualScope])
   const selectedAchievement=useMemo(()=>selectedActivity===null?null:calculateActivityAchievement(selectedActivity,dailyScope,actualScope),[selectedActivity,dailyScope,actualScope])
 
   const activityNames=useMemo(()=>[...new Set([...monthlyScope.map(x=>x.activity),...dailyScope.map(x=>x.activity),...actualScope.map(x=>x.activity)].filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[monthlyScope,dailyScope,actualScope])
