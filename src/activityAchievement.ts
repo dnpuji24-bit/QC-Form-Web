@@ -46,3 +46,71 @@ export function aggregateActivityShares(
   return [...groups.values()].filter(row=>row.value>0)
     .sort((a,b)=>b.value-a.value||a.activity.localeCompare(b.activity,undefined,{numeric:true}))
 }
+
+/**
+ * Monthly Plan is the sole target source. Actual comes from precisely matched
+ * linked Actual reports plus manual monthly progress (the Monthly Plan list
+ * reconciliation convention). Daily scheduling is never added to the target.
+ */
+export type MonthlyAchievementPlanRow={
+  planLineId:string;pid:string;activity:string;description:string;
+  targetAreaHa:number;manualActualAreaHa:number;cancelled:boolean
+}
+export type MonthlyAchievementActualRow={
+  id:string;monthlyPlanLineId:string;pid:string;activity:string;description:string;actualAreaHa:number
+}
+export type MonthlyActivityAchievement=ActivityAchievement&{
+  manual:number;linked:number;unmatchedActualRecords:number;monthlyPlanLines:number
+}
+function linkKey(value:unknown){
+  return activityMatchKey(value).replace(/[^a-z0-9]/g,'')
+}
+export function calculateMonthlyActivityAchievement(
+  selectedActivity:string,
+  monthlyRows:readonly MonthlyAchievementPlanRow[],
+  linkedActualRows:readonly MonthlyAchievementActualRow[],
+):MonthlyActivityAchievement{
+  const key=activityMatchKey(selectedActivity)
+  const allActive=monthlyRows.filter(row=>!row.cancelled)
+  const selected=allActive.filter(row=>activityMatchKey(row.activity||row.description||'Tanpa Activity')===key)
+  const plan=selected.reduce((sum,row)=>sum+positiveArea(row.targetAreaHa),0)
+  const manual=selected.reduce((sum,row)=>sum+positiveArea(row.manualActualAreaHa),0)
+  // Evaluate each actual once against ALL monthly lines in the scope, not just
+  // the currently selected activity. This prevents assigning an ambiguous PID
+  // and plan-line link to the wrong activity.
+  let linked=0,actualRecords=0,unmatchedActualRecords=0
+  const seenIds=new Set<string>()
+  const selectedSet=new Set(selected)
+  for(const actual of linkedActualRows){
+    if(seenIds.has(actual.id))continue
+    seenIds.add(actual.id)
+    const matches=allActive.filter(row=>linkKey(row.planLineId)===linkKey(actual.monthlyPlanLineId)
+      &&linkKey(row.pid)===linkKey(actual.pid)
+      &&Boolean(linkKey(row.planLineId)&&linkKey(row.pid)))
+    if(!matches.length)continue
+    const matchingLabel=matches.filter(row=>{
+      const desc=linkKey(row.description||row.activity)
+      const actDesc=linkKey(actual.description||actual.activity)
+      return Boolean(desc&&actDesc&&desc===actDesc)
+    })
+    // Same identity rule as Monthly Plan reconciliation: if only one matching
+    // monthly line exists, the explicit link is unambiguous. If multiple lines
+    // share the same identifier and PID, require an exact description match.
+    const candidates=matches.length===1?matches:matchingLabel
+    if(candidates.length!==1){
+      if(matches.some(row=>selectedSet.has(row)))unmatchedActualRecords++
+      continue
+    }
+    if(!selectedSet.has(candidates[0]))continue
+    linked+=positiveArea(actual.actualAreaHa)
+    actualRecords++
+  }
+  const completed=linked+manual
+  return{
+    activity:selectedActivity,plan,actual:completed,
+    percentage:plan>0?completed/plan*100:null,
+    remaining:Math.max(0,plan-completed),over:Math.max(0,completed-plan),
+    planRecords:selected.length,actualRecords,
+    manual,linked,unmatchedActualRecords,monthlyPlanLines:selected.length,
+  }
+}
