@@ -26,6 +26,7 @@ export async function hydrateUserAccess(user:User):Promise<User>{
     return{...user,firebaseUid:current.uid,permissions}
   }catch(error){
     console.info('Hak akses role Firestore belum dapat di-hydrate; memakai default role.',error)
-    return{...user,permissions:undefined}
+    // A connectivity failure must not widen access by dropping previously cached permissions.
+    return user
   }
 }
