@@ -5,6 +5,7 @@ import DailyPlanWebEntryPanel from './DailyPlanWebEntryPanel'
 import type { DailyComposerRequest } from './dailyPlanWorkspaceTypes'
 import type { User } from './types'
 import { canEditAccess, canViewAccess } from './accessControl'
+import PlanPeriodExcelExport from './PlanPeriodExcelExport'
 
 type Props={user:User;onCopyToActual?:(dailyPlanIds:string[])=>void;jumpRequest?:{date:string;monthlyPlanLineId:string;pid:string}|null}
 type View='plan'|'import'
@@ -24,6 +25,7 @@ export default function DailyPlanWorkspace({user,onCopyToActual,jumpRequest}:Pro
       {canPlan&&<button type="button" className={view==='plan'?'active':''} onClick={()=>setView('plan')}>Daily per Tanggal</button>}
       {canImport&&<button type="button" className={view==='import'?'active':''} onClick={()=>setView('import')}>Update / Import Excel</button>}
     </div>
+    {(canPlan||canImport)&&<div className="plan-period-export-row"><PlanPeriodExcelExport kind="daily" /></div>
     {view==='plan'?<div className="period-workspace">
       {editPlan&&<DailyPlanWebEntryPanel user={user} selectedDate={selectedDate} onDateChange={setSelectedDate} onSaved={changed} composerRequest={composerRequest} onComposerRequestHandled={()=>setComposerRequest(null)}/>}
       {!editPlan&&<div className="alert">Mode Hanya Lihat: input dan perubahan Daily Plan dinonaktifkan.</div>}
