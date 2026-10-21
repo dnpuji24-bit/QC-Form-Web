@@ -50,8 +50,8 @@ function materials(data:Record<string,unknown>){
  const raw=Array.isArray(data.materials)?data.materials:Array.isArray(data.materialLines)?data.materialLines:[]
  return raw.map(item=>(item&&typeof item==='object'?item:{}) as Record<string,unknown>)
 }
-function first(data:Record<string,unknown>,...names:string[]){
- for(const name of names){if(data[name]!==null&&data[name]!==undefined&&data[name]!=='')return data[name]}
+function first(data:Record<string,unknown>,...names:string[]):string{
+ for(const name of names){if(data[name]!==null&&data[name]!==undefined&&data[name]!=='')return txt(data[name])}
  return''
 }
 const dailyColumns=['Firestore ID','Plan ID','Tanggal','Tahun','Bulan','Shift','Sumber Plan','Status Link Monthly','Monthly Plan Line ID','Work Group ID','Urutan','Activity','Deskripsi','Activity Code','Type','Activity Category','Paddock / PID','Varietas','Company','Farm','Stage','Luas Plan (Ha)','Area Paddock (Ha)','Mandor','HK','Unit','Ready','Standby','Breakdown','Catatan','Catatan PID','Sumber Data','Sumber Perubahan','Link QC / Catatan Tambahan']
@@ -59,7 +59,7 @@ const actualColumns=['Firestore ID','Actual ID','Tanggal','Tahun','Bulan','Shift
 function rowDaily(row:DocRow){
  const d=row.data
  return[
- row.id,first(d,'dailyPlanId', 'sourcePlanIdRaw'),d.date,first(d,'year'),first(d,'monthKey'),first(d,'shift'),first(d,'sourceType'),first(d,'monthlyLinkStatus'),first(d,'monthlyPlanLineId'),first(d,'workGroupId'),first(d,'planningOrder'),first(d,'activity'),first(d,'description'),first(d,'activityCode'),first(d,'type'),first(d,'activityCategory'),
+ row.id,first(d,'dailyPlanId', 'sourcePlanIdRaw'),first(d,'date'),first(d,'year'),first(d,'monthKey'),first(d,'shift'),first(d,'sourceType'),first(d,'monthlyLinkStatus'),first(d,'monthlyPlanLineId'),first(d,'workGroupId'),first(d,'planningOrder'),first(d,'activity'),first(d,'description'),first(d,'activityCode'),first(d,'type'),first(d,'activityCategory'),
  first(d,'pid','paddockRaw'),first(d,'masterVariety'),first(d,'companyCode'),first(d,'farm'),first(d,'stage'),numeric(first(d,'areaHa')),numeric(first(d,'areaPaddockHa')),first(d,'foreman'),numeric(first(d,'manpower')),first(d,'unitName'),numeric(first(d,'unitReady')),numeric(first(d,'unitStandby')),numeric(first(d,'unitBreakdown')),first(d,'notes'),first(d,'pidNotes'),first(d,'sourceOrigin'),first(d,'lastModifiedSource'),first(d,'qcRecordId'),
  ]
 }
