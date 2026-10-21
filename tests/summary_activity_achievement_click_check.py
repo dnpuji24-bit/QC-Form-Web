@@ -1,4 +1,5 @@
 from pathlib import Path
+import subprocess
 root=Path(__file__).resolve().parents[1]
 dashboard=(root/'src/PlanSummaryDashboard.tsx').read_text(encoding='utf-8')
 helper=(root/'src/activityAchievement.ts').read_text(encoding='utf-8')
@@ -69,4 +70,5 @@ for token in [
 ]:
     assert token in dashboard, f'Monthly reconciliation detail missing: {token}'
 assert "getDocs(collection(firestoreDb,'monthly_plans'))" not in dashboard
+subprocess.run(['node',str(root/'tests'/'activity_monthly_achievement_runtime_check.cjs')],check=True)
 print('Clickable Activity composition to reconciled Monthly Plan target vs linked Actual + manual: OK')
