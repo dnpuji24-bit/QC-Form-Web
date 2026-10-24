@@ -1,5 +1,6 @@
 from pathlib import Path
 import re
+import subprocess
 
 root = Path(__file__).resolve().parents[1]
 form = (root / 'src' / 'FertilizerForm.tsx').read_text(encoding='utf-8')
@@ -34,3 +35,20 @@ for token in ['Upload terhenti','90_000']:
 assert 'retryQueuedRecord(record,token)' in app
 assert "uploadInfo.state==='failed'||uploadInfo.state==='queued'" in app
 print('Fertilizer quick-fix check: unit removal, clear-after-draft, and stale upload recovery OK')
+
+resolver=(root/'src'/'qcFertilizerProducts.ts').read_text(encoding='utf-8')
+for token in [
+    "master_materials", "setMasterProducts(", "fertilizerChoices(", "suggestedFertilizerName(",
+    "Jenis Pupuk (Merk Dagang)", "fertilizerChoiceByName(value,fertilizerOptions)",
+    "dosis:choice?String(choice.dosePerHa):f.dosis",
+    "Nama produk belum dapat diverifikasi",
+]:
+    assert token in form, f'Missing fertilizer trade-brand connection: {token}'
+for token in [
+    "product.active", "fertilizerIngredientKey(product.activeIngredient)",
+    "suggestedFertilizerName", "FertilizerChoice", "dosePerHa:component.dosePerHa",
+]:
+    assert token in resolver, f'Missing fertilizer commercial ingredient mapping: {token}'
+assert "matchingPlan.materials.map(m=>m.material)" not in form
+subprocess.run(['node',str(root/'tests'/'fertilizer_product_brand_runtime_check.cjs')],check=True)
+print('Fertilizer trade-brand mapping and multi-brand selection: OK')
