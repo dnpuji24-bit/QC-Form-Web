@@ -28,7 +28,9 @@ for form,name,kind in [(spray,'Spraying','spray'),(fert,'Fertilizer','fertilizer
 
 assert "linkedDailyPlan.materials" in spray
 assert "cardDailyPlan?.materials" in spray
-assert "matchingPlan?.materials.find" in fert
+assert "fertilizerChoices(matchingPlan,masterProducts,productsLoaded)" in fert
+assert "fertilizerChoiceByName(value,fertilizerOptions)" in fert
+assert "jenisPupuk:value,dosis:choice?String(choice.dosePerHa):f.dosis" in fert
 assert "resolveQcDailyPlan(fertDailyPlans" in fert
 assert "pilih pekerjaan yang tersedia dari Daily Plan tanggal aktif" in spray
 assert "pilih pekerjaan yang tersedia dari Daily Plan tanggal aktif" in fert
