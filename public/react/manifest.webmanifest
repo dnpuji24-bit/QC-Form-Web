@@ -1,0 +1,11 @@
+{
+  "name": "QC Form Web React",
+  "short_name": "QC Form",
+  "description": "Quality Control Form untuk Spraying dan Fertilizer",
+  "start_url": "/react/",
+  "scope": "/react/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f172a",
+  "lang": "id"
+}
