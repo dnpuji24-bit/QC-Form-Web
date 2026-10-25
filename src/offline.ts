@@ -96,7 +96,9 @@ async function enqueueInternal(action:QueueAction,record:QcRecord):Promise<Queue
   if(action==='finalizeRecord')items=items.filter(item=>item.record.id!==record.id||!sameOwner(item))
   else items=items.filter(item=>!(item.action===action&&item.record.id===record.id&&sameOwner(item)))
   const item:QueueItem={id:existing?.id||crypto.randomUUID(),action,record:action==='syncRecord'?{...record,firestoreSaveState:'queued'}:record,ownerUsername:existing?.ownerUsername||owner,createdAt:existing?.createdAt||Date.now(),attempts:existing?.attempts||0,lastAttemptAt:existing?.lastAttemptAt,lastError:existing?.lastError,nextAttemptAt:existing?.nextAttemptAt,firestoreSynced:action==='syncRecord'?false:existing?.firestoreSynced}
-  items.push(item);await replaceItems(items);return item
+  if(action==='syncRecord')await putItem(item)
+  else{items.push(item);await replaceItems(items)}
+  return item
 }
 
 async function setFinalizeQueueState(item:QueueItem,state:UploadState,error=''):Promise<QueueItem>{
@@ -197,29 +199,29 @@ async function confirmedFirestoreWrite(record:QcRecord):Promise<boolean>{
 }
 export async function saveRecordFirestoreFirst(token:string,record:QcRecord):Promise<SaveTransportResult>{
   const item=await enqueueInternal('syncRecord',record)
+  // The mandor can leave the form once IndexedDB commits the record.
+  // Remote confirmation is delivered asynchronously through qc:upload-state.
   emitUploadState({...record,saveType:record.saveType==='draft'?'draft_queued':record.saveType,firestoreSaveState:'queued'})
-  if(!navigator.onLine)return{queued:true,firestoreFirst:false,spreadsheetPending:true}
-  try{
-    const mirrored=await confirmedFirestoreWrite(record)
-    if(mirrored){
-      // Mark the queued copy as Firestore-confirmed; no Apps Script request is
-      // awaited by the form. Existing queued record remains retryable.
-      const current=(await allItems()).find(candidate=>candidate.id===item.id)
-      if(current&&current.record.clientRevision===record.clientRevision)await putItem({...current,record:{...current.record,firestoreSaveState:'confirmed'},firestoreSynced:true,lastError:'',nextAttemptAt:0})
-      emitUploadState({...record,firestoreSaveState:'confirmed'})
-      void flushQueue(token).catch(error=>console.info('Sinkronisasi Apps Script tertunda; QC telah dikonfirmasi Firestore.',error))
-      return{queued:false,firestoreFirst:true,spreadsheetPending:true}
-    }
-    console.info('Firestore belum mengonfirmasi penyimpanan; QC tetap di antrean lokal.')
-  }catch(error){
-    console.warn('Firestore write gagal, data QC tetap antrean lokal:',error)
-    const current=(await allItems()).find(candidate=>candidate.id===item.id)
-    if(current&&current.record.clientRevision===record.clientRevision)await putItem({...current,lastError:errorMessage(error),nextAttemptAt:Date.now()+SYNC_RETRY_BASE_MS})
-    emitUploadState({...record,saveType:record.saveType==='draft'?'draft_queued':record.saveType,firestoreSaveState:'queued',firestoreSaveError:errorMessage(error)})
+  if(navigator.onLine){
+    void (async()=>{
+      try{
+        const mirrored=await confirmedFirestoreWrite(record)
+        if(mirrored){
+          const current=(await allItems()).find(candidate=>candidate.id===item.id)
+          if(!current||current.record.clientRevision!==record.clientRevision)return
+          await putItem({...current,record:{...current.record,firestoreSaveState:'confirmed'},firestoreSynced:true,lastError:'',nextAttemptAt:0})
+          emitUploadState({...record,firestoreSaveState:'confirmed'})
+          void flushQueue(token).catch(error=>console.info('Sinkronisasi Apps Script tertunda; QC telah dikonfirmasi Firestore.',error))
+        }else{
+          console.info('Firestore belum mengonfirmasi record QC, antrean lokal tetap disimpan.')
+        }
+      }catch(error){
+        const current=(await allItems()).find(candidate=>candidate.id===item.id)
+        if(current&&current.record.clientRevision===record.clientRevision)await putItem({...current,lastError:errorMessage(error),nextAttemptAt:Date.now()+SYNC_RETRY_BASE_MS})
+        emitUploadState({...record,saveType:record.saveType==='draft'?'draft_queued':record.saveType,firestoreSaveState:'queued',firestoreSaveError:errorMessage(error)})
+      }
+    })().catch(error=>console.warn('Antrean QC tetap disimpan meskipun retry background gagal.',error))
   }
-  // Do NOT fall back to blocking Apps Script sync here: its independent session
-  // can be expired while Firebase is recoverable; queued records are retried.
-  void flushQueue(token).catch(error=>console.info('Antrean QC belum dapat disinkronkan:',error))
   return{queued:true,firestoreFirst:false,spreadsheetPending:true}
 }
 
