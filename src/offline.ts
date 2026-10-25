@@ -1,4 +1,5 @@
 import { qcApi } from './api'
+import { firebaseAuth, firebaseAuthPersistenceReady } from './firebase'
 import { mirrorRecordToFirestore } from './firestoreStore'
 import { openLocalDb, QUEUE_STORE } from './localDb'
 import type { ApiResponse, QcRecord } from './types'
@@ -6,12 +7,15 @@ import type { ApiResponse, QcRecord } from './types'
 export type QueueAction='syncRecord'|'finalizeRecord'
 export type UploadState='ready'|'queued'|'uploading'|'uploaded'|'failed'
 export type SaveTransportResult={queued:boolean;firestoreFirst:boolean;spreadsheetPending:boolean;uploadState?:UploadState}
-type QueueItem={id:string;action:QueueAction;record:QcRecord;createdAt:number;ownerUsername?:string;attempts?:number;lastAttemptAt?:number;lastError?:string;nextAttemptAt?:number}
+type QueueItem={id:string;action:QueueAction;record:QcRecord;createdAt:number;ownerUsername?:string;attempts?:number;lastAttemptAt?:number;lastError?:string;nextAttemptAt?:number;firestoreSynced?:boolean}
 type FlushResult={sent:number;left:number}
 
 const FINALIZE_RETRY_BASE_MS=15_000
 const FINALIZE_RETRY_MAX_MS=5*60_000
 const FINALIZE_WORKERS=1
+const FIRESTORE_CONFIRM_TIMEOUT_MS=7_000
+const SYNC_RETRY_BASE_MS=15_000
+const SYNC_RETRY_MAX_MS=5*60_000
 let activeFlush:Promise<FlushResult>|null=null
 let authPausedToken=''
 const activeFinalizeIds=new Set<string>()
@@ -91,7 +95,7 @@ async function enqueueInternal(action:QueueAction,record:QcRecord):Promise<Queue
   const existing=items.find(item=>item.action===action&&item.record.id===record.id&&sameOwner(item))
   if(action==='finalizeRecord')items=items.filter(item=>item.record.id!==record.id||!sameOwner(item))
   else items=items.filter(item=>!(item.action===action&&item.record.id===record.id&&sameOwner(item)))
-  const item:QueueItem={id:existing?.id||crypto.randomUUID(),action,record,ownerUsername:existing?.ownerUsername||owner,createdAt:existing?.createdAt||Date.now(),attempts:existing?.attempts||0,lastAttemptAt:existing?.lastAttemptAt,lastError:existing?.lastError,nextAttemptAt:existing?.nextAttemptAt}
+  const item:QueueItem={id:existing?.id||crypto.randomUUID(),action,record,ownerUsername:existing?.ownerUsername||owner,createdAt:existing?.createdAt||Date.now(),attempts:existing?.attempts||0,lastAttemptAt:existing?.lastAttemptAt,lastError:existing?.lastError,nextAttemptAt:existing?.nextAttemptAt,firestoreSynced:action==='syncRecord'?false:existing?.firestoreSynced}
   items.push(item);await replaceItems(items);return item
 }
 
@@ -176,15 +180,47 @@ export async function retryQueuedRecord(recordOrId:QcRecord|string,token:string)
   manualRetryLocks.set(recordId,task)
   try{return await task}finally{if(manualRetryLocks.get(recordId)===task)manualRetryLocks.delete(recordId)}
 }
+// Durable local write comes BEFORE any network attempt. Never block a mandor's
+// Save button on an expired Apps Script token, nor claim Firestore success until
+// the SDK confirms the server write. Timeout keeps the record safely in IndexedDB.
+async function confirmedFirestoreWrite(record:QcRecord):Promise<boolean>{
+  await firebaseAuthPersistenceReady
+  if(!firebaseAuth)return false
+  if(typeof firebaseAuth.authStateReady==='function')await firebaseAuth.authStateReady()
+  if(!firebaseAuth.currentUser)return false
+  const write=mirrorRecordToFirestore(record)
+  // Avoid an unhandled rejection if Firestore eventually rejects after the timeout.
+  return await Promise.race([
+    write,
+    new Promise<boolean>(resolve=>window.setTimeout(()=>resolve(false),FIRESTORE_CONFIRM_TIMEOUT_MS)),
+  ])
+}
 export async function saveRecordFirestoreFirst(token:string,record:QcRecord):Promise<SaveTransportResult>{
-  if(!navigator.onLine){await enqueueInternal('syncRecord',record);return{queued:true,firestoreFirst:false,spreadsheetPending:true}}
+  const item=await enqueueInternal('syncRecord',record)
+  emitUploadState({...record,saveType:record.saveType==='draft'?'draft_queued':record.saveType,firestoreSaveState:'queued'})
+  if(!navigator.onLine)return{queued:true,firestoreFirst:false,spreadsheetPending:true}
   try{
-    const mirrored=await mirrorRecordToFirestore(record)
-    if(!mirrored)return sendServerFirst(token,'syncRecord',record)
-    await enqueueInternal('syncRecord',record)
-    void flushQueue(token).catch(error=>console.info('Sinkronisasi Spreadsheet akan dicoba ulang dari antrean.',error))
-    return{queued:false,firestoreFirst:true,spreadsheetPending:true}
-  }catch(error){console.info('Firestore-first tidak tersedia; memakai jalur Apps Script yang aman.',error);return sendServerFirst(token,'syncRecord',record)}
+    const mirrored=await confirmedFirestoreWrite(record)
+    if(mirrored){
+      // Mark the queued copy as Firestore-confirmed; no Apps Script request is
+      // awaited by the form. Existing queued record remains retryable.
+      const current=(await allItems()).find(candidate=>candidate.id===item.id)
+      if(current&&current.record.clientRevision===record.clientRevision)await putItem({...current,firestoreSynced:true,lastError:'',nextAttemptAt:0})
+      emitUploadState({...record,firestoreSaveState:'confirmed'})
+      void flushQueue(token).catch(error=>console.info('Sinkronisasi Apps Script tertunda; QC telah dikonfirmasi Firestore.',error))
+      return{queued:false,firestoreFirst:true,spreadsheetPending:true}
+    }
+    console.info('Firestore belum mengonfirmasi penyimpanan; QC tetap di antrean lokal.')
+  }catch(error){
+    console.warn('Firestore write gagal, data QC tetap antrean lokal:',error)
+    const current=(await allItems()).find(candidate=>candidate.id===item.id)
+    if(current&&current.record.clientRevision===record.clientRevision)await putItem({...current,lastError:errorMessage(error),nextAttemptAt:Date.now()+SYNC_RETRY_BASE_MS})
+    emitUploadState({...record,saveType:record.saveType==='draft'?'draft_queued':record.saveType,firestoreSaveState:'queued',firestoreSaveError:errorMessage(error)})
+  }
+  // Do NOT fall back to blocking Apps Script sync here: its independent session
+  // can be expired while Firebase is recoverable; queued records are retried.
+  void flushQueue(token).catch(error=>console.info('Antrean QC belum dapat disinkronkan:',error))
+  return{queued:true,firestoreFirst:false,spreadsheetPending:true}
 }
 
 export async function saveDraftFirestoreFirst(token:string,record:QcRecord):Promise<SaveTransportResult>{return saveRecordFirestoreFirst(token,record)}
@@ -201,10 +237,39 @@ async function flushQueueInternal(token:string):Promise<FlushResult>{
   let sent=0
   const finalizeItems=items.filter(item=>item.action==='finalizeRecord'),syncItems=items.filter(item=>item.action!=='finalizeRecord')
   sent+=await runFinalizeWorkers(token,finalizeItems)
-  for(const original of syncItems){try{const server=await qcApi.syncRecord(token,original.record);await mirrorAfterServerSave(original.action,original.record,server);await removeItem(original.id);sent++}catch(error){if(isAuthError(error))throw error;await putItem({...original,ownerUsername:original.ownerUsername||String(original.record.inputtedBy||username).toLowerCase(),lastAttemptAt:Date.now(),attempts:Number(original.attempts||0)+1,lastError:errorMessage(error)})}}
+  for(const original of syncItems){
+    if(original.nextAttemptAt&&original.nextAttemptAt>Date.now())continue
+    try{
+      if(!original.firestoreSynced){
+        const confirmed=await confirmedFirestoreWrite(original.record)
+        if(!confirmed)continue
+        // A newer edited revision must never be marked as confirmed by an
+        // older in-flight upload.
+        const current=(await allItems()).find(item=>item.id===original.id)
+        if(!current||current.record.clientRevision!==original.record.clientRevision)continue
+        await putItem({...current,firestoreSynced:true,lastError:'',nextAttemptAt:0})
+        emitUploadState({...original.record,firestoreSaveState:'confirmed'})
+      }
+      if(!token)continue
+      // The Firestore record is already authoritative. A failed Apps Script
+      // mirror should not make the mandor repeat the QC input.
+      const server=await qcApi.syncRecord(token,original.record)
+      await mirrorAfterServerSave(original.action,original.record,server)
+      const current=(await allItems()).find(item=>item.id===original.id)
+      if(current&&current.record.clientRevision===original.record.clientRevision)await removeItem(original.id)
+      sent++
+    }catch(error){
+      const current=(await allItems()).find(item=>item.id===original.id)
+      if(current&&current.record.clientRevision===original.record.clientRevision){
+        const attempts=Number(current.attempts||0)+1
+        await putItem({...current,ownerUsername:current.ownerUsername||String(current.record.inputtedBy||username).toLowerCase(),lastAttemptAt:Date.now(),attempts,lastError:errorMessage(error),nextAttemptAt:Date.now()+Math.min(SYNC_RETRY_MAX_MS,SYNC_RETRY_BASE_MS*2**Math.max(0,attempts-1))})
+      }
+      if(isAuthError(error))throw error
+    }
+  }
   return{sent,left:await queueCount()}
 }
 
 export async function flushQueue(token:string):Promise<FlushResult>{if(activeFlush)return activeFlush;activeFlush=flushQueueInternal(token).finally(()=>{activeFlush=null});return activeFlush}
-async function autoFlushQueue(){if(typeof window==='undefined'||!navigator.onLine)return;const token=localStorage.getItem('qc_token')||sessionStorage.getItem('qc_token')||'';if(!token||token===authPausedToken)return;try{await flushQueue(token)}catch(error){if(isAuthError(error))authPausedToken=token;else console.info('Auto flush antrean tertunda.',error)}}
+async function autoFlushQueue(){if(typeof window==='undefined'||!navigator.onLine)return;const token=localStorage.getItem('qc_token')||sessionStorage.getItem('qc_token')||'';if(token===authPausedToken)return;try{await flushQueue(token)}catch(error){if(isAuthError(error))authPausedToken=token;else console.info('Auto flush antrean tertunda.',error)}}
 if(typeof window!=='undefined'){window.addEventListener('online',()=>{void autoFlushQueue()});window.setInterval(()=>{void autoFlushQueue()},15_000)}
