@@ -1,4 +1,4 @@
-import { collection, getDocs } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
 import type { AccountChangeRequest, ApiResponse, MasterData, QcRecord, User } from './types'
 import { firebaseAuth, firestoreDb } from './firebase'
 import { mirrorRecordToFirestore, removeRecordFromFirestore } from './firestoreStore'
@@ -48,7 +48,14 @@ export async function api<T = unknown>(action: string, token = '', data: Record<
 async function recordsFirestoreFirst(token:string):Promise<ApiResponse<QcRecord[]>>{
   if(firestoreDb&&firebaseAuth?.currentUser){
     try{
-      const snapshot=await getDocs(collection(firestoreDb,'qc_records'))
+      await firebaseAuth.authStateReady()
+      const current=firebaseAuth.currentUser
+      if(!current)throw new Error('Login Firebase belum dipulihkan.')
+      const profile=await getDoc(doc(firestoreDb,'users',current.uid))
+      const role=String(profile.data()?.role||'')
+      const owner=String(profile.data()?.username||'')
+      const source=role.startsWith('mandor_')?query(collection(firestoreDb,'qc_records'),where('inputtedBy','==',owner)):collection(firestoreDb,'qc_records')
+      const snapshot=await getDocs(source)
       const records=snapshot.docs.map(item=>({id:item.id,...item.data()}) as QcRecord)
       records.sort((a,b)=>String(b.createdAt||b.date||'').localeCompare(String(a.createdAt||a.date||'')))
       return{ok:true,data:records,records}
