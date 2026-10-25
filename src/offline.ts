@@ -48,7 +48,7 @@ async function replaceItems(items:QueueItem[]):Promise<void>{
 
 async function putItem(item:QueueItem):Promise<void>{
   const db=await openLocalDb()
-  try{await new Promise<void>((resolve,reject)=>{const tx=db.transaction(QUEUE_STORE,'readwrite'),r=tx.objectStore(QUEUE_STORE).put(item);r.onsuccess=()=>resolve();r.onerror=()=>reject(r.error)})}
+  try{await new Promise<void>((resolve,reject)=>{const tx=db.transaction(QUEUE_STORE,'readwrite');tx.objectStore(QUEUE_STORE).put(item);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error)})}
   finally{db.close()}
 }
 
@@ -95,7 +95,7 @@ async function enqueueInternal(action:QueueAction,record:QcRecord):Promise<Queue
   const existing=items.find(item=>item.action===action&&item.record.id===record.id&&sameOwner(item))
   if(action==='finalizeRecord')items=items.filter(item=>item.record.id!==record.id||!sameOwner(item))
   else items=items.filter(item=>!(item.action===action&&item.record.id===record.id&&sameOwner(item)))
-  const item:QueueItem={id:existing?.id||crypto.randomUUID(),action,record,ownerUsername:existing?.ownerUsername||owner,createdAt:existing?.createdAt||Date.now(),attempts:existing?.attempts||0,lastAttemptAt:existing?.lastAttemptAt,lastError:existing?.lastError,nextAttemptAt:existing?.nextAttemptAt,firestoreSynced:action==='syncRecord'?false:existing?.firestoreSynced}
+  const item:QueueItem={id:existing?.id||crypto.randomUUID(),action,record:action==='syncRecord'?{...record,firestoreSaveState:'queued'}:record,ownerUsername:existing?.ownerUsername||owner,createdAt:existing?.createdAt||Date.now(),attempts:existing?.attempts||0,lastAttemptAt:existing?.lastAttemptAt,lastError:existing?.lastError,nextAttemptAt:existing?.nextAttemptAt,firestoreSynced:action==='syncRecord'?false:existing?.firestoreSynced}
   items.push(item);await replaceItems(items);return item
 }
 
@@ -205,7 +205,7 @@ export async function saveRecordFirestoreFirst(token:string,record:QcRecord):Pro
       // Mark the queued copy as Firestore-confirmed; no Apps Script request is
       // awaited by the form. Existing queued record remains retryable.
       const current=(await allItems()).find(candidate=>candidate.id===item.id)
-      if(current&&current.record.clientRevision===record.clientRevision)await putItem({...current,firestoreSynced:true,lastError:'',nextAttemptAt:0})
+      if(current&&current.record.clientRevision===record.clientRevision)await putItem({...current,record:{...current.record,firestoreSaveState:'confirmed'},firestoreSynced:true,lastError:'',nextAttemptAt:0})
       emitUploadState({...record,firestoreSaveState:'confirmed'})
       void flushQueue(token).catch(error=>console.info('Sinkronisasi Apps Script tertunda; QC telah dikonfirmasi Firestore.',error))
       return{queued:false,firestoreFirst:true,spreadsheetPending:true}
@@ -236,7 +236,6 @@ async function flushQueueInternal(token:string):Promise<FlushResult>{
   if(!navigator.onLine)return{sent:0,left:items.length}
   let sent=0
   const finalizeItems=items.filter(item=>item.action==='finalizeRecord'),syncItems=items.filter(item=>item.action!=='finalizeRecord')
-  sent+=await runFinalizeWorkers(token,finalizeItems)
   for(const original of syncItems){
     if(original.nextAttemptAt&&original.nextAttemptAt>Date.now())continue
     try{
@@ -247,7 +246,7 @@ async function flushQueueInternal(token:string):Promise<FlushResult>{
         // older in-flight upload.
         const current=(await allItems()).find(item=>item.id===original.id)
         if(!current||current.record.clientRevision!==original.record.clientRevision)continue
-        await putItem({...current,firestoreSynced:true,lastError:'',nextAttemptAt:0})
+        await putItem({...current,record:{...current.record,firestoreSaveState:'confirmed'},firestoreSynced:true,lastError:'',nextAttemptAt:0})
         emitUploadState({...original.record,firestoreSaveState:'confirmed'})
       }
       if(!token)continue
@@ -267,6 +266,7 @@ async function flushQueueInternal(token:string):Promise<FlushResult>{
       if(isAuthError(error))throw error
     }
   }
+  sent+=await runFinalizeWorkers(token,finalizeItems)
   return{sent,left:await queueCount()}
 }
 
