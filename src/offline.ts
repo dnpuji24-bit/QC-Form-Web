@@ -107,11 +107,11 @@ async function setFinalizeQueueState(item:QueueItem,state:UploadState,error=''):
   const nextAttemptAt=state==='failed'?Date.now()+retryDelayMs(attemptCount):state==='uploading'?undefined:item.nextAttemptAt
   if(state==='failed'&&nextAttemptAt)record={...record,uploadNextRetryAt:new Date(nextAttemptAt).toISOString()}
   const next:QueueItem={...item,ownerUsername:item.ownerUsername||String(record.inputtedBy||currentUsername()||'').toLowerCase(),record,attempts:attemptCount,lastAttemptAt:state==='uploading'?Date.now():item.lastAttemptAt,lastError:error,nextAttemptAt}
-  await putItem(next);void mirrorSafely(record,`Status upload ${state} belum dapat dimirror ke Firestore.`);emitUploadState(record);return next
+  await putItem(next);emitUploadState(record);return next
 }
 
 function interruptedUploading(item:QueueItem){return item.action==='finalizeRecord'&&String(item.record.uploadState||'')==='uploading'&&!activeFinalizeIds.has(item.record.id)}
-async function recoverInterruptedItem(item:QueueItem):Promise<QueueItem>{if(!interruptedUploading(item))return item;const recovered=uploadRecord(item.record,'queued'),next:QueueItem={...item,record:recovered,lastError:'',nextAttemptAt:0};await putItem(next);void mirrorSafely(recovered,'Status upload terputus belum dapat dikembalikan ke antrean di Firestore.');emitUploadState(recovered);return next}
+async function recoverInterruptedItem(item:QueueItem):Promise<QueueItem>{if(!interruptedUploading(item))return item;const recovered=uploadRecord(item.record,'queued'),next:QueueItem={...item,record:recovered,lastError:'',nextAttemptAt:0};await putItem(next);emitUploadState(recovered);return next}
 async function recoverInterruptedUploads(items:QueueItem[]):Promise<QueueItem[]>{const recovered:QueueItem[]=[];for(const item of items)recovered.push(await recoverInterruptedItem(item));return recovered}
 
 async function attemptFinalize(token:string,item:QueueItem,ignoreBackoff=false):Promise<SaveTransportResult>{
@@ -138,7 +138,7 @@ function kickQueue(token:string){void flushQueue(token).then(()=>flushQueue(toke
 
 async function sendFinalizeStateMachine(token:string,record:QcRecord):Promise<SaveTransportResult>{
   const queued=uploadRecord(record,'queued')
-  await enqueueInternal('finalizeRecord',queued);void mirrorSafely(queued,'Status upload queued belum dapat dimirror ke Firestore.');emitUploadState(queued)
+  await enqueueInternal('finalizeRecord',queued);emitUploadState(queued)
   if(navigator.onLine)kickQueue(token)
   return{queued:true,firestoreFirst:false,spreadsheetPending:true,uploadState:'queued'}
 }
@@ -173,7 +173,7 @@ export async function retryQueuedRecord(recordOrId:QcRecord|string,token:string)
     if(!item)return false
     item=await recoverInterruptedItem(item)
     const queued=uploadRecord(item.record,'queued');item={...item,ownerUsername:item.ownerUsername||String(item.record.inputtedBy||currentUsername()||'').toLowerCase(),record:queued,lastError:'',nextAttemptAt:0}
-    await putItem(item);void mirrorSafely(queued,'Status retry upload belum dapat dimirror ke Firestore.');emitUploadState(queued)
+    await putItem(item);emitUploadState(queued)
     if(!navigator.onLine||activeFinalizeIds.has(recordId))return true
     const result=await attemptFinalize(token,item,true)
     if(result.uploadState==='failed'){const latest=await findFinalizeItem(recordId);if(latest)emitUploadState(latest.record)}
