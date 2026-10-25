@@ -11,7 +11,11 @@ assert "Sesi lokal dipertahankan" in app
 assert "if(authSessionFailure(error)){" in app
 assert "setSessionNeedsVerification(true)" in app
 assert "if(authSessionFailure(error)){clearSession()" not in app
-assert "onClick={()=>void logout()}>Login Ulang" in app
+assert "onClick={()=>setReloginOpen(open=>!open)}>Perbarui sesi tanpa keluar" in app
+assert "async function renewScriptSession(" in app
+assert "qcApi.login(user.username,password)" in app
+assert "onClick={()=>void logout()} aria-label=" in app
+assert "setReloginOpen(false)" in app
 assert "catch{clearSession()}" not in app
 assert "browserLocalPersistence" in fb
 assert "persistentLocalCache" in fb
