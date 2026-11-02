@@ -1,0 +1,59 @@
+name: Keep React Test Preview Available
+
+# Firebase preview URLs expire (maximum 30 days). GitHub schedules only run
+# from the default branch, so this workflow lives on main but explicitly builds
+# the React migration branch. This only deploys Hosting, not Firestore rules.
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  refresh-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout React migration application
+        uses: actions/checkout@v4
+        with:
+          ref: migrate/react-typescript-vite
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Check TypeScript
+        run: npm run typecheck
+
+      - name: Build React for Firebase Hosting
+        env:
+          VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: '${{ vars.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY }}'
+        run: |
+          test -n "$VITE_RECAPTCHA_ENTERPRISE_SITE_KEY"
+          npm run build
+          test -f public/react/index.html
+          test -f public/react/sw.js
+
+      - name: Refresh Firebase Hosting preview (30 days)
+        id: preview
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_FORM_QC_UNM }}'
+          projectId: form-qc-unm
+          channelId: react-test
+          expires: 30d
+
+      - name: Report current preview URL
+        run: |
+          echo "### React Preview URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ steps.preview.outputs.details_url }}/react/" >> "$GITHUB_STEP_SUMMARY"
