@@ -78,7 +78,9 @@ jobs:
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_FORM_QC_UNM }}'
           projectId: form-qc-unm
           channelId: react-test
-          expires: 7d
+          # Preview channels expire. Use Firebase's maximum TTL to reduce unexpected downtime.
+          # Permanent operational access should eventually use a live Hosting URL.
+          expires: 30d
 
       - name: Clean up Firebase service account file
         if: always()
