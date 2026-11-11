@@ -15,17 +15,21 @@ bash scripts/run-photo-rules-emulator.sh
 
 This uses the existing dedicated `scripts/firebase.photo-emulator.json` and rules in `scripts/firestore.photo-emulator.rules`. `npx firebase-tools emulators:exec` starts and stops the emulator automatically. Java must be installed. Do NOT run `firebase deploy`.
 
-Expected result: `SUCCESS: 30 Firestore Client Security Rules checks passed (emulator only).` Count is derived from test cases; look for `Script exited successfully (code 0)` too. If a test fails, send the **error log only** (no credentials or tokens). The earlier Admin SDK metadata tests can be rerun with `bash scripts/run-photo-metadata-emulator.sh`.
+Expected result: `SUCCESS: 36 Firestore Client Security Rules checks passed (emulator only).` Count is derived from test cases; look for `Script exited successfully (code 0)` too. If a test fails, send the **error log only** (no credentials or tokens). The earlier Admin SDK metadata tests can be rerun with `bash scripts/run-photo-metadata-emulator.sh`.
 
-## Test policy design
+## Test policy design (dynamic role permissions)
 
-- Auth user must have `users/{uid}.active=true`; roles are loaded from Firestore profile, not browser-editable claims.
-- Owner/admin/asisten/manager can READ photo metadata of existing QC records.
-- Spray/Fertilizer Mandor can READ only metadata tied to their own QC of matching form type.
-- For CREATE, user must be active, match the QC owner Firebase UID, QC inputter username, and current `clientRevision`. Owner, Admin, Asisten or relevant Mandor can create metadata only for their **own** record. Admin cannot impersonate another uploader.
-- Only the private `qc-photos-test` bucket, known photo types, expected content types, and strict owner/QC paths are allowed.
-- The rule disallows UPDATE and DELETE, including by Owner: audit/corrections require a separate privileged workflow.
-- All other collections are DENIED in this dedicated emulator rules config. Seeding of dummy users/QC happens only via rules-disabled emulator test harness.
+The earlier failed run was NOT a valid Security Rules test. The emulator config pointed to `scripts/scripts/firestore.photo-emulator.rules`, which did not exist, causing the emulator to permit all reads/writes by default. The configuration now references `firestore.photo-emulator.rules` relative to the config in `scripts/`, and the runner checks that both files exist.
+
+- Every signed-in user needs `users/{uid}.active=true`.
+- Owner has permanent full access (consistent with the current Owner UI).
+- For all other roles, **Data QC** permission `role_access/{role}.permissions.qc_records` controls whether photo metadata can be read: `view` and `edit` allow; `none` blocks.
+- The `qc_spraying` or `qc_fertilizer` permission controls creation of photo metadata: **Edit** allows; View or None blocks. A user must also be the uploader and the original QC record owner.
+- Mandor remain scoped to their own QC records and correct form type even with permissions.
+- The suite changes Admin's Data QC permission to None and restores it, and changes a Mandor's Spraying permission from Edit to View and back. It verifies the rules respond to permission changes without new deployments.
+- Photo ID, record revision, private bucket and UID path are strictly checked.
+- UPDATE and DELETE of metadata remain denied to all roles: corrections will need an audited privileged workflow.
+- Missing role permission documents/keys deny access rather than granting default access.
 
 ## Security limitations (must resolve before production)
 
