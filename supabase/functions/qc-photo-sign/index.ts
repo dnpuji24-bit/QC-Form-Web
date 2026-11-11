@@ -104,7 +104,7 @@ Deno.serve(async (request:Request)=>{
     const verified=await jwtVerify(jwt,jwks,{audience:projectId,issuer:'https://securetoken.google.com/'+projectId,
       algorithms:['RS256'],clockTolerance:5})
     const uid=verified.payload.sub
-    if(typeof uid!=='string'||!idPattern.test(uid)||!Number.isInteger(verified.payload.auth_time))throw new RequestError(401)
+    if(typeof uid!=='string'||!idPattern.test(uid)||(typeof verified.payload.auth_time !== 'number' || !Number.isInteger(verified.payload.auth_time)))throw new RequestError(401)
     if(!rateLimit(uid))throw new RequestError(429)
     const raw=await request.text()
     if(raw.length>1024)throw new RequestError(413)
