@@ -51,8 +51,7 @@ service cloud.firestore {
     }
     function canReadRecord(recordId) {
       return qcExists(recordId)
-        && canView('qc_records')
-        && allowedRecordScope(recordId);
+        && canView('qc_records');
     }
     function canCreatePhoto(recordId) {
       return qcExists(recordId)
