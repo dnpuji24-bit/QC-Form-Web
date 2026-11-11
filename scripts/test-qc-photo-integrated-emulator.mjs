@@ -11,7 +11,7 @@ import { createQcPhotoSignHandler } from './lib/qcPhotoSignHandler.mjs'
 const projectId = 'demo-qc-photo-test'
 const host = process.env.FIRESTORE_EMULATOR_HOST || ''
 if (process.env.FIREBASE_PROJECT_ID !== projectId || process.env.GCLOUD_PROJECT !== projectId ||
-    !/^(localhost|127\\.0\\.0\\.1):\\d+$/.test(host)) {
+    !/^(localhost|127\.0\.0\.1):\d+$/.test(host)) {
   console.error('SAFETY STOP: emulator-only integration test.')
   process.exit(2)
 }
