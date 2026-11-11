@@ -59,3 +59,12 @@ npm run build
 Manifest rinci disimpan pada `~/qc-migration-private` dengan permission mode 0600. Jangan di-upload ke GitHub; berisi ID QC dan calon UID. Script hanya membaca Firestore dan Firebase Auth, tidak memodifikasi produksi.
 
 **Tanggung jawab selanjutnya:** langsung implementasi jalur QC photo backend dan UI, bukan menambahkan audit identitas lagi. Branch development only sampai seluruh gerbang hijau.
+
+## Progress setelah manifest berhasil (11 November 2026)
+- Cloud Shell pengguna mengonfirmasi manifest lokal berhasil, `writes: 0`, dan `npm run build` lulus (350 modul).
+- Foto historis Drive tetap dipertahankan; tidak memblokir tahap foto baru hanya karena 8 username historis tak cocok.
+- Branch sekarang memuat `src/QcSupabasePhotoViewer.tsx` dan mount preview pada `src/App.tsx`; *off by default* kecuali `VITE_QC_PHOTO_SIGN_PREVIEW=true`. Ini **bukan** fitur produksi aktif.
+- Viewer membaca `qc_photo_metadata/{recordId}/photos` dan meminta URL signed server untuk semua foto dengan izin Data QC view/edit; gambar lama Drive masih ditampilkan.
+- **Gap integrasi yang harus diselesaikan sebelum pengaktifan:** `src/qcSupabasePhotos.ts` masih mematikan upload dan menaruh daftar `supabasePhotoRefs` di parent `qc_records`, sedangkan backend signer + viewer menggunakan metadata subkoleksi. Perlu satu skema tunggal dan uji rules produksi. Tidak boleh mengaktifkan flag sampai gap ditutup dan backend server teruji sungguhan.
+- Ekspor JPG/PDF foto private membutuhkan pemuatan gambar tepat waktu dan pertimbangan CORS; tidak boleh mengklaim ekspor foto Supabase sudah selesai.
+- Tahap berikut adalah menyatukan schema metadata upload → subkoleksi → signed viewer, menjalankan uji emulator end-to-end, baru konfigurasi server hosting. Tidak perlu audit legacy username lagi.
