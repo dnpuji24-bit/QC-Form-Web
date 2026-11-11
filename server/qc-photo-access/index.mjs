@@ -9,6 +9,7 @@ import { getAuth } from 'firebase-admin/auth'
 import { getFirestore } from 'firebase-admin/firestore'
 import { createClient } from '@supabase/supabase-js'
 import { createQcPhotoSignHandler } from '../../scripts/lib/qcPhotoSignHandler.mjs'
+import { createUidLimiter } from '../../scripts/lib/qcPhotoUidLimiter.mjs'
 
 const vars = ['FIREBASE_PROJECT_ID','SUPABASE_URL','SUPABASE_SECRET_KEY','PHOTO_ACCESS_ALLOWED_ORIGIN']
 for (const variable of vars) {
@@ -17,7 +18,7 @@ for (const variable of vars) {
 if (process.env.FIREBASE_PROJECT_ID !== 'form-qc-unm') {
   throw new Error('Unexpected Firebase Project ID; deployment configuration must be reviewed.')
 }
-if (!/^https:\/\/[A-Za-z0-9.-]+\.supabase\.co$/.test(process.env.SUPABASE_URL)) {
+if (process.env.SUPABASE_URL !== 'https://mcfwnstdfhhtcbksgrlj.supabase.co') {
   throw new Error('Expected a HTTPS Supabase project URL.')
 }
 const allowedOrigin = process.env.PHOTO_ACCESS_ALLOWED_ORIGIN
@@ -34,7 +35,7 @@ const signFile = async (bucket, path, seconds) => {
   if (error || !data?.signedUrl) throw new Error('Supabase signing failed')
   return data.signedUrl
 }
-const signHandler = createQcPhotoSignHandler({ auth, db, signFile, allowedOrigin })
+const signHandler = createQcPhotoSignHandler({ auth, db, signFile, allowedOrigin, rateLimit: createUidLimiter() })
 const port = Number(process.env.PORT || 8080)
 const server = http.createServer((request, response) => {
   if (request.url !== '/api/qc-photo/sign') {
@@ -47,6 +48,7 @@ const server = http.createServer((request, response) => {
 })
 server.requestTimeout = 15_000
 server.headersTimeout = 10_000
+server.maxRequestsPerSocket = 100
 server.listen(port, '0.0.0.0', () => {
   // Never log tokens, URLs or user photo paths.
   console.info('QC private photo signing server listening.')
