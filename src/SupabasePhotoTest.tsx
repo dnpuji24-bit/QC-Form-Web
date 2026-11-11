@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth'
 import { firebaseAuth } from './firebase'
+import { enqueuePhotoQa, flushPhotoQaJobs, listPhotoQaJobs } from './supabasePhotoQueueTest'
 
 const url = String(import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '')
 const publishableKey = String(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '')
@@ -31,6 +32,8 @@ export default function SupabasePhotoTest() {
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
+  const [queuedCount, setQueuedCount] = useState<number | null>(null)
+  const [queueError, setQueueError] = useState('')
   const [path, setPath] = useState('')
   const [preview, setPreview] = useState('')
   const [error, setError] = useState('')
@@ -65,6 +68,27 @@ export default function SupabasePhotoTest() {
     setClaim(typeof currentRole === 'string' ? currentRole : '(tidak ada)')
     if (currentRole !== 'authenticated') throw new Error('Firebase token belum memuat custom claim role=authenticated. Refresh login dan periksa claims.')
     return token.token
+  }
+  async function refreshQa() {
+    try { setQueuedCount((await listPhotoQaJobs()).length) }
+    catch (e) { setQueueError(message(e)) }
+  }
+  async function enqueueQa() {
+    if (!file) return
+    setBusy(true); setQueueError('')
+    try { await enqueuePhotoQa(file); await refreshQa(); setStatus('Foto tersimpan di antrean IndexedDB. Belum dikirim ke Supabase.') }
+    catch (e) { setQueueError(message(e)) }
+    finally { setBusy(false) }
+  }
+  async function sendQa() {
+    setBusy(true); setQueueError(''); setStatus('Mengirim antrean foto...')
+    try {
+      const result = await flushPhotoQaJobs()
+      if (result.preview) setPreview(result.preview)
+      await refreshQa()
+      setStatus(`Antrean: ${result.done} foto diverifikasi, ${result.pending} masih menunggu.`)
+    } catch (e) { setQueueError(message(e)); setStatus('Antrean belum terkirim.') }
+    finally { setBusy(false) }
   }
   async function runUpload() {
     if (!url.startsWith('https://') || !publishableKey) { setError('Konfigurasi Supabase testing belum tersedia.'); return }
@@ -131,6 +155,16 @@ export default function SupabasePhotoTest() {
       {error && <p role="alert" style={{ color: '#b91c1c', overflowWrap: 'anywhere' }}>{error}</p>}
       {path && <p><strong>Object path (bukan public URL):</strong> <code style={{ overflowWrap: 'anywhere' }}>{path}</code></p>}
       {preview && <img src={preview} alt="Foto uji yang dibaca kembali dari Supabase" style={{ maxWidth: '100%', maxHeight: 340, display: 'block', borderRadius: 8 }} />}
+      <section style={{ marginTop: 28, borderTop: '2px solid #94a3b8', paddingTop: 16 }}>
+        <h2>Uji antrean offline — tanpa menulis Firestore</h2>
+        <p>Gunakan foto yang dipilih di atas. Tombol pertama menyimpan file di IndexedDB browser; tombol kedua mengirim ke Supabase dan memverifikasi pembacaan private. Coba matikan koneksi sebelum mengirim, lalu hidupkan kembali dan kirim ulang.</p>
+        <p><strong>Antrean akun saat ini:</strong> {queuedCount === null ? 'belum diperiksa' : queuedCount}</p>
+        <button type="button" disabled={busy || !user || !file} onClick={() => { void enqueueQa() }}>1. Simpan Foto ke Antrean Lokal</button>{' '}
+        <button type="button" disabled={busy || !user} onClick={() => { void sendQa() }}>2. Kirim / Retry Antrean</button>{' '}
+        <button type="button" disabled={busy} onClick={() => { void refreshQa() }}>Refresh Status</button>
+        {queueError && <p role="alert" style={{ color: '#b91c1c' }}>{queueError}</p>}
+        <p style={{ fontSize: 13, color: '#475569' }}>Folder yang dipakai hanya <code>UID/queue-tests/</code> di bucket private <code>qc-photos-test</code>; tidak membuat record QC ataupun Actual Plan.</p>
+      </section>
       <p style={{ fontSize: 13, color: '#475569' }}>Uji ini membuat satu object foto baru pada bucket testing setiap kali tombol ditekan. Tidak melakukan update/delete dan belum menyimpan metadata foto ke QC.</p>
     </main>
   )
