@@ -33,7 +33,9 @@ export function createQcPhotoSignHandler({ auth, db, signFile, allowedOrigin }) 
       if (!/^Bearer [A-Za-z0-9_.-]+$/.test(authorization)) throw new AuthError(401)
       // Verify Firebase ID token and revocation on every request. This is NOT a
       // Supabase publishable token, Firebase custom claim or browser-role check.
-      const decoded = await auth.verifyIdToken(authorization.slice(7), true)
+      let decoded
+      try { decoded = await auth.verifyIdToken(authorization.slice(7), true) }
+      catch { throw new AuthError(401) }
       if (!decoded?.uid || !ID.test(decoded.uid)) throw new AuthError(401)
       let raw = ''
       for await (const chunk of request) {
