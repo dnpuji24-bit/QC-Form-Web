@@ -55,7 +55,7 @@ await check('restored permission permits access', {}, 200, 1)
 data['users/reader'].active = false
 await check('inactive Firebase profile denied', {}, 403, 0)
 data['users/reader'].active = true
-await check('revoked Firebase token rejected', { token: 'revoked' }, 500, 0)
+await check('revoked Firebase token rejected', { token: 'revoked' }, 401, 0)
 await check('cross origin request rejected', { origin:'https://evil.example.invalid' }, 403, 0)
 await check('arbitrary object path cannot be requested', { body: { recordId:'qc123', photoId:'photo456', objectPath:'other/file' } }, 400, 0)
 await check('missing metadata rejected', { body: { recordId:'qc123', photoId:'missing' } }, 403, 0)
