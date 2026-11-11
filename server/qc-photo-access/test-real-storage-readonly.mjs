@@ -6,15 +6,27 @@
 import { createClient } from '@supabase/supabase-js'
 const url = process.env.SUPABASE_URL || ''
 const secret = process.env.SUPABASE_SECRET_KEY || ''
-const path = process.env.QC_PHOTO_TEST_OBJECT_PATH || ''
+let path = process.env.QC_PHOTO_TEST_OBJECT_PATH || ''
 const projectUrl = 'https://mcfwnstdfhhtcbksgrlj.supabase.co'
 const validPath = /^[A-Za-z0-9_-]{16,128}\/tests\/[A-Za-z0-9_-]{8,160}\.(jpg|png|webp)$/
 if (url !== projectUrl) throw new Error('Safety stop: unexpected Supabase project URL.')
 if (!secret.startsWith('sb_secret_')) throw new Error('A backend-only Supabase secret key is required.')
-if (!validPath.test(path)) throw new Error('Safety stop: use an existing uid/tests/photoId.jpg/png/webp object path only.')
 const supabase = createClient(url, secret, {
   auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
 })
+if (!path) {
+  // Locate a pre-existing image under any /tests/ folder; do not display names.
+  const { data: roots, error: rootError } = await supabase.storage.from('qc-photos-test').list('', { limit: 100 })
+  if (rootError) throw new Error('Could not list existing private bucket test folders.')
+  for (const root of roots || []) {
+    if (!/^[A-Za-z0-9_-]{16,128}$/.test(root.name)) continue
+    const { data: files, error: fileError } = await supabase.storage.from('qc-photos-test').list(root.name + '/tests', { limit: 100 })
+    if (fileError) continue
+    const match = (files || []).find(item => validPath.test(root.name + '/tests/' + item.name))
+    if (match) { path = root.name + '/tests/' + match.name; break }
+  }
+}
+if (!validPath.test(path)) throw new Error('No existing UID/tests/*.jpg/png/webp photo found. No object was created.')
 const { data, error } = await supabase.storage.from('qc-photos-test').createSignedUrl(path, 60)
 if (error || !data?.signedUrl) throw new Error('Could not sign existing private test photo: ' + (error?.message || 'no URL'))
 const response = await fetch(data.signedUrl, { method: 'GET', cache: 'no-store', signal: AbortSignal.timeout(15000) })
