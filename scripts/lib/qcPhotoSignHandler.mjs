@@ -7,12 +7,14 @@
 import { authorizeQcPhotoRead } from './qcPhotoReadAuthorization.mjs'
 
 const ID = /^[A-Za-z0-9_-]{1,160}$/
-export function createQcPhotoSignHandler({ auth, db, signFile, allowedOrigin }) {
+export function createQcPhotoSignHandler({ auth, db, signFile, allowedOrigin, rateLimit }) {
   if (!auth || !db || typeof signFile !== 'function' || !allowedOrigin) throw new Error('Invalid signing handler dependencies')
   return async function handler(request, response) {
     response.setHeader('Cache-Control', 'no-store')
     response.setHeader('X-Content-Type-Options', 'nosniff')
     response.setHeader('Vary', 'Origin')
+    response.setHeader('Referrer-Policy', 'no-referrer')
+    response.setHeader('Content-Security-Policy', "default-src 'none'")
     const origin = request.headers.origin
     if (origin && origin !== allowedOrigin) {
       response.writeHead(403); response.end(); return
@@ -37,6 +39,8 @@ export function createQcPhotoSignHandler({ auth, db, signFile, allowedOrigin }) 
       try { decoded = await auth.verifyIdToken(authorization.slice(7), true) }
       catch { throw new AuthError(401) }
       if (!decoded?.uid || !ID.test(decoded.uid)) throw new AuthError(401)
+      // Rate limit by verified Firebase UID, never by spoofable headers.
+      if (rateLimit && !rateLimit(decoded.uid)) throw new AuthError(429)
       let raw = ''
       for await (const chunk of request) {
         raw += chunk.toString()
@@ -74,6 +78,7 @@ export function createQcPhotoSignHandler({ auth, db, signFile, allowedOrigin }) 
       response.end(JSON.stringify({ signedUrl, expiresIn: 60 }))
     } catch (error) {
       const code = error instanceof AuthError ? error.status : 500
+      if (code === 429) response.setHeader('Retry-After', '60')
       // Intentionally do not return Firestore paths, UID, token, Supabase errors
       // or details of forbidden resources.
       response.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' })
