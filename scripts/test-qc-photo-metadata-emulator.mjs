@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { initializeApp, applicationDefault } from 'firebase-admin/app'
+import { initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 import { attachQcPhotoMetadata } from './lib/qcPhotoMetadata.mjs'
 
