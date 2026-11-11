@@ -1,4 +1,3 @@
-import assert from 'node:assert/strict'
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing'
 import { collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc } from 'firebase/firestore'
 
@@ -76,7 +75,7 @@ try {
   await deny('cross-UID path rejected', setDoc(ref(db.spray, recordId, 'badpath'), photo(recordId, uid.spray, 'badpath', 'main', { objectPath: `${uid.owner}/qc/${recordId}/badpath.jpg` })))
   await deny('stale revision rejected', setDoc(ref(db.spray, recordId, 'badrev'), photo(recordId, uid.spray, 'badrev', 'main', { recordRevision: 'oldrevision' })))
   await deny('unexpected sensitive field rejected', setDoc(ref(db.spray, recordId, 'badfield'), photo(recordId, uid.spray, 'badfield', 'main', { issueNumber: 'forged' })))
-  await deny('HOLD must have holdId', setDoc(ref(db.spray, recordId, 'badhold'), photo(recordId, uid.spray, 'badhold', 'hold', { holdId: undefined })))
+  await deny('HOLD must have holdId', setDoc(ref(db.spray, recordId, 'badhold'), (({ holdId, ...withoutHoldId }) => withoutHoldId)(photo(recordId, uid.spray, 'badhold', 'hold'))))
   await deny('main cannot inject holdId', setDoc(ref(db.spray, recordId, 'badmain'), photo(recordId, uid.spray, 'badmain', 'main', { holdId: 'hold001' })))
   await deny('no updates after create', updateDoc(ref(db.spray, recordId, 'main001'), { objectPath: `${uid.spray}/qc/${recordId}/different.jpg` }))
   await deny('no deletion', deleteDoc(ref(db.owner, recordId, 'main001')))
