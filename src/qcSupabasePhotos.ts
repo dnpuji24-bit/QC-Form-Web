@@ -7,7 +7,10 @@ import type { QcRecord } from './types'
  * stores only object pointers. Intentionally disabled unless opted in locally.
  * It does NOT replace the existing production Apps Script upload path.
  */
-export const supabaseQcPhotoPreviewEnabled = import.meta.env.VITE_QC_SUPABASE_PHOTO_DUAL_WRITE_TEST === 'true'
+// QC dual-write is NOT safe against the live Firestore database. This feature
+// can only be enabled after an explicitly configured Firestore emulator path.
+// Until the emulator adapter is implemented, fail closed.
+export const supabaseQcPhotoPreviewEnabled = false
 const endpoint = String(import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '')
 const publishableKey = String(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '')
 const bucket = 'qc-photos-test'
