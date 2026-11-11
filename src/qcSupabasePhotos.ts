@@ -1,4 +1,4 @@
-import { doc, getDoc, runTransaction } from 'firebase/firestore'
+import { doc, runTransaction } from 'firebase/firestore'
 import { firebaseAuth, firestoreDb } from './firebase'
 import type { QcRecord } from './types'
 
@@ -59,7 +59,7 @@ async function transact<T>(mode: IDBTransactionMode, op: (store: IDBObjectStore)
     return await new Promise<T>((resolve, reject) => {
       const tx = db.transaction(storeName, mode)
       const req = op(tx.objectStore(storeName))
-      let result: T
+      let result!: T
       req.onsuccess = () => { result = req.result }
       req.onerror = () => reject(req.error)
       tx.oncomplete = () => resolve(result)
