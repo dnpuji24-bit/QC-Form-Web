@@ -5,7 +5,7 @@ const user = { uid: 'firebaseUid001', username: 'mandor01', status: 'APPROVED', 
 const record = { id: 'qc001', inputtedBy: 'MANDOR01', clientRevision: 'rev01' }
 const auth = { state: 'verified', uid: user.uid }
 const cases = [
-  ['good username and Auth match still needs manual provenance', record, [user], auth, 'MANUAL_PROVENANCE_REQUIRED'],
+  ['good username and Auth match still needs manual provenance', record, [user], auth, 'HISTORICAL_AUTHORSHIP_UNVERIFIED'],
   ['missing username', { ...record, inputtedBy: '' }, [user], auth, 'MISSING_USERNAME'],
   ['no matching user', record, [], auth, 'NO_USERNAME_MATCH'],
   ['ambiguous username', record, [user, { ...user, uid: 'otherUid' }], auth, 'AMBIGUOUS_USERNAME'],
