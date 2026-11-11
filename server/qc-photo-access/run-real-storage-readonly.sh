@@ -5,7 +5,7 @@ if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
   echo "Node.js/npm required in Cloud Shell." >&2
   exit 2
 fi
-if [[ "$SUPABASE_SECRET_KEY" != "" ]]; then
+if [[ -v SUPABASE_SECRET_KEY ]]; then
   echo "Safety stop: start with a clean shell; do not export this secret into shell history." >&2
   exit 2
 fi
