@@ -13,6 +13,7 @@ const uid = {
   owner: 'test-owner',
   admin: 'test-admin',
   asisten: 'test-asisten',
+  manager: 'test-manager',
   spray: 'test-spray-mandor',
   fertilizer: 'test-fert-mandor',
   otherSpray: 'test-other-spray',
@@ -20,7 +21,7 @@ const uid = {
   inactive: 'test-inactive',
 }
 const usernames = Object.fromEntries(Object.keys(uid).map(key => [key, 'username_' + key]))
-const role = { owner: 'owner', admin: 'admin', asisten: 'asisten', spray: 'mandor_spraying', fertilizer: 'mandor_fertilizer', otherSpray: 'mandor_spraying', viewer: 'pengunjung', inactive: 'mandor_spraying' }
+const role = { owner: 'owner', admin: 'admin', asisten: 'asisten', manager: 'manager', spray: 'mandor_spraying', fertilizer: 'mandor_fertilizer', otherSpray: 'mandor_spraying', viewer: 'pengunjung', inactive: 'mandor_spraying' }
 const recordId = 'qc-security-spray-001'
 const fertilizerRecordId = 'qc-security-fertilizer-001'
 const rev = 'revision001'
@@ -41,6 +42,18 @@ try {
     for (const key of Object.keys(uid)) {
       await setDoc(doc(db, 'users', uid[key]), { username: usernames[key], role: role[key], active: key !== 'inactive' })
     }
+    const rolePermissions = {
+      owner: { qc_records: 'edit', qc_spraying: 'edit', qc_fertilizer: 'edit' },
+      admin: { qc_records: 'edit', qc_spraying: 'view', qc_fertilizer: 'view' },
+      asisten: { qc_records: 'edit', qc_spraying: 'edit', qc_fertilizer: 'edit' },
+      manager: { qc_records: 'view', qc_spraying: 'view', qc_fertilizer: 'view' },
+      mandor_spraying: { qc_records: 'view', qc_spraying: 'edit', qc_fertilizer: 'none' },
+      mandor_fertilizer: { qc_records: 'view', qc_spraying: 'none', qc_fertilizer: 'edit' },
+      pengunjung: { qc_records: 'none', qc_spraying: 'none', qc_fertilizer: 'none' },
+    }
+    for (const [roleName, permissions] of Object.entries(rolePermissions)) {
+      await setDoc(doc(db, 'role_access', roleName), { role: roleName, permissions })
+    }
     await setDoc(doc(db, 'qc_records', recordId), {
       id: recordId, ownerUid: uid.spray, inputtedBy: usernames.spray,
       clientRevision: rev, formType: 'spray', saveType: 'ready',
@@ -60,12 +73,28 @@ try {
   await pass('owner reads metadata', getDoc(ref(db.owner, recordId, 'main001')))
   await pass('admin reads metadata', getDoc(ref(db.admin, recordId, 'main001')))
   await pass('asisten reads metadata', getDoc(ref(db.asisten, recordId, 'main001')))
+  await pass('manager reads metadata when granted view', getDoc(ref(db.manager, recordId, 'main001')))
   await pass('owner lists photos for QC', getDocs(collection(db.owner, 'qc_photo_metadata', recordId, 'photos')))
   await deny('other mandor cannot read', getDoc(ref(db.otherSpray, recordId, 'main001')))
   await deny('fertilizer mandor cannot read spray', getDoc(ref(db.fertilizer, recordId, 'main001')))
   await deny('viewer has no access', getDoc(ref(db.viewer, recordId, 'main001')))
   await deny('inactive user cannot read', getDoc(ref(db.inactive, recordId, 'main001')))
   await deny('anonymous cannot read', getDoc(ref(anon, recordId, 'main001')))
+  // Owner changes live role configuration: existing users must immediately obey it.
+  await env.withSecurityRulesDisabled(async ctx => {
+    await updateDoc(doc(ctx.firestore(), 'role_access', 'admin'), { 'permissions.qc_records': 'none' })
+    await updateDoc(doc(ctx.firestore(), 'role_access', 'mandor_spraying'), { 'permissions.qc_spraying': 'view' })
+  })
+  await deny('admin loses metadata view after permission revoked', getDoc(ref(db.admin, recordId, 'main001')))
+  await deny('mandor cannot create when spraying changes from edit to view', setDoc(ref(db.spray, recordId, 'revokedcreate'), photo(recordId, uid.spray, 'revokedcreate')))
+  await pass('mandor can still read with Data QC view permission', getDoc(ref(db.spray, recordId, 'main001')))
+  await env.withSecurityRulesDisabled(async ctx => {
+    await updateDoc(doc(ctx.firestore(), 'role_access', 'admin'), { 'permissions.qc_records': 'edit' })
+    await updateDoc(doc(ctx.firestore(), 'role_access', 'mandor_spraying'), { 'permissions.qc_spraying': 'edit' })
+  })
+  await pass('admin can read again after Owner grants permission', getDoc(ref(db.admin, recordId, 'main001')))
+  await pass('mandor can create again after restoring edit permission', setDoc(ref(db.spray, recordId, 'restoredcreate'), photo(recordId, uid.spray, 'restoredcreate')))
+
   await deny('other mandor cannot create on record', setDoc(ref(db.otherSpray, recordId, 'wrong001'), photo(recordId, uid.otherSpray, 'wrong001')))
   await deny('admin cannot forge a mandor photo', setDoc(ref(db.admin, recordId, 'admin001'), photo(recordId, uid.admin, 'admin001')))
   await deny('owner cannot forge a mandor photo', setDoc(ref(db.owner, recordId, 'owner001'), photo(recordId, uid.owner, 'owner001')))
