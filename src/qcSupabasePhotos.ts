@@ -24,7 +24,7 @@ export type SupabasePhotoRef = {
   bucket: string
   objectPath: string
   kind: PhotoKind
-  holdIndex?: number
+  holdId?: string
   contentType: string
   uploadedAt: string
 }
@@ -34,7 +34,7 @@ type QueuedPhoto = {
   ownerUid: string
   recordRevision: string
   kind: PhotoKind
-  holdIndex?: number
+  holdId?: string
   contentType: string
   objectPath: string
   dataUrl: string
@@ -75,12 +75,15 @@ const allQueued = () => transact('readonly', store => store.getAll()).then(rows 
 const putQueued = (job: QueuedPhoto) => transact('readwrite', store => store.put(job))
 const removeQueued = (id: string) => transact('readwrite', store => store.delete(id))
 
-function candidates(record: QcRecord): Array<{ kind: PhotoKind; dataUrl: string; holdIndex?: number }> {
-  const result: Array<{ kind: PhotoKind; dataUrl: string; holdIndex?: number }> = []
+function candidates(record: QcRecord): Array<{ kind: PhotoKind; dataUrl: string; holdId?: string }> {
+  const result: Array<{ kind: PhotoKind; dataUrl: string; holdId?: string }> = []
   if (String(record.photoBase64 || '').startsWith('data:image/')) result.push({ kind: 'main', dataUrl: String(record.photoBase64) })
   if (String(record.scanReportPhotoBase64 || '').startsWith('data:image/')) result.push({ kind: 'scan', dataUrl: String(record.scanReportPhotoBase64) })
-  record.holdIntervals?.forEach((hold, holdIndex) => {
-    if (String(hold.photoBase64 || '').startsWith('data:image/')) result.push({ kind: 'hold', holdIndex, dataUrl: String(hold.photoBase64) })
+  record.holdIntervals?.forEach(hold => {
+    if (String(hold.photoBase64 || '').startsWith('data:image/')) {
+      if (!hold.holdId || !/^[A-Za-z0-9_-]{1,160}$/.test(hold.holdId)) throw new Error('Foto HOLD memerlukan holdId stabil sebelum diantrikan.')
+      result.push({ kind: 'hold', holdId: hold.holdId, dataUrl: String(hold.photoBase64) })
+    }
   })
   return result
 }
@@ -114,13 +117,13 @@ export async function queueQcRecordPhotos(record: QcRecord): Promise<number> {
   for (const photo of inputs) {
     // Validate locally before putting any new data in the queue.
     const { contentType } = decodeImage(photo.dataUrl)
-    const previous = existing.find(job => job.recordRevision === revision && job.kind === photo.kind && job.holdIndex === photo.holdIndex)
+    const previous = existing.find(job => job.recordRevision === revision && job.kind === photo.kind && job.holdId === photo.holdId)
     if (previous) continue
     const photoId = crypto.randomUUID()
     const extension = contentType === 'image/png' ? 'png' : contentType === 'image/webp' ? 'webp' : 'jpg'
     const entry: QueuedPhoto = {
       id: photoId, recordId: record.id, ownerUid, recordRevision: revision,
-      kind: photo.kind, holdIndex: photo.holdIndex, contentType,
+      kind: photo.kind, holdId: photo.holdId, contentType,
       objectPath: `${ownerUid}/qc/${encodeURIComponent(record.id)}/${photoId}.${extension}`,
       dataUrl: photo.dataUrl, attempts: 0, createdAt: Date.now(),
     }
@@ -160,21 +163,40 @@ async function flushInternal(): Promise<{ processed: number; remaining: number }
         headers: { apikey: publishableKey, Authorization: `Bearer ${tokenResult.token}` },
       })
       if (!verified.ok) throw new Error('Foto belum bisa dibaca kembali: ' + await requestError(verified))
+      // A photo metadata document is immutable and independent of the legacy
+      // qc_records mirror. It is exactly what the signed-photo viewer reads.
       const reference: SupabasePhotoRef = {
         photoId: job.id, provider: 'supabase', bucket, objectPath: job.objectPath,
-        kind: job.kind, ...(job.holdIndex === undefined ? {} : { holdIndex: job.holdIndex }), contentType: job.contentType,
-        uploadedAt: new Date().toISOString(),
+        kind: job.kind, ...(job.holdId === undefined ? {} : { holdId: job.holdId }),
+        contentType: job.contentType, uploadedAt: new Date().toISOString(),
       }
       await runTransaction(firestoreDb!, async transaction => {
         const recordRef = doc(firestoreDb!, 'qc_records', job.recordId)
-        const snapshot = await transaction.get(recordRef)
-        if (!snapshot.exists()) throw new Error('Record QC belum dikonfirmasi di Firestore.')
-        const data = snapshot.data()
+        const photoRef = doc(firestoreDb!, 'qc_photo_metadata', job.recordId, 'photos', job.id)
+        const [recordSnapshot, photoSnapshot] = await Promise.all([
+          transaction.get(recordRef), transaction.get(photoRef),
+        ])
+        if (!recordSnapshot.exists()) throw new Error('Record QC belum dikonfirmasi di Firestore.')
+        const data = recordSnapshot.data()
+        if (data.ownerUid !== job.ownerUid) throw new Error('Pemilik QC tidak cocok dengan akun foto.')
         if (String(data.clientRevision || '') !== job.recordRevision) throw new Error('Revisi QC berubah; perlu pemeriksaan sebelum menautkan foto lama.')
-        const current = (Array.isArray(data.supabasePhotoRefs) ? data.supabasePhotoRefs : []) as SupabasePhotoRef[]
-        if (!current.some(item => item.photoId === reference.photoId)) {
-          transaction.update(recordRef, { supabasePhotoRefs: [...current, reference] })
+        if (photoSnapshot.exists()) {
+          const saved = photoSnapshot.data()
+          const immutable = ['photoId','qcRecordId','ownerUid','recordRevision','provider','bucket','objectPath','kind','contentType','holdId']
+          const intended = {
+            ...reference, qcRecordId: job.recordId, ownerUid: job.ownerUid,
+            recordRevision: job.recordRevision,
+          }
+          if (!immutable.every(key => (saved[key] ?? null) ===
+            ((intended as Record<string, unknown>)[key] ?? null))) {
+            throw new Error('ID foto sudah terpakai untuk objek lain.')
+          }
+          return
         }
+        transaction.set(photoRef, {
+          ...reference, qcRecordId: job.recordId, ownerUid: job.ownerUid,
+          recordRevision: job.recordRevision,
+        })
       })
       await removeQueued(job.id)
       processed++
