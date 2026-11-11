@@ -86,7 +86,7 @@ function decodeImage(dataUrl: string): { contentType: string; blob: Blob } {
   if (!match) throw new Error('Format foto harus JPEG, PNG, atau WebP dalam Base64.')
   const bytes = atob(match[2])
   if (bytes.length === 0 || bytes.length > maxBytes) throw new Error('Ukuran foto harus antara 1 byte dan 2 MB.')
-  const out = new Uint8Array(bytes.length)
+  const out = new Uint8Array(new ArrayBuffer(bytes.length))
   for (let i = 0; i < bytes.length; i++) out[i] = bytes.charCodeAt(i)
   return { contentType: match[1], blob: new Blob([out], { type: match[1] }) }
 }
@@ -159,7 +159,7 @@ async function flushInternal(): Promise<{ processed: number; remaining: number }
       if (!verified.ok) throw new Error('Foto belum bisa dibaca kembali: ' + await requestError(verified))
       const reference: SupabasePhotoRef = {
         photoId: job.id, provider: 'supabase', bucket, objectPath: job.objectPath,
-        kind: job.kind, holdIndex: job.holdIndex, contentType: job.contentType,
+        kind: job.kind, ...(job.holdIndex === undefined ? {} : { holdIndex: job.holdIndex }), contentType: job.contentType,
         uploadedAt: new Date().toISOString(),
       }
       await runTransaction(firestoreDb!, async transaction => {
