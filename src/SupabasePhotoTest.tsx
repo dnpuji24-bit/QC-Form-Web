@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { onAuthStateChanged, type User } from 'firebase/auth'
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth'
 import { firebaseAuth } from './firebase'
 
 const url = String(import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '')
@@ -26,6 +26,8 @@ async function readError(response: Response): Promise<string> {
 export default function SupabasePhotoTest() {
   const [user, setUser] = useState<User | null>(firebaseAuth?.currentUser ?? null)
   const [claim, setClaim] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
@@ -39,8 +41,25 @@ export default function SupabasePhotoTest() {
   useEffect(() => {
     return () => { if (preview) URL.revokeObjectURL(preview) }
   }, [preview])
+  async function loginForTest() {
+    if (!firebaseAuth) { setError('Firebase Authentication belum terkonfigurasi.'); return }
+    setBusy(true); setError(''); setStatus('Login melalui Firebase Authentication...')
+    try {
+      await signInWithEmailAndPassword(firebaseAuth, email.trim(), password)
+      setPassword('')
+      setStatus('Login Firebase berhasil. Silakan pilih foto pengujian.')
+    } catch (e) { setError(message(e)); setStatus('Login belum berhasil.') }
+    finally { setBusy(false) }
+  }
+  async function logoutForTest() {
+    if (!firebaseAuth) return
+    setBusy(true); setError('')
+    try { await signOut(firebaseAuth); setStatus('Logout Firebase berhasil.') }
+    catch (e) { setError(message(e)) }
+    finally { setBusy(false) }
+  }
   async function checkToken() {
-    if (!user) throw new Error('Login Firebase di aplikasi QC terlebih dahulu.')
+    if (!user) throw new Error('Login Firebase di halaman uji terlebih dahulu.')
     const token = await user.getIdTokenResult(true)
     const currentRole = token.claims.role
     setClaim(typeof currentRole === 'string' ? currentRole : '(tidak ada)')
@@ -92,7 +111,19 @@ export default function SupabasePhotoTest() {
       <p><strong>Firebase UID:</strong> {user?.uid || '—'}</p>
       <p><strong>Token role:</strong> {claim || 'Belum diperiksa'}</p>
       <p><strong>Bucket:</strong> {bucket} (Private)</p>
-      {!user && <p style={{ color: '#b45309' }}>Buka aplikasi QC dan login terlebih dahulu pada origin yang sama, lalu kembali ke halaman pengujian ini.</p>}
+      {!user ? (
+        <section style={{ padding: 12, border: '1px solid #cbd5e1', borderRadius: 8, marginBottom: 14 }}>
+          <h2>Login Firebase untuk pengujian</h2>
+          <p>Login hanya melalui Firebase Auth. Email dan password tidak dikirim ke Supabase, tidak disimpan dalam QC, dan tidak dicetak pada log pengujian.</p>
+          <form onSubmit={(e) => { e.preventDefault(); void loginForTest() }}>
+            <div><label htmlFor="test-email">Email Firebase</label></div>
+            <input id="test-email" type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} disabled={busy} />
+            <div><label htmlFor="test-password">Password Firebase</label></div>
+            <input id="test-password" type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} disabled={busy} />
+            <div><button type="submit" disabled={busy} style={{ marginTop: 12 }}>Masuk untuk menguji</button></div>
+          </form>
+        </section>
+      ) : <button type="button" onClick={() => { void logoutForTest() }} disabled={busy}>Keluar dari akun uji</button>}
       <label htmlFor="photo-test-file">Pilih foto (JPEG, PNG, WebP; maksimum 2 MB)</label>
       <div><input id="photo-test-file" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></div>
       <button disabled={busy || !user || !file || !url || !publishableKey} onClick={() => { void runUpload() }} style={{ marginTop: 16, padding: '10px 20px', cursor: 'pointer', borderRadius: 8 }}>{busy ? 'Memproses…' : 'Upload & Verify Private Read'}</button>
