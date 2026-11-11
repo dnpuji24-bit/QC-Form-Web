@@ -1,8 +1,72 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Dedicated throwaway emulator configuration.
-    // No browser/client writes allowed; Node test uses Admin SDK against localhost.
+    // TEST-ONLY rules. Never deploy these rules to form-qc-unm.
+    // Records and users are seeded by emulator Admin context.
+    function active() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
+    }
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function qc(recordId) {
+      return get(/databases/$(database)/documents/qc_records/$(recordId)).data;
+    }
+    function qcExists(recordId) {
+      return exists(/databases/$(database)/documents/qc_records/$(recordId));
+    }
+    function canReadRecord(recordId) {
+      return qcExists(recordId)
+        && (profile().role in ['owner', 'admin', 'asisten', 'manager']
+          || (profile().role in ['mandor_spraying', 'mandor_fertilizer']
+              && qc(recordId).inputtedBy == profile().username
+              && ((profile().role == 'mandor_spraying' && qc(recordId).formType == 'spray')
+                || (profile().role == 'mandor_fertilizer' && qc(recordId).formType == 'fertilizer'))));
+    }
+    function photoShape(recordId, photoId) {
+      let d = request.resource.data;
+      return d.keys().hasAll(['photoId', 'qcRecordId', 'ownerUid', 'recordRevision',
+        'provider', 'bucket', 'objectPath', 'kind', 'contentType', 'uploadedAt'])
+        && d.keys().hasOnly(['photoId', 'qcRecordId', 'ownerUid', 'recordRevision',
+          'provider', 'bucket', 'objectPath', 'kind', 'contentType', 'uploadedAt', 'holdId'])
+        && d.photoId == photoId
+        && d.qcRecordId == recordId
+        && d.ownerUid == request.auth.uid
+        && d.provider == 'supabase'
+        && d.bucket == 'qc-photos-test'
+        && d.recordRevision is string && d.recordRevision.size() > 0 && d.recordRevision.size() <= 160
+        && d.uploadedAt is string && d.uploadedAt.size() <= 40
+        && d.kind in ['main','hold','scan']
+        && d.contentType in ['image/jpeg','image/png','image/webp']
+        && photoId.matches('^[A-Za-z0-9_-]{1,160}$')
+        && recordId.matches('^[A-Za-z0-9_-]{1,160}$')
+        && d.objectPath is string
+        && d.objectPath.matches('^' + request.auth.uid + '/qc/' + recordId + '/[A-Za-z0-9_-]+\\.(jpg|png|webp)$')
+        && (d.kind == 'hold'
+            ? (d.keys().hasAll(['holdId']) && d.holdId is string
+              && d.holdId.matches('^[A-Za-z0-9_-]{1,160}$'))
+            : !d.keys().hasAny(['holdId']));
+    }
+    match /qc_photo_metadata/{recordId}/photos/{photoId} {
+      allow get, list: if active() && canReadRecord(recordId)
+        && resource.data.qcRecordId == recordId
+        && resource.data.ownerUid == qc(recordId).ownerUid;
+      // Only uploader writes a reference to their OWN QC. Other roles require
+      // an audited backend handoff for photos of someone else's QC.
+      allow create: if active() && qcExists(recordId)
+        && qc(recordId).ownerUid == request.auth.uid
+        && qc(recordId).inputtedBy == profile().username
+        && ((profile().role == 'owner')
+          || (profile().role == 'asisten')
+          || (profile().role == 'admin')
+          || (profile().role == 'mandor_spraying' && qc(recordId).formType == 'spray')
+          || (profile().role == 'mandor_fertilizer' && qc(recordId).formType == 'fertilizer'))
+        && qc(recordId).clientRevision == request.resource.data.recordRevision
+        && photoShape(recordId, photoId);
+      allow update, delete: if false;
+    }
     match /{document=**} {
       allow read, write: if false;
     }
