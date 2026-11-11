@@ -112,7 +112,11 @@ Deno.serve(async (request:Request)=>{
     try{data=JSON.parse(raw)}catch{throw new RequestError(400)}
     if(!data||typeof data!=='object'||Object.keys(data).sort().join(',')!=='photoId,recordId'||
       !idPattern.test(data.recordId)||!idPattern.test(data.photoId))throw new RequestError(400)
-    const secret=Deno.env.get('SUPABASE_SECRET_KEY')||''
+    // Hosted Supabase injects named secret keys; do not create SUPABASE_* secrets manually.
+    const namedSecrets=Deno.env.get('SUPABASE_SECRET_KEYS')||'{}'
+    let parsedSecrets:Record<string,string>
+    try { parsedSecrets=JSON.parse(namedSecrets) } catch { throw new RequestError(503) }
+    const secret=parsedSecrets.default||Deno.env.get('SUPABASE_SECRET_KEY')||''
     const accountText=Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON')||''
     if(!secret.startsWith('sb_secret_')||!accountText)throw new RequestError(503)
     let account:ServiceAccount
