@@ -1,5 +1,5 @@
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing'
-import { collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, query, limit, setDoc, updateDoc, deleteDoc } from 'firebase/firestore'
 
 const projectId = 'demo-qc-photo-test'
 const host = process.env.FIRESTORE_EMULATOR_HOST || ''
@@ -74,7 +74,10 @@ try {
   await pass('admin reads metadata', getDoc(ref(db.admin, recordId, 'main001')))
   await pass('asisten reads metadata', getDoc(ref(db.asisten, recordId, 'main001')))
   await pass('manager reads metadata when granted view', getDoc(ref(db.manager, recordId, 'main001')))
-  await pass('owner lists photos for QC', getDocs(collection(db.owner, 'qc_photo_metadata', recordId, 'photos')))
+  await pass('owner lists photos for QC with limit', getDocs(query(collection(db.owner, 'qc_photo_metadata', recordId, 'photos'), limit(50))))
+  await deny('unbounded photo metadata listing is denied', getDocs(collection(db.owner, 'qc_photo_metadata', recordId, 'photos')))
+  await deny('other mandor cannot list metadata', getDocs(query(collection(db.otherSpray, 'qc_photo_metadata', recordId, 'photos'), limit(50))))
+  await deny('viewer cannot list metadata', getDocs(query(collection(db.viewer, 'qc_photo_metadata', recordId, 'photos'), limit(50))))
   await deny('other mandor cannot read', getDoc(ref(db.otherSpray, recordId, 'main001')))
   await deny('fertilizer mandor cannot read spray', getDoc(ref(db.fertilizer, recordId, 'main001')))
   await deny('viewer has no access', getDoc(ref(db.viewer, recordId, 'main001')))
