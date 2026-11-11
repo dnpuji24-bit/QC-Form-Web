@@ -17,13 +17,49 @@ service cloud.firestore {
     function qcExists(recordId) {
       return exists(/databases/$(database)/documents/qc_records/$(recordId));
     }
+    // Permissions come from the same role_access/{role} design used by QC.
+    // Owner has permanent full access; all other roles are configured by Owner.
+    // Missing permission documents/keys fail closed.
+    function roleAccessPath() {
+      return /databases/$(database)/documents/role_access/$(profile().role);
+    }
+    function permission(key) {
+      return exists(roleAccessPath())
+        && get(roleAccessPath()).data.keys().hasAny(['permissions'])
+        && get(roleAccessPath()).data.permissions.keys().hasAny([key])
+        ? get(roleAccessPath()).data.permissions[key]
+        : 'none';
+    }
+    function canView(key) {
+      return profile().role == 'owner' || permission(key) in ['view', 'edit'];
+    }
+    function canEdit(key) {
+      return profile().role == 'owner' || permission(key) == 'edit';
+    }
+    function recordOwnedByUser(recordId) {
+      return qc(recordId).inputtedBy == profile().username;
+    }
+    function mandorRole() {
+      return profile().role in ['mandor_spraying','mandor_fertilizer'];
+    }
+    function matchingMandorType(recordId) {
+      return (profile().role == 'mandor_spraying' && qc(recordId).formType == 'spray')
+        || (profile().role == 'mandor_fertilizer' && qc(recordId).formType == 'fertilizer');
+    }
+    function allowedRecordScope(recordId) {
+      return !mandorRole() || (recordOwnedByUser(recordId) && matchingMandorType(recordId));
+    }
     function canReadRecord(recordId) {
       return qcExists(recordId)
-        && (profile().role in ['owner', 'admin', 'asisten', 'manager']
-          || (profile().role in ['mandor_spraying', 'mandor_fertilizer']
-              && qc(recordId).inputtedBy == profile().username
-              && ((profile().role == 'mandor_spraying' && qc(recordId).formType == 'spray')
-                || (profile().role == 'mandor_fertilizer' && qc(recordId).formType == 'fertilizer'))));
+        && canView('qc_records')
+        && allowedRecordScope(recordId);
+    }
+    function canCreatePhoto(recordId) {
+      return qcExists(recordId)
+        && canEdit(qc(recordId).formType == 'spray' ? 'qc_spraying' : 'qc_fertilizer')
+        && allowedRecordScope(recordId)
+        && recordOwnedByUser(recordId)
+        && qc(recordId).ownerUid == request.auth.uid;
     }
     function photoShape(recordId, photoId) {
       let d = request.resource.data;
@@ -56,13 +92,7 @@ service cloud.firestore {
       // Only uploader writes a reference to their OWN QC. Other roles require
       // an audited backend handoff for photos of someone else's QC.
       allow create: if active() && qcExists(recordId)
-        && qc(recordId).ownerUid == request.auth.uid
-        && qc(recordId).inputtedBy == profile().username
-        && ((profile().role == 'owner')
-          || (profile().role == 'asisten')
-          || (profile().role == 'admin')
-          || (profile().role == 'mandor_spraying' && qc(recordId).formType == 'spray')
-          || (profile().role == 'mandor_fertilizer' && qc(recordId).formType == 'fertilizer'))
+        && canCreatePhoto(recordId)
         && qc(recordId).clientRevision == request.resource.data.recordRevision
         && photoShape(recordId, photoId);
       allow update, delete: if false;
