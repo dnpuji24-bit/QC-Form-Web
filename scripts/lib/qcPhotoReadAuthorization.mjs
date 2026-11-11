@@ -19,12 +19,6 @@ export function authorizeQcPhotoRead({ callerUid, profile, roleAccess, qcRecord,
     if (!['view','edit'].includes(roleAccess?.permissions?.qc_records)) return rejection('ROLE_PERMISSION_DENIED')
   }
   if (!qcRecord || !['spray','fertilizer'].includes(qcRecord.formType)) return rejection('QC_MISSING')
-  if ((profile.role === 'mandor_spraying' || profile.role === 'mandor_fertilizer') &&
-      (qcRecord.inputtedBy !== profile.username ||
-        (profile.role === 'mandor_spraying' && qcRecord.formType !== 'spray') ||
-        (profile.role === 'mandor_fertilizer' && qcRecord.formType !== 'fertilizer'))) {
-    return rejection('QC_SCOPE_DENIED')
-  }
   if (!photo || photo.provider !== 'supabase' || photo.bucket !== PHOTO_BUCKET ||
       photo.photoId !== photoId || photo.qcRecordId !== recordId ||
       !VALID_ID.test(photo.ownerUid || '') ||
