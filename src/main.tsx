@@ -1,4 +1,7 @@
 import React from 'react'
+
+const PhotoUploadTest = React.lazy(() => import('./SupabasePhotoTest'))
+const showPhotoUploadTest = import.meta.env.VITE_ENABLE_SUPABASE_PHOTO_TEST === 'true' && new URLSearchParams(window.location.search).get('supabase-photo-test') === '1'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import NetworkStatus from './NetworkStatus'
@@ -21,11 +24,17 @@ if ('serviceWorker' in navigator) {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
-    <PortalRouter />
-    <NetworkStatus />
-    <SaveStatusPopup />
-    <UiEnhancers />
-    <ScrollToTopButton />
+    {showPhotoUploadTest ? (
+      <React.Suspense fallback={<p>Memuat halaman uji foto…</p>}><PhotoUploadTest /></React.Suspense>
+    ) : (
+      <>
+        <App />
+        <PortalRouter />
+        <NetworkStatus />
+        <SaveStatusPopup />
+        <UiEnhancers />
+        <ScrollToTopButton />
+      </>
+    )}
   </React.StrictMode>,
 )
