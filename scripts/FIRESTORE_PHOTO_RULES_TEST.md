@@ -15,11 +15,11 @@ bash scripts/run-photo-rules-emulator.sh
 
 This uses the existing dedicated `scripts/firebase.photo-emulator.json` and rules in `scripts/firestore.photo-emulator.rules`. `npx firebase-tools emulators:exec` starts and stops the emulator automatically. Java must be installed. Do NOT run `firebase deploy`.
 
-Expected result: `SUCCESS: 36 Firestore Client Security Rules checks passed (emulator only).` Count is derived from test cases; look for `Script exited successfully (code 0)` too. If a test fails, send the **error log only** (no credentials or tokens). The earlier Admin SDK metadata tests can be rerun with `bash scripts/run-photo-metadata-emulator.sh`.
+Expected result: `SUCCESS: 39 Firestore Client Security Rules checks passed (emulator only).` Count is derived from test cases; look for `Script exited successfully (code 0)` too. If a test fails, send the **error log only** (no credentials or tokens). The earlier Admin SDK metadata tests can be rerun with `bash scripts/run-photo-metadata-emulator.sh`.
 
 ## Test policy design (dynamic role permissions)
 
-The earlier failed run was NOT a valid Security Rules test. The emulator config pointed to `scripts/scripts/firestore.photo-emulator.rules`, which did not exist, causing the emulator to permit all reads/writes by default. The configuration now references `firestore.photo-emulator.rules` relative to the config in `scripts/`, and the runner checks that both files exist.
+The first failed run was NOT a valid Security Rules test. The emulator config pointed to `scripts/scripts/firestore.photo-emulator.rules`, which did not exist, causing the emulator to permit all reads/writes by default. The configuration now references `firestore.photo-emulator.rules` relative to the config in `scripts/`, and the runner checks that both files exist.
 
 - Every signed-in user needs `users/{uid}.active=true`.
 - Owner has permanent full access (consistent with the current Owner UI).
@@ -45,3 +45,9 @@ The earlier failed run was NOT a valid Security Rules test. The emulator config 
 - Run the client rules tests on Cloud Shell and resolve failures.
 - Add an authenticated photo display and fallback to historical Google Drive URLs.
 - Build Firestore-only QC save state and photo upload state separately; migrate only after end-to-end review.
+
+## Firestore list versus get fix (next test run)
+
+After loading the correct rules file, the client tests reached the Owner list-query case and failed with `Property qcRecordId is undefined on object`. In Security Rules, collection `list` queries do not provide a single document's `resource.data` for evaluating parent-scoped access. The emulator rule now uses separate `allow get` (document metadata checks) and `allow list` (parent QC access + limit at most 100). The test explicitly requests `limit(50)`, verifies an unbounded list fails, and checks that users without access cannot list.
+
+For production, list access must be limited to a validated QC parent, and metadata must be protected from forged writes; the present test metadata collection is append-only for client users. Cross-role access to photo bytes in Supabase still needs separate secure authorization.
