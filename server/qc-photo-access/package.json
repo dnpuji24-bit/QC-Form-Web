@@ -1,0 +1,14 @@
+{
+  "name": "qc-photo-access",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.mjs",
+    "test": "node ../../scripts/test-qc-photo-read-authorization.mjs && node ../../scripts/test-qc-photo-sign-handler.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.80.0",
+    "firebase-admin": "14.5.0"
+  }
+}
