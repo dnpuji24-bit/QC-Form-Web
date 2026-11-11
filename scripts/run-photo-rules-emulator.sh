@@ -10,6 +10,14 @@ if ! test -d node_modules/@firebase/rules-unit-testing; then
   echo "npm install --no-save --package-lock=false firebase-admin @firebase/rules-unit-testing"
   exit 2
 fi
+if ! test -f scripts/firestore.photo-emulator.rules; then
+  echo "SAFETY STOP: local Firestore rules file is missing."
+  exit 2
+fi
+if ! grep -q '"rules": "firestore.photo-emulator.rules"' scripts/firebase.photo-emulator.json; then
+  echo "SAFETY STOP: emulator configuration does not point to the expected rules."
+  exit 2
+fi
 unset GOOGLE_APPLICATION_CREDENTIALS
 export GCLOUD_PROJECT=demo-qc-photo-test
 export FIREBASE_PROJECT_ID=demo-qc-photo-test
