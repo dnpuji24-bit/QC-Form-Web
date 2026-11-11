@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { createQcPhotoSignHandler } from './lib/qcPhotoSignHandler.mjs'
+import { createUidLimiter } from './lib/qcPhotoUidLimiter.mjs'
 
 const data = {
   'users/reader': { active: true, role: 'manager', username: 'readername' },
@@ -61,4 +62,24 @@ await check('arbitrary object path cannot be requested', { body: { recordId:'qc1
 await check('missing metadata rejected', { body: { recordId:'qc123', photoId:'missing' } }, 403, 0)
 await check('GET method disabled', { method:'GET' }, 405, 0)
 assert.equal((await call()).headers['Access-Control-Allow-Origin'],'https://qc-preview.example.invalid')
+const limiter = createUidLimiter({ maxRequests: 1, windowMs: 60000 })
+const limitedHandler = createQcPhotoSignHandler({
+  auth, db, signFile, allowedOrigin:'https://qc-preview.example.invalid', rateLimit:limiter,
+})
+async function callLimited() {
+  const request = { method:'POST', headers: { origin:'https://qc-preview.example.invalid', authorization:'Bearer goodtoken' },
+    async *[Symbol.asyncIterator]() { yield Buffer.from(JSON.stringify({recordId:'qc123', photoId:'photo456'})) } }
+  const response = { headers: {}, status:0, body:'',
+    setHeader(k,v){this.headers[k]=v}, writeHead(status){this.status=status}, end(body=''){this.body=body} }
+  await limitedHandler(request,response)
+  return response
+}
+const signedBefore = signed
+assert.equal((await callLimited()).status,200)
+const blocked = await callLimited()
+assert.equal(blocked.status,429)
+assert.equal(blocked.headers['Retry-After'],'60')
+assert.equal(signed,signedBefore+1)
+checks++; console.log('PASS: per-UID throttling returns 429 without signing twice')
+
 console.log(`SUCCESS: ${checks} handler security checks passed, no real Firebase or Supabase calls.`)
