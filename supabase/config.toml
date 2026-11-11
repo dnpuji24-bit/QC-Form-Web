@@ -1,0 +1,4 @@
+# This function receives Firebase JWTs, not Supabase JWTs.
+# Authorization is enforced in function code via Firebase signature + auth state + Firestore permissions.
+[functions.qc-photo-sign]
+verify_jwt = false
