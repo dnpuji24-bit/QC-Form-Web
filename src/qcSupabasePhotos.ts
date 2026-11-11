@@ -110,6 +110,9 @@ export async function queueQcRecordPhotos(record: QcRecord): Promise<number> {
   assertConfigured()
   const ownerUid = firebaseAuth!.currentUser?.uid
   if (!ownerUid) throw new Error('Login Firebase diperlukan sebelum menyimpan antrean foto.')
+  if (!/^[A-Za-z0-9_-]{1,160}$/.test(record.id)) throw new Error('ID record QC tidak cocok untuk foto.')
+  if (record.ownerUid !== ownerUid) throw new Error('Record QC belum memiliki UID pembuat Firebase yang sesuai.')
+  if (typeof record.clientRevision !== 'string' || !/^[A-Za-z0-9_-]{1,160}$/.test(record.clientRevision)) throw new Error('Revisi QC tidak valid untuk mengunggah foto.')
   const inputs = candidates(record)
   if (!inputs.length) return 0
   const existing = (await allQueued()).filter(job => job.ownerUid === ownerUid && job.recordId === record.id)
