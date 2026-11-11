@@ -86,9 +86,14 @@ service cloud.firestore {
             : !d.keys().hasAny(['holdId']));
     }
     match /qc_photo_metadata/{recordId}/photos/{photoId} {
-      allow get, list: if active() && canReadRecord(recordId)
+      // Single-document read can inspect the stored metadata.
+      allow get: if active() && canReadRecord(recordId)
         && resource.data.qcRecordId == recordId
         && resource.data.ownerUid == qc(recordId).ownerUid;
+      // Collection listing cannot inspect resource.data per document. Restrict
+      // by parent QC record access and list limit instead.
+      allow list: if active() && canReadRecord(recordId)
+        && request.query.limit != null && request.query.limit <= 100;
       // Only uploader writes a reference to their OWN QC. Other roles require
       // an audited backend handoff for photos of someone else's QC.
       allow create: if active() && qcExists(recordId)
