@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Dedicated throwaway emulator configuration.
+    // No browser/client writes allowed; Node test uses Admin SDK against localhost.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
