@@ -1,4 +1,5 @@
 import { qcApi } from './api'
+import { flushQcPhotoQueue, queueQcRecordPhotos, supabaseQcPhotoPreviewEnabled } from './qcSupabasePhotos'
 import { firebaseAuth, firebaseAuthPersistenceReady } from './firebase'
 import { mirrorRecordToFirestore } from './firestoreStore'
 import { openLocalDb, QUEUE_STORE } from './localDb'
@@ -199,6 +200,7 @@ async function confirmedFirestoreWrite(record:QcRecord):Promise<boolean>{
 }
 export async function saveRecordFirestoreFirst(token:string,record:QcRecord):Promise<SaveTransportResult>{
   const item=await enqueueInternal('syncRecord',record)
+  if(supabaseQcPhotoPreviewEnabled)await queueQcRecordPhotos(record)
   // The mandor can leave the form once IndexedDB commits the record.
   // Remote confirmation is delivered asynchronously through qc:upload-state.
   emitUploadState({...record,saveType:record.saveType==='draft'?'draft_queued':record.saveType,firestoreSaveState:'queued'})
@@ -211,6 +213,7 @@ export async function saveRecordFirestoreFirst(token:string,record:QcRecord):Pro
           if(!current||current.record.clientRevision!==record.clientRevision)return
           await putItem({...current,record:{...current.record,firestoreSaveState:'confirmed'},firestoreSynced:true,lastError:'',nextAttemptAt:0})
           emitUploadState({...record,firestoreSaveState:'confirmed'})
+          if(supabaseQcPhotoPreviewEnabled)void flushQcPhotoQueue().catch(error=>console.info('Antrean foto Supabase menunggu retry.',error))
           void flushQueue(token).catch(error=>console.info('Sinkronisasi Apps Script tertunda; QC telah dikonfirmasi Firestore.',error))
         }else{
           console.info('Firestore belum mengonfirmasi record QC, antrean lokal tetap disimpan.')
@@ -274,4 +277,7 @@ async function flushQueueInternal(token:string):Promise<FlushResult>{
 
 export async function flushQueue(token:string):Promise<FlushResult>{if(activeFlush)return activeFlush;activeFlush=flushQueueInternal(token).finally(()=>{activeFlush=null});return activeFlush}
 async function autoFlushQueue(){if(typeof window==='undefined'||!navigator.onLine)return;const token=localStorage.getItem('qc_token')||sessionStorage.getItem('qc_token')||'';if(token===authPausedToken)return;try{await flushQueue(token)}catch(error){if(isAuthError(error))authPausedToken=token;else console.info('Auto flush antrean tertunda.',error)}}
-if(typeof window!=='undefined'){window.addEventListener('online',()=>{void autoFlushQueue()});window.setInterval(()=>{void autoFlushQueue()},15_000)}
+if(typeof window!=='undefined'){
+  window.addEventListener('online',()=>{void autoFlushQueue();if(supabaseQcPhotoPreviewEnabled)void flushQcPhotoQueue().catch(error=>console.info('Retry foto Supabase ditunda.',error))})
+  window.setInterval(()=>{void autoFlushQueue();if(supabaseQcPhotoPreviewEnabled)void flushQcPhotoQueue().catch(error=>console.info('Retry foto Supabase ditunda.',error))},15_000)
+}
