@@ -40,6 +40,7 @@ export interface AccountChangeRequest {
 }
 
 export interface HoldInterval {
+  holdId?: string
   start: string
   end: string
   reason: string
