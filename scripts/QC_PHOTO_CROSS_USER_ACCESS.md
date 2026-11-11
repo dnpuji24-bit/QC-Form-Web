@@ -1,7 +1,7 @@
 # QC Photos — cross-user access preview (NOT deployed)
 
 ## Goal and status
-The existing Supabase private bucket `qc-photos-test` restricts direct file access primarily to the uploader's Firebase UID. A manager/admin/asisten granted Data QC view in Firestore may see a photo's metadata but cannot necessarily download the image directly. **Do not make the bucket public or copy a Supabase secret key into Vite.**
+The existing Supabase private bucket `qc-photos-test` restricts direct file access primarily to the uploader's Firebase UID. A any active user granted Data QC view/edit in Firestore may see a photo's metadata but cannot necessarily download the image directly. **Do not make the bucket public or copy a Supabase secret key into Vite.**
 
 This branch now includes:
 - `scripts/lib/qcPhotoReadAuthorization.mjs` — pure fail-closed authorization based on Firestore user profile, manually configurable `role_access/{role}.permissions.qc_records`, QC record and immutable photo metadata.
@@ -14,7 +14,7 @@ This branch now includes:
 1. Authenticated React browser sends POST `{recordId, photoId}` with its Firebase ID token to a trusted private backend.
 2. Server verifies ID token using Firebase Admin SDK with revocation check.
 3. Server loads `users/{uid}`, `role_access/{role}`, `qc_records/{recordId}`, `qc_photo_metadata/{recordId}/photos/{photoId}`.
-4. Authorizer denies inactive user, missing permissions, foreign mandor's QC, mismatched bucket, owner UID or object path.
+4. Authorizer denies inactive user, missing permissions, mismatched bucket, owner UID or object path.
 5. ONLY after authorization, the trusted backend signs the Supabase object for **60 seconds** using a SERVER-ONLY Supabase credential. Browser gets only the short-lived URL.
 
 Supabase supports server-created signed URLs for private Storage objects. They are temporary bearer URLs: a person possessing the URL can use it until expiry. Permission revocation does NOT revoke an already issued signed URL immediately. Keep TTL short; disable sensitive caching; never log or persist these URLs. For stricter immediate revocation, implement a server-side image proxy that reauthorizes each request.
@@ -22,7 +22,7 @@ Supabase supports server-created signed URLs for private Storage objects. They a
 ## Manual role permissions
 - Owner: full view consistent with current QC permissions (subject to profile being active).
 - Manager, Admin, Asisten, Pengunjung: view allowed **only if** Owner configures `role_access/{role}.permissions.qc_records` to `view` or `edit`. Otherwise denied.
-- Mandor Spraying/Fertilizer: same role permission, AND only their own QC and correct form type.
+- Mandor Spraying/Fertilizer: same role permission; View/Edit on Data QC permits reading photos across all QC records, including other activities and uploaders. Upload/edit remains scoped separately.
 - A role change is enforced at the next server request without redeploying code.
 - Important: production user profile, legacy QC records and historical photos may need a stable `ownerUid` mapping. No migration has yet run.
 
@@ -46,3 +46,5 @@ No Supabase key, backend deployment, Firebase production read/write, or billing 
 
 ## Security tests are not production verification
 The pure and mock tests do not verify JWTs against real Firebase, do not create Supabase signed URLs, and do not prove the backend is deployed. They only test the authorization logic and handler contract.
+
+**Policy update (2026-11-11):** The Owner requested that all active users given Data QC **Hanya Lihat** or **Edit** can see every QC photo. This supersedes the old own-record read scope for Mandor. Server authorizer and emulator rules have been updated on this branch; production permissions and hosting have not.
