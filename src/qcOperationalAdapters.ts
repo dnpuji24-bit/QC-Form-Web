@@ -1,6 +1,6 @@
 import {doc,getDocFromServer,setDoc,serverTimestamp} from 'firebase/firestore'
 import {firebaseAuth,firestoreDb} from './firebase'
-import {enqueueOperationalJob,enqueueOperationalBatch,flushOperationalJobs,listOperationalJobs,type OperationalJob} from './qcOperationalQueue.mjs'
+import {enqueueOperationalBatch,flushOperationalJobs,listOperationalJobs,type OperationalJob} from './qcOperationalQueue.mjs'
 import {commitOperationalQc,type AtomicQcInput} from './qcAtomicFirestoreAdapter'
 import type {QcSaveIntent} from './qcFormSaveIntent.mjs'
 import type {QcRecord} from './types'
@@ -25,7 +25,7 @@ function makeJob(record:QcRecord,intent:QcSaveIntent,action:Job['action']){
   return job
 }
 export async function queueOperationalQc(record:QcRecord,intent:QcSaveIntent,action:Job['action']){
-  return enqueueOperationalJob(makeJob(record,intent,action))
+  return (await enqueueOperationalBatch([makeJob(record,intent,action)]))[0]
 }
 export async function queueOperationalSession(items:Array<{record:QcRecord;intent:QcSaveIntent}>){
   return enqueueOperationalBatch(items.map(({record,intent})=>makeJob(record,intent,'syncRecord')))
