@@ -330,6 +330,29 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Owner-only synthetic end-to-end pilot. Never writes qc_records.
+    match /qc_operational_pilot_records/{recordId} {
+      function validPilot() {
+        let d = request.resource.data;
+        return activeUser() && role() == 'owner'
+          && recordId.matches('^qc-operational-pilot-[A-Za-z0-9_-]{1,120}$')
+          && d.keys().hasAll(['id','ownerUid','clientRevision','formType','saveType','testOnly','operationalPhotoManifest','operationalSaveId','firestoreSaveState'])
+          && d.keys().hasOnly(['id','ownerUid','clientRevision','formType','saveType','testOnly','operationalPhotoManifest','operationalSaveId','firestoreSaveState'])
+          && d.id == recordId && d.ownerUid == request.auth.uid
+          && d.clientRevision is string && d.clientRevision.matches('^[A-Za-z0-9_-]{1,160}$')
+          && d.formType in ['spray','fertilizer'] && d.saveType in ['draft','ready','uploaded']
+          && d.testOnly == true && d.firestoreSaveState == 'confirmed'
+          && d.operationalSaveId is string && d.operationalSaveId.size() <= 600
+          && d.operationalPhotoManifest is map && d.operationalPhotoManifest.size() <= 20;
+      }
+      allow get: if activeUser() && role() == 'owner' && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow create: if validPilot();
+      allow update: if validPilot() && resource.data.ownerUid == request.auth.uid
+        && resource.data.formType == request.resource.data.formType
+        && resource.data.clientRevision != request.resource.data.clientRevision;
+      allow list, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
