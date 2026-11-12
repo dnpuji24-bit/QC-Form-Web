@@ -167,6 +167,19 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /qc_archive_history/{operationId} {
+      allow read: if nativeRegistrationOwner();
+      allow write: if false;
+    }
+    match /qc_archive_history_records/{operationId} {
+      allow read: if nativeRegistrationOwner();
+      allow write: if false;
+    }
+    match /qc_archive_history_actuals/{operationId} {
+      allow read: if nativeRegistrationOwner();
+      allow write: if false;
+    }
+
     match /qc_records/{recordId} {
       // A reservation permits its owner to check a not-yet-created QC document.
       allow get: if activeUser() && resource == null
