@@ -70,6 +70,10 @@ service cloud.firestore {
     }
 
     match /qc_records/{recordId} {
+      // A reservation permits its owner to check a not-yet-created QC document.
+      allow get: if activeUser() && resource == null
+        && exists(/databases/$(database)/documents/qc_photo_upload_intents/$(recordId))
+        && get(/databases/$(database)/documents/qc_photo_upload_intents/$(recordId)).data.ownerUid == request.auth.uid;
       allow read: if activeUser() && (
         canSeeAll() ||
         ((isSprayMandor() || isFertMandor()) && canViewKey('qc_records',['mandor_spraying','mandor_fertilizer']) && ownsExisting())
