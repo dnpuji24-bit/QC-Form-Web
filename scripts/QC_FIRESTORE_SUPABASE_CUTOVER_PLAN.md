@@ -68,3 +68,9 @@ Manifest rinci disimpan pada `~/qc-migration-private` dengan permission mode 060
 - **Gap integrasi yang harus diselesaikan sebelum pengaktifan:** `src/qcSupabasePhotos.ts` masih mematikan upload dan menaruh daftar `supabasePhotoRefs` di parent `qc_records`, sedangkan backend signer + viewer menggunakan metadata subkoleksi. Perlu satu skema tunggal dan uji rules produksi. Tidak boleh mengaktifkan flag sampai gap ditutup dan backend server teruji sungguhan.
 - Ekspor JPG/PDF foto private membutuhkan pemuatan gambar tepat waktu dan pertimbangan CORS; tidak boleh mengklaim ekspor foto Supabase sudah selesai.
 - Tahap berikut adalah menyatukan schema metadata upload → subkoleksi → signed viewer, menjalankan uji emulator end-to-end, baru konfigurasi server hosting. Tidak perlu audit legacy username lagi.
+
+## 12 November 2026 — QC transport cutover candidate
+- `VITE_QC_FIRESTORE_ONLY=true` blocks QC record Apps Script endpoints and selects only the operational queue worker. Requires `VITE_QC_OPERATIONAL_SAVE=true`. Both remain off by default.
+- Existing legacy jobs remain on their devices, not deleted or marked confirmed. Legacy edits/finalization/deletion paused in candidate mode; must resolve before final cutover. Old browser versions are not blocked by this client flag.
+- Firebase login bridge still depends on Apps Script login, registration, session checks, master data and administration. This is a QC record transport cutover, NOT complete Apps Script retirement. Remaining endpoints need replacement, parity tests and rollback readiness before retirement.
+- Next: validate runtime network isolation, migrate/reconcile pending legacy jobs, support historical and cross-user correction under verified permissions, and finish server manifest write protection. Test operational uploads, reports and Excel in real browser before release.
