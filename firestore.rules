@@ -151,6 +151,22 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    function qcArchived(recordId) {
+      return exists(/databases/$(database)/documents/qc_archive_markers/$(recordId));
+    }
+    match /qc_archive_markers/{recordId} {
+      allow read: if nativeRegistrationOwner();
+      allow write: if false;
+    }
+    match /qc_archived_records/{recordId} {
+      allow read: if nativeRegistrationOwner();
+      allow write: if false;
+    }
+    match /qc_archived_actuals/{recordId} {
+      allow read: if nativeRegistrationOwner();
+      allow write: if false;
+    }
+
     match /qc_records/{recordId} {
       // A reservation permits its owner to check a not-yet-created QC document.
       allow get: if activeUser() && resource == null
@@ -161,7 +177,7 @@ service cloud.firestore {
         ((isSprayMandor() || isFertMandor()) && canViewKey('qc_records',['mandor_spraying','mandor_fertilizer']) && ownsExisting())
       );
 
-      allow create: if activeUser() && (!hasOperationalSave(request.resource.data) || validOperationalAudit(recordId)) && (
+      allow create: if activeUser() && !qcArchived(recordId) && (!hasOperationalSave(request.resource.data) || validOperationalAudit(recordId)) && (
         (request.resource.data.formType == 'spray'
           && canEditKey('qc_spraying',['owner','asisten','mandor_spraying'])
           && (!isSprayMandor() || ownsIncoming()))
@@ -171,7 +187,7 @@ service cloud.firestore {
           && (!isFertMandor() || ownsIncoming()))
       );
 
-      allow update: if activeUser() && ((!hasOperationalSave(resource.data) && !hasOperationalSave(request.resource.data)) || (hasOperationalSave(request.resource.data) && request.resource.data.ownerUid == resource.data.ownerUid && request.resource.data.formType == resource.data.formType && request.resource.data.inputtedBy == resource.data.inputtedBy && validOperationalAudit(recordId))) && (
+      allow update: if activeUser() && !qcArchived(recordId) && ((!hasOperationalSave(resource.data) && !hasOperationalSave(request.resource.data)) || (hasOperationalSave(request.resource.data) && request.resource.data.ownerUid == resource.data.ownerUid && request.resource.data.formType == resource.data.formType && request.resource.data.inputtedBy == resource.data.inputtedBy && validOperationalAudit(recordId))) && (
         (request.resource.data.formType == 'spray'
           && canEditKey('qc_spraying',['owner','asisten','mandor_spraying'])
           && (!isSprayMandor() || (ownsExisting() && ownsIncoming())))
@@ -371,13 +387,20 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    function archivedActual(reportId) {
+      return (reportId.matches('^qcactual_.+')
+          && qcArchived(reportId.replace('^qcactual_', '')))
+        || (request.resource.data.get('qcRecordId','') is string
+          && request.resource.data.get('qcRecordId','') != ''
+          && qcArchived(request.resource.data.qcRecordId));
+    }
     match /daily_reports/{reportId} {
       allow read: if activeUser();
-      allow create: if activeUser() && (
+      allow create: if activeUser() && !archivedActual(reportId) && (
         canEditEither('data_plan_actual','data_plan_actual_import',['owner','asisten'])
         || validQcActualWrite()
       );
-      allow update: if activeUser() && (
+      allow update: if activeUser() && !archivedActual(reportId) && (
         canEditEither('data_plan_actual','data_plan_actual_import',['owner','asisten'])
         || (resource.data.sourceOrigin == 'QC' && resource.data.qcRecordId == request.resource.data.qcRecordId && validQcActualWrite())
       );
@@ -444,6 +467,7 @@ service cloud.firestore {
       allow get: if activeUser() && resource.data.ownerUid == request.auth.uid;
       allow create: if activeUser()
         && recordId.matches('^[A-Za-z0-9_-]{1,160}$')
+        && !qcArchived(recordId)
         && !exists(/databases/$(database)/documents/qc_records/$(recordId))
         && request.resource.data.keys().hasOnly(['ownerUid','formType','clientRevision','createdAt'])
         && request.resource.data.ownerUid == request.auth.uid
