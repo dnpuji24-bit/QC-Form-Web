@@ -8,7 +8,7 @@ export async function processOperationalQcJob(job, deps) {
   if (!record?.id || !record.clientRevision || !uploaderUid || !Array.isArray(changes))
     throw Error('Incomplete durable QC job');
   if (await deps.currentUid() !== uploaderUid) throw Error('QC_QUEUE_ACCOUNT_MISMATCH');
-  const current = await deps.readRecord(record.id);
+  const current = await deps.readRecord(record.id,job);
   if (current?.clientRevision === record.clientRevision &&
       current?.operationalSaveId === job.id) {
     return {status:'confirmed',record:current};
