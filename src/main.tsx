@@ -1,3 +1,5 @@
+import NativePortalSession from './NativePortalSession'
+import {nativePortalEnabled} from './qcNativePortalConfig'
 import React from 'react'
 
 const NativeRegistrationPilot = React.lazy(() => import('./NativeRegistrationPilot'))
@@ -39,6 +41,14 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     ) : showPhotoUploadTest ? (
       <React.Suspense fallback={<p>Memuat halaman uji foto…</p>}><PhotoUploadTest /></React.Suspense>
     ) : (
+      nativePortalEnabled ? <NativePortalSession><>
+        <App />
+        <PortalRouter />
+        <NetworkStatus />
+        <SaveStatusPopup />
+        <UiEnhancers />
+        <ScrollToTopButton />
+      </></NativePortalSession> : (
       <>
         <App />
         <PortalRouter />
@@ -47,6 +57,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <UiEnhancers />
         <ScrollToTopButton />
       </>
-    )}
+
+      )    )}
   </React.StrictMode>,
 )
