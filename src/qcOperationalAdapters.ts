@@ -10,6 +10,8 @@ const endpoint='https://mcfwnstdfhhtcbksgrlj.supabase.co/functions/v1/qc-photo-u
 const validId=(s:string)=>/^[A-Za-z0-9_-]{1,160}$/.test(s)&&!/^qc-(operational-pilot|photo-staging)-/.test(s)
 type RecordInput=AtomicQcInput['record']
 type Job=OperationalJob&{record:RecordInput;scope:'operational';changes:QcSaveIntent['changes']}
+type PersistedJob=OperationalJob&{id:string;createdAt:number}
+type PersistedQcJob=Job&{id:string;createdAt:number}
 const acceptJob=(job:OperationalJob):job is Job=>{
   const candidate=job as Partial<Job>
   const record=candidate.record
@@ -34,9 +36,10 @@ export async function queueOperationalQc(record:QcRecord,intent:QcSaveIntent,act
 export async function queueOperationalSession(items:Array<{record:QcRecord;intent:QcSaveIntent}>){
   return enqueueOperationalBatch(items.map(({record,intent})=>makeJob(record,intent,'syncRecord')))
 }
-export async function operationalQueuedRecords(){
+export async function operationalQueuedRecords():Promise<PersistedQcJob[]>{
   const {uid}=requireSession()
-  return (await listOperationalJobs(uid)).filter(acceptJob)
+  const jobs=await listOperationalJobs(uid)
+  return jobs.filter((job:PersistedJob):job is PersistedQcJob=>acceptJob(job))
 }
 export async function flushOperationalQc(){
   const {db,uid}=requireSession()
