@@ -1,5 +1,5 @@
 import { operationalSaveEnabled } from './qcOperationalAdapters'
-import { newOperationalQcId, queueNewReadyQc } from './qcOperationalFormBridge'
+import { newOperationalQcId, isOperationalQcId, queueFormSession, type OperationalFormItem } from './qcOperationalFormBridge'
 import { qcFormPhotoStagingEnabled, testFormPhotos } from './qcFormPhotoStaging'
 import { useEffect, useMemo, useState } from 'react'
 import { flushQueue, saveDraftFirestoreFirst, sendOrQueue } from './offline'
@@ -130,7 +130,9 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
     if(saveType==='ready'){const problem=validateReady(activeCards);if(problem){showProblem(problem);return}}
     const serverCards=saveType==='draft'?activeCards.filter(c=>Boolean(date&&mandor&&c.paddock)):activeCards
     if(saveType==='draft'&&!serverCards.length){setMessage('Draft Spraying tersimpan di perangkat. Isi Tanggal, Mandor, dan Paddock agar Draft juga muncul di Data QC.');return}
-    if(operationalSaveEnabled&&saveType==='ready'&&serverCards.some(c=>!c.recordId)&&serverCards.length!==1){setMessage('Uji penyimpanan baru hanya mendukung satu unit per sesi.');return}
+    const operational=operationalSaveEnabled&&serverCards.every(c=>!c.recordId||isOperationalQcId(c.recordId))
+    if(serverCards.some(c=>c.recordId&&isOperationalQcId(c.recordId))&&!operational){setMessage('Sesi QC baru tidak boleh dicampur dengan QC lama.');return}
+    const operationalItems:OperationalFormItem[]=[]
     setBusy(true);setMessage('')
     try{
       const records:QcRecord[]=[],savedIds=new Map<string,{recordId:string;saveType:string}>();let queued=0,firestoreFirstCount=0
@@ -138,12 +140,27 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
         const cardDailyPlan=sprayDailyPlans.find(p=>p.dailyPlanId===card.dailyPlanId)||resolveQcDailyPlan(sprayDailyPlans,card.paddock,card.activity,card.deskripsi)
         const materials=(cardDailyPlan?.materials||[]).slice(0,4).map((m,i)=>({slot:'Pesticide '+(i+1),material:m.material,unit:m.doseUnit||m.unit,dosage:m.dosePerHa}))
         const timing=timingFor(card),productivityHaPerHour=timing.ready&&timing.effective>0?Math.round((n(card.area)/(timing.effective/60))*100)/100:0,holdIntervals:HoldInterval[]=await Promise.all(card.holds.map(async({id,file,removePhoto,...hold})=>({...hold,holdId:id,photoBase64:removePhoto?'':file?await photoData(file):text(hold.photoBase64),photoDriveUrl:removePhoto?'':text(hold.photoDriveUrl)})))
-        const uploaded=card.saveType==='uploaded',recordId=card.recordId||(operationalSaveEnabled&&saveType==='ready'?newOperationalQcId(sessionId,card.id):`qc_${Date.now()}_${Math.random().toString(36).slice(2,8)}`),estimatedAdjuvant=((n(card.adjuvantDosage)*n(card.waterRate)*n(card.area))/1000).toFixed(2)
+        const uploaded=card.saveType==='uploaded',recordId=card.recordId||(operational?newOperationalQcId(sessionId,card.id):`qc_${Date.now()}_${Math.random().toString(36).slice(2,8)}`),estimatedAdjuvant=((n(card.adjuvantDosage)*n(card.waterRate)*n(card.area))/1000).toFixed(2)
         const record:QcRecord={id:recordId,sessionId,formType:'spray',date,shift,status:'Working',name:mandor,nameOfAssistan:assistant,dailyPlanId:card.dailyPlanId,monthlyPlanLineId:card.monthlyPlanLineId,dailyPlanLinkStatus:card.dailyPlanId?'LINKED':'NOT_FOUND',plannedDailyAreaHa:cardDailyPlan?.areaHa||0,dailyPlanSourceType:cardDailyPlan?.sourceType||'',actualAreaHa:n(card.area),companyCode:cardDailyPlan?.companyCode||'',farm:cardDailyPlan?.farm||'',dailyPlanningOrder:cardDailyPlan?.planningOrder||0,actualPlanMaterials:(cardDailyPlan?.materials||[]).map(m=>({...m,totalMaterial:Number((m.dosePerHa*n(card.area)).toFixed(4))})),startTime:card.startTime,endTime:card.endTime,unit:card.unit,noUnit:card.noUnit,area:card.area,activity:card.activity,deskripsi:card.deskripsi,paddock:card.paddock,variety:card.variety,type:card.type,dropper:card.dropper,nozzle:card.nozzle,dropletSize:card.dropletSize,height:card.height,rowSpacing:card.rowSpacing,speed:card.speed,adjuvant:card.adjuvant,adjuvantDosage:card.adjuvantDosage,actUsageAdjuvant:card.actUsageAdjuvant,waterRate:card.waterRate,waterQuality:card.waterQuality,actualUsage:card.actualUsage,windSpeed:card.windSpeed,temperature:card.temperature,humidity:card.humidity,deltaT:card.deltaT,weatherCondition:card.weatherCondition,noted:card.noted,saveType:uploaded?'uploaded':saveType,inputtedBy:user.username,...(!card.recordId&&firebaseAuth?.currentUser?.uid?{ownerUid:firebaseAuth.currentUser.uid}:{}),createdAt:card.createdAt||new Date().toISOString(),clientRevision:crypto.randomUUID(),photoBase64:card.removePhoto?'':card.photo?await photoData(card.photo):'',photoDriveUrl:card.removePhoto?'':card.photoDriveUrl||'',estUsageAdjuvant:estimatedAdjuvant,holdIntervals,workingDurationMinutes:timing.ready?timing.working:0,holdTotalMinutes:timing.ready?timing.total:0,effectiveWorkingMinutes:timing.ready?timing.effective:0,productivityHaPerHour}
         for(let i=0;i<4;i++){const item=materials[i];record[`pesticide${i+1}`]=item?.material||'';record[`dosage${i+1}`]=item?.dosage||'';record[`estUsagePesticide${i+1}`]=item?(n(item.dosage)*n(card.area)).toFixed(2):'';record[`actUsagePesticide${i+1}`]=card.actualMaterials[i]||''}
-        const result=operationalSaveEnabled&&saveType==='ready'&&!card.recordId?await queueNewReadyQc(record):saveType==='draft'&&!uploaded?await saveDraftFirestoreFirst(token,record):await sendOrQueue(token,uploaded?'finalizeRecord':'syncRecord',record);if(result.queued)queued++;if(result.firestoreFirst)firestoreFirstCount++
+        if(operational){
+          const previous=card.recordId?initialRecords.find(r=>r.id===card.recordId):undefined
+          if(card.recordId&&!previous)throw Error('Buka kembali Draft dari Data QC setelah sinkronisasi.')
+          operationalItems.push({record,previous,removeMain:card.removePhoto,removedHoldIds:card.holds.filter(h=>h.removePhoto).map(h=>h.id),replaceHoldIds:card.holds.filter(h=>h.file&&!h.removePhoto).map(h=>h.id)})
+          continue
+        }
+        const result=saveType==='draft'&&!uploaded?await saveDraftFirestoreFirst(token,record):await sendOrQueue(token,uploaded?'finalizeRecord':'syncRecord',record);if(result.queued)queued++;if(result.firestoreFirst)firestoreFirstCount++
         const nextSaveType=result.queued?(uploaded?'upload_queued':saveType==='draft'?'draft_queued':record.saveType):record.saveType
         records.push({...record,saveType:nextSaveType,firestoreSaveState:result.queued?'queued':'confirmed'});savedIds.set(card.id,{recordId,saveType:String(nextSaveType)})
+      }
+      if(operational){
+        const queuedRecords=await queueFormSession(operationalItems)
+        onSaved(queuedRecords)
+        await clearDraft(draftKey)
+        if(!editing){const fresh=emptyCard();setCards([fresh]);setActiveCardId(fresh.id);setSessionId(`spraysession_${Date.now()}_${Math.random().toString(36).slice(2,7)}`)}
+        setMessage(`${queuedRecords.length} unit tersimpan dalam antrean. Buka Data QC setelah konfirmasi untuk melanjutkan edit.`)
+        if(navigator.onLine)void flushQueue(token).catch(()=>{})
+        return
       }
       onSaved(records)
       if(saveType==='draft'&&!editingUploaded){if(!editing){const nextCards=cards.map(c=>{const saved=savedIds.get(c.id);return saved?{...c,recordId:saved.recordId,saveType:saved.saveType}:c});setCards(nextCards);await saveDraft(draftKey,{sessionId,date,shift,mandor,assistant,cards:nextCards,activeCardId})}setMessage(queued?`${records.length} unit tersimpan aman; ${queued} menunggu sinkronisasi.`:firestoreFirstCount===records.length?`Draft ${records.length} unit Spraying tersimpan di Firestore; Data QC diperbarui realtime.`:`Draft ${records.length} unit tersimpan; form tetap dipertahankan.`);return}
