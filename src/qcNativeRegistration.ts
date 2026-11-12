@@ -18,7 +18,10 @@ export async function submitNativeRegistration(input:{username:string;fullName:s
     const {user}=await (resume?signInWithEmailAndPassword:createUserWithEmailAndPassword)(auth,email,input.password)
     const ref=doc(db,'firebase_registration_requests',user.uid)
     const existing=await getDocFromServer(ref)
-    if(existing.exists())return String(existing.data().status)
+    if(existing.exists()){
+      if(!user.emailVerified&&existing.data().status==='pending')await sendEmailVerification(user)
+      return String(existing.data().status)
+    }
     await setDoc(ref,{username,fullName,email:user.email,requestedRole:input.requestedRole,status:'pending',createdAt:serverTimestamp(),source:'firebase_native'})
     if(!user.emailVerified)await sendEmailVerification(user)
     return 'pending'
