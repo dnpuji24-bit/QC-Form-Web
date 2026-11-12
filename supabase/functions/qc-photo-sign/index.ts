@@ -133,8 +133,8 @@ Deno.serve(async (request:Request)=>{
       Number(verified.payload.auth_time)<validSince)throw new RequestError(401)
     const [u,q,p]=await Promise.all([
       googleJson(docPath('users/'+uid),oauth),
-      googleJson(docPath('qc_records/'+data.recordId),oauth),
-      googleJson(docPath('qc_photo_metadata/'+data.recordId+'/photos/'+data.photoId),oauth),
+      googleJson(docPath('qc_photo_staging_records/'+data.recordId),oauth),
+      googleJson(docPath('qc_photo_staging_metadata/'+data.recordId+'/photos/'+data.photoId),oauth),
     ])
     const profile=decodeFields(u?.fields),qc=decodeFields(q?.fields),photo=decodeFields(p?.fields)
     if(!profile||profile.active!==true||!roles.has(profile.role))throw new RequestError(403)
