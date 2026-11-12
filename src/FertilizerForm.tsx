@@ -1,3 +1,4 @@
+import { qcFormPhotoStagingEnabled, testFormPhotos } from './qcFormPhotoStaging'
 import { useEffect, useMemo, useState } from 'react'
 import { collection, getDocs } from 'firebase/firestore'
 import { firebaseAuth, firestoreDb } from './firebase'
@@ -167,6 +168,21 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
     return null
   }
   function showReadyProblem(problem:{message:string;cardId:string}){if(problem.cardId)setActiveCardId(problem.cardId);setMessage(problem.message);window.setTimeout(()=>document.querySelector('.active-unit-card')?.scrollIntoView({behavior:'smooth',block:'start'}),60)}
+  async function testSelectedPhotos(){
+    if(editing||busy)return
+    setBusy(true);setMessage('')
+    try{
+      const selected=cards.find(c=>c.id===activeCardId)
+      if(!selected)throw new Error('Pilih Unit Card terlebih dahulu.')
+      const inputs:Array<{kind:'main'|'hold'|'scan';dataUrl:string;holdId?:string}>=[]
+      if(selected.photo&&!selected.removePhoto)inputs.push({kind:'main',dataUrl:await photoData(selected.photo)})
+      for(const d of selected.downtime)if(d.file&&!d.removePhoto)inputs.push({kind:'hold',holdId:d.id,dataUrl:await photoData(d.file)})
+      if(selected.scanReportFile)inputs.push({kind:'scan',dataUrl:await photoData(selected.scanReportFile)})
+      const result=await testFormPhotos('fertilizer',inputs)
+      setMessage('UJI FOTO SAJA: '+result.count+' foto private terverifikasi. ID uji: '+result.recordId+'. QC operasional tidak disimpan.')
+    }catch(error){setMessage(error instanceof Error?error.message:'Uji foto gagal.')}
+    finally{setBusy(false)}
+  }
   async function saveAll(saveType:'draft'|'ready'){
     const activeCards=cards.filter(hasCardInput),localDraft:FertDraft={sessionId,date,shift,mandor,assistant,cards,activeCardId}
     if(saveType==='draft'&&!editing)await saveDraft(draftKey,localDraft)
@@ -212,7 +228,7 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
       <div className="unit-summary"><span>Total Pupuk<strong>{cardKg.toLocaleString('id-ID')} Kg</strong></span><span>Total Hasil<strong>{cardHa.toLocaleString('id-ID')} Ha</strong></span><span>Rata-rata Dosis Aktual<strong>{cardAverageDose?cardAverageDose.toFixed(2):'0'} Kg/Ha</strong></span><span>Dosis Total/Ha<strong>{cardWeightedDose?cardWeightedDose.toFixed(2):'0'} Kg/Ha</strong></span></div>
     </article>}
     <div className="panel session-summary"><div><span>Jumlah unit</span><strong>{total.units}</strong></div><div><span>Total pupuk</span><strong>{total.totalKg.toLocaleString('id-ID')} Kg</strong></div><div><span>Total hasil</span><strong>{total.totalHa.toLocaleString('id-ID')} Ha</strong></div></div>
-    <div className="form-actions">{editing&&<button type="button" disabled={busy} onClick={onCancelEdit}>Batal Edit</button>}{!editingUploaded&&<button type="button" disabled={busy} onClick={()=>void saveAll('draft')}>{editing?'Perbarui Draft Session':'Simpan Draft Semua Unit'}</button>}<button className="primary" type="button" disabled={busy} onClick={()=>void saveAll('ready')}>{busy?'Menyimpan…':editingUploaded?'Simpan Koreksi Uploaded':editing?'Perbarui Session Siap Upload':'Simpan Semua Unit'}</button></div>
+    <div className="form-actions">{qcFormPhotoStagingEnabled&&!editing&&<button type="button" disabled={busy} onClick={()=>void testSelectedPhotos()}>Uji Foto Supabase (Testing)</button>}{editing&&<button type="button" disabled={busy} onClick={onCancelEdit}>Batal Edit</button>}{!editingUploaded&&<button type="button" disabled={busy} onClick={()=>void saveAll('draft')}>{editing?'Perbarui Draft Session':'Simpan Draft Semua Unit'}</button>}<button className="primary" type="button" disabled={busy} onClick={()=>void saveAll('ready')}>{busy?'Menyimpan…':editingUploaded?'Simpan Koreksi Uploaded':editing?'Perbarui Session Siap Upload':'Simpan Semua Unit'}</button></div>
   </section>
 }
 function TimingStat({label,value}:{label:string;value:string}){return <div className="stat"><span>{label}</span><strong>{value}</strong></div>}
