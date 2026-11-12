@@ -4,7 +4,7 @@ import {readApprovedFirebaseSession} from './qcFirebaseSession'
 import {qcMasterFirestoreEnabled,loadQcMasterDataFirestore} from './qcMasterDataFirestore'
 import {qcFirestoreOnly} from './qcCutover'
 import {assertQcScriptAllowed} from './qcCutoverPolicy.mjs'
-import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, getDocsFromServer, query, where, orderBy, limit } from 'firebase/firestore'
 import type { AccountChangeRequest, ApiResponse, MasterData, QcRecord, User } from './types'
 import { firebaseAuth, firestoreDb } from './firebase'
 import { mirrorRecordToFirestore, removeRecordFromFirestore } from './firestoreStore'
@@ -116,5 +116,13 @@ export const qcApi = {
   requestAccountChange: (token: string, payload: { currentPassword: string; newFullName?: string; newUsername?: string; newPassword?: string }) => api('accountChangeRequest', token, payload),
   accountChangeRequests: (token: string) => api<AccountChangeRequest[]>('accountChangeRequests', token, {}, 'GET'),
   decideAccountChange: (token: string, requestId: string, decision: 'approve' | 'reject') => api('decideAccountChange', token, { requestId, decision }),
-  logs: (token: string) => api<Record<string, unknown>[]>('logs', token, {}, 'GET'),
+  logs: async (token: string):Promise<ApiResponse<Record<string, unknown>[]>> => {
+    if(!nativePortalEnabled)return api<Record<string, unknown>[]>('logs',token,{},'GET')
+    const user=await readApprovedFirebaseSession()
+    if(!firestoreDb||!user.firebaseUid||(user.role!=='owner'&&!['view','edit'].includes(user.permissions?.qc_logs||'')))throw Error('Akses Activity Logs ditolak.')
+    const snap=await getDocsFromServer(query(collection(firestoreDb,'qc_operational_audit'),orderBy('createdAt','desc'),limit(100)))
+    if(firebaseAuth?.currentUser?.uid!==user.firebaseUid)throw Error('Sesi berubah.')
+    const logs=snap.docs.map(d=>{const x=d.data();return {Timestamp:x.createdAt?.toDate?.().toISOString(),Username:x.username,ActionType:'QC '+x.saveType,Description:x.formType+' · '+x.recordId+' · '+x.revision}})
+    return {ok:true,data:logs}
+  },
 }
