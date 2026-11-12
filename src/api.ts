@@ -1,3 +1,6 @@
+import {nativePortalEnabled} from './qcNativePortalConfig'
+import {assertLegacyApiAllowed} from './qcNativePortalPolicy.mjs'
+import {readApprovedFirebaseSession} from './qcFirebaseSession'
 import {qcMasterFirestoreEnabled,loadQcMasterDataFirestore} from './qcMasterDataFirestore'
 import {qcFirestoreOnly} from './qcCutover'
 import {assertQcScriptAllowed} from './qcCutoverPolicy.mjs'
@@ -24,6 +27,7 @@ export function setApiUrl(apiUrl: string): void {
 }
 
 export async function api<T = unknown>(action: string, token = '', data: Record<string, unknown> = {}, method: 'GET' | 'POST' = 'POST', timeoutMs = 0): Promise<ApiResponse<T>> {
+  assertLegacyApiAllowed(nativePortalEnabled,token)
   assertQcScriptAllowed(action,qcFirestoreOnly)
   const url = getApiUrl()
   const controller = timeoutMs > 0 ? new AbortController() : null
@@ -91,7 +95,7 @@ async function mirrorAfter<T>(result:ApiResponse<T>,record:QcRecord){
 export const qcApi = {
   login: (username: string, password: string) => api('login', '', { username, password }),
   register: (payload: Record<string, unknown>) => api('register', '', payload),
-  me: (token: string) => api<User>('me', token, {}, 'GET'),
+  me: async (token: string):Promise<ApiResponse<User>> => nativePortalEnabled ? {ok:true,user:await readApprovedFirebaseSession()} : api<User>('me', token, {}, 'GET'),
   logout: (token: string) => api('logout', token),
   masterData: async (token: string):Promise<ApiResponse<MasterData>> => qcMasterFirestoreEnabled ? {ok:true,data:await loadQcMasterDataFirestore()} : api<MasterData>('masterData', token, {}, 'GET'),
   records: (token: string) => recordsFirestoreFirst(token),
