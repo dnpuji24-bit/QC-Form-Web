@@ -9,7 +9,7 @@ import type { ApiResponse, QcRecord } from './types'
 
 export type QueueAction='syncRecord'|'finalizeRecord'
 export type UploadState='ready'|'queued'|'uploading'|'uploaded'|'failed'
-export type SaveTransportResult={queued:boolean;firestoreFirst:boolean;spreadsheetPending:boolean;uploadState?:UploadState}
+export type SaveTransportResult={queued:boolean;firestoreFirst:boolean;spreadsheetPending:boolean;uploadState?:UploadState;clientRevision?:string}
 type QueueItem={id:string;action:QueueAction;record:QcRecord;createdAt:number;ownerUsername?:string;attempts?:number;lastAttemptAt?:number;lastError?:string;nextAttemptAt?:number;firestoreSynced?:boolean}
 type FlushResult={sent:number;left:number}
 
