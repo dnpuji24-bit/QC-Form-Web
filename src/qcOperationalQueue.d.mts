@@ -16,3 +16,5 @@ export function flushOperationalJobs(uid:string,deps:{
   putVerifiedPhoto:(ref:any,bytes:Uint8Array,job:any)=>Promise<void>
   commitRecord:(input:any)=>Promise<unknown>
 },factory?:IDBFactory):Promise<{sent:number;left:number;failures:Array<{id:string;error:string}>}>
+
+export function enqueueOperationalBatch<J extends OperationalJob>(jobs:J[],factory?:IDBFactory):Promise<Array<J&{id:string;createdAt:number}>>
