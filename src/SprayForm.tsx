@@ -1,3 +1,4 @@
+import { qcFormPhotoStagingEnabled, testFormPhotos } from './qcFormPhotoStaging'
 import { useEffect, useMemo, useState } from 'react'
 import { flushQueue, saveDraftFirestoreFirst, sendOrQueue } from './offline'
 import { clearDraft, loadDraft, saveDraft } from './draftStore'
@@ -107,6 +108,20 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
   }
   function validateReady(activeCards:SprayCard[]){if(!date||!mandor)return{message:'Tanggal dan Mandor wajib diisi.',cardId:activeCards[0]?.id||''};if(!activeCards.length)return{message:'Isi minimal satu Unit Card sebelum disimpan.',cardId:''};const seen=new Set<string>();for(let i=0;i<activeCards.length;i++){const c=activeCards[i];if(!c.unit||!c.noUnit||!c.paddock)return{message:`Unit ${i+1}: lengkapi Jenis Unit, No. Unit, dan Paddock.`,cardId:c.id};const key=`${c.unit}|${c.noUnit}`.toLowerCase();if(seen.has(key))return{message:`Unit ${i+1}: ${c.noUnit} sudah digunakan pada unit lain.`,cardId:c.id};seen.add(key);if(!c.activity||!c.deskripsi||!c.variety||!c.type)return{message:`Unit ${c.noUnit}: lengkapi Activity, Deskripsi, Variety, dan Type.`,cardId:c.id};if(!editing&&!sprayDailyPlans.some(plan=>plan.dailyPlanId===c.dailyPlanId))return{message:`Unit ${c.noUnit}: pilih pekerjaan yang tersedia dari Daily Plan tanggal aktif.`,cardId:c.id};if(n(c.area)<=0)return{message:`Unit ${c.noUnit}: Luas aktual wajib lebih dari 0.`,cardId:c.id};const timing=timingFor(c);if(!timing.ready)return{message:`Unit ${c.noUnit}: ${timing.error}`,cardId:c.id}}return null}
   function showProblem(problem:{message:string;cardId:string}){if(problem.cardId)setActiveCardId(problem.cardId);setMessage(problem.message);window.setTimeout(()=>document.querySelector('.active-unit-card')?.scrollIntoView({behavior:'smooth',block:'start'}),60)}
+  async function testSelectedPhotos(){
+    if(editing||busy)return
+    setBusy(true);setMessage('')
+    try{
+      const selected=activeCard
+      if(!selected)throw new Error('Pilih Unit Card terlebih dahulu.')
+      const inputs:Array<{kind:'main'|'hold'|'scan';dataUrl:string;holdId?:string}>=[]
+      if(selected.photo&&!selected.removePhoto)inputs.push({kind:'main',dataUrl:await photoData(selected.photo)})
+      for(const h of selected.holds)if(h.file&&!h.removePhoto)inputs.push({kind:'hold',holdId:h.id,dataUrl:await photoData(h.file)})
+      const result=await testFormPhotos('spray',inputs)
+      setMessage('UJI FOTO SAJA: '+result.count+' foto private terverifikasi. ID uji: '+result.recordId+'. QC operasional tidak disimpan.')
+    }catch(error){setMessage(error instanceof Error?error.message:'Uji foto gagal.')}
+    finally{setBusy(false)}
+  }
   async function saveAll(saveType:'draft'|'ready'){
     const activeCards=cards.filter(hasCardInput),localDraft:SprayDraft={sessionId,date,shift,mandor,assistant,cards,activeCardId}
     if(saveType==='draft'&&!editing)await saveDraft(draftKey,localDraft)
@@ -163,7 +178,7 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
       <div className="unit-summary"><span>Luas Aktual<strong>{n(card.area).toLocaleString('id-ID')} Ha</strong></span><span>Actual Air<strong>{n(card.actualUsage).toLocaleString('id-ID')} L</strong></span><span>Working Efektif<strong>{timing.ready?durationLabel(timing.effective):'-'}</strong></span></div>
     </article>}
     <div className="panel session-summary"><div><span>Jumlah unit</span><strong>{total.units}</strong></div><div><span>Total luas aktual</span><strong>{total.area.toLocaleString('id-ID')} Ha</strong></div><div><span>Total actual air</span><strong>{total.water.toLocaleString('id-ID')} L</strong></div></div>
-    <div className="form-actions">{editing&&<button type="button" disabled={busy} onClick={onCancelEdit}>Batal Edit</button>}{!editingUploaded&&<button type="button" disabled={busy} onClick={()=>void saveAll('draft')}>{editing?'Perbarui Draft Session':'Simpan Draft Semua Unit'}</button>}<button className="primary" type="button" disabled={busy} onClick={()=>void saveAll('ready')}>{busy?'Menyimpan…':editingUploaded?'Simpan Koreksi Uploaded':editing?'Perbarui Session Siap Upload':'Simpan Semua Unit'}</button></div>
+    <div className="form-actions">{qcFormPhotoStagingEnabled&&!editing&&<button type="button" disabled={busy} onClick={()=>void testSelectedPhotos()}>Uji Foto Supabase (Testing)</button>}{editing&&<button type="button" disabled={busy} onClick={onCancelEdit}>Batal Edit</button>}{!editingUploaded&&<button type="button" disabled={busy} onClick={()=>void saveAll('draft')}>{editing?'Perbarui Draft Session':'Simpan Draft Semua Unit'}</button>}<button className="primary" type="button" disabled={busy} onClick={()=>void saveAll('ready')}>{busy?'Menyimpan…':editingUploaded?'Simpan Koreksi Uploaded':editing?'Perbarui Session Siap Upload':'Simpan Semua Unit'}</button></div>
   </section>
 }
 function Stat({label,value}:{label:string;value:string}){return <div className="stat"><span>{label}</span><strong>{value}</strong></div>}
