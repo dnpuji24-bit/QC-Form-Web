@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.qc-photo-upload-pilot]
 verify_jwt = false
+
+[functions.qc-photo-upload]
+verify_jwt = false
