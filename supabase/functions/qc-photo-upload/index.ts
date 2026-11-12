@@ -125,10 +125,15 @@ Deno.serve(async(request:Request)=>{
       !['spray','fertilizer'].includes(data.formType)||!['main','hold','scan'].includes(data.kind)||
       !Object.hasOwn(allowedTypes,data.contentType)||typeof data.base64!=='string'||
       !/^[A-Za-z0-9+/=]+$/.test(data.base64))throw new RequestError(400)
-    if(typeof data.baseRevision!=='string'||!idPattern.test(data.baseRevision))throw new RequestError(400)
+    if(data.baseRevision!==null&&(typeof data.baseRevision!=='string'||!idPattern.test(data.baseRevision)))throw new RequestError(400)
+    if(typeof data.clientRevision!=='string'||!idPattern.test(data.clientRevision))throw new RequestError(400)
     const staging=stagingId.test(data.recordId)
-    const parent=decodeFields((await googleJson(docPath((staging?'qc_photo_staging_records/':'qc_records/')+data.recordId),oauth))?.fields)
-    if(!parent||parent.formType!==data.formType||parent.clientRevision!==data.baseRevision)throw new RequestError(409)
+    let parent=decodeFields((await googleJson(docPath((staging?'qc_photo_staging_records/':'qc_records/')+data.recordId),oauth))?.fields)
+    if(!parent&&!staging&&data.baseRevision===null){
+      parent=decodeFields((await googleJson(docPath('qc_photo_upload_intents/'+data.recordId),oauth))?.fields)
+      if(!parent||parent.clientRevision!==data.clientRevision)throw new RequestError(409)
+    }else if(!parent||parent.clientRevision!==data.baseRevision)throw new RequestError(409)
+    if(parent.formType!==data.formType)throw new RequestError(409)
     if(staging&&parent.testOnly!==true)throw new RequestError(403)
     if(!staging&&data.recordId.startsWith('qc-operational-pilot-'))throw new RequestError(403)
     const template=decodeFields((await googleJson(docPath('role_access/'+profile.role),oauth))?.fields)
