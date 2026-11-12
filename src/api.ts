@@ -1,3 +1,4 @@
+import {qcMasterFirestoreEnabled,loadQcMasterDataFirestore} from './qcMasterDataFirestore'
 import {qcFirestoreOnly} from './qcCutover'
 import {assertQcScriptAllowed} from './qcCutoverPolicy.mjs'
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
@@ -92,7 +93,7 @@ export const qcApi = {
   register: (payload: Record<string, unknown>) => api('register', '', payload),
   me: (token: string) => api<User>('me', token, {}, 'GET'),
   logout: (token: string) => api('logout', token),
-  masterData: (token: string) => api<MasterData>('masterData', token, {}, 'GET'),
+  masterData: async (token: string):Promise<ApiResponse<MasterData>> => qcMasterFirestoreEnabled ? {ok:true,data:await loadQcMasterDataFirestore()} : api<MasterData>('masterData', token, {}, 'GET'),
   records: (token: string) => recordsFirestoreFirst(token),
   syncRecord: async (token: string, record: QcRecord) => mirrorAfter(await api('syncRecord', token, { record }, 'POST', 25_000),record),
   finalizeRecord: async (token: string, record: QcRecord) => mirrorAfter(await api('finalizeRecord', token, { record }, 'POST', 120_000),{...record,saveType:'uploaded'}),
