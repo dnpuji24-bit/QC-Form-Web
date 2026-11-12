@@ -1,3 +1,5 @@
+import {qcFirestoreOnly} from './qcCutover'
+import {assertQcScriptAllowed} from './qcCutoverPolicy.mjs'
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
 import type { AccountChangeRequest, ApiResponse, MasterData, QcRecord, User } from './types'
 import { firebaseAuth, firestoreDb } from './firebase'
@@ -21,6 +23,7 @@ export function setApiUrl(apiUrl: string): void {
 }
 
 export async function api<T = unknown>(action: string, token = '', data: Record<string, unknown> = {}, method: 'GET' | 'POST' = 'POST', timeoutMs = 0): Promise<ApiResponse<T>> {
+  assertQcScriptAllowed(action,qcFirestoreOnly)
   const url = getApiUrl()
   const controller = timeoutMs > 0 ? new AbortController() : null
   const timeout = controller ? window.setTimeout(() => controller.abort(), timeoutMs) : 0
@@ -60,9 +63,11 @@ async function recordsFirestoreFirst(token:string):Promise<ApiResponse<QcRecord[
       records.sort((a,b)=>String(b.createdAt||b.date||'').localeCompare(String(a.createdAt||a.date||'')))
       return{ok:true,data:records,records}
     }catch(error){
+      if(qcFirestoreOnly)throw error
       console.info('Firestore read gagal; fallback ke Apps Script.',error)
     }
   }
+  if(qcFirestoreOnly)throw Error('Login Firebase diperlukan untuk Data QC.')
   return api<QcRecord[]>('records',token,{},'GET')
 }
 
