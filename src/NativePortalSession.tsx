@@ -1,3 +1,4 @@
+import {legacyQueueInventory} from './offline'
 import {useEffect,useState,type ReactNode,type FormEvent} from 'react'
 import {onIdTokenChanged,signInWithEmailAndPassword,signOut} from 'firebase/auth'
 import {firebaseAuth} from './firebase'
@@ -58,6 +59,14 @@ export default function NativePortalSession({children}:{children:ReactNode}){
   }catch{setMessage('Permintaan gagal. Periksa akun, koneksi, atau konfigurasi.');form.reset()}finally{setBusy(false)}
  }
  if(!ready)return <main className="auth-page"><p>Memverifikasi sesi Firebase…</p></main>
- if(user)return <div key={user.firebaseUid+'|'+user.role+'|'+JSON.stringify(user.permissions)}>{children}</div>
+ if(user)return <div key={user.firebaseUid+'|'+user.role+'|'+JSON.stringify(user.permissions)}><LegacyQueueNotice/>{children}</div>
  return <main className="auth-page"><section className="auth-card"><h1>QC Form Web</h1><p>Firebase Authentication</p><div className="segmented"><button onClick={()=>setRegister(false)}>Masuk</button><button onClick={()=>setRegister(true)}>Daftar</button></div>{message&&<p role="alert">{message}</p>}<form className="form-stack" onSubmit={submit}>{register&&<><label>Nama lengkap<input name="fullName" required/></label><label>Username<input name="username" pattern="[a-z0-9_]{3,40}" required/></label><label>Role<select name="role" defaultValue="pengunjung">{nativeRegistrationRoles.map(r=><option key={r}>{r}</option>)}</select></label><label><input type="checkbox" name="resume"/> Lanjutkan registrasi sebelumnya</label></>}<label>Email<input type="email" name="email" autoComplete="username" required/></label><label>Password<input type="password" name="password" autoComplete={register?'new-password':'current-password'} required/></label><button className="primary" disabled={busy}>{busy?'Memproses…':register?'Daftar':'Masuk'}</button></form></section></main>
+}
+
+function LegacyQueueNotice(){
+ const [summary,setSummary]=useState<Awaited<ReturnType<typeof legacyQueueInventory>>|null>(null),[failed,setFailed]=useState(false)
+ useEffect(()=>{let stopped=false;const read=()=>{void legacyQueueInventory().then(v=>{if(!stopped){setSummary(v);setFailed(false)}}).catch(()=>{if(!stopped)setFailed(true)})};read();window.addEventListener('focus',read);return()=>{stopped=true;window.removeEventListener('focus',read)}},[])
+ if(failed)return <p role="alert">Antrean lama tidak dapat diperiksa. Jangan hapus data browser atau lakukan cutover.</p>
+ if(!summary||!summary.total)return null
+ return <aside role="status" style={{padding:12,background:'#fff5df',color:'#754700'}}>Antrean QC lama pada perangkat ini: {summary.total} (akun cocok: {summary.own}; lainnya: {summary.other}; tanpa identitas: {summary.unattributed}; konflik: {summary.conflicting}). Antrean dipertahankan, tidak dikirim atau dihapus otomatis dalam mode cutover. Selesaikan melalui versi lama dan verifikasi hasil sebelum migrasi.</aside>
 }
