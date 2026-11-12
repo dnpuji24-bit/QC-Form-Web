@@ -73,6 +73,11 @@ service cloud.firestore {
     function nativeRegistrationOwner() {
       return activeUser() && role() == 'owner' && profile().data.status == 'approved';
     }
+    match /qc_admin_audit/{auditId} {
+      allow read: if nativeRegistrationOwner();
+      allow write: if false;
+    }
+
     match /firebase_registration_requests/{uid} {
       allow get: if signedIn() && (request.auth.uid == uid || nativeRegistrationOwner());
       allow list: if nativeRegistrationOwner();
