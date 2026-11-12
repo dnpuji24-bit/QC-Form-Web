@@ -1,4 +1,4 @@
-import { collection, getDocs } from 'firebase/firestore'
+import { collection, getDocs, getDocsFromServer } from 'firebase/firestore'
 import { firestoreDb } from './firebase'
 
 export type OperationalResourceKind=
@@ -38,9 +38,9 @@ export const OPERATIONAL_RESOURCE_COLLECTIONS:Record<OperationalResourceKind,str
 
 function text(value:unknown){return value===null||value===undefined?'':String(value).trim()}
 
-export async function loadOperationalResources(kind:OperationalResourceKind):Promise<OperationalResource[]>{
-  if(!firestoreDb)return[]
-  const snap=await getDocs(collection(firestoreDb,OPERATIONAL_RESOURCE_COLLECTIONS[kind]))
+export async function loadOperationalResources(kind:OperationalResourceKind,serverOnly=false):Promise<OperationalResource[]>{
+  if(!firestoreDb){if(serverOnly)throw Error('Firestore belum tersedia.');return[]}
+  const snap=await (serverOnly?getDocsFromServer:getDocs)(collection(firestoreDb,OPERATIONAL_RESOURCE_COLLECTIONS[kind]))
   return snap.docs.map(item=>{
     const row=item.data() as Record<string,unknown>
     return{
@@ -56,19 +56,19 @@ export async function loadOperationalResources(kind:OperationalResourceKind):Pro
   )
 }
 
-export async function loadAllOperationalResources(){
+export async function loadAllOperationalResources(serverOnly=false){
   const[
     units,unitNumbers,nozzles,droppers,shifts,foremen,assistants,waterQualities,weatherConditions,
   ]=await Promise.all([
-    loadOperationalResources('unit'),
-    loadOperationalResources('unit_number'),
-    loadOperationalResources('nozzle'),
-    loadOperationalResources('dropper'),
-    loadOperationalResources('shift'),
-    loadOperationalResources('foreman'),
-    loadOperationalResources('assistant'),
-    loadOperationalResources('water_quality'),
-    loadOperationalResources('weather_condition'),
+    loadOperationalResources('unit',serverOnly),
+    loadOperationalResources('unit_number',serverOnly),
+    loadOperationalResources('nozzle',serverOnly),
+    loadOperationalResources('dropper',serverOnly),
+    loadOperationalResources('shift',serverOnly),
+    loadOperationalResources('foreman',serverOnly),
+    loadOperationalResources('assistant',serverOnly),
+    loadOperationalResources('water_quality',serverOnly),
+    loadOperationalResources('weather_condition',serverOnly),
   ])
   return{units,unitNumbers,nozzles,droppers,shifts,foremen,assistants,waterQualities,weatherConditions}
 }
