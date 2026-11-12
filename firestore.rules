@@ -106,6 +106,51 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    function operationalAuditPath(recordId, revision) {
+      return /databases/$(database)/documents/qc_operational_audit/$(recordId + ':' + revision);
+    }
+    function hasOperationalSave(data) {
+      return data.keys().hasAny(['operationalSaveId']);
+    }
+    function validOperationalAudit(recordId) {
+      let next = request.resource.data;
+      let audit = getAfter(operationalAuditPath(recordId, next.clientRevision)).data;
+      return next.ownerUid == request.auth.uid
+        && next.inputtedBy == username()
+        && next.clientRevision is string
+        && next.clientRevision.matches('^[A-Za-z0-9_-]{1,160}$')
+        && !exists(operationalAuditPath(recordId, next.clientRevision))
+        && audit.actorUid == request.auth.uid
+        && audit.recordId == recordId
+        && audit.revision == next.clientRevision
+        && audit.saveType == next.saveType;
+    }
+    match /qc_operational_audit/{auditId} {
+      allow read: if activeUser() && profile().data.status == 'approved'
+        && (role() == 'owner' || permission('qc_logs') in ['view','edit']);
+      allow create: if activeUser() && profile().data.status == 'approved'
+        && request.resource.data.keys().hasAll(['recordId','revision','actorUid','username','formType','saveType','createdAt'])
+        && request.resource.data.keys().hasOnly(['recordId','revision','actorUid','username','formType','saveType','createdAt'])
+        && request.resource.data.recordId is string
+        && request.resource.data.recordId.matches('^[A-Za-z0-9_-]{1,160}$')
+        && request.resource.data.revision is string
+        && request.resource.data.revision.matches('^[A-Za-z0-9_-]{1,160}$')
+        && auditId == request.resource.data.recordId + ':' + request.resource.data.revision
+        && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.username == username()
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.saveType in ['draft','ready','uploaded']
+        && getAfter(/databases/$(database)/documents/qc_records/$(request.resource.data.recordId)).data.ownerUid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/qc_records/$(request.resource.data.recordId)).data.inputtedBy == username()
+        && getAfter(/databases/$(database)/documents/qc_records/$(request.resource.data.recordId)).data.clientRevision == request.resource.data.revision
+        && getAfter(/databases/$(database)/documents/qc_records/$(request.resource.data.recordId)).data.formType == request.resource.data.formType
+        && getAfter(/databases/$(database)/documents/qc_records/$(request.resource.data.recordId)).data.saveType == request.resource.data.saveType
+        && hasOperationalSave(getAfter(/databases/$(database)/documents/qc_records/$(request.resource.data.recordId)).data)
+        && (!exists(/databases/$(database)/documents/qc_records/$(request.resource.data.recordId))
+          || get(/databases/$(database)/documents/qc_records/$(request.resource.data.recordId)).data.get('clientRevision','') != request.resource.data.revision);
+      allow update, delete: if false;
+    }
+
     match /qc_records/{recordId} {
       // A reservation permits its owner to check a not-yet-created QC document.
       allow get: if activeUser() && resource == null
@@ -116,7 +161,7 @@ service cloud.firestore {
         ((isSprayMandor() || isFertMandor()) && canViewKey('qc_records',['mandor_spraying','mandor_fertilizer']) && ownsExisting())
       );
 
-      allow create: if activeUser() && (
+      allow create: if activeUser() && (!hasOperationalSave(request.resource.data) || validOperationalAudit(recordId)) && (
         (request.resource.data.formType == 'spray'
           && canEditKey('qc_spraying',['owner','asisten','mandor_spraying'])
           && (!isSprayMandor() || ownsIncoming()))
@@ -126,7 +171,7 @@ service cloud.firestore {
           && (!isFertMandor() || ownsIncoming()))
       );
 
-      allow update: if activeUser() && (
+      allow update: if activeUser() && ((!hasOperationalSave(resource.data) && !hasOperationalSave(request.resource.data)) || (hasOperationalSave(request.resource.data) && request.resource.data.ownerUid == resource.data.ownerUid && request.resource.data.formType == resource.data.formType && request.resource.data.inputtedBy == resource.data.inputtedBy && validOperationalAudit(recordId))) && (
         (request.resource.data.formType == 'spray'
           && canEditKey('qc_spraying',['owner','asisten','mandor_spraying'])
           && (!isSprayMandor() || (ownsExisting() && ownsIncoming())))
@@ -136,7 +181,7 @@ service cloud.firestore {
           && (!isFertMandor() || (ownsExisting() && ownsIncoming())))
       );
 
-      allow delete: if activeUser() && canEditKey('qc_records',['owner','manager','admin','asisten']);
+      allow delete: if activeUser() && !hasOperationalSave(resource.data) && canEditKey('qc_records',['owner','manager','admin','asisten']);
     }
 
 
