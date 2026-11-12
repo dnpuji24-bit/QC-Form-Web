@@ -1,6 +1,6 @@
 import {doc,getDocFromServer,setDoc,serverTimestamp} from 'firebase/firestore'
 import {firebaseAuth,firestoreDb} from './firebase'
-import {enqueueOperationalJob,flushOperationalJobs,listOperationalJobs,type OperationalJob} from './qcOperationalQueue.mjs'
+import {enqueueOperationalJob,enqueueOperationalBatch,flushOperationalJobs,listOperationalJobs,type OperationalJob} from './qcOperationalQueue.mjs'
 import {commitOperationalQc,type AtomicQcInput} from './qcAtomicFirestoreAdapter'
 import type {QcSaveIntent} from './qcFormSaveIntent.mjs'
 import type {QcRecord} from './types'
@@ -17,12 +17,18 @@ function requireSession(){
   return {db:firestoreDb,uid:currentUid()!}
 }
 function assertUid(uid:string){if(currentUid()!==uid)throw Error('QC_QUEUE_ACCOUNT_MISMATCH')}
-export async function queueOperationalQc(record:QcRecord,intent:QcSaveIntent,action:Job['action']){
+function makeJob(record:QcRecord,intent:QcSaveIntent,action:Job['action']){
   const {uid}=requireSession()
   if(!validId(record.id)||typeof record.clientRevision!=='string'||!validId(record.clientRevision))throw Error('Invalid operational identity')
   if(intent.baseRevision!==null&&record.ownerUid!==uid)throw Error('QC_VERIFIED_OWNER_REQUIRED')
   const job:Job={scope:'operational',uploaderUid:uid,baseRevision:intent.baseRevision,action,changes:intent.changes,record:{...record,ownerUid:uid,clientRevision:record.clientRevision}}
-  return enqueueOperationalJob(job)
+  return job
+}
+export async function queueOperationalQc(record:QcRecord,intent:QcSaveIntent,action:Job['action']){
+  return enqueueOperationalJob(makeJob(record,intent,action))
+}
+export async function queueOperationalSession(items:Array<{record:QcRecord;intent:QcSaveIntent}>){
+  return enqueueOperationalBatch(items.map(({record,intent})=>makeJob(record,intent,'syncRecord')))
 }
 export async function operationalQueuedRecords(){
   const {uid}=requireSession()
