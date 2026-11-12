@@ -29,7 +29,7 @@ function encode(value:string|Uint8Array) {
   return btoa(binary).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')
 }
 async function googleAccessToken(service:ServiceAccount):Promise<string> {
-  if (service.project_id !== projectId || !service.client_email.endsWith('.iam.gserviceaccount.com')) throw new RequestError(500)
+  if (service.project_id !== projectId || service.client_email !== 'qc-photo-reader@form-qc-unm.iam.gserviceaccount.com') throw new RequestError(500)
   const raw = service.private_key.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g,'')
   const der = Uint8Array.from(atob(raw), character=>character.charCodeAt(0))
   const key = await crypto.subtle.importKey('pkcs8',der,{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['sign'])
@@ -102,7 +102,7 @@ Deno.serve(async (request:Request)=>{
     if(!/^Bearer [A-Za-z0-9_.-]+$/.test(tokenHeader))throw new RequestError(401)
     const jwt=tokenHeader.slice(7)
     const verified=await jwtVerify(jwt,jwks,{audience:projectId,issuer:'https://securetoken.google.com/'+projectId,
-      algorithms:['RS256'],clockTolerance:5})
+      algorithms:['RS256'],requiredClaims:['exp','iat','sub','auth_time'],clockTolerance:5})
     const uid=verified.payload.sub
     if(typeof uid!=='string'||!idPattern.test(uid)||(typeof verified.payload.auth_time !== 'number' || !Number.isInteger(verified.payload.auth_time)))throw new RequestError(401)
     if(!rateLimit(uid))throw new RequestError(429)
@@ -111,7 +111,9 @@ Deno.serve(async (request:Request)=>{
     let data:any
     try{data=JSON.parse(raw)}catch{throw new RequestError(400)}
     if(!data||typeof data!=='object'||Object.keys(data).sort().join(',')!=='photoId,recordId'||
-      !idPattern.test(data.recordId)||!idPattern.test(data.photoId))throw new RequestError(400)
+      typeof data.recordId!=='string'||typeof data.photoId!=='string'||!idPattern.test(data.recordId)||!idPattern.test(data.photoId))throw new RequestError(400)
+    // Initial hosted release is restricted to explicitly named non-operational fixtures.
+    if (!data.recordId.startsWith('qc-photo-staging-')) throw new RequestError(403)
     // Hosted Supabase injects named secret keys; do not create SUPABASE_* secrets manually.
     const namedSecrets=Deno.env.get('SUPABASE_SECRET_KEYS')||'{}'
     let parsedSecrets:Record<string,string>
@@ -138,7 +140,7 @@ Deno.serve(async (request:Request)=>{
     if(!profile||profile.active!==true||!roles.has(profile.role))throw new RequestError(403)
     if(profile.role!=='owner'){
       const role=decodeFields((await googleJson(docPath('role_access/'+profile.role),oauth))?.fields)
-      if(!role||!['view','edit'].includes(role.permissions?.qc_records))throw new RequestError(403)
+      if(!role||role.role!==profile.role||!['view','edit'].includes(role.permissions?.qc_records))throw new RequestError(403)
     }
     if(!qc||!['spray','fertilizer'].includes(qc.formType)||!photo||
       photo.photoId!==data.photoId||photo.qcRecordId!==data.recordId||
@@ -150,12 +152,13 @@ Deno.serve(async (request:Request)=>{
     if(typeof photo.objectPath!=='string'||!photo.objectPath.startsWith(prefix))throw new RequestError(403)
     const name=photo.objectPath.slice(prefix.length)
     if(!new RegExp('^[A-Za-z0-9_-]+\\.'+allowedTypes[photo.contentType]+'$').test(name))throw new RequestError(403)
+    if (name !== data.photoId+'.'+allowedTypes[photo.contentType] || !qc.clientRevision || photo.recordRevision!==qc.clientRevision) throw new RequestError(403)
     const client=createClient(storageUrl,secret,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}})
     const {data:signed,error}=await client.storage.from(bucket).createSignedUrl(photo.objectPath,60)
     if(error||!signed?.signedUrl)throw new RequestError(502)
     return json(200,{signedUrl:signed.signedUrl,expiresIn:60},cors)
   }catch(error){
-    const status=error instanceof RequestError?error.status:500
+    const status=error instanceof RequestError?error.status:(error instanceof Error && (error.name.startsWith('JWT') || error.name.startsWith('JWS')) ? 401 : 500)
     // Never send UID, recordId, signed URLs, Firebase/Supabase errors or credentials.
     return json(status,{error:status===403?'FORBIDDEN':status===401?'UNAUTHORIZED':'REQUEST_FAILED'},cors)
   }
