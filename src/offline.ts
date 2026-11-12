@@ -1,3 +1,4 @@
+import {summarizeLegacyQueue,strictLegacyOwner} from './qcLegacyQueueInventory.mjs'
 import {qcFirestoreOnly,qcFlushMode} from './qcCutover'
 import {assertLegacyQcWriteAllowed} from './qcCutoverPolicy.mjs'
 import { isOperationalQcId, queueOperationalFinalize } from './qcOperationalFormBridge'
@@ -40,6 +41,7 @@ function currentUsername(){
 }
 function itemOwner(item:QueueItem){return String(item.ownerUsername||item.record.inputtedBy||'').trim().toLowerCase()}
 function belongsToCurrentUser(item:QueueItem,username=currentUsername()){
+  if(qcFirestoreOnly)return strictLegacyOwner(item,username)
   const owner=itemOwner(item)
   return !username||!owner||owner===username
 }
@@ -162,8 +164,9 @@ async function sendServerFirst(token:string,action:QueueAction,record:QcRecord):
 }
 
 export async function queueCount(){const username=currentUsername();return(await allItems()).filter(item=>belongsToCurrentUser(item,username)).length+(operationalSaveEnabled&&firebaseAuth?.currentUser? (await operationalQueuedRecords()).length:0)}
-export async function queuedRecords(){const username=currentUsername();const legacy=(await recoverInterruptedUploads((await allItems()).filter(item=>belongsToCurrentUser(item,username)))).map(item=>item.record);const next=operationalSaveEnabled&&firebaseAuth?.currentUser?await operationalQueuedRecords():[];return [...legacy,...next.map(job=>({...job.record,saveType:job.action==='finalizeRecord'?'upload_queued':job.record.saveType==='draft'?'draft_queued':job.record.saveType==='uploaded'?'upload_queued':'ready',firestoreSaveState:'queued'} as QcRecord))]}
-export async function discardQueuedRecord(recordId:string){const username=currentUsername();await replaceItems((await allItems()).filter(item=>item.record.id!==recordId||!belongsToCurrentUser(item,username)))}
+export async function legacyQueueInventory(){return summarizeLegacyQueue(await allItems(),currentUsername())}
+export async function queuedRecords(){const username=currentUsername();const owned=(await allItems()).filter(item=>belongsToCurrentUser(item,username));const legacy=(qcFirestoreOnly?owned:await recoverInterruptedUploads(owned)).map(item=>item.record);const next=operationalSaveEnabled&&firebaseAuth?.currentUser?await operationalQueuedRecords():[];return [...legacy,...next.map(job=>({...job.record,saveType:job.action==='finalizeRecord'?'upload_queued':job.record.saveType==='draft'?'draft_queued':job.record.saveType==='uploaded'?'upload_queued':'ready',firestoreSaveState:'queued'} as QcRecord))]}
+export async function discardQueuedRecord(recordId:string){if(qcFirestoreOnly)throw Error('Antrean lama dipertahankan selama cutover.');const username=currentUsername();await replaceItems((await allItems()).filter(item=>item.record.id!==recordId||!belongsToCurrentUser(item,username)))}
 export async function enqueue(action:QueueAction,record:QcRecord){if(isOperationalQcId(record.id))throw Error('QC baru tidak boleh masuk antrean lama');await enqueueInternal(action,record)}
 
 export async function retryQueuedRecord(recordOrId:QcRecord|string,token:string):Promise<boolean>{
