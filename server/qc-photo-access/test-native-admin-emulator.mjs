@@ -3,6 +3,7 @@ import {initializeApp,deleteApp} from 'firebase-admin/app'
 import {getFirestore,FieldValue} from 'firebase-admin/firestore'
 import {getAuth} from 'firebase-admin/auth'
 import {administer,permissionKeys} from './nativeAdminCore.mjs'
+import {executeNativeAdmin} from './nativeAdminService.mjs'
 import assert from 'node:assert/strict'
 const projectId='demo-qc-photo-test'
 if(process.env.GCLOUD_PROJECT!==projectId||! /^(localhost|127\.0\.0\.1):\d+$/.test(process.env.FIRESTORE_EMULATOR_HOST||'')||! /^(localhost|127\.0\.0\.1):\d+$/.test(process.env.FIREBASE_AUTH_EMULATOR_HOST||''))throw Error('Both local demo emulators required')
@@ -20,7 +21,14 @@ async function applicant(uid,username,emailVerified=true){
  await requests.doc(uid).set({username,fullName:'Test Applicant',email,requestedRole:'manager',approvedRole:'manager',status:'approved_for_provisioning',reviewedBy:actor.uid})
 }
 try{
+ await auth.createUser({uid:actor.uid,email:actor.email,emailVerified:true,password:'test-only-password'})
  await users.doc(actor.uid).set(owner)
+ const login=await fetch('http://'+process.env.FIREBASE_AUTH_EMULATOR_HOST+'/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:actor.email,password:'test-only-password',returnSecureToken:true})})
+ if(!login.ok)throw Error('Auth emulator login failed')
+ const {idToken}=await login.json()
+ const service=(authorization,command)=>executeNativeAdmin({db,auth,authorization,command,stamp:()=>FieldValue.serverTimestamp()})
+ await check('missing bearer rejected',()=>assert.rejects(service('',{action:'activate',uid:'alice'}),/AUTH_REQUIRED/))
+ await check('invalid Firebase token rejected',()=>assert.rejects(service('Bearer invalid',{action:'activate',uid:'alice'})))
  await users.doc('legacy').set({username:'LegacyUser',role:'manager',active:true,status:'approved'})
  await templates.doc('manager').set({role:'manager',permissions})
  await templates.doc('admin').set({role:'admin',permissions})
@@ -31,7 +39,7 @@ try{
  await check('non-owner cannot activate',()=>assert.rejects(run({action:'activate',uid:'alice'},{uid:'legacy',email:'legacy@example.test'}),/OWNER_REQUIRED/))
  await check('unverified email rejected',()=>assert.rejects(run({action:'activate',uid:'carol'}),/AUTH_IDENTITY_NOT_VERIFIED/))
  await check('case-insensitive legacy username collision rejected',()=>assert.rejects(run({action:'activate',uid:'bob'}),/DUPLICATE_USERNAME/))
- await check('approved identity activated atomically',async()=>{await run({action:'activate',uid:'alice'});assert.equal((await users.doc('alice').get()).data().active,true);assert.equal((await requests.doc('alice').get()).data().status,'activated')})
+ await check('approved identity activated atomically',async()=>{await service('Bearer '+idToken,{action:'activate',uid:'alice'});assert.equal((await users.doc('alice').get()).data().active,true);assert.equal((await requests.doc('alice').get()).data().status,'activated')})
  await check('duplicate activation rejected',()=>assert.rejects(run({action:'activate',uid:'alice'}),/INVALID_APPROVAL/))
  await check('new username collision rejected',()=>assert.rejects(run({action:'activate',uid:'dave'}),/DUPLICATE_USERNAME/))
  await check('Owner cannot be targeted',()=>assert.rejects(run({action:'setActive',uid:actor.uid,active:false}),/INVALID_TARGET/))
