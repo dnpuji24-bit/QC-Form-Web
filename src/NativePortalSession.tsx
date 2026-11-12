@@ -21,17 +21,18 @@ export default function NativePortalSession({children}:{children:ReactNode}){
   try{checkNativePortalConfig()}catch{setMessage('Konfigurasi migrasi belum lengkap.');setReady(true);return}
   const auth=firebaseAuth
   if(!auth){setMessage('Firebase tidak tersedia.');setReady(true);return}
-  let stopped=false,generation=0
+  let stopped=false,generation=0,verifiedUid=''
   const verify=async()=>{
    const attempt=++generation,uid=auth.currentUser?.uid
-   if(!uid){clearCompatibilitySession();setUser(null);setReady(true);return}
+   if(uid!==verifiedUid){clearCompatibilitySession();setUser(null);verifiedUid=''}
+   if(!uid){setReady(true);return}
    try{
     const next=await readApprovedFirebaseSession()
     if(stopped||attempt!==generation||auth.currentUser?.uid!==uid)return
-    publishCompatibilitySession(next);setUser(next);setReady(true)
+    verifiedUid=uid;publishCompatibilitySession(next);setUser(next);setReady(true)
    }catch{
     if(stopped||attempt!==generation)return
-    clearCompatibilitySession();setUser(null);setReady(true);setMessage('Sesi atau profil tidak dapat diverifikasi. Sambungkan internet dan masuk kembali.')
+    verifiedUid='';clearCompatibilitySession();setUser(null);setReady(true);setMessage('Sesi atau profil tidak dapat diverifikasi. Sambungkan internet dan masuk kembali.')
    }
   }
   const stop=onIdTokenChanged(auth,()=>{void verify()})
