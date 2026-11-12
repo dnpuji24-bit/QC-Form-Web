@@ -1,3 +1,4 @@
+import NativeUsersAccess from './NativeUsersAccess'
 import {nativePortalEnabled} from './qcNativePortalConfig'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import CompanyMasterPanel from './CompanyMasterPanel'
@@ -113,7 +114,7 @@ export default function PortalRouter(){
     </header>
     <main className="portal-content">
       <section className="portal-section-head"><div><span className="portal-kicker">HOME / USERS</span><h2>Pengguna & Hak Akses</h2><p>Approval akun, role, serta izin lihat/edit per menu dan sub menu.</p></div><button type="button" onClick={()=>choose('chooser')}>← Kembali</button></section>
-      <UsersApproval token={readStored(TOKEN_KEY)}/>
+      {nativePortalEnabled?<NativeUsersAccess/>:<UsersApproval token={readStored(TOKEN_KEY)}/>}
     </main>
   </div>
 
