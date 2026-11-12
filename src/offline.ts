@@ -1,3 +1,5 @@
+import { isOperationalQcId, queueOperationalFinalize } from './qcOperationalFormBridge'
+import { operationalSaveEnabled, operationalQueuedRecords, flushOperationalQc } from './qcOperationalAdapters'
 import { qcApi } from './api'
 import { flushQcPhotoQueue, queueQcRecordPhotos, supabaseQcPhotoPreviewEnabled } from './qcSupabasePhotos'
 import { firebaseAuth, firebaseAuthPersistenceReady } from './firebase'
@@ -155,13 +157,14 @@ async function sendServerFirst(token:string,action:QueueAction,record:QcRecord):
   }catch(error){if(isAuthError(error))throw error;await enqueueInternal(action,record);return{queued:true,firestoreFirst:false,spreadsheetPending:true}}
 }
 
-export async function queueCount(){const username=currentUsername();return(await allItems()).filter(item=>belongsToCurrentUser(item,username)).length}
-export async function queuedRecords(){const username=currentUsername();return(await recoverInterruptedUploads((await allItems()).filter(item=>belongsToCurrentUser(item,username)))).map(item=>item.record)}
+export async function queueCount(){const username=currentUsername();return(await allItems()).filter(item=>belongsToCurrentUser(item,username)).length+(operationalSaveEnabled&&firebaseAuth?.currentUser? (await operationalQueuedRecords()).length:0)}
+export async function queuedRecords(){const username=currentUsername();const legacy=(await recoverInterruptedUploads((await allItems()).filter(item=>belongsToCurrentUser(item,username)))).map(item=>item.record);const next=operationalSaveEnabled&&firebaseAuth?.currentUser?await operationalQueuedRecords():[];return [...legacy,...next.map(job=>({...job.record,saveType:job.action==='finalizeRecord'?'upload_queued':'ready',firestoreSaveState:'queued'} as unknown as QcRecord))]}
 export async function discardQueuedRecord(recordId:string){const username=currentUsername();await replaceItems((await allItems()).filter(item=>item.record.id!==recordId||!belongsToCurrentUser(item,username)))}
-export async function enqueue(action:QueueAction,record:QcRecord){await enqueueInternal(action,record)}
+export async function enqueue(action:QueueAction,record:QcRecord){if(isOperationalQcId(record.id))throw Error('QC baru tidak boleh masuk antrean lama');await enqueueInternal(action,record)}
 
 export async function retryQueuedRecord(recordOrId:QcRecord|string,token:string):Promise<boolean>{
   const recordId=typeof recordOrId==='string'?recordOrId:recordOrId.id
+  if(isOperationalQcId(recordId)){if(!operationalSaveEnabled)throw Error('QC baru belum diaktifkan');await flushOperationalQc();return true}
   const running=manualRetryLocks.get(recordId);if(running)return running
   const task=(async()=>{
     let item=await findFinalizeItem(recordId)
@@ -199,6 +202,7 @@ async function confirmedFirestoreWrite(record:QcRecord):Promise<boolean>{
   ])
 }
 export async function saveRecordFirestoreFirst(token:string,record:QcRecord):Promise<SaveTransportResult>{
+  if(isOperationalQcId(record.id))throw Error('Koreksi QC baru belum diaktifkan; jalur Spreadsheet dilarang.')
   const item=await enqueueInternal('syncRecord',record)
   if(supabaseQcPhotoPreviewEnabled)await queueQcRecordPhotos(record)
   // The mandor can leave the form once IndexedDB commits the record.
@@ -230,6 +234,7 @@ export async function saveRecordFirestoreFirst(token:string,record:QcRecord):Pro
 
 export async function saveDraftFirestoreFirst(token:string,record:QcRecord):Promise<SaveTransportResult>{return saveRecordFirestoreFirst(token,record)}
 export async function sendOrQueue(token:string,action:QueueAction,record:QcRecord):Promise<SaveTransportResult>{
+  if(isOperationalQcId(record.id)){if(action!=='finalizeRecord')throw Error('Koreksi QC baru belum diaktifkan');return queueOperationalFinalize(record)}
   if(action==='syncRecord')return saveRecordFirestoreFirst(token,record)
   return sendFinalizeStateMachine(token,record)
 }
@@ -240,6 +245,7 @@ async function flushQueueInternal(token:string):Promise<FlushResult>{
   const username=currentUsername(),owned=(await allItems()).filter(item=>belongsToCurrentUser(item,username)),items=await recoverInterruptedUploads(owned)
   if(!navigator.onLine)return{sent:0,left:items.length}
   let sent=0
+  if(operationalSaveEnabled&&firebaseAuth?.currentUser){const result=await flushOperationalQc();sent+=result.sent}
   const finalizeItems=items.filter(item=>item.action==='finalizeRecord'),syncItems=items.filter(item=>item.action!=='finalizeRecord')
   for(const original of syncItems){
     if(original.nextAttemptAt&&original.nextAttemptAt>Date.now())continue
