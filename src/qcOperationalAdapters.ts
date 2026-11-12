@@ -10,7 +10,11 @@ const endpoint='https://mcfwnstdfhhtcbksgrlj.supabase.co/functions/v1/qc-photo-u
 const validId=(s:string)=>/^[A-Za-z0-9_-]{1,160}$/.test(s)&&!/^qc-(operational-pilot|photo-staging)-/.test(s)
 type RecordInput=AtomicQcInput['record']
 type Job=OperationalJob&{record:RecordInput;scope:'operational';changes:QcSaveIntent['changes']}
-const acceptJob=(job:OperationalJob)=>(job as Partial<Job>).scope==='operational'&&validId(job.record.id)
+const acceptJob=(job:OperationalJob):job is Job=>{
+  const candidate=job as Partial<Job>
+  const record=candidate.record
+  return candidate.scope==='operational'&&!!record&&validId(record.id)&&typeof record.clientRevision==='string'&&typeof record.ownerUid==='string'&&record.ownerUid===job.uploaderUid&&typeof record.date==='string'&&typeof record.paddock==='string'&&(record.formType==='spray'||record.formType==='fertilizer')
+}
 const currentUid=()=>firebaseAuth?.currentUser?.uid??null
 function requireSession(){
   if(!operationalSaveEnabled||!firestoreDb||!currentUid())throw Error('Operational save disabled or no Firebase session')
