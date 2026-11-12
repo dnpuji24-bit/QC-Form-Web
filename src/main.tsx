@@ -1,5 +1,7 @@
 import React from 'react'
 
+const OperationalQcPilot = React.lazy(() => import('./OperationalQcPilot'))
+const showOperationalPilot = import.meta.env.VITE_QC_OPERATIONAL_PILOT === 'true' && new URLSearchParams(window.location.search).get('qc-operational-pilot') === '1'
 const PhotoUploadTest = React.lazy(() => import('./SupabasePhotoTest'))
 const showPhotoUploadTest = import.meta.env.VITE_ENABLE_SUPABASE_PHOTO_TEST === 'true' && new URLSearchParams(window.location.search).get('supabase-photo-test') === '1'
 import ReactDOM from 'react-dom/client'
@@ -24,7 +26,9 @@ if ('serviceWorker' in navigator) {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {showPhotoUploadTest ? (
+    {showOperationalPilot ? (
+      <React.Suspense fallback={<p>Memuat pilot QC…</p>}><OperationalQcPilot /></React.Suspense>
+    ) : showPhotoUploadTest ? (
       <React.Suspense fallback={<p>Memuat halaman uji foto…</p>}><PhotoUploadTest /></React.Suspense>
     ) : (
       <>
