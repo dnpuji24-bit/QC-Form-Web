@@ -46,10 +46,11 @@ export async function listOperationalJobs(uid,factory) {
 const running=new Map();
 export function flushOperationalJobs(uid,deps,factory) {
   if (!uid) return Promise.reject(Error('Authenticated UID required'));
-  if(running.has(uid))return running.get(uid);
+  const workerKey=uid+':'+(deps.scope||'default');
+  if(running.has(workerKey))return running.get(workerKey);
   const run=async()=>{
     let sent=0;const blocked=new Set();const failures=[];
-    for(const job of await listOperationalJobs(uid,factory)){
+    for(const job of (await listOperationalJobs(uid,factory)).filter(j=>deps.acceptJob?deps.acceptJob(j):true)){
       if(await deps.currentUid()!==uid)break;
       if(blocked.has(job.record.id))continue;
       try{
@@ -59,9 +60,9 @@ export function flushOperationalJobs(uid,deps,factory) {
         sent++;
       }catch(error){blocked.add(job.record.id);failures.push({id:job.id,error:String(error?.message||error)})}
     }
-    return {sent,left:(await listOperationalJobs(uid,factory)).length,failures};
+    return {sent,left:(await listOperationalJobs(uid,factory)).filter(j=>deps.acceptJob?deps.acceptJob(j):true).length,failures};
   };
   // Web Locks serialize workers across tabs when available. Backend CAS remains mandatory.
-  const promise=(globalThis.navigator?.locks?globalThis.navigator.locks.request('qc-operational-'+uid,run):run()).finally(()=>running.delete(uid));
-  running.set(uid,promise);return promise;
+  const promise=(globalThis.navigator?.locks?globalThis.navigator.locks.request('qc-operational-'+uid,run):run()).finally(()=>running.delete(workerKey));
+  running.set(workerKey,promise);return promise;
 }
