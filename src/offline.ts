@@ -1,3 +1,5 @@
+import {qcFirestoreOnly,qcFlushMode} from './qcCutover'
+import {assertLegacyQcWriteAllowed} from './qcCutoverPolicy.mjs'
 import { isOperationalQcId, queueOperationalFinalize } from './qcOperationalFormBridge'
 import { operationalSaveEnabled, operationalQueuedRecords, flushOperationalQc } from './qcOperationalAdapters'
 import { qcApi } from './api'
@@ -92,6 +94,7 @@ async function mirrorAfterServerSave(action:QueueAction,record:QcRecord,result:A
 }
 
 async function enqueueInternal(action:QueueAction,record:QcRecord):Promise<QueueItem>{
+  assertLegacyQcWriteAllowed(record.id,qcFirestoreOnly)
   let items=await allItems()
   const owner=String(record.inputtedBy||currentUsername()||'').trim().toLowerCase()
   const sameOwner=(item:QueueItem)=>!owner||!itemOwner(item)||itemOwner(item)===owner
@@ -118,6 +121,7 @@ async function recoverInterruptedItem(item:QueueItem):Promise<QueueItem>{if(!int
 async function recoverInterruptedUploads(items:QueueItem[]):Promise<QueueItem[]>{const recovered:QueueItem[]=[];for(const item of items)recovered.push(await recoverInterruptedItem(item));return recovered}
 
 async function attemptFinalize(token:string,item:QueueItem,ignoreBackoff=false):Promise<SaveTransportResult>{
+  assertLegacyQcWriteAllowed(item.record.id,qcFirestoreOnly)
   item=await recoverInterruptedItem(item)
   if(!ignoreBackoff&&item.nextAttemptAt&&item.nextAttemptAt>Date.now())return{queued:true,firestoreFirst:false,spreadsheetPending:true,uploadState:'failed'}
   if(activeFinalizeIds.has(item.record.id))return{queued:true,firestoreFirst:false,spreadsheetPending:true,uploadState:'uploading'}
@@ -165,6 +169,7 @@ export async function enqueue(action:QueueAction,record:QcRecord){if(isOperation
 export async function retryQueuedRecord(recordOrId:QcRecord|string,token:string):Promise<boolean>{
   const recordId=typeof recordOrId==='string'?recordOrId:recordOrId.id
   if(isOperationalQcId(recordId)){if(!operationalSaveEnabled)throw Error('QC baru belum diaktifkan');await flushOperationalQc();return true}
+  assertLegacyQcWriteAllowed(recordId,qcFirestoreOnly)
   const running=manualRetryLocks.get(recordId);if(running)return running
   const task=(async()=>{
     let item=await findFinalizeItem(recordId)
@@ -204,7 +209,7 @@ async function confirmedFirestoreWrite(record:QcRecord):Promise<boolean>{
 export async function saveRecordFirestoreFirst(token:string,record:QcRecord):Promise<SaveTransportResult>{
   if(isOperationalQcId(record.id))throw Error('Koreksi QC baru belum diaktifkan; jalur Spreadsheet dilarang.')
   const item=await enqueueInternal('syncRecord',record)
-  if(supabaseQcPhotoPreviewEnabled)await queueQcRecordPhotos(record)
+  if(!qcFirestoreOnly&&supabaseQcPhotoPreviewEnabled)await queueQcRecordPhotos(record)
   // The mandor can leave the form once IndexedDB commits the record.
   // Remote confirmation is delivered asynchronously through qc:upload-state.
   emitUploadState({...record,saveType:record.saveType==='draft'?'draft_queued':record.saveType,firestoreSaveState:'queued'})
@@ -217,7 +222,7 @@ export async function saveRecordFirestoreFirst(token:string,record:QcRecord):Pro
           if(!current||current.record.clientRevision!==record.clientRevision)return
           await putItem({...current,record:{...current.record,firestoreSaveState:'confirmed'},firestoreSynced:true,lastError:'',nextAttemptAt:0})
           emitUploadState({...record,firestoreSaveState:'confirmed'})
-          if(supabaseQcPhotoPreviewEnabled)void flushQcPhotoQueue().catch(error=>console.info('Antrean foto Supabase menunggu retry.',error))
+          if(!qcFirestoreOnly&&supabaseQcPhotoPreviewEnabled)void flushQcPhotoQueue().catch(error=>console.info('Antrean foto Supabase menunggu retry.',error))
           void flushQueue(token).catch(error=>console.info('Sinkronisasi Apps Script tertunda; QC telah dikonfirmasi Firestore.',error))
         }else{
           console.info('Firestore belum mengonfirmasi record QC, antrean lokal tetap disimpan.')
@@ -242,6 +247,12 @@ export async function sendOrQueue(token:string,action:QueueAction,record:QcRecor
 async function runFinalizeWorkers(token:string,items:QueueItem[]):Promise<number>{let cursor=0,sent=0;async function worker(){while(cursor<items.length){const index=cursor++,item=items[index];if(item.nextAttemptAt&&item.nextAttemptAt>Date.now())continue;const result=await attemptFinalize(token,item);if(!result.queued)sent++}}await Promise.all(Array.from({length:Math.min(FINALIZE_WORKERS,items.length)},()=>worker()));return sent}
 
 async function flushQueueInternal(token:string):Promise<FlushResult>{
+  const mode=qcFlushMode()
+  if(mode==='operational-only'){
+    if(!navigator.onLine||!firebaseAuth?.currentUser)return {sent:0,left:await queueCount()}
+    const result=await flushOperationalQc()
+    return {sent:result.sent,left:await queueCount()}
+  }
   const username=currentUsername(),owned=(await allItems()).filter(item=>belongsToCurrentUser(item,username)),items=await recoverInterruptedUploads(owned)
   if(!navigator.onLine)return{sent:0,left:items.length}
   let sent=0
@@ -282,8 +293,8 @@ async function flushQueueInternal(token:string):Promise<FlushResult>{
 }
 
 export async function flushQueue(token:string):Promise<FlushResult>{if(activeFlush)return activeFlush;activeFlush=flushQueueInternal(token).finally(()=>{activeFlush=null});return activeFlush}
-async function autoFlushQueue(){if(typeof window==='undefined'||!navigator.onLine)return;const token=localStorage.getItem('qc_token')||sessionStorage.getItem('qc_token')||'';if(token===authPausedToken)return;try{await flushQueue(token)}catch(error){if(isAuthError(error))authPausedToken=token;else console.info('Auto flush antrean tertunda.',error)}}
+async function autoFlushQueue(){if(typeof window==='undefined'||!navigator.onLine)return;const token=localStorage.getItem('qc_token')||sessionStorage.getItem('qc_token')||'';if(!qcFirestoreOnly&&token===authPausedToken)return;try{await flushQueue(token)}catch(error){if(isAuthError(error))authPausedToken=token;else console.info('Auto flush antrean tertunda.',error)}}
 if(typeof window!=='undefined'){
-  window.addEventListener('online',()=>{void autoFlushQueue();if(supabaseQcPhotoPreviewEnabled)void flushQcPhotoQueue().catch(error=>console.info('Retry foto Supabase ditunda.',error))})
-  window.setInterval(()=>{void autoFlushQueue();if(supabaseQcPhotoPreviewEnabled)void flushQcPhotoQueue().catch(error=>console.info('Retry foto Supabase ditunda.',error))},15_000)
+  window.addEventListener('online',()=>{void autoFlushQueue();if(!qcFirestoreOnly&&supabaseQcPhotoPreviewEnabled)void flushQcPhotoQueue().catch(error=>console.info('Retry foto Supabase ditunda.',error))})
+  window.setInterval(()=>{void autoFlushQueue();if(!qcFirestoreOnly&&supabaseQcPhotoPreviewEnabled)void flushQcPhotoQueue().catch(error=>console.info('Retry foto Supabase ditunda.',error))},15_000)
 }
