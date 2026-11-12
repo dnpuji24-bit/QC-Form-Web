@@ -18,7 +18,13 @@ export async function commitOperationalQc(input:AtomicQcInput){
     transaction:fn=>runTransaction(db,async tx=>fn({
       readQc:async id=>{const s=await tx.get(doc(db,'qc_records',id));return s.exists()?s.data():null},
       readActual:async id=>{const s=await tx.get(doc(db,'daily_reports',id));return s.exists()?s.data():null},
-      writeQc:(id,row)=>tx.set(doc(db,'qc_records',id),{...row,updatedAt:serverTimestamp()}),
+      writeQc:(id,row)=>{
+        tx.set(doc(db,'qc_records',id),{...row,updatedAt:serverTimestamp()})
+        tx.set(doc(db,'qc_operational_audit',id+':'+String(row.clientRevision)),{
+          recordId:id,revision:row.clientRevision,actorUid:input.uploaderUid,
+          username:row.inputtedBy,formType:row.formType,saveType:row.saveType,createdAt:serverTimestamp()
+        })
+      },
       writeActual:(id,row)=>tx.set(doc(db,'daily_reports',id),row,{merge:true})
     }))
   })
