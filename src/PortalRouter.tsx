@@ -1,3 +1,4 @@
+import {nativePortalEnabled} from './qcNativePortalConfig'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import CompanyMasterPanel from './CompanyMasterPanel'
 import MasterActivityWorkspace from './MasterActivityWorkspace'
@@ -49,7 +50,7 @@ export default function PortalRouter(){
   },[])
 
   useEffect(()=>{
-    if(!loggedIn||!user)return
+    if(nativePortalEnabled||!loggedIn||!user)return
     let cancelled=false
     void hydrateUserAccess(user).then(hydrated=>{
       if(cancelled)return
@@ -105,7 +106,7 @@ export default function PortalRouter(){
   }
 
 
-  if(mode==='users')return <div className="portal-layer">
+  if(mode==='users'&&canUsers)return <div className="portal-layer">
     <header className="portal-topbar">
       <div><div className="portal-eyebrow">ADMINISTRASI</div><h1>Users & Access</h1></div>
       <div className="portal-user"><div><strong>{user.fullName}</strong><span>{user.role.replaceAll('_',' ')}</span></div><button type="button" onClick={()=>choose('chooser')}>Menu Utama</button></div>
