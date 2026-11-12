@@ -1,4 +1,4 @@
-import {createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut,initializeAuth,inMemoryPersistence} from 'firebase/auth'
+import {createUserWithEmailAndPassword,sendEmailVerification,signInWithEmailAndPassword,signOut,initializeAuth,inMemoryPersistence} from 'firebase/auth'
 import {initializeApp,deleteApp} from 'firebase/app'
 import {doc,collection,getDocsFromServer,getDocFromServer,getFirestore,terminate,runTransaction,serverTimestamp,setDoc} from 'firebase/firestore'
 import {firebaseAuth,firestoreDb} from './firebase'
@@ -20,6 +20,7 @@ export async function submitNativeRegistration(input:{username:string;fullName:s
     const existing=await getDocFromServer(ref)
     if(existing.exists())return String(existing.data().status)
     await setDoc(ref,{username,fullName,email:user.email,requestedRole:input.requestedRole,status:'pending',createdAt:serverTimestamp(),source:'firebase_native'})
+    if(!user.emailVerified)await sendEmailVerification(user)
     return 'pending'
   }finally{try{await signOut(auth)}finally{try{await terminate(db)}finally{await deleteApp(app)}}}
 }
