@@ -59,10 +59,10 @@ function qcActualEligible(record:QcRecord){
 }
 function qcActualReportId(recordId:string){return 'qcactual_'+recordId}
 function qcActualMaterials(record:QcRecord){return Array.isArray(record.actualPlanMaterials)?record.actualPlanMaterials:[]}
-export async function mirrorQcActualToFirestore(record:QcRecord,user?:User):Promise<boolean>{
-  if(!firestoreDb||!firebaseAuth?.currentUser||!qcActualEligible(record))return false
-  const db=requireDb(),actualAreaHa=qcActualArea(record),plannedDailyAreaHa=Number(record.plannedDailyAreaHa||0)||0,actualReportId=qcActualReportId(record.id)
-  await setDoc(doc(db,'daily_reports',actualReportId),{
+export function buildQcActualPayload(record:QcRecord,user?:User){
+  if(!qcActualEligible(record))return null
+  const actualAreaHa=qcActualArea(record),plannedDailyAreaHa=Number(record.plannedDailyAreaHa||0)||0,actualReportId=qcActualReportId(record.id)
+  return {
     actualReportId,
     workGroupId:'QCA-'+record.id,
     planningOrder:Number(record.dailyPlanningOrder||0)||999999,
@@ -103,8 +103,15 @@ export async function mirrorQcActualToFirestore(record:QcRecord,user?:User):Prom
     inputtedBy:user?.username||String(record.inputtedBy||''),
     createdAt:String(record.createdAt||new Date().toISOString()),
     updatedAt:serverTimestamp(),
-    updatedBy:user?.username||String(record.inputtedBy||firebaseAuth.currentUser.email||'firebase-user'),
-  },{merge:true})
+    updatedBy:user?.username||String(record.inputtedBy||firebaseAuth?.currentUser?.email||'firebase-user'),
+  }
+}
+
+export async function mirrorQcActualToFirestore(record:QcRecord,user?:User):Promise<boolean>{
+  if(!firestoreDb||!firebaseAuth?.currentUser)return false
+  const payload=buildQcActualPayload(record,user)
+  if(!payload)return false
+  await setDoc(doc(requireDb(),'daily_reports',payload.actualReportId),payload,{merge:true})
   return true
 }
 
