@@ -24,6 +24,7 @@ export async function enqueuePilotQc(job:Job){
 export async function flushPilotQc(){
   const db=checkedDb(),uid=currentUid()!
   return flushOperationalJobs(uid,{
+    scope:'pilot',acceptJob:job=>prefix.test(job.record.id),
     currentUid:async()=>currentUid(),
     async readRecord(id:string){
       assertUid(uid)
