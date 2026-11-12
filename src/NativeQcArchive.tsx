@@ -10,7 +10,7 @@ import type {QcRecord,User} from './types'
 
 export const nativeArchiveEnabled=nativePortalEnabled&&qcFirestoreOnly&&import.meta.env.VITE_QC_NATIVE_ARCHIVE==='true'&&Boolean(import.meta.env.VITE_QC_NATIVE_ADMIN_URL)
 export function canArchiveQc(user:User,record:QcRecord){
- return nativeArchiveEnabled&&user.role==='owner'&&isOperationalQcId(record.id)&&record.firestoreSaveState==='confirmed'&&['draft','ready','uploaded'].includes(record.saveType)&&typeof record.clientRevision==='string'
+ return nativeArchiveEnabled&&user.role==='owner'&&isOperationalQcId(record.id)&&record.firestoreSaveState==='confirmed'&&typeof record.saveType==='string'&&['draft','ready','uploaded'].includes(record.saveType)&&typeof record.clientRevision==='string'
 }
 export async function archiveQcFromPortal(record:QcRecord,reason:string){
  if(!nativeArchiveEnabled||!isOperationalQcId(record.id)||record.firestoreSaveState!=='confirmed'||typeof record.clientRevision!=='string')throw Error('QC archive belum tersedia untuk record ini.')
