@@ -12,7 +12,7 @@ async function owner(){
  if(user.role!=='owner'||!firestoreDb||firebaseAuth?.currentUser?.uid!==user.firebaseUid)throw Error('Owner aktif diperlukan.')
  return {db:firestoreDb,uid:user.firebaseUid}
 }
-async function command(body:Record<string,unknown>){
+export async function command(body:Record<string,unknown>){
  const {uid}=await owner()
  if(!endpoint)throw Error('Endpoint administrasi belum dikonfigurasi.')
  const url=new URL(endpoint)
