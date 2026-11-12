@@ -35,11 +35,11 @@ service cloud.firestore {
         && request.resource.data.sourceOrigin == 'QC'
         && request.resource.data.inputtedBy == username()
         && request.resource.data.qcRecordId is string
-        && exists(/databases/$(database)/documents/qc_records/$(request.resource.data.qcRecordId))
-        && get(/databases/$(database)/documents/qc_records/$(request.resource.data.qcRecordId)).data.inputtedBy == username()
-        && get(/databases/$(database)/documents/qc_records/$(request.resource.data.qcRecordId)).data.dailyPlanId == request.resource.data.dailyPlanId
-        && get(/databases/$(database)/documents/qc_records/$(request.resource.data.qcRecordId)).data.actualAreaHa == request.resource.data.actualAreaHa
-        && get(/databases/$(database)/documents/qc_records/$(request.resource.data.qcRecordId)).data.saveType in ['ready','uploaded','upload_queued'];
+        && existsAfter(/databases/$(database)/documents/qc_records/$(request.resource.data.qcRecordId))
+        && getAfter(/databases/$(database)/documents/qc_records/$(request.resource.data.qcRecordId)).data.inputtedBy == username()
+        && getAfter(/databases/$(database)/documents/qc_records/$(request.resource.data.qcRecordId)).data.dailyPlanId == request.resource.data.dailyPlanId
+        && getAfter(/databases/$(database)/documents/qc_records/$(request.resource.data.qcRecordId)).data.actualAreaHa == request.resource.data.actualAreaHa
+        && getAfter(/databases/$(database)/documents/qc_records/$(request.resource.data.qcRecordId)).data.saveType in ['ready','uploaded','upload_queued'];
     }
 
     match /users/{uid} {
