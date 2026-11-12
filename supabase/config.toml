@@ -2,3 +2,6 @@
 # Authorization is enforced in function code via Firebase signature + auth state + Firestore permissions.
 [functions.qc-photo-sign]
 verify_jwt = false
+
+[functions.qc-photo-upload-pilot]
+verify_jwt = false
