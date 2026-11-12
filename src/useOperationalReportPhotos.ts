@@ -15,6 +15,7 @@ export function useOperationalReportPhotos(record:QcRecord){
     if(!operational)return
     const controller=new AbortController(),urls:string[]=[]
     let cancelled=false
+    const initialUid=firebaseAuth?.currentUser?.uid
     setState({key,status:'loading',photos:{},message:''})
     async function load(){
       try{
@@ -53,7 +54,7 @@ export function useOperationalReportPhotos(record:QcRecord){
       }
     }
     void load()
-    const unsubscribe=firebaseAuth?.onAuthStateChanged(user=>{if(!user){controller.abort();urls.splice(0).forEach(url=>URL.revokeObjectURL(url));setState({key,status:'error',photos:{},message:'Sesi berakhir.'})}})
+    const unsubscribe=firebaseAuth?.onAuthStateChanged(user=>{if(!user||user.uid!==initialUid){cancelled=true;controller.abort();urls.splice(0).forEach(url=>URL.revokeObjectURL(url));setState({key,status:'error',photos:{},message:'Sesi berakhir.'})}})
     return()=>{cancelled=true;controller.abort();unsubscribe?.();urls.splice(0).forEach(url=>URL.revokeObjectURL(url))}
   },[key,manifest,operational,record.id])
   return operational?(state.key===key?state:{key,status:'loading' as const,photos:{},message:''}):{key,status:'ready' as const,photos:{ } as Record<string,string>,message:''}
