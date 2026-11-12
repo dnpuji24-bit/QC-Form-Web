@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
-import {initializeApp,deleteApp} from '../server/qc-photo-access/node_modules/firebase-admin/lib/esm/app/index.js'
-import {getFirestore,FieldValue} from '../server/qc-photo-access/node_modules/firebase-admin/lib/esm/firestore/index.js'
+import {createRequire} from 'node:module'
+const requireAdmin=createRequire(new URL('../server/qc-photo-access/package.json',import.meta.url))
+const {initializeApp,deleteApp}=requireAdmin('firebase-admin/app')
+const {getFirestore,FieldValue}=requireAdmin('firebase-admin/firestore')
 import {initializeTestEnvironment,assertFails} from '@firebase/rules-unit-testing'
 import {doc,setDoc,deleteDoc} from 'firebase/firestore'
 import {readFileSync} from 'node:fs'
