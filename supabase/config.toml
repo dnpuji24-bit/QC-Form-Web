@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.qc-photo-upload]
 verify_jwt = false
+
+[functions.qc-photo-sign-operational]
+verify_jwt = false
