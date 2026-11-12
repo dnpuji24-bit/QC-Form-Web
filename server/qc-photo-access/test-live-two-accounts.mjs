@@ -30,7 +30,7 @@ async function login([label,email,password]){
 const a=await login(credentials[0]),b=await login(credentials[1])
 if(a.uid===b.uid)throw Error('Use two different accounts')
 const recordId='qc-photo-staging-'+randomUUID(),photoId=randomUUID(),revision=randomUUID()
-const objectPath=a.uid+'/qc/'+recordId+'/'+photoId+'.png'
+const objectPath=b.uid+'/qc/'+recordId+'/'+photoId+'.png'
 const record=db.doc('qc_photo_staging_records/'+recordId),meta=db.doc('qc_photo_staging_metadata/'+recordId+'/photos/'+photoId)
 const bytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR1sAAAAASUVORK5CYII=','base64')
 let uploaded=false,created=false
@@ -39,8 +39,8 @@ try{
   if(up.error)throw Error('Test upload failed')
   uploaded=true
   const batch=db.batch()
-  batch.create(record,{formType:'spray',ownerUid:a.uid,clientRevision:revision,testOnly:true})
-  batch.create(meta,{photoId,qcRecordId:recordId,ownerUid:a.uid,recordRevision:revision,provider:'supabase',bucket:'qc-photos-test',objectPath,kind:'main',contentType:'image/png',testOnly:true})
+  batch.create(record,{formType:'spray',ownerUid:b.uid,clientRevision:revision,testOnly:true})
+  batch.create(meta,{photoId,qcRecordId:recordId,ownerUid:b.uid,recordRevision:revision,provider:'supabase',bucket:'qc-photos-test',objectPath,kind:'main',contentType:'image/png',testOnly:true})
   await batch.commit();created=true
   async function request(token){return fetch(url+'/functions/v1/qc-photo-sign',{method:'POST',headers:{Origin:origin,Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({recordId,photoId})})}
   const allowed=await request(a.idToken)
