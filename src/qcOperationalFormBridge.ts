@@ -19,8 +19,9 @@ export async function queueOperationalFinalize(record:QcRecord){
   if(!operationalSaveEnabled||!isOperationalQcId(record.id)||record.saveType!=='ready'||typeof record.clientRevision!=='string')throw Error('QC baru belum terkonfirmasi atau fitur belum aktif')
   const pending=(await operationalQueuedRecords()).find(job=>job.record.id===record.id)
   if(pending)throw Error('Tunggu konfirmasi penyimpanan QC sebelum Upload.')
-  await queueOperationalQc({...record,clientRevision:crypto.randomUUID()},{baseRevision:record.clientRevision,changes:[]},'finalizeRecord')
-  return {queued:true,firestoreFirst:false,spreadsheetPending:false,uploadState:'queued' as const}
+  const clientRevision=crypto.randomUUID()
+  await queueOperationalQc({...record,clientRevision},{baseRevision:record.clientRevision,changes:[]},'finalizeRecord')
+  return {queued:true,firestoreFirst:false,spreadsheetPending:false,uploadState:'queued' as const,clientRevision}
 }
 
 export type OperationalFormItem={record:QcRecord;previous?:QcRecord;removeMain?:boolean;removedHoldIds:string[];replaceHoldIds:string[]}
