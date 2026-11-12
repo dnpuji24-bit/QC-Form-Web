@@ -131,17 +131,18 @@ Deno.serve(async (request:Request)=>{
     const validSince=Number(userAccount?.validSince||0)
     if(!userAccount||userAccount.disabled===true||!Number.isFinite(validSince)||
       Number(verified.payload.auth_time)<validSince)throw new RequestError(401)
-    const [u,q]=await Promise.all([
+    const [u,q,reservationDoc]=await Promise.all([
       googleJson(docPath('users/'+uid),oauth),
       googleJson(docPath('qc_records/'+data.recordId),oauth),
+      googleJson(docPath('qc_photo_upload_intents/'+data.recordId),oauth),
     ])
-    const profile=decodeFields(u?.fields),qc=decodeFields(q?.fields),manifest=qc?.operationalPhotoManifest
+    const profile=decodeFields(u?.fields),qc=decodeFields(q?.fields),manifest=qc?.operationalPhotoManifest,reservation=decodeFields(reservationDoc?.fields)
     if(!profile||profile.active!==true||!roles.has(profile.role))throw new RequestError(403)
     if(profile.role!=='owner'){
       const role=decodeFields((await googleJson(docPath('role_access/'+profile.role),oauth))?.fields)
       if(!role||role.role!==profile.role||!['view','edit'].includes(role.permissions?.qc_records))throw new RequestError(403)
     }
-    if(!qc||!['spray','fertilizer'].includes(qc.formType)||qc.firestoreSaveState!=='confirmed'||!manifest||!idPattern.test(qc.ownerUid||''))throw new RequestError(403)
+    if(!qc||!['spray','fertilizer'].includes(qc.formType)||qc.firestoreSaveState!=='confirmed'||!manifest||!idPattern.test(qc.ownerUid||'')||!reservation||reservation.ownerUid!==qc.ownerUid||reservation.formType!==qc.formType)throw new RequestError(403)
     const matches=Object.entries(manifest).filter(([,value]:[string,any])=>value?.photoId===data.photoId)
     if(matches.length!==1)throw new RequestError(403)
     const [slot,photo]=matches[0] as [string,any]
