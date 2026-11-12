@@ -66,3 +66,24 @@ export function flushOperationalJobs(uid,deps,factory) {
   const promise=(globalThis.navigator?.locks?globalThis.navigator.locks.request('qc-operational-'+uid,run):run()).finally(()=>running.delete(workerKey));
   running.set(workerKey,promise);return promise;
 }
+
+ // A session is accepted locally in one IndexedDB transaction, never partially.
+export async function enqueueOperationalBatch(jobs,factory) {
+  if(!Array.isArray(jobs)||!jobs.length)throw Error('Empty QC batch');
+  const uid=jobs[0].uploaderUid, ids=new Set();
+  const rows=jobs.map(job=>{
+    if(job.uploaderUid!==uid||ids.has(job.record.id)||!Array.isArray(job.changes)||!['syncRecord','finalizeRecord'].includes(job.action))throw Error('Invalid QC batch');
+    ids.add(job.record.id);
+    return {...structuredClone(job),id:operationalQueueId(uid,job.record.id,job.record.clientRevision),createdAt:Date.now()};
+  });
+  return transaction(factory,'readwrite',(store,done)=>{
+    const req=store.getAll();
+    req.onsuccess=()=>{
+      if(req.result.some(j=>j.uploaderUid===uid&&ids.has(j.record.id))){
+        store.transaction.abort();return;
+      }
+      for(const row of rows)store.add(row);
+      done(rows);
+    };
+  });
+}
