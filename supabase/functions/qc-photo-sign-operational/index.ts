@@ -1,3 +1,4 @@
+import { resolveOperationalPhotoPath } from './manifest.ts'
 // Supabase Edge Function: Firebase ID Token -> current Firestore Data QC permission
 // -> temporary signed URL to an EXISTING private QC photo. Not deployed by this commit.
 // Platform verify_jwt is disabled only because callers send Firebase JWTs; this
@@ -10,7 +11,6 @@ const storageUrl = 'https://mcfwnstdfhhtcbksgrlj.supabase.co'
 const bucket = 'qc-photos'
 const idPattern = /^[A-Za-z0-9_-]{1,160}$/
 const jwks = createRemoteJWKSet(new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'))
-const allowedTypes: Record<string,string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
 const roles = new Set(['owner','manager','admin','asisten','mandor_spraying','mandor_fertilizer','pengunjung'])
 
 type ServiceAccount = { project_id: string; client_email: string; private_key: string }
@@ -136,27 +136,16 @@ Deno.serve(async (request:Request)=>{
       googleJson(docPath('qc_records/'+data.recordId),oauth),
       googleJson(docPath('qc_photo_upload_intents/'+data.recordId),oauth),
     ])
-    const profile=decodeFields(u?.fields),qc=decodeFields(q?.fields),manifest=qc?.operationalPhotoManifest,reservation=decodeFields(reservationDoc?.fields)
+    const profile=decodeFields(u?.fields),qc=decodeFields(q?.fields),reservation=decodeFields(reservationDoc?.fields)
     if(!profile||profile.active!==true||!roles.has(profile.role))throw new RequestError(403)
     if(profile.role!=='owner'){
       const role=decodeFields((await googleJson(docPath('role_access/'+profile.role),oauth))?.fields)
       if(!role||role.role!==profile.role||!['view','edit'].includes(role.permissions?.qc_records))throw new RequestError(403)
     }
-    if(!qc||!['spray','fertilizer'].includes(qc.formType)||qc.firestoreSaveState!=='confirmed'||!manifest||!idPattern.test(qc.ownerUid||'')||!reservation||reservation.ownerUid!==qc.ownerUid||reservation.formType!==qc.formType)throw new RequestError(403)
-    const matches=Object.entries(manifest).filter(([,value]:[string,any])=>value?.photoId===data.photoId)
-    if(matches.length!==1)throw new RequestError(403)
-    const [slot,photo]=matches[0] as [string,any]
-    if(photo.provider!=='supabase'||photo.bucket!==bucket||photo.uploaderUid!==qc.ownerUid||
-      !['main','hold','scan'].includes(photo.kind)||!Object.hasOwn(allowedTypes,photo.contentType)||
-      !/^[a-f0-9]{64}$/.test(photo.sha256||'')||!Number.isInteger(photo.size)||photo.size<1||photo.size>2097152)throw new RequestError(403)
-    const expectedSlot=photo.kind==='hold'&&idPattern.test(photo.holdId||'')?'hold_'+photo.holdId:photo.kind
-    if(slot!==expectedSlot||!['main','scan'].includes(slot)&&!slot.startsWith('hold_'))throw new RequestError(403)
-    const slotHash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(slot))),b=>b.toString(16).padStart(2,'0')).join('')
-    if(data.photoId!==slotHash.slice(0,24)+'_'+photo.sha256)throw new RequestError(403)
-    const expectedPath=qc.ownerUid+'/qc/'+data.recordId+'/'+data.photoId+'.'+allowedTypes[photo.contentType]
-    if(photo.objectPath!==expectedPath)throw new RequestError(403)
+    const path=await resolveOperationalPhotoPath(qc,reservation,data.recordId,data.photoId)
+    if(!path)throw new RequestError(403)
     const client=createClient(storageUrl,secret,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}})
-    const {data:signed,error}=await client.storage.from(bucket).createSignedUrl(photo.objectPath,60)
+    const {data:signed,error}=await client.storage.from(bucket).createSignedUrl(path,60)
     if(error||!signed?.signedUrl)throw new RequestError(502)
     return json(200,{signedUrl:signed.signedUrl,expiresIn:60},cors)
   }catch(error){
