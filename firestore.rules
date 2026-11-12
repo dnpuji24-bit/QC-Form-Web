@@ -361,22 +361,12 @@ service cloud.firestore {
     match /qc_photo_upload_intents/{recordId} {
       allow get: if activeUser() && resource.data.ownerUid == request.auth.uid;
       allow create: if activeUser()
-        && recordId.matches('^[A-Za-z0-9_-]{1,160}
-      allow read, write: if false;
-    }
-  }
-}
-)
+        && recordId.matches('^[A-Za-z0-9_-]{1,160}$')
         && !exists(/databases/$(database)/documents/qc_records/$(recordId))
         && request.resource.data.keys().hasOnly(['ownerUid','formType','clientRevision','createdAt'])
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.clientRevision is string
-        && request.resource.data.clientRevision.matches('^[A-Za-z0-9_-]{1,160}
-      allow read, write: if false;
-    }
-  }
-}
-)
+        && request.resource.data.clientRevision.matches('^[A-Za-z0-9_-]{1,160}$')
         && request.resource.data.createdAt == request.time
         && stagingPhotoEdit(request.resource.data.formType)
         && request.resource.data.formType in ['spray','fertilizer'];
