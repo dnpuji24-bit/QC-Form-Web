@@ -1,3 +1,5 @@
+import {signOut} from 'firebase/auth'
+import {firebaseAuth} from './firebase'
 import NativeUsersAccess from './NativeUsersAccess'
 import {nativePortalEnabled} from './qcNativePortalConfig'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -34,6 +36,13 @@ export default function PortalRouter(){
   const[user,setUser]=useState<User|null>(()=>readUser())
   const[mode,setMode]=useState<PortalMode>(()=>hasSession()?((sessionStorage.getItem(MODE_KEY) as PortalMode)||'chooser'):'chooser')
   const[dataView,setDataView]=useState<DataView>('home')
+  const[logoutBusy,setLogoutBusy]=useState(false),[logoutError,setLogoutError]=useState('')
+  async function nativeLogout(){
+    if(logoutBusy||!firebaseAuth)return
+    if(!window.confirm('Keluar dari akun ini? Antrean lokal yang sudah tersimpan tetap dipertahankan.'))return
+    setLogoutBusy(true);setLogoutError('')
+    try{await signOut(firebaseAuth)}catch{setLogoutError('Keluar belum berhasil. Coba kembali.')}finally{setLogoutBusy(false)}
+  }
   const planWorkspaceRef=useRef<PlanWorkspaceHandle|null>(null)
 
   useEffect(()=>{
@@ -145,9 +154,9 @@ export default function PortalRouter(){
   return <div className="portal-layer chooser-layer">
     <header className="portal-topbar">
       <div><div className="portal-eyebrow">{GROUP_BRAND}</div><h1>Operational Portal</h1></div>
-      <div className="portal-user"><div><strong>{user.fullName}</strong><span>{user.role.replaceAll('_',' ')}</span></div></div>
+      <div className="portal-user"><div><strong>{user.fullName}</strong><span>{user.role.replaceAll('_',' ')}</span></div>{nativePortalEnabled&&<button type="button" disabled={logoutBusy} onClick={()=>void nativeLogout()}>Keluar</button>}</div>
     </header>
-    <main className="portal-content chooser-content">
+    <main className="portal-content chooser-content">{logoutError&&<p role="alert">{logoutError}</p>}
       <section className="portal-hero"><div><span className="portal-kicker">SELAMAT DATANG</span><h2>Pilih area kerja</h2><p>Setelah login, pilih sistem yang akan digunakan. Anda dapat kembali ke menu ini kapan saja.</p></div></section>
       <section className="portal-grid">
         {canQc&&<button className="portal-card primary-card" type="button" onClick={()=>choose('qc')}><span className="portal-icon">QC</span><strong>Form QC</strong><p>Input Spraying, Fertilizer, monitoring Data QC, laporan, dan dashboard.</p><span className="portal-link">Masuk Form QC →</span></button>}
