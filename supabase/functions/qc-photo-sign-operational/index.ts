@@ -144,6 +144,8 @@ Deno.serve(async (request:Request)=>{
       googleJson(docPath('qc_photo_upload_intents/'+data.recordId),oauth),
     ])
     const profile=decodeFields(u?.fields),qc=decodeFields(q?.fields),reservation=decodeFields(reservationDoc?.fields)
+    // Explicit null narrowing for TypeScript; missing profiles remain forbidden.
+    if(!profile)throw new RequestError(403)
     if(!isOperationalPhotoIdentityAllowed({uid,tokenEmail:verified.payload.email,account:userAccount,profile}))throw new RequestError(403)
     if(profile.role!=='owner'){
       const role=decodeFields((await googleJson(docPath('role_access/'+profile.role),oauth))?.fields)
