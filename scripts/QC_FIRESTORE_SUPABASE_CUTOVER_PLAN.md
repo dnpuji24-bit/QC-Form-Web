@@ -89,3 +89,19 @@ Manifest rinci disimpan pada `~/qc-migration-private` dengan permission mode 060
 - Native name requests require VITE_QC_NATIVE_NAME_REQUESTS=true, configured trusted admin endpoint, and server handler option nameRequestsEnabled=true. Both UI and service default off. User must reauthenticate and have qc_settings Edit or Owner; one pending request per UID, review is Owner only, approval changes only users.fullName plus update metadata and creates audit in the same transaction. Username/UID/email/role and historical QC inputtedBy are immutable in this flow. Login again to refresh display name.
 - Resolve all legacy PENDING requests before enabling native requests; do not transfer pending password hashes or replay old approvals. Username changes remain blocked pending ownership alias strategy; password changes retain separate Stage 18A cutover gate. Native UiEnhancers no longer mounts legacy account request panel. No production endpoint or Firestore changes executed in this stage.
 - Regression: npm run build; run scripts/test-qc-legacy-audit-name-requests.mjs against demo-qc-photo-test Firestore emulator. Real spreadsheet snapshot, live Auth reauthentication, production endpoint configuration, rule deployment, pagination beyond latest 100 per source, server-side retirement of legacy clients and runtime browser UAT still need verification.
+
+## Stage 18C — Real legacy snapshot and read-only production preflight
+- The operator confirmed the offline preflight checks and React build passed, and the production read-only preflight completed with writes: 0 and releaseApproved: false. No native name-request/lock inconsistency was reported. The remaining reported blocker without a snapshot was REAL_LEGACY_SNAPSHOT_REQUIRED. Keep production counts and private manifests in the operator's private workspace; do not restore previously removed QC records based on a count difference alone.
+- The current Code.gs LOG_HEADERS and REQUEST_HEADERS match scripts/export-qc-legacy-audit.gs. Use the bound source spreadsheet's Apps Script editor, add a separate script file containing that helper, and manually run exportQcLegacyAuditSnapshot as the authorized owner. No setupSystem, web deployment, public web action, or spreadsheet write is needed. Check the created Drive file is restricted before downloading it. Do not sort, delete, or reorder source rows; this is an initial snapshot, not a final source freeze.
+- Download only the generated JSON and transfer it through Cloud Shell's upload UI, outside the repository, to ~/qc-migration-private/qc-legacy-audit.json. Use directory mode 0700 and file mode 0600. Never attach raw JSON to a public issue, commit it, or print its contents.
+- Validate locally and reconcile production read-only:
+  ```bash
+  cd ~/QC-Form-Web
+  SNAPSHOT="$HOME/qc-migration-private/qc-legacy-audit.json"
+  node scripts/import-qc-legacy-audit.mjs --dry-run "$SNAPSHOT" &&
+  GCLOUD_PROJECT=form-qc-unm GOOGLE_CLOUD_PROJECT=form-qc-unm FIREBASE_PROJECT_ID=form-qc-unm \
+    node scripts/preflight-qc-stage18c.mjs --read-only-confirmed --snapshot "$SNAPSHOT"
+  ```
+- Review logCount, requestCount, pendingCount, manifestHash, missing, conflicts, unexpectedSourceRows and blockers. Missing historical rows are expected before an import; a conflict or unexpected source row requires reconciliation, not overwrite. Pending account requests require authorized legacy review before native requests are enabled. Do not automatically approve or copy credentials.
+- The production preflight count of qc_photo_metadata refers to parent documents, not necessarily all nested photos. Full metadata/object reconciliation belongs to the operational photo release gate.
+- Stage 18C does not deploy rules, write imported logs, activate feature flags, or retire legacy writers. Final source freeze/re-export, verified production rules, backup, explicit import approval, reconciliation, trusted backend and browser UAT remain release gates.
