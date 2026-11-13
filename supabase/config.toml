@@ -18,3 +18,9 @@ verify_jwt = false
 
 [functions.qc-photo-live-pilot-sign]
 verify_jwt = false
+
+# Candidate only: skip deployment until the isolated release is explicitly reviewed.
+# Firebase JWT is verified in handler; no Supabase JWT gateway check for this function.
+[functions.qc-native-admin-live-pilot]
+enabled = false
+verify_jwt = false
