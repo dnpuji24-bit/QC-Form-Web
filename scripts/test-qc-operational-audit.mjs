@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs'
 import assert from 'node:assert/strict'
 import {initializeTestEnvironment,assertSucceeds,assertFails} from '@firebase/rules-unit-testing'
-import {doc,setDoc,getDoc,deleteDoc,writeBatch,serverTimestamp} from 'firebase/firestore'
+import {doc,setDoc,getDoc,deleteDoc,updateDoc,writeBatch,serverTimestamp} from 'firebase/firestore'
 const projectId='demo-qc-photo-test',host=process.env.FIRESTORE_EMULATOR_HOST||''
 if(process.env.GCLOUD_PROJECT!==projectId||! /^(localhost|127\.0\.0\.1):\d+$/.test(host))throw Error('Local demo emulator only')
 const [h,p]=host.split(':')
@@ -41,5 +41,22 @@ try{
  await check('Owner cannot overwrite audit',()=>assertFails(setDoc(audit(owner,'r1'),log('r1'))))
  await check('operational marker cannot be removed',async()=>{const row=qc('r3',6);delete row.operationalSaveId;await assertFails(setDoc(q,row))})
  await check('historical audit remains after correction',async()=>{assert.equal((await getDoc(audit(owner,'r1'))).data().revision,'r1');assert.equal((await getDoc(audit(owner,'r2'))).data().revision,'r2')})
+ async function updateProfile(u,patch){await env.withSecurityRulesDisabled(async c=>updateDoc(doc(c.firestore(),'users',u),patch))}
+ await updateProfile(uid,{status:'APPROVED'})
+ await updateProfile('auditviewer',{status:'APPROVED'})
+ await updateProfile('auditowner',{status:'APPROVED'})
+ await updateProfile('auditnone',{status:'APPROVED'})
+ await check('legacy approved mandor commits QC Actual and audit',()=>assertSucceeds(commit('r3',7)))
+ await check('legacy approved viewer and Owner can read audit',async()=>{await assertSucceeds(getDoc(audit(viewer,'r3')));await assertSucceeds(getDoc(audit(owner,'r3')))})
+ await check('legacy approved user without logs permission denied',()=>assertFails(getDoc(audit(none,'r3'))))
+ await updateProfile(uid,{status:'PENDING'})
+ await check('legacy pending mandor cannot commit operational audit',()=>assertFails(commit('r4',8)))
+ await updateProfile('auditviewer',{status:'PENDING'})
+ await check('legacy pending viewer cannot read audit',()=>assertFails(getDoc(audit(viewer,'r3'))))
+ await updateProfile('auditowner',{active:false})
+ await check('legacy inactive Owner cannot read audit',()=>assertFails(getDoc(audit(owner,'r3'))))
+ await updateProfile('auditowner',{active:true})
+ await check('legacy approved Owner cannot overwrite operational audit',()=>assertFails(setDoc(audit(owner,'r3'),log('r3'))))
+ await check('denied legacy revision did not change QC Actual or audit',async()=>{await updateProfile(uid,{status:'APPROVED'});assert.equal((await getDoc(q)).data().actualAreaHa,7);assert.equal((await getDoc(a)).data().actualAreaHa,7);assert.equal((await getDoc(audit(owner,'r4'))).exists(),false)})
  console.log('SUCCESS: '+n+' operational audit rules checks passed (emulator only)')
 }finally{await env.cleanup()}
