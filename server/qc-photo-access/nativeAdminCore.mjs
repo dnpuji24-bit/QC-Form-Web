@@ -3,7 +3,7 @@ export const roles=['manager','admin','asisten','mandor_spraying','mandor_fertil
 export const permissionKeys=['qc_dashboard','qc_spraying','qc_fertilizer','qc_records','qc_logs','qc_settings','data_plan_summary','data_plan_monthly','data_plan_monthly_import','data_plan_daily','data_plan_daily_import','data_plan_actual','data_plan_actual_import','data_plan_reconciliation','data_master_paddock_list','data_master_paddock_import','data_master_activity_list','data_master_activity_manage','data_master_activity_resources','data_master_activity_import','data_company']
 const norm=v=>String(v??'').trim().toLowerCase()
 const validUid=v=>typeof v==='string'&&/^[A-Za-z0-9_-]{1,128}$/.test(v)
-function requireOwner(p,actor){if(!p||p.role!=='owner'||p.active!==true||p.status!=='approved'||norm(p.email)!==norm(actor.email)||!actor.email)throw Error('OWNER_REQUIRED')}
+function requireOwner(p,actor){if(!p||p.role!=='owner'||p.active!==true||!['approved','APPROVED'].includes(p.status)||norm(p.email)!==norm(actor.email)||!actor.email)throw Error('OWNER_REQUIRED')}
 export function validatePermissions(p){if(!p||typeof p!=='object'||Array.isArray(p)||Object.keys(p).length!==permissionKeys.length||!permissionKeys.every(k=>Object.hasOwn(p,k)&&['none','view','edit'].includes(p[k])))throw Error('INVALID_PERMISSIONS');return Object.fromEntries(permissionKeys.map(k=>[k,p[k]]))}
 export async function administer({db,auth,actor,command,stamp}){
  if(!validUid(actor?.uid)||!command||!['activate','setRole','setActive','setPermissions'].includes(command.action))throw Error('INVALID_COMMAND')
@@ -27,7 +27,7 @@ export async function administer({db,auth,actor,command,stamp}){
    const requestRef=requests.doc(target),request=(await tx.get(requestRef)).data()
    if(existing.exists||!request||request.status!=='approved_for_provisioning'||!roles.includes(request.approvedRole)||!request.reviewedBy||norm(request.email)!==norm(identity.email))throw Error('INVALID_APPROVAL')
    const reviewer=(await tx.get(users.doc(request.reviewedBy))).data()
-   if(!reviewer||reviewer.role!=='owner'||reviewer.active!==true||reviewer.status!=='approved')throw Error('INVALID_REVIEWER')
+   if(!reviewer||reviewer.role!=='owner'||reviewer.active!==true||!['approved','APPROVED'].includes(reviewer.status))throw Error('INVALID_REVIEWER')
    const username=norm(request.username)
    if(!/^[a-z0-9_]{3,40}$/.test(username)||typeof request.fullName!=='string'||request.fullName.trim().length<2||request.fullName.length>120)throw Error('INVALID_PROFILE')
    const all=await tx.get(users)
@@ -42,7 +42,7 @@ export async function administer({db,auth,actor,command,stamp}){
    after={role:command.role,permissions,updatedAt:stamp(),updatedBy:actor.uid}
    tx.set(ref,after)
   }else{
-   if(!before||before.role==='owner'||before.status!=='approved')throw Error('TARGET_PROTECTED')
+   if(!before||before.role==='owner'||!['approved','APPROVED'].includes(before.status))throw Error('TARGET_PROTECTED')
    if(action==='setRole'){
     const template=(await tx.get(templates.doc(command.role))).data()
     if(!template||template.role!==command.role)throw Error('ROLE_TEMPLATE_REQUIRED')
