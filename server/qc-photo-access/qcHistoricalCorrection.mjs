@@ -61,7 +61,7 @@ export function historicalPatch(row,changes){
 }
 async function requireOwner(tx,db,actor){
  const p=(await tx.get(db.collection('users').doc(actor.uid))).data()
- if(!p||p.role!=='owner'||p.active!==true||p.status!=='approved'||!actor.email||norm(p.email)!==norm(actor.email))throw Error('OWNER_REQUIRED')
+ if(!p||p.role!=='owner'||p.active!==true||!['approved','APPROVED'].includes(p.status)||!actor.email||norm(p.email)!==norm(actor.email))throw Error('OWNER_REQUIRED')
  return p
 }
 export async function historicalQc({db,actor,command,stamp}){
