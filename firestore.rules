@@ -136,7 +136,7 @@ service cloud.firestore {
         && audit.saveType == next.saveType;
     }
     match /qc_legacy_activity_logs/{auditId} {
-      allow read: if activeUser() && profile().data.status == 'approved'
+      allow read: if activeUser() && profile().data.status in ['approved','APPROVED']
         && (role() == 'owner' || permission('qc_logs') in ['view','edit']);
       allow write: if false;
     }
