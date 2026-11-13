@@ -72,18 +72,22 @@ export async function historicalQc({db,actor,command,stamp}){
   const q=db.collection('qc_records').doc(recordId),a=db.collection('daily_reports').doc('qcactual_'+recordId)
   const marker=db.collection('qc_historical_correction_locks').doc(recordId)
   const qs=await tx.get(q),r=checkRow(qs,recordId)
-  if(command.action==='previewHistoricalQc'){
+  if(command.action==='previewHistoricalQc'&&changes===undefined){
    return {ok:true,version:version(qs),record:{id:recordId,formType:r.formType,paddock:r.paddock||'',date:r.date||'',note:String(r.noted||r.catatan||'').replace(/\s*\|\s*\[UNIT BERHENTI\].*$/is,'').replace(/^\[UNIT BERHENTI\].*$/is,''),area:areaOf(r),fillings:Array.isArray(r.pengisianList)?r.pengisianList.map(f=>({jumlah:f.jumlah,hasilKerja:f.hasilKerja,jenisPupuk:f.jenisPupuk||''})):[]}}
   }
-  if(command.action!=='correctHistoricalQc'||!valid(operationId,100)||typeof baseVersion!=='string'||typeof reason!=='string'||reason.trim().length<5||reason.length>300)throw Error('INVALID_COMMAND')
+  const previewOnly=command.action==='previewHistoricalQc'
+  if((!previewOnly&&command.action!=='correctHistoricalQc')||!valid(operationId,100)||typeof baseVersion!=='string'||typeof reason!=='string'||reason.trim().length<5||reason.length>300)throw Error('INVALID_COMMAND')
   const log=db.collection('qc_admin_audit').doc('historical_'+operationId)
   const [as,ls,ms,linked]=await Promise.all([tx.get(a),tx.get(log),tx.get(marker),tx.get(db.collection('daily_reports').where('qcRecordId','==',recordId))])
   if(ls.exists){
+   if(previewOnly)throw Error('QC_HISTORICAL_CONFLICT')
    const l=ls.data()
    if(l.action==='correctHistoricalQc'&&l.target===recordId&&l.actorUid===actor.uid&&l.baseVersion===baseVersion&&l.reason===reason.trim()&&isDeepStrictEqual(l.changes,changes))return {ok:true,replayed:true}
    throw Error('QC_HISTORICAL_CONFLICT')
   }
   if(version(qs)!==baseVersion)throw Error('QC_REVISION_CONFLICT')
+  const actualVersion=as.exists?version(as):null
+  if(!previewOnly&&Object.hasOwn(command,'baseActualVersion')&&command.baseActualVersion!==actualVersion)throw Error('QC_REVISION_CONFLICT')
   const oldArea=areaOf(r),oldActual=as.exists?as.data():null
   if(linked.docs.some(d=>d.id!==a.id)||oldActual&&(oldActual.sourceOrigin!=='QC'||oldActual.qcRecordId!==recordId||String(oldActual.dailyPlanId||'')!==String(r.dailyPlanId||'')||num(oldActual.actualAreaHa)!==oldArea)||Boolean(r.dailyPlanId&&oldArea>0)!==Boolean(oldActual))throw Error('QC_ACTUAL_LINK_CONFLICT')
   const patch=historicalPatch(r,changes),next={...r,...patch},revision='historical_'+operationId
@@ -103,6 +107,12 @@ export async function historicalQc({db,actor,command,stamp}){
     if(oldActual.notes&&oldActual.notes!==previous)throw Error('QC_HISTORICAL_REVIEW_REQUIRED')
     actualPatch.notes=['AUTO QC',r.formType.toUpperCase(),next.noted||next.catatan||''].filter(Boolean).join(' · ')
    }
+  }
+  if(previewOnly){
+   const fields=Object.keys(patch)
+   return {ok:true,version:baseVersion,actualVersion,
+    before:Object.fromEntries(fields.map(k=>[k,r[k]??null])),
+    after:patch,actual:oldActual?{before:Object.fromEntries(Object.keys(actualPatch).map(k=>[k,oldActual[k]??null])),after:actualPatch}:null}
   }
   tx.update(q,{...patch,clientRevision:revision,updatedAt:stamp(),updatedBy:profile.username||actor.uid})
   if(oldActual)tx.update(a,{...actualPatch,updatedAt:stamp(),updatedBy:profile.username||actor.uid,lastModifiedSource:'QC_HISTORICAL_CORRECTION'})
