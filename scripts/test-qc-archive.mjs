@@ -3,8 +3,8 @@ import {createRequire} from 'node:module'
 const requireAdmin=createRequire(new URL('../server/qc-photo-access/package.json',import.meta.url))
 const {initializeApp,deleteApp}=requireAdmin('firebase-admin/app')
 const {getFirestore,FieldValue}=requireAdmin('firebase-admin/firestore')
-import {initializeTestEnvironment,assertFails} from '@firebase/rules-unit-testing'
-import {doc,setDoc,deleteDoc} from 'firebase/firestore'
+import {initializeTestEnvironment,assertFails,assertSucceeds} from '@firebase/rules-unit-testing'
+import {doc,getDoc,setDoc,deleteDoc} from 'firebase/firestore'
 import {readFileSync} from 'node:fs'
 import {archiveQc} from '../server/qc-photo-access/qcArchiveCore.mjs'
 const projectId='demo-qc-photo-test',host=process.env.FIRESTORE_EMULATOR_HOST||''
@@ -46,5 +46,14 @@ try{
  await check('client cannot recreate archived QC with legacy payload',()=>assertFails(setDoc(doc(client,'qc_records','archive1'),{id:'archive1',formType:'spray',inputtedBy:actor.uid})))
  await check('client cannot recreate canonical Actual',()=>assertFails(setDoc(doc(client,'daily_reports','qcactual_archive1'),{sourceOrigin:'manual'})))
  await check('client cannot recreate linked Actual under another ID',()=>assertFails(setDoc(doc(client,'daily_reports','other-actual'),actual('archive1'))))
+ const legacyOwner=db.collection('users').doc(actor.uid)
+ await q('legacy-archive').set(row('legacy-archive'));await a('legacy-archive').set(actual('legacy-archive'))
+ await legacyOwner.update({status:'PENDING'})
+ await check('legacy pending Owner cannot archive',()=>assert.rejects(run('legacy-archive'),/OWNER_REQUIRED/))
+ await legacyOwner.update({status:'APPROVED',active:false})
+ await check('legacy inactive Owner cannot archive',()=>assert.rejects(run('legacy-archive'),/OWNER_REQUIRED/))
+ await legacyOwner.update({active:true})
+ await check('legacy approved Owner archives QC and Actual atomically',async()=>{await run('legacy-archive');assert.equal((await q('legacy-archive').get()).exists,false);assert.equal((await a('legacy-archive').get()).exists,false);assert.deepEqual((await archived('legacy-archive').get()).data(),row('legacy-archive'));assert.ok((await marker('legacy-archive').get()).exists)})
+ await check('legacy approved Owner reads marker but cannot write',async()=>{await assertSucceeds(getDoc(doc(client,'qc_archive_markers','legacy-archive')));await assertFails(deleteDoc(doc(client,'qc_archive_markers','legacy-archive')))})
  console.log('SUCCESS: '+n+' QC archive checks passed (local Firestore emulator only)')
 }finally{await env.cleanup();await deleteApp(app)}
