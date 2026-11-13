@@ -1,7 +1,23 @@
 // Static inventory of tracked frontend source. Does not read credentials or call any service.
 import {execFileSync} from 'node:child_process'
 import {readFileSync} from 'node:fs'
-import ts from 'typescript'
+import {createRequire} from 'node:module'
+import {resolve} from 'node:path'
+
+// A standalone, pinned parser may be installed outside the application.
+// Never change the application's TypeScript version just to run the audit.
+const parserRoot=process.env.QC_AUDIT_TS_ROOT
+const load=createRequire(parserRoot?resolve(parserRoot,'package.json'):import.meta.url)
+let ts
+try{
+ ts=load('typescript')
+ if(typeof ts.createSourceFile!=='function'||ts.ScriptTarget?.Latest===undefined||
+    typeof ts.forEachChild!=='function')throw Error('Compiler AST API unavailable')
+}catch{
+ console.error('AUDIT_PARSER_UNAVAILABLE: use an isolated TypeScript 5.8.3 installation and set QC_AUDIT_TS_ROOT.')
+ process.exit(1)
+}
+console.log('Audit parser: TypeScript '+ts.version)
 const files=execFileSync('git',['ls-files','-z','--','src'],{encoding:'utf8'}).split('\0').filter(f=>/\.(tsx?|[cm]?jsx?)$/.test(f)&&!f.endsWith('.d.ts')&&!f.endsWith('.d.mts'))
 const routes={
  login:'Legacy login; native portal uses Firebase Auth',
@@ -36,7 +52,7 @@ const add=(file,sf,node,name,kind)=>{
 for(const file of files){
  const source=readFileSync(file,'utf8')
  const sf=ts.createSourceFile(file,source,ts.ScriptTarget.Latest,true)
- const apiNames=new Set(file==='src/api.ts'?['api']:[]),qcNames=new Set(),configNames=new Map(),namespaces=new Set()
+ const apiNames=new Set(file==='src/api.ts'?['api']:[]),qcNames=new Set(),configNames=new Map(file==='src/api.ts'?[['getApiUrl','getApiUrl'],['setApiUrl','setApiUrl']]:[]),namespaces=new Set()
  for(const st of sf.statements){
   if(!ts.isImportDeclaration(st)||!ts.isStringLiteral(st.moduleSpecifier)||!/(?:^|\/)api(?:\.[cm]?[jt]s)?$/.test(st.moduleSpecifier.text))continue
   const bindings=st.importClause?.namedBindings
