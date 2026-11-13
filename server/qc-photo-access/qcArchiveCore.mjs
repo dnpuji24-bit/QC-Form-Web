@@ -6,7 +6,7 @@ export async function archiveQc({db,actor,command,stamp}){
  if(typeof recordId!=='string'||!/^[A-Za-z0-9_-]{1,160}$/.test(recordId)||typeof operationId!=='string'||!/^[A-Za-z0-9_-]{1,100}$/.test(operationId)||typeof baseRevision!=='string'||!baseRevision||typeof reason!=='string'||reason.trim().length<5||reason.length>300)throw Error('INVALID_COMMAND')
  return db.runTransaction(async tx=>{
   const profile=(await tx.get(db.collection('users').doc(actor.uid))).data()
-  if(!profile||profile.role!=='owner'||profile.active!==true||profile.status!=='approved'||!actor.email||norm(profile.email)!==norm(actor.email))throw Error('OWNER_REQUIRED')
+  if(!profile||profile.role!=='owner'||profile.active!==true||!['approved','APPROVED'].includes(profile.status)||!actor.email||norm(profile.email)!==norm(actor.email))throw Error('OWNER_REQUIRED')
   const q=db.collection('qc_records').doc(recordId),archive=db.collection('qc_archived_records').doc(recordId)
   const marker=db.collection('qc_archive_markers').doc(recordId),actual=db.collection('daily_reports').doc('qcactual_'+recordId)
   const log=db.collection('qc_admin_audit').doc('archive_'+operationId)
@@ -38,7 +38,7 @@ export async function restoreQc({db,actor,command,stamp}){
  if(!valid(recordId,160)||!valid(archiveOperationId,100)||!valid(operationId,100)||typeof reason!=='string'||reason.trim().length<5||reason.length>300)throw Error('INVALID_COMMAND')
  return db.runTransaction(async tx=>{
   const profile=(await tx.get(db.collection('users').doc(actor.uid))).data()
-  if(!profile||profile.role!=='owner'||profile.active!==true||profile.status!=='approved'||!actor.email||norm(profile.email)!==norm(actor.email))throw Error('OWNER_REQUIRED')
+  if(!profile||profile.role!=='owner'||profile.active!==true||!['approved','APPROVED'].includes(profile.status)||!actor.email||norm(profile.email)!==norm(actor.email))throw Error('OWNER_REQUIRED')
   const q=db.collection('qc_records').doc(recordId),a=db.collection('daily_reports').doc('qcactual_'+recordId)
   const marker=db.collection('qc_archive_markers').doc(recordId),archive=db.collection('qc_archived_records').doc(recordId),archiveActual=db.collection('qc_archived_actuals').doc(recordId)
   const log=db.collection('qc_admin_audit').doc('restore_'+operationId)
