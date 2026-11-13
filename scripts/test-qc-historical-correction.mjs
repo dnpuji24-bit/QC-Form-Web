@@ -3,8 +3,8 @@ import {createRequire} from 'node:module'
 const requireAdmin=createRequire(new URL('../server/qc-photo-access/package.json',import.meta.url))
 const {initializeApp,deleteApp}=requireAdmin('firebase-admin/app')
 const {getFirestore,FieldValue}=requireAdmin('firebase-admin/firestore')
-import {initializeTestEnvironment,assertFails} from '@firebase/rules-unit-testing'
-import {doc,setDoc,deleteDoc} from 'firebase/firestore'
+import {initializeTestEnvironment,assertFails,assertSucceeds} from '@firebase/rules-unit-testing'
+import {doc,getDoc,setDoc,deleteDoc} from 'firebase/firestore'
 import {readFileSync} from 'node:fs'
 import {historicalQc,historicalPatch} from '../server/qc-photo-access/qcHistoricalCorrection.mjs'
 import {executeNativeAdmin} from '../server/qc-photo-access/nativeAdminService.mjs'
@@ -103,5 +103,14 @@ try{
   const c=cmd('preview3',(await preview('preview3')).version,{ownerUid:'histowner'})
   await assert.rejects(call({...c,action:'previewHistoricalQc'}),/INVALID_COMMAND/)
  })
+ const legacyOwner=d('users',actor.uid)
+ await q('legacy-correction').set(spray('legacy-correction'));await a('legacy-correction').set(actual('legacy-correction'))
+ await legacyOwner.update({status:'PENDING'})
+ await check('legacy pending Owner cannot preview historical correction',()=>assert.rejects(preview('legacy-correction'),/OWNER_REQUIRED/))
+ await legacyOwner.update({status:'APPROVED',active:false})
+ await check('legacy inactive Owner cannot preview historical correction',()=>assert.rejects(preview('legacy-correction'),/OWNER_REQUIRED/))
+ await legacyOwner.update({active:true})
+ await check('legacy approved Owner can preview and confirm correction',async()=>{const ver=(await preview('legacy-correction')).version;const c=cmd('legacy-correction',ver,{area:7,note:'legacy verified'});const p=await call({...c,action:'previewHistoricalQc'});await call({...c,baseActualVersion:p.actualVersion});const result=(await q('legacy-correction').get()).data();assert.equal(result.actualAreaHa,7);assert.equal(result.inputtedBy,'old-mandor');assert.equal(result.photoDriveUrl,spray('legacy-correction').photoDriveUrl);assert.equal((await a('legacy-correction').get()).data().actualAreaHa,7)})
+ await check('legacy approved Owner can read correction audit but cannot remove lock',async()=>{await assertSucceeds(getDoc(doc(client,'qc_admin_audit','historical_op-legacy-correction')));await assertFails(deleteDoc(doc(client,'qc_historical_correction_locks','legacy-correction')))})
  console.log('SUCCESS: '+n+' historical QC correction checks passed (local Firestore emulator only)')
 }finally{await env.cleanup();await deleteApp(app)}
