@@ -47,6 +47,18 @@ function decode(v){
  if('mapValue'in v)return decodeFields(v.mapValue.fields||{})
  throw Error('UNSUPPORTED_REST_VALUE')
 }
+// Pure codec preflight: no network, no document values in the result.
+export function inspectAdminRestDocument(id,rawFields){
+ if(!validId(id))return 'UNSUPPORTED_REST_ID'
+ if(!rawFields||typeof rawFields!=='object'||Array.isArray(rawFields))return 'INVALID_REST_FIELDS'
+ if(Object.keys(rawFields).some(k=>!validField(k)))return 'UNSUPPORTED_TOP_LEVEL_FIELD'
+ try{
+  fields(decodeFields(rawFields))
+  return 'COMPATIBLE'
+ }catch(error){
+  return ['UNSUPPORTED_REST_FIELD','UNSUPPORTED_REST_VALUE','UNSUPPORTED_REST_NUMBER','UNSUPPORTED_NESTED_ARRAY','UNSUPPORTED_REST_MAP','INVALID_REST_TIMESTAMP'].includes(error?.message)?error.message:'INVALID_REST_FIELDS'
+ }
+}
 class RestError extends Error{constructor(code){super(code);this.code=code}}
 export function createAdminRestEmulator({host,projectId,fetchImpl=fetch,maxAttempts=3}){
  if(projectId!==project||!/^127\.0\.0\.1:\d{1,5}$/.test(host||'')||Number(host.split(':')[1])<1||Number(host.split(':')[1])>65535)throw Error('DEMO_LOOPBACK_REQUIRED')
