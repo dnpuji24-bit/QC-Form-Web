@@ -64,6 +64,8 @@ export function createAdminRestEmulator({host,projectId,fetchImpl=fetch,maxAttem
  function refCollection(c){const r={kind:'query',collection:c};refs.add(r);return r}
  async function rpc(method,body){
   const response=await fetchImpl(base+':'+method,{method:'POST',headers:{Authorization:'Bearer owner','Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(15000),redirect:'error'})
+  // Rollback has an empty response; successful HTTP status is sufficient.
+  if(method==='rollback'&&response.ok)return {}
   const data=await response.json()
   if(!response.ok){const code=data?.error?.status;throw new RestError(typeof code==='string'&&/^[A-Z_]+$/.test(code)?code:'REST_HTTP_'+response.status)}
   return data
@@ -144,6 +146,13 @@ export function createAdminRestEmulator({host,projectId,fetchImpl=fetch,maxAttem
     }
     const result=await fn(tx);sealed=true
     if(inFlight)throw Error('REST_READ_IN_PROGRESS')
+    // Replay and preview may finish without writes. Release read locks without
+    // sending an empty commit or interpreting its missing commit metadata.
+    if(writes.length===0){
+     await rpc('rollback',{transaction})
+     transaction=undefined
+     return result
+    }
     commitStarted=true
     const committed=await rpc('commit',{writes,transaction})
     if(!Array.isArray(committed.writeResults??[])||(committed.writeResults??[]).length!==writes.length||!committed.commitTime)throw Error('REST_COMMIT_RESPONSE_UNKNOWN')
