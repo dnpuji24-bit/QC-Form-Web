@@ -1,0 +1,2 @@
+import type {User} from './types'
+export function changeNativePassword<T extends {uid:string;email:string|null}>(args:{native:boolean;enabled:boolean;online:()=>boolean;expectedUid:string;current:string;next:string;confirm:string;readProfile:()=>Promise<User>;getIdentity:()=>T|null;reauthenticate:(identity:T,current:string)=>Promise<unknown>;update:(identity:T,next:string)=>Promise<unknown>}):Promise<{ok:true;sessionChanged:boolean}>
