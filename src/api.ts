@@ -1,3 +1,4 @@
+import {mergeQcAuditLogs} from './qcAuditMerge.mjs'
 import {nativePortalEnabled} from './qcNativePortalConfig'
 import {assertLegacyApiAllowed} from './qcNativePortalPolicy.mjs'
 import {readApprovedFirebaseSession} from './qcFirebaseSession'
@@ -120,9 +121,17 @@ export const qcApi = {
     if(!nativePortalEnabled)return api<Record<string, unknown>[]>('logs',token,{},'GET')
     const user=await readApprovedFirebaseSession()
     if(!firestoreDb||!user.firebaseUid||(user.role!=='owner'&&!['view','edit'].includes(user.permissions?.qc_logs||'')))throw Error('Akses Activity Logs ditolak.')
-    const snap=await getDocsFromServer(query(collection(firestoreDb,'qc_operational_audit'),orderBy('createdAt','desc'),limit(100)))
+    const historyEnabled=import.meta.env.VITE_QC_LEGACY_AUDIT==='true'
+    const [snap,legacy,admin]=await Promise.all([
+      getDocsFromServer(query(collection(firestoreDb,'qc_operational_audit'),orderBy('createdAt','desc'),limit(100))),
+      historyEnabled?getDocsFromServer(query(collection(firestoreDb,'qc_legacy_activity_logs'),orderBy('Timestamp','desc'),limit(100))):Promise.resolve(null),
+      user.role==='owner'?getDocsFromServer(query(collection(firestoreDb,'qc_admin_audit'),orderBy('createdAt','desc'),limit(100))):Promise.resolve(null)
+    ])
     if(firebaseAuth?.currentUser?.uid!==user.firebaseUid)throw Error('Sesi berubah.')
-    const logs=snap.docs.map(d=>{const x=d.data();return {Timestamp:x.createdAt?.toDate?.().toISOString(),Username:x.username,ActionType:'QC '+x.saveType,Description:x.formType+' · '+x.recordId+' · '+x.revision}})
+    const fresh=await readApprovedFirebaseSession()
+    if(fresh.firebaseUid!==user.firebaseUid||fresh.role!==user.role||(fresh.role!=='owner'&&!['view','edit'].includes(fresh.permissions?.qc_logs||'')))throw Error('Akses Activity Logs berubah.')
+    const project=(d:{id:string;data:()=>Record<string,unknown>})=>{const x=d.data();return {...x,id:d.id,Timestamp:(x.createdAt as {toDate?:()=>Date}|undefined)?.toDate?.().toISOString()||''}}
+    const logs=mergeQcAuditLogs(legacy?.docs.map(d=>({...d.data(),id:d.id}))||[],snap.docs.map(project),admin?.docs.map(project)||[])
     return {ok:true,data:logs}
   },
 }
