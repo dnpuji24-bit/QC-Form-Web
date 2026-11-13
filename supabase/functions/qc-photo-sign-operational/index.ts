@@ -1,3 +1,4 @@
+import { isOperationalPhotoIdentityAllowed } from '../_shared/qcOperationalPhotoIdentity.mjs'
 import { resolveOperationalPhotoPath } from './manifest.ts'
 // Supabase Edge Function: Firebase ID Token -> current Firestore Data QC permission
 // -> temporary signed URL to an EXISTING private QC photo. Not deployed by this commit.
@@ -11,7 +12,6 @@ const storageUrl = 'https://mcfwnstdfhhtcbksgrlj.supabase.co'
 const bucket = 'qc-photos'
 const idPattern = /^[A-Za-z0-9_-]{1,160}$/
 const jwks = createRemoteJWKSet(new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'))
-const roles = new Set(['owner','manager','admin','asisten','mandor_spraying','mandor_fertilizer','pengunjung'])
 
 type ServiceAccount = { project_id: string; client_email: string; private_key: string }
 class RequestError extends Error {
@@ -106,8 +106,15 @@ Deno.serve(async (request:Request)=>{
     const uid=verified.payload.sub
     if(typeof uid!=='string'||!idPattern.test(uid)||(typeof verified.payload.auth_time !== 'number' || !Number.isInteger(verified.payload.auth_time)))throw new RequestError(401)
     if(!rateLimit(uid))throw new RequestError(429)
-    const raw=await request.text()
-    if(raw.length>1024)throw new RequestError(413)
+    const length=Number(request.headers.get('Content-Length')||0)
+    if(length>1024)throw new RequestError(413)
+    const reader=request.body?.getReader()
+    if(!reader)throw new RequestError(400)
+    const chunks:Uint8Array[]=[];let total=0
+    while(true){const {done,value}=await reader.read();if(done)break;total+=value.length;if(total>1024){await reader.cancel();throw new RequestError(413)}chunks.push(value)}
+    const bytes=new Uint8Array(total);let offset=0
+    for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length}
+    const raw=new TextDecoder().decode(bytes)
     let data:any
     try{data=JSON.parse(raw)}catch{throw new RequestError(400)}
     if(!data||typeof data!=='object'||Object.keys(data).sort().join(',')!=='photoId,recordId'||
@@ -137,7 +144,7 @@ Deno.serve(async (request:Request)=>{
       googleJson(docPath('qc_photo_upload_intents/'+data.recordId),oauth),
     ])
     const profile=decodeFields(u?.fields),qc=decodeFields(q?.fields),reservation=decodeFields(reservationDoc?.fields)
-    if(!profile||profile.active!==true||!roles.has(profile.role))throw new RequestError(403)
+    if(!isOperationalPhotoIdentityAllowed({uid,tokenEmail:verified.payload.email,account:userAccount,profile}))throw new RequestError(403)
     if(profile.role!=='owner'){
       const role=decodeFields((await googleJson(docPath('role_access/'+profile.role),oauth))?.fields)
       if(!role||role.role!==profile.role||!['view','edit'].includes(role.permissions?.qc_records))throw new RequestError(403)
