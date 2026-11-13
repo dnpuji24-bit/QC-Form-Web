@@ -1,3 +1,4 @@
+import {NativeNameRequest} from './NativeNameRequests'
 import {useRef,useState,type FormEvent} from 'react'
 import {EmailAuthProvider,reauthenticateWithCredential,updatePassword} from 'firebase/auth'
 import {firebaseAuth} from './firebase'
@@ -40,6 +41,7 @@ export function NativeAccountSettings({user}:{user:User}){
  return <section><div className="section-head"><div><div className="eyebrow">FIREBASE AUTHENTICATION</div><h2>Pengaturan Akun</h2></div></div>
   <div className="panel form-stack"><label>Nama lengkap<input readOnly value={user.fullName}/></label><label>Username<input readOnly value={user.username}/></label><label>Email<input readOnly value={user.email||''}/></label><label>Role<input readOnly value={user.role.replaceAll('_',' ')}/></label><p>Identitas penginput dan role tidak dapat diubah dari halaman ini. Data operasional berasal dari Firestore; URL Apps Script tidak dapat dikonfigurasi dalam mode native.</p></div>
   {canEditAccess(user,'qc_settings')?<form className="panel form-stack" onSubmit={e=>void submit(e)}><h3>Ubah password</h3>{!passwordEnabled&&<p className="alert">Perubahan password ditahan selama sistem login lama masih digunakan.</p>}<fieldset disabled={busy||!passwordEnabled}><label>Password saat ini<input name="current" type="password" autoComplete="current-password" required/></label><label>Password baru<input name="next" type="password" autoComplete="new-password" minLength={8} maxLength={256} required/></label><label>Konfirmasi password baru<input name="confirm" type="password" autoComplete="new-password" minLength={8} maxLength={256} required/></label><button className="primary" disabled={busy||!passwordEnabled}>{busy?'Memverifikasi…':'Ubah password'}</button></fieldset></form>:<p>Akses Pengaturan hanya lihat.</p>}
+  <NativeNameRequest user={user} key={user.firebaseUid}/>
   {message&&<p role="status">{message}</p>}
  </section>
 }
