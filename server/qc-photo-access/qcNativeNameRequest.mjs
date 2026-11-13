@@ -14,7 +14,7 @@ export async function nativeNameRequest({db,actor,command,stamp,now=Date.now()})
  return db.runTransaction(async tx=>{
   const [profileSnap,requestSnap]=await Promise.all([tx.get(users.doc(actor.uid)),tx.get(ref)])
   const profile=profileSnap.data(),old=requestSnap.data()
-  if(!profile||profile.active!==true||profile.status!=='approved'||norm(profile.email)!==norm(actor.email)||(profile.firebaseUid&&profile.firebaseUid!==actor.uid))throw Error('ACCOUNT_PROFILE_REQUIRED')
+  if(!profile||profile.active!==true||!['approved','APPROVED'].includes(profile.status)||norm(profile.email)!==norm(actor.email)||(profile.firebaseUid&&profile.firebaseUid!==actor.uid))throw Error('ACCOUNT_PROFILE_REQUIRED')
   if(submit){
    if(profile.role!=='owner'){
     const template=(await tx.get(db.collection('role_access').doc(profile.role))).data()
@@ -40,7 +40,7 @@ export async function nativeNameRequest({db,actor,command,stamp,now=Date.now()})
   const [targetSnap,lockSnap]=await Promise.all([tx.get(target),tx.get(lock)])
   const current=targetSnap.data()
   if(lockSnap.data()?.requestId!==command.requestId)throw Error('ACCOUNT_REQUEST_CONFLICT')
-  if(status==='approved'&&(!current||current.active!==true||current.status!=='approved'||current.username!==old.username||current.fullName!==old.oldFullName||!name(old.newFullName)))throw Error('ACCOUNT_REQUEST_CONFLICT')
+  if(status==='approved'&&(!current||current.active!==true||!['approved','APPROVED'].includes(current.status)||current.username!==old.username||current.fullName!==old.oldFullName||!name(old.newFullName)))throw Error('ACCOUNT_REQUEST_CONFLICT')
   if(status==='approved')tx.update(target,{fullName:old.newFullName,updatedAt:stamp(),updatedBy:actor.uid})
   tx.update(ref,{status,reviewedBy:actor.uid,reviewedAt:stamp()})
   tx.delete(lock)
