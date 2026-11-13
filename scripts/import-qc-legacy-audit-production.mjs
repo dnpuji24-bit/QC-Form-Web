@@ -65,8 +65,9 @@ async function main(){
  const requireAdmin=createRequire(new URL('../server/qc-photo-access/package.json',import.meta.url))
  const {initializeApp,applicationDefault,deleteApp}=requireAdmin('firebase-admin/app')
  const {getFirestore,FieldPath}=requireAdmin('firebase-admin/firestore')
+ // Stage 18F: require the isolated historical rules release, not the full cutover candidate.
  const credential=applicationDefault()
- const rules=await checkLiveRules(credential,readFileSync(new URL('../firestore.rules',import.meta.url),'utf8'))
+ const rules=await checkLiveRules(credential,readFileSync(new URL('./firestore.legacy-audit-release.rules',import.meta.url),'utf8'))
  const app=initializeApp({credential,projectId:PROJECT})
  const db=getFirestore(app),collection=db.collection(COLLECTION)
  async function scan(){
@@ -105,7 +106,7 @@ async function main(){
   if(blockers.length)abort('IMPORT_BLOCKED')
   assertClean(before)
   // Recheck release just before writing. Operator must prevent concurrent deployments/writers.
-  const latest=await checkLiveRules(credential,readFileSync(new URL('../firestore.rules',import.meta.url),'utf8'))
+  const latest=await checkLiveRules(credential,readFileSync(new URL('./firestore.legacy-audit-release.rules',import.meta.url),'utf8'))
   if(!latest.exactMatch||latest.ruleset!==rules.ruleset)abort('RULES_CHANGED')
   console.log('Beginning create-only import; a failure may leave completed chunks. Re-run plan before retry.')
   const result=await importLegacyAudit(db,prepared)
