@@ -55,5 +55,13 @@ try{
  await check('approval replay idempotent and opposite decision rejected',async()=>{assert.equal((await call('owner1',review('r1'))).replayed,true);await assert.rejects(call('owner1',review('r1','reject')),/ACCOUNT_REQUEST_CONFLICT/)})
  await check('reject keeps profile unchanged and releases pending lock',async()=>{await call('admin1',request('r2','Another Name'));await call('owner1',review('r2','reject'));assert.equal((await d('users','admin1').get()).data().fullName,'New Name');assert.equal((await d('qc_native_name_pending','admin1').get()).exists,false)})
  await check('stale display name prevents approval',async()=>{await call('admin1',request('r3','Third Name'));await d('users','admin1').update({fullName:'External change'});await assert.rejects(call('owner1',review('r3')),/ACCOUNT_REQUEST_CONFLICT/)})
+ await d('users','legacyOwner').set({...profile('legacyOwner','owner'),status:'APPROVED'})
+ await d('users','legacyAdmin').set({...profile('legacyAdmin','admin'),status:'APPROVED'})
+ await d('users','legacyPending').set({...profile('legacyPending','admin'),status:'PENDING'})
+ await check('uppercase approved user submits name request',async()=>{await call('legacyAdmin',request('legacy-r1'));assert.equal((await d('qc_native_name_requests','legacy-r1').get()).data().status,'pending')})
+ await check('uppercase approved user reads own name request and pending lock',async()=>{await assertSucceeds(getDocs(query(collection(client('legacyAdmin'),'qc_native_name_requests'),where('uid','==','legacyAdmin'))));await assertSucceeds(getDoc(doc(client('legacyAdmin'),'qc_native_name_pending','legacyAdmin')))})
+ await check('uppercase Owner can review name request and read admin audit',async()=>{await assertSucceeds(getDoc(doc(client('legacyOwner'),'qc_native_name_requests','legacy-r1')));await call('legacyOwner',review('legacy-r1'));const u=(await d('users','legacyAdmin').get()).data();assert.equal(u.fullName,'New Name');assert.equal(u.status,'APPROVED');assert.equal(u.username,'legacyAdmin');await assertSucceeds(getDoc(doc(client('legacyOwner'),'qc_admin_audit','name_legacy-r1')))})
+ await check('uppercase pending user cannot submit name request',()=>assert.rejects(call('legacyPending',request('legacy-r2')),/ACCOUNT_PROFILE_REQUIRED/))
+ await check('uppercase pending user cannot read another account request',()=>assertFails(getDoc(doc(client('legacyPending'),'qc_native_name_requests','legacy-r1'))))
  console.log('SUCCESS: '+n+' legacy audit and native name request checks passed (local Firestore emulator only)')
 }finally{await env.cleanup();await deleteApp(app)}
