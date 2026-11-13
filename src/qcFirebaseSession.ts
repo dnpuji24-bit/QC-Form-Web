@@ -2,7 +2,7 @@ import {signInWithEmailAndPassword,signOut} from 'firebase/auth'
 import {doc,getDocFromServer} from 'firebase/firestore'
 import {firebaseAuth,firebaseAuthPersistenceReady,firestoreDb} from './firebase'
 import {PERMISSION_CATALOG} from './accessControl'
-import {resolveFirebaseProfile} from './qcFirebaseIdentity.mjs'
+import {resolveFirebaseProfile,isApprovedFirebaseProfile} from './qcFirebaseIdentity.mjs'
 export async function readApprovedFirebaseSession(){
   const auth=firebaseAuth,db=firestoreDb
   if(!auth||!db)throw Error('Firebase belum tersedia.')
@@ -11,7 +11,7 @@ export async function readApprovedFirebaseSession(){
   const current=auth.currentUser
   if(!current)throw Error('AUTH_REQUIRED')
   const profile=(await getDocFromServer(doc(db,'users',current.uid))).data()
-  if(!profile||profile.active!==true||profile.status!=='approved')throw Error('AUTH_PROFILE_NOT_APPROVED')
+  if(!profile||!isApprovedFirebaseProfile(profile))throw Error('AUTH_PROFILE_NOT_APPROVED')
   const role=String(profile.role||'')
   if(!['owner','manager','admin','asisten','mandor_spraying','mandor_fertilizer','pengunjung'].includes(role))throw Error('AUTH_PROFILE_INVALID')
   const template=(await getDocFromServer(doc(db,'role_access',role))).data()
@@ -30,7 +30,7 @@ export async function loginIsolatedFirebase(email:string,password:string){
   try{
     const {user}=await signInWithEmailAndPassword(auth,email.trim(),password)
     const profile=(await getDocFromServer(doc(db,'users',user.uid))).data()
-    if(!profile||profile.active!==true||profile.status!=='approved')throw Error('AUTH_PROFILE_NOT_APPROVED')
+    if(!profile||!isApprovedFirebaseProfile(profile))throw Error('AUTH_PROFILE_NOT_APPROVED')
     const role=String(profile.role||'')
     if(!['owner','manager','admin','asisten','mandor_spraying','mandor_fertilizer','pengunjung'].includes(role))throw Error('AUTH_PROFILE_INVALID')
     const template=(await getDocFromServer(doc(db,'role_access',role))).data()
