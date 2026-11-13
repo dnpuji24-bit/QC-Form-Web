@@ -12,8 +12,9 @@ async function owner(){
  if(user.role!=='owner'||!firestoreDb||firebaseAuth?.currentUser?.uid!==user.firebaseUid)throw Error('Owner aktif diperlukan.')
  return {db:firestoreDb,uid:user.firebaseUid}
 }
-export async function command(body:Record<string,unknown>){
+export async function command(body:Record<string,unknown>,expectedUid?:string):Promise<Record<string,unknown>>{
  const {uid}=await owner()
+ if(expectedUid!==undefined&&uid!==expectedUid)throw Error('Sesi berubah.')
  if(!endpoint)throw Error('Endpoint administrasi belum dikonfigurasi.')
  const url=new URL(endpoint)
  if(url.protocol!=='https:'&&!(url.protocol==='http:'&&['localhost','127.0.0.1'].includes(url.hostname)))throw Error('Endpoint tidak aman.')
@@ -23,7 +24,9 @@ export async function command(body:Record<string,unknown>){
  if(firebaseAuth?.currentUser?.uid!==uid)throw Error('Sesi berubah.')
  const response=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store',redirect:'error'})
  const result=await response.json()
- if(!response.ok||result.ok!==true)throw Error(String(result.error||'Perubahan gagal.'))
+ if(firebaseAuth?.currentUser?.uid!==uid)throw Error('Sesi berubah. Periksa status transaksi sebelum mencoba lagi.')
+ if(!response.ok||!result||result.ok!==true)throw Error(String(result?.error||'Perubahan gagal.'))
+ return result as Record<string,unknown>
 }
 export function NativeAdminLogs(){
  const [rows,setRows]=useState<Record<string,unknown>[]>([]),[message,setMessage]=useState(''),[busy,setBusy]=useState(false)
