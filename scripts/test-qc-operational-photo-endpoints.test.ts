@@ -28,7 +28,11 @@ function field(value:any):any{
  throw Error('Unsupported fixture')
 }
 function fields(row:Record<string,any>){return Object.fromEntries(Object.entries(row).map(([k,v])=>[k,field(v)]))}
-function fixture(){
+function fixture(pilot=false){
+ const recordId=pilot?'qc-live-photo-pilot-synthetic-001':'qc-v2-synthetic-001'
+ const records=pilot?'qc_photo_live_pilot_records/':'qc_records/'
+ const intents=pilot?'qc_photo_live_pilot_intents/':'qc_photo_upload_intents/'
+ const bucket=pilot?'qc-photos-test':'qc-photos'
  const docs=new Map<string,Record<string,any>>()
  const objects=new Map<string,Blob>()
  const stats={uploads:0,downloads:0,signs:0,google:0,verifies:0}
@@ -36,10 +40,10 @@ function fixture(){
  const roleMap:Record<string,string>={owner:'owner',mandor:'mandor_spraying',viewer:'manager',none:'pengunjung',pending:'owner',inactive:'owner',revoked:'owner',other:'mandor_spraying'}
  for(const [uid,role] of Object.entries(roleMap))docs.set('users/'+uid,{email:uid+'@example.test',role,active:uid!=='inactive',status:uid==='pending'?'PENDING':'APPROVED'})
  for(const [role,permissions] of Object.entries({mandor_spraying:{qc_spraying:'edit',qc_records:'view'},manager:{qc_spraying:'view',qc_records:'view'},pengunjung:{qc_spraying:'none',qc_records:'none'}}))docs.set('role_access/'+role,{role,permissions})
- const intent={ownerUid:'mandor',formType:'spray',clientRevision:revision}
- docs.set('qc_photo_upload_intents/'+recordId,intent)
+ const intent={ownerUid:'mandor',formType:'spray',clientRevision:revision,...(pilot?{testOnly:true}:{})}
+ docs.set(intents+recordId,intent)
  const deps={
-  env:(key:string)=>({QC_OPERATIONAL_PHOTO_ALLOWED_ORIGIN:origin,QC_OPERATIONAL_PHOTO_ENABLED:enabled?'true':'false',GOOGLE_SERVICE_ACCOUNT_JSON:'{}',SUPABASE_SECRET_KEYS:'{"default":"sb_secret_synthetic"}'} as Record<string,string>)[key],
+  env:(key:string)=>({QC_LIVE_PHOTO_PILOT_ORIGIN:origin,QC_LIVE_PHOTO_PILOT_ENABLED:enabled?'true':'false',QC_OPERATIONAL_PHOTO_ALLOWED_ORIGIN:origin,QC_OPERATIONAL_PHOTO_ENABLED:enabled?'true':'false',GOOGLE_SERVICE_ACCOUNT_JSON:'{}',SUPABASE_SECRET_KEYS:'{"default":"sb_secret_synthetic"}'} as Record<string,string>)[key],
   jwtVerify:async(jwt:string,_remote:any,options:any)=>{stats.verifies++;return jwtVerify(jwt,local,options)},
   googleAccessToken:async()=> 'mock-oauth',
   googleJson:async(url:string,oauth:string,body?:any)=>{
@@ -53,7 +57,7 @@ function fixture(){
    return row?{fields:fields(row)}:null
   },
   createClient:(url:string,key:string)=>{assert.equal(url,'https://mcfwnstdfhhtcbksgrlj.supabase.co');assert.equal(key,'sb_secret_synthetic');return {storage:{from(bucket:string){
-   assert.equal(bucket,'qc-photos')
+   assert.equal(bucket,pilot?'qc-photos-test':'qc-photos')
    return {
     async upload(path:string,blob:Blob,options:any){stats.uploads++;assert.equal(options.upsert,false);if(objects.has(path))return {error:{message:'duplicate'}};objects.set(path,blob);return {error:null}},
     async download(path:string){stats.downloads++;const data=objects.get(path);return {data,error:data?null:{message:'missing'}}},
@@ -62,20 +66,21 @@ function fixture(){
   }}}},
  }
  // Only local test doubles are cast; production uses the typed defaults.
- const upload=createUpload(deps as unknown as NonNullable<Parameters<typeof createUpload>[0]>)
- const sign=createSigner(deps as unknown as NonNullable<Parameters<typeof createSigner>[0]>)
+ const upload=createUpload(deps as unknown as NonNullable<Parameters<typeof createUpload>[0]>,pilot)
+ const sign=createSigner(deps as unknown as NonNullable<Parameters<typeof createSigner>[0]>,pilot)
  const request=(data:unknown,uid='mandor',opts:{origin?:string;token?:string;method?:string}={})=>new Request('https://example.test/function',{method:opts.method||'POST',headers:{Origin:opts.origin??origin,Authorization:'Bearer '+(opts.token??tokens[uid]),'Content-Type':'application/json'},...(opts.method==='OPTIONS'||opts.method==='GET'?{}:{body:JSON.stringify(data)})})
  const input={recordId,formType:'spray',baseRevision:null,clientRevision:revision,kind:'main',contentType:'image/png',base64:png}
  async function confirmed(){
   const response=await upload(request(input));assert.equal(response.status,200)
   const uploaded=await response.json()
   const prepared=await (prepareOperationalPhotoManifest as (input:any)=>Promise<any>)({recordId,uploaderUid:'mandor',changes:[{kind:'main',action:'replace',dataUrl:'data:image/png;base64,'+png}]})
-  const ref=prepared.manifest.main
+  const ref={...prepared.manifest.main,bucket}
+  prepared.manifest.main=ref
   for(const k of ['photoId','objectPath','bucket','sha256','size'])assert.deepEqual(uploaded[k],ref[k])
-  docs.set('qc_records/'+recordId,{...intent,firestoreSaveState:'confirmed',operationalPhotoManifest:prepared.manifest})
+  docs.set(records+recordId,{...intent,firestoreSaveState:'confirmed',operationalPhotoManifest:prepared.manifest})
   return {recordId,photoId:ref.photoId}
  }
- return {docs,objects,stats,upload,sign,request,input,confirmed,disable:()=>{enabled=false}}
+ return {recordId,records,intents,docs,objects,stats,upload,sign,request,input,confirmed,disable:()=>{enabled=false}}
 }
 Deno.test('default write/sign gate stops all backend calls',async()=>{
  const f=fixture();f.disable()
@@ -209,4 +214,31 @@ Deno.test('existing record upload requires matching base revision and rejects te
  const ok=await f.upload(f.request({...f.input,baseRevision:revision,clientRevision:'rev2'}));assert.equal(ok.status,200)
  f.docs.get('qc_records/'+recordId)!.testOnly=true
  assert.equal((await f.upload(f.request({...f.input,baseRevision:revision,clientRevision:'rev2'}))).status,409)
+})
+
+Deno.test('live pilot uses only synthetic reservation, test bucket and signer',async()=>{
+ const f=fixture(true);const data=await f.confirmed()
+ assert.equal(f.objects.size,1)
+ assert.equal((await f.sign(f.request(data,'viewer'))).status,200)
+ assert.equal((await f.sign(f.request(data,'none'))).status,403)
+ assert.equal((await f.upload(f.request({...f.input,recordId:'qc-v2-real'}))).status,403)
+ assert.equal((await f.sign(f.request({...data,recordId:'qc-v2-real'},'owner'))).status,403)
+})
+Deno.test('pilot refuses arbitrary images and HOLD slots',async()=>{
+ const f=fixture(true)
+ assert.equal((await f.upload(f.request({...f.input,base64:png+'AAAA'}))).status,400)
+ assert.equal((await f.upload(f.request({...f.input,kind:'hold',holdId:'other'}))).status,400)
+ assert.equal(f.stats.uploads,0)
+})
+Deno.test('pilot requires testOnly fixture and separate activation',async()=>{
+ const f=fixture(true);f.docs.get(f.intents+f.recordId)!.testOnly=false
+ assert.equal((await f.upload(f.request(f.input))).status,409)
+ f.disable();assert.equal((await f.upload(f.request(f.input))).status,503)
+ assert.equal(f.stats.uploads,0)
+})
+Deno.test('production handler rejects live pilot namespace',async()=>{
+ const f=fixture();const id='qc-live-photo-pilot-synthetic-001'
+ assert.equal((await f.upload(f.request({...f.input,recordId:id}))).status,403)
+ assert.equal((await f.sign(f.request({recordId:id,photoId:'fake'},'owner'))).status,403)
+ assert.equal(f.stats.uploads,0);assert.equal(f.stats.signs,0)
 })
