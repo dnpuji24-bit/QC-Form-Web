@@ -142,9 +142,9 @@ service cloud.firestore {
     }
 
     match /qc_operational_audit/{auditId} {
-      allow read: if activeUser() && profile().data.status == 'approved'
+      allow read: if activeUser() && profile().data.status in ['approved','APPROVED']
         && (role() == 'owner' || permission('qc_logs') in ['view','edit']);
-      allow create: if activeUser() && profile().data.status == 'approved'
+      allow create: if activeUser() && profile().data.status in ['approved','APPROVED']
         && request.resource.data.keys().hasAll(['recordId','revision','actorUid','username','formType','saveType','createdAt'])
         && request.resource.data.keys().hasOnly(['recordId','revision','actorUid','username','formType','saveType','createdAt'])
         && request.resource.data.recordId is string
