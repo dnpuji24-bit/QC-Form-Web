@@ -93,9 +93,11 @@ try{
  console.error(safe);process.exitCode=1
 }finally{
  try{
-  if(createdRecord)await record.delete()
-  if(createdIntent)await intent.delete()
-  console.log('Pilot Firestore fixtures removed if created')
+  let cleanupFailed=false
+  for(const [wasCreated,doc,label] of [[createdRecord,record,'RECORD'],[createdIntent,intent,'INTENT']]){
+   if(wasCreated)try{await doc.delete()}catch{cleanupFailed=true;process.exitCode=1;console.error('PILOT_CLEANUP_FAILED_'+label)}
+  }
+  console.log(cleanupFailed?'Review pilot fixture cleanup manually':'Pilot Firestore fixtures removed if created')
   console.log('Pilot storage cleanup reference (test bucket only): '+recordId)
   console.log('Up to three 68-byte synthetic objects may remain; remove only this exact test prefix after review.')
  }finally{await deleteApp(app)}
