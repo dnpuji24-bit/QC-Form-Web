@@ -12,7 +12,7 @@ const baseline=execFileSync('git',['show','a945122a4238356b0eeaddbe0ed134a811549
 const hash=s=>createHash('sha256').update(s.replace(/\r\n/g,'\n').trimEnd()).digest('hex')
 assert.equal(hash(baseline),'1a2eb39419522397c9a5af25418091c25506ee0822d122ac0e851038326e6de2')
 const candidate=readFileSync(new URL('./firestore.legacy-audit-release.rules',import.meta.url),'utf8')
-const block="    match /qc_legacy_activity_logs/{auditId} {\n      allow read: if activeUser() && profile().data.status == 'approved'\n        && (role() == 'owner' || permission('qc_logs') in ['view','edit']);\n      allow write: if false;\n    }\n\n"
+const block="    match /qc_legacy_activity_logs/{auditId} {\n      allow read: if activeUser() && profile().data.status in ['approved','APPROVED']\n        && (role() == 'owner' || permission('qc_logs') in ['view','edit']);\n      allow write: if false;\n    }\n\n"
 const anchor='    match /{document=**} {'
 assert.equal(baseline.split(anchor).length,2)
 assert.equal(candidate,baseline.replace(anchor,()=>block+anchor))
@@ -25,7 +25,7 @@ try{
  await env.clearFirestore()
  await env.withSecurityRulesDisabled(async ctx=>{
   const db=ctx.firestore()
-  for(const [uid,role,active,status] of [['owner1','owner',true,'approved'],['viewer1','manager',true,'approved'],['editor1','admin',true,'approved'],['none1','pengunjung',true,'approved'],['inactive1','manager',false,'approved'],['pending1','manager',true,'pending'],['mandor1','mandor_spraying',true,'approved']]){
+  for(const [uid,role,active,status] of [['owner1','owner',true,'approved'],['viewer1','manager',true,'approved'],['editor1','admin',true,'approved'],['none1','pengunjung',true,'approved'],['inactive1','manager',false,'approved'],['pending1','manager',true,'pending'],['mandor1','mandor_spraying',true,'approved'],['legacyOwner','owner',true,'APPROVED'],['legacyViewer','manager',true,'APPROVED'],['legacyEditor','admin',true,'APPROVED'],['legacyNone','pengunjung',true,'APPROVED'],['legacyInactive','owner',false,'APPROVED'],['legacyPending','owner',true,'PENDING'],['mixedStatus','owner',true,'Approved']]){
    await setDoc(doc(db,'users',uid),{username:uid,role,active,status})
   }
   for(const [role,logs,records,spray] of [['manager','view','view','none'],['admin','edit','view','none'],['pengunjung','none','none','none'],['mandor_spraying','none','view','edit']]){
@@ -42,6 +42,14 @@ try{
  await check('No log permission cannot read',()=>assertFails(getDoc(log('none1'))))
  await check('Inactive user denied',()=>assertFails(getDoc(log('inactive1'))))
  await check('Pending user denied',()=>assertFails(getDoc(log('pending1'))))
+ await check('Legacy uppercase Owner can read history',()=>assertSucceeds(getDoc(log('legacyOwner'))))
+ await check('Legacy uppercase Viewer can list history',()=>assertSucceeds(getDocs(collection(db('legacyViewer'),'qc_legacy_activity_logs'))))
+ await check('Legacy uppercase Editor can read history',()=>assertSucceeds(getDoc(log('legacyEditor'))))
+ await check('Legacy uppercase user without permission denied',()=>assertFails(getDoc(log('legacyNone'))))
+ await check('Legacy inactive Owner denied',()=>assertFails(getDoc(log('legacyInactive'))))
+ await check('Legacy pending Owner denied',()=>assertFails(getDoc(log('legacyPending'))))
+ await check('Unrecognized mixed-case status denied',()=>assertFails(getDoc(log('mixedStatus'))))
+ await check('Legacy uppercase Owner cannot write history',()=>assertFails(updateDoc(log('legacyOwner'),{Description:'changed'})))
  await check('Unauthenticated user denied',()=>assertFails(getDoc(doc(env.unauthenticatedContext().firestore(),'qc_legacy_activity_logs','log1'))))
  await check('Owner cannot create historical log',()=>assertFails(setDoc(doc(db('owner1'),'qc_legacy_activity_logs','fake'),{Description:'fake'})))
  await check('Owner cannot edit historical log',()=>assertFails(updateDoc(log('owner1'),{Description:'changed'})))
