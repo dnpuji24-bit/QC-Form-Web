@@ -52,7 +52,7 @@ export function createAdminRestEmulator({host,projectId,fetchImpl=fetch,maxAttem
  if(!Number.isInteger(maxAttempts)||maxAttempts<1||maxAttempts>3)throw Error('INVALID_RETRY_LIMIT')
  const base='http://'+host+'/v1/'+root
  const refs=new WeakSet()
- const ref=(kind,collection,id,filter)=>{const r=Object.freeze({kind,collection,id,filter});refs.add(r);return r}
+ const ref=(kind,collection,id,filter)=>{const r=Object.freeze({kind,collection,id,filter:filter?Object.freeze({...filter}):undefined});refs.add(r);return r}
  const name=r=>root+'/'+r.collection+'/'+r.id
  const checkRef=(r,kind)=>{if(!r||!refs.has(r)||(kind&&r.kind!==kind))throw Error('INVALID_REST_REF')}
  const collection=c=>{
@@ -151,7 +151,7 @@ export function createAdminRestEmulator({host,projectId,fetchImpl=fetch,maxAttem
     if(transaction)try{await rpc('rollback',{transaction})}catch{}
     // Retry only explicit ABORTED. Network/unknown commit outcome is never replayed.
     if(error instanceof RestError&&error.code==='ABORTED'&&attempt+1<maxAttempts)continue
-    if(commitStarted&&!(error instanceof RestError))throw Error('REST_COMMIT_OUTCOME_UNKNOWN')
+    if(commitStarted&&(!(error instanceof RestError)||!['ABORTED','FAILED_PRECONDITION','ALREADY_EXISTS','NOT_FOUND','PERMISSION_DENIED','INVALID_ARGUMENT','UNAUTHENTICATED'].includes(error.code)))throw Error('REST_COMMIT_OUTCOME_UNKNOWN')
     throw error
    }
   }
