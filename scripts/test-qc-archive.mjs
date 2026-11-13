@@ -55,5 +55,9 @@ try{
  await legacyOwner.update({active:true})
  await check('legacy approved Owner archives QC and Actual atomically',async()=>{await run('legacy-archive');assert.equal((await q('legacy-archive').get()).exists,false);assert.equal((await a('legacy-archive').get()).exists,false);assert.deepEqual((await archived('legacy-archive').get()).data(),row('legacy-archive'));assert.ok((await marker('legacy-archive').get()).exists)})
  await check('legacy approved Owner reads marker but cannot write',async()=>{await assertSucceeds(getDoc(doc(client,'qc_archive_markers','legacy-archive')));await assertFails(deleteDoc(doc(client,'qc_archive_markers','legacy-archive')))})
+ await q('wrong-plan').set(row('wrong-plan'));await a('wrong-plan').set({...actual('wrong-plan'),dailyPlanId:'different'})
+ await check('archive refuses mismatched Actual plan ID without changes',async()=>{await assert.rejects(run('wrong-plan'),/QC_ACTUAL_LINK_CONFLICT/);assert.deepEqual((await q('wrong-plan').get()).data(),row('wrong-plan'));assert.equal((await a('wrong-plan').get()).data().dailyPlanId,'different');assert.equal((await marker('wrong-plan').get()).exists,false)})
+ await q('wrong-area').set(row('wrong-area'));await a('wrong-area').set({...actual('wrong-area'),actualAreaHa:99})
+ await check('archive refuses mismatched Actual area without changes',async()=>{await assert.rejects(run('wrong-area'),/QC_ACTUAL_LINK_CONFLICT/);assert.deepEqual((await q('wrong-area').get()).data(),row('wrong-area'));assert.equal((await a('wrong-area').get()).data().actualAreaHa,99);assert.equal((await marker('wrong-area').get()).exists,false)})
  console.log('SUCCESS: '+n+' QC archive checks passed (local Firestore emulator only)')
 }finally{await env.cleanup();await deleteApp(app)}
