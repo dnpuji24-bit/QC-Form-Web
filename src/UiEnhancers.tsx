@@ -1,3 +1,4 @@
+import {nativePortalEnabled} from './qcNativePortalConfig'
 import { FormEvent, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { qcApi } from './api'
@@ -223,6 +224,7 @@ export default function UiEnhancers(){
     const scan=()=>{
       frame=0
       enhancePasswordInputs();enhanceReport()
+      if(nativePortalEnabled){setSettingsHost(null);return}
       const section=Array.from(document.querySelectorAll<HTMLElement>('main.content > section')).find(x=>/pengaturan/i.test(x.querySelector('h2')?.textContent||''))
       if(section){
         let host=section.querySelector<HTMLElement>('#account-settings-extension')
@@ -233,5 +235,5 @@ export default function UiEnhancers(){
     const scheduleScan=()=>{if(!frame)frame=requestAnimationFrame(scan)}
     scan();const observer=new MutationObserver(scheduleScan);observer.observe(document.body,{childList:true,subtree:true});return()=>{observer.disconnect();if(frame)cancelAnimationFrame(frame);if(mountedHost?.parentElement)mountedHost.remove()}
   },[])
-  return settingsHost?createPortal(<AccountSettingsPanel/>,settingsHost):null
+  return !nativePortalEnabled&&settingsHost?createPortal(<AccountSettingsPanel/>,settingsHost):null
 }
