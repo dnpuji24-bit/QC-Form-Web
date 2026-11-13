@@ -21,8 +21,14 @@ if ENABLED=$(gcloud services list --enabled --project="$PROJECT" --format='value
     if grep -Fxq "$api" <<<"$ENABLED"; then printf '%s: ENABLED\n' "$api"; else printf '%s: NOT_ENABLED\n' "$api"; fi
   done
 else echo 'UNAVAILABLE_OR_PERMISSION_DENIED'; fi
-probe "Cloud Run services (name and region only)" gcloud run services list --project="$PROJECT" --platform=managed --format='table(metadata.name,metadata.labels."cloud.googleapis.com/location")' --quiet
-probe "Artifact Registry repositories (name and location only)" gcloud artifacts repositories list --project="$PROJECT" --location=all --format='table(name,format)' --quiet
-probe "Dedicated QC service accounts (names only)" gcloud iam service-accounts list --project="$PROJECT" --filter='email:qc-' --format='table(email,disabled)' --quiet
+if grep -Fxq run.googleapis.com <<<"${ENABLED:-}"; then
+  probe "Cloud Run services (name and region only; configured region if set)" gcloud run services list --project="$PROJECT" --format='table(metadata.name,metadata.labels."cloud.googleapis.com/location")' --quiet
+else echo 'Cloud Run list skipped: API not confirmed enabled'; fi
+if grep -Fxq artifactregistry.googleapis.com <<<"${ENABLED:-}"; then
+  probe "Artifact Registry repositories (name and location only)" gcloud artifacts repositories list --project="$PROJECT" --location=all --format='table(name,format)' --quiet
+else echo 'Artifact Registry list skipped: API not confirmed enabled'; fi
+if grep -Fxq iam.googleapis.com <<<"${ENABLED:-}"; then
+  probe "Dedicated QC service accounts (names only)" gcloud iam service-accounts list --project="$PROJECT" --filter='email:qc-' --format='table(email,disabled)' --quiet
+else echo 'IAM list skipped: API not confirmed enabled'; fi
 echo 'SUCCESS: Cloud runtime inventory attempted; unavailable probes require review'
 echo 'No APIs enabled, no billing changes, no IAM changes, no deployments'
