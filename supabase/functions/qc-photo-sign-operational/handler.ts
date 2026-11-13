@@ -9,7 +9,6 @@ import { createClient } from 'npm:@supabase/supabase-js@2.80.0'
 
 const projectId = 'form-qc-unm'
 const storageUrl = 'https://mcfwnstdfhhtcbksgrlj.supabase.co'
-const bucket = 'qc-photos'
 const idPattern = /^[A-Za-z0-9_-]{1,160}$/
 const jwks = createRemoteJWKSet(new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'))
 
@@ -86,10 +85,17 @@ function rateLimit(uid:string) {
   return true
 }
 const defaults={jwtVerify,googleAccessToken,googleJson,createClient,env:(key:string)=>Deno.env.get(key)}
-export function createHandler(deps=defaults){
+export function createHandler(deps=defaults,pilot=false){
+ // Pilot is a deployment-time constant, never taken from a request.
+ const prefix=pilot?'qc-live-photo-pilot-':'qc-v2-'
+ const records=pilot?'qc_photo_live_pilot_records/':'qc_records/'
+ const intents=pilot?'qc_photo_live_pilot_intents/':'qc_photo_upload_intents/'
+ const targetBucket=pilot?'qc-photos-test':'qc-photos'
+ const originKey=pilot?'QC_LIVE_PHOTO_PILOT_ORIGIN':'QC_OPERATIONAL_PHOTO_ALLOWED_ORIGIN'
+ const enabledKey=pilot?'QC_LIVE_PHOTO_PILOT_ENABLED':'QC_OPERATIONAL_PHOTO_ENABLED'
  const {jwtVerify,googleAccessToken,googleJson,createClient,env}=deps
  return async(request:Request):Promise<Response>=>{
-  const expectedOrigin=env('QC_OPERATIONAL_PHOTO_ALLOWED_ORIGIN')||''
+  const expectedOrigin=env(originKey)||''
   const origin=request.headers.get('Origin')||''
   const cors=origin&&origin===expectedOrigin?origin:undefined
   if(!/^https:\/\/[^/]+$/.test(expectedOrigin))return json(503,{error:'NOT_CONFIGURED'})
@@ -100,7 +106,7 @@ export function createHandler(deps=defaults){
     'Access-Control-Max-Age':'300','Cache-Control':'no-store',
   }})
   if(request.method!=='POST')return json(405,{error:'METHOD_NOT_ALLOWED'},cors)
-  if(env('QC_OPERATIONAL_PHOTO_ENABLED')!=='true')return json(503,{error:'OPERATIONAL_PHOTOS_DISABLED'},cors)
+  if(env(enabledKey)!=='true')return json(503,{error:'OPERATIONAL_PHOTOS_DISABLED'},cors)
   try{
     const tokenHeader=request.headers.get('Authorization')||''
     if(!/^Bearer [A-Za-z0-9_.-]+$/.test(tokenHeader))throw new RequestError(401)
@@ -124,7 +130,7 @@ export function createHandler(deps=defaults){
     if(!data||typeof data!=='object'||Object.keys(data).sort().join(',')!=='photoId,recordId'||
       typeof data.recordId!=='string'||typeof data.photoId!=='string'||!idPattern.test(data.recordId)||!idPattern.test(data.photoId))throw new RequestError(400)
     // Only native operational record IDs; staging and legacy records have separate readers.
-    if (!data.recordId.startsWith('qc-v2-')) throw new RequestError(403)
+    if (!data.recordId.startsWith(prefix)) throw new RequestError(403)
     // Hosted Supabase injects named secret keys; do not create SUPABASE_* secrets manually.
     const namedSecrets=env('SUPABASE_SECRET_KEYS')||'{}'
     let parsedSecrets:Record<string,string>
@@ -144,8 +150,8 @@ export function createHandler(deps=defaults){
       Number(verified.payload.auth_time)<validSince)throw new RequestError(401)
     const [u,q,reservationDoc]=await Promise.all([
       googleJson(docPath('users/'+uid),oauth),
-      googleJson(docPath('qc_records/'+data.recordId),oauth),
-      googleJson(docPath('qc_photo_upload_intents/'+data.recordId),oauth),
+      googleJson(docPath(records+data.recordId),oauth),
+      googleJson(docPath(intents+data.recordId),oauth),
     ])
     const profile=decodeFields(u?.fields),qc=decodeFields(q?.fields),reservation=decodeFields(reservationDoc?.fields)
     // Explicit null narrowing for TypeScript; missing profiles remain forbidden.
@@ -155,11 +161,11 @@ export function createHandler(deps=defaults){
       const role=decodeFields((await googleJson(docPath('role_access/'+profile.role),oauth))?.fields)
       if(!role||role.role!==profile.role||!['view','edit'].includes(role.permissions?.qc_records))throw new RequestError(403)
     }
-    if(qc?.testOnly===true)throw new RequestError(403)
-    const path=await resolveOperationalPhotoPath(qc,reservation,data.recordId,data.photoId)
+    if(pilot?(qc?.testOnly!==true||reservation?.testOnly!==true):qc?.testOnly===true)throw new RequestError(403)
+    const path=await resolveOperationalPhotoPath(qc,reservation,data.recordId,data.photoId,pilot)
     if(!path)throw new RequestError(403)
     const client=createClient(storageUrl,secret,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}})
-    const {data:signed,error}=await client.storage.from(bucket).createSignedUrl(path,60)
+    const {data:signed,error}=await client.storage.from(targetBucket).createSignedUrl(path,60)
     if(error||!signed?.signedUrl)throw new RequestError(502)
     return json(200,{signedUrl:signed.signedUrl,expiresIn:60},cors)
   }catch(error){
