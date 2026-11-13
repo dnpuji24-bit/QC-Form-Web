@@ -12,7 +12,7 @@ const review=(d,uid,by,role='manager')=>updateDoc(ref(d,uid),{status:'approved_f
 let n=0
 async function check(label,p,deny=false){await(deny?assertFails(p):assertSucceeds(p));console.log('PASS: '+label);n++}
 try{
- await env.withSecurityRulesDisabled(async c=>{for(const [uid,role,active,status] of [['owner1','owner',true,'approved'],['admin1','admin',true,'approved'],['inactive','owner',false,'approved'],['pendingowner','owner',true,'pending']])await setDoc(doc(c.firestore(),'users',uid),{role,active,status,username:uid})})
+ await env.withSecurityRulesDisabled(async c=>{for(const [uid,role,active,status] of [['owner1','owner',true,'approved'],['admin1','admin',true,'approved'],['inactive','owner',false,'approved'],['pendingowner','owner',true,'pending'],['legacyowner','owner',true,'APPROVED'],['legacyinactive','owner',false,'APPROVED'],['legacypending','owner',true,'PENDING']])await setDoc(doc(c.firestore(),'users',uid),{role,active,status,username:uid})})
  const alice=db('alice'),owner=db('owner1'),bob=db('bob')
  await check('new authenticated account creates pending request',setDoc(ref(alice,'alice'),row('alice')))
  await check('applicant reads own request',getDoc(ref(alice,'alice')))
@@ -36,5 +36,12 @@ try{
  await check('request cannot be deleted',deleteDoc(ref(owner,'alice')),true)
  await check('second applicant registers',setDoc(ref(bob,'bob'),row('bob')))
  await check('Owner can reject',updateDoc(ref(owner,'bob'),{status:'rejected',approvedRole:'',reviewedBy:'owner1',reviewedAt:serverTimestamp()}))
+ const carol=db('carol'),legacyOwner=db('legacyowner')
+ await check('third applicant registers',setDoc(ref(carol,'carol'),row('carol')))
+ await check('legacy uppercase Owner can list registrations',getDocs(collection(legacyOwner,'firebase_registration_requests')))
+ await check('legacy inactive Owner cannot review',review(db('legacyinactive'),'carol','legacyinactive'),true)
+ await check('legacy pending Owner cannot review',review(db('legacypending'),'carol','legacypending'),true)
+ await check('legacy approved Owner approves for provisioning',review(legacyOwner,'carol','legacyowner'))
+ await check('approval still grants no operational access',getDocs(collection(carol,'master_materials')),true)
  console.log('SUCCESS: '+n+' native registration rules checks passed (emulator only)')
 }finally{await env.cleanup()}
