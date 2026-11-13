@@ -19,7 +19,7 @@ export async function archiveQc({db,actor,command,stamp}){
   const row=qs.data()
   if(row.id!==recordId||!row.operationalSaveId||row.firestoreSaveState!=='confirmed'||!['draft','ready','uploaded'].includes(row.saveType))throw Error('QC_HISTORICAL_REVIEW_REQUIRED')
   if(row.clientRevision!==baseRevision)throw Error('QC_REVISION_CONFLICT')
-  if(linked.docs.some(d=>d.id!==actual.id)||as.exists&&(as.data().sourceOrigin!=='QC'||as.data().qcRecordId!==recordId))throw Error('QC_ACTUAL_LINK_CONFLICT')
+  if(linked.docs.some(d=>d.id!==actual.id)||as.exists&&(as.data().sourceOrigin!=='QC'||as.data().qcRecordId!==recordId||as.data().dailyPlanId!==row.dailyPlanId||!Number.isFinite(Number(as.data().actualAreaHa))||!Number.isFinite(Number(row.actualAreaHa))||Number(as.data().actualAreaHa)!==Number(row.actualAreaHa)))throw Error('QC_ACTUAL_LINK_CONFLICT')
   if(['ready','uploaded'].includes(row.saveType)&&row.dailyPlanId&&Number(row.actualAreaHa)>0&&!as.exists)throw Error('QC_ACTUAL_LINK_CONFLICT')
   tx.create(archive,row)
   if(as.exists){tx.create(db.collection('qc_archived_actuals').doc(recordId),as.data());tx.delete(actual)}
