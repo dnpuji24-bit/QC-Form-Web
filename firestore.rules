@@ -71,16 +71,16 @@ service cloud.firestore {
 
     // Candidate Firebase-native registration: requests never grant operational privileges.
     function nativeRegistrationOwner() {
-      return activeUser() && role() == 'owner' && profile().data.status == 'approved';
+      return activeUser() && role() == 'owner' && profile().data.status in ['approved','APPROVED'];
     }
     match /qc_native_name_requests/{requestId} {
       allow read: if nativeRegistrationOwner() ||
-        (activeUser() && profile().data.status == 'approved' && resource.data.uid == request.auth.uid);
+        (activeUser() && profile().data.status in ['approved','APPROVED'] && resource.data.uid == request.auth.uid);
       allow write: if false;
     }
     match /qc_native_name_pending/{uid} {
       allow get: if nativeRegistrationOwner() ||
-        (activeUser() && profile().data.status == 'approved' && uid == request.auth.uid);
+        (activeUser() && profile().data.status in ['approved','APPROVED'] && uid == request.auth.uid);
       allow list, write: if false;
     }
     match /qc_admin_audit/{auditId} {
