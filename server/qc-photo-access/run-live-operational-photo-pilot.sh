@@ -5,6 +5,8 @@ cd "$(dirname "$0")/../.."
 [[ "$(gcloud config get-value project 2>/dev/null)" == form-qc-unm ]] || { echo WRONG_PROJECT; exit 2; }
 [[ -z "${FIRESTORE_EMULATOR_HOST:-}${FIREBASE_AUTH_EMULATOR_HOST:-}" ]] || { echo EMULATOR_ENVIRONMENT; exit 2; }
 test -d server/qc-photo-access/node_modules/firebase-admin || { echo SERVER_DEPENDENCIES_MISSING; exit 2; }
+# Use the already-authorized CLI token without printing it or creating credentials.
+gcloud auth print-access-token --quiet >/dev/null || { echo GCLOUD_ACCESS_TOKEN_UNAVAILABLE; exit 2; }
 # Check the hosted gate and wrong-origin denial without real credentials before any Firestore writes.
 for fn in upload sign; do
  url="https://mcfwnstdfhhtcbksgrlj.supabase.co/functions/v1/qc-photo-live-pilot-$fn"
