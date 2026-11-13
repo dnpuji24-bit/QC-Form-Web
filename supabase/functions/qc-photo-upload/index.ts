@@ -1,3 +1,4 @@
+import { isOperationalPhotoIdentityAllowed } from '../_shared/qcOperationalPhotoIdentity.mjs'
 // Candidate operational upload: requires an authorized existing QC or staging parent.
 // Platform verify_jwt is disabled only because callers send Firebase JWTs; this
 // handler verifies signature, audience, issuer, disabled/revoked state itself.
@@ -6,11 +7,9 @@ import { createClient } from 'npm:@supabase/supabase-js@2.80.0'
 
 const projectId = 'form-qc-unm'
 const storageUrl = 'https://mcfwnstdfhhtcbksgrlj.supabase.co'
-const bucket = 'qc-photos-test'
 const idPattern = /^[A-Za-z0-9_-]{1,160}$/
 const jwks = createRemoteJWKSet(new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'))
 const allowedTypes: Record<string,string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
-const roles = new Set(['owner','manager','admin','asisten','mandor_spraying','mandor_fertilizer','pengunjung'])
 
 type ServiceAccount = { project_id: string; client_email: string; private_key: string }
 class RequestError extends Error {
@@ -91,7 +90,7 @@ const digest=async (bytes:Uint8Array)=>Array.from(new Uint8Array(await crypto.su
 Deno.serve(async(request:Request)=>{
   const origin=request.headers.get('Origin')||''
   const allowed=Deno.env.get('PHOTO_ACCESS_ALLOWED_ORIGIN')||''
-  if(!allowed||origin!==allowed)return json(403,{error:'FORBIDDEN'})
+  if(!/^https:\/\/[^/]+$/.test(allowed)||origin!==allowed)return json(403,{error:'FORBIDDEN'})
   if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{
     'Access-Control-Allow-Origin':allowed,'Access-Control-Allow-Methods':'POST, OPTIONS',
     'Access-Control-Allow-Headers':'Authorization, Content-Type','Cache-Control':'no-store'
@@ -110,7 +109,7 @@ Deno.serve(async(request:Request)=>{
     const user=identity?.users?.[0],validSince=Number(user?.validSince||0)
     if(!user||user.disabled===true||!Number.isFinite(validSince)||payload.auth_time<validSince)throw new RequestError(401)
     const profile=decodeFields((await googleJson(docPath('users/'+uid),oauth))?.fields)
-    if(!profile||profile.active!==true||!roles.has(profile.role))throw new RequestError(403)
+    if(!isOperationalPhotoIdentityAllowed({uid,tokenEmail:payload.email,account:user,profile}))throw new RequestError(403)
     const rawLength=Number(request.headers.get('Content-Length')||0)
     if(rawLength>2900000)throw new RequestError(413)
     const reader=request.body?.getReader()
