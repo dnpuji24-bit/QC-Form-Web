@@ -109,6 +109,8 @@ Deno.serve(async(request:Request)=>{
     const user=identity?.users?.[0],validSince=Number(user?.validSince||0)
     if(!user||user.disabled===true||!Number.isFinite(validSince)||payload.auth_time<validSince)throw new RequestError(401)
     const profile=decodeFields((await googleJson(docPath('users/'+uid),oauth))?.fields)
+    // Explicit null narrowing for TypeScript; missing profiles remain forbidden.
+    if(!profile)throw new RequestError(403)
     if(!isOperationalPhotoIdentityAllowed({uid,tokenEmail:payload.email,account:user,profile}))throw new RequestError(403)
     const rawLength=Number(request.headers.get('Content-Length')||0)
     if(rawLength>2900000)throw new RequestError(413)
