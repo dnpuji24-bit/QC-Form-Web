@@ -18,7 +18,8 @@ function show(v:unknown,key:string){
  if(v===null||v===undefined||v==='')return '—'
  if(Array.isArray(v)){
   return v.map((item,i)=>{
-   const o=asObject(item)
+   if(!item||typeof item!=='object'||Array.isArray(item))return 'Data lama tidak terstruktur'
+   const o=item as Dict
    return key==='pengisianList'?`${i+1}. ${str(o.jenisPupuk)}: ${str(o.jumlah)} kg / ${str(o.hasilKerja)} Ha; dosis ${str(o.dosisAktual)||'—'}`:`${str(o.materialName||o.material||o.name)||'Material '+(i+1)}: ${str(o.totalMaterial)} ${str(o.unit)}`
   }).join('\n')||'—'
  }
@@ -54,7 +55,8 @@ export function NativeHistoricalQcCorrection({record,user,onClose,onSaved}:{reco
   setForm(old=>old?{...old,fillings:old.fillings.map((f,i)=>i===index?{...f,[key]:value}:f)}:old)
  }
  async function preview(){
-  if(lock.current||!base||!form||!uid||!canCorrectHistoricalQc(user,record)||!navigator.onLine)return
+  if(lock.current||!base||!form||!uid||!canCorrectHistoricalQc(user,record))return
+  if(!navigator.onLine){setMessage('Koneksi internet diperlukan untuk preview server.');return}
   lock.current=true;setBusy(true);setMessage('')
   try{
    if(reason.trim().length<5||reason.length>300)throw Error('Alasan harus 5–300 karakter.')
@@ -67,7 +69,8 @@ export function NativeHistoricalQcCorrection({record,user,onClose,onSaved}:{reco
   }catch(e){setMessage(errorText(e))}finally{lock.current=false;setBusy(false)}
  }
  async function save(){
-  if(lock.current||!review||!uid||saved||!canCorrectHistoricalQc(user,record)||!navigator.onLine)return
+  if(lock.current||!review||!uid||saved||!canCorrectHistoricalQc(user,record))return
+  if(!navigator.onLine){setMessage('Koneksi internet diperlukan untuk menyimpan koreksi.');return}
   if(!attempted&&!window.confirm('Simpan perubahan yang telah diperiksa pada QC dan Actual Plan?'))return
   lock.current=true;setBusy(true);setAttempted(true);setMessage('')
   try{await command(review.payload,uid);setSaved(true);setMessage('Koreksi terkonfirmasi. Periksa hasil di Data QC, Dashboard dan Actual Plan.');onSaved()}
