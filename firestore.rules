@@ -125,6 +125,12 @@ service cloud.firestore {
         && audit.revision == next.clientRevision
         && audit.saveType == next.saveType;
     }
+    match /qc_legacy_activity_logs/{auditId} {
+      allow read: if activeUser() && profile().data.status == 'approved'
+        && (role() == 'owner' || permission('qc_logs') in ['view','edit']);
+      allow write: if false;
+    }
+
     match /qc_operational_audit/{auditId} {
       allow read: if activeUser() && profile().data.status == 'approved'
         && (role() == 'owner' || permission('qc_logs') in ['view','edit']);
