@@ -1,6 +1,7 @@
 const roles=['owner','manager','admin','asisten','mandor_spraying','mandor_fertilizer','pengunjung']
+export function isApprovedFirebaseProfile(profile){return profile?.active===true&&['approved','APPROVED'].includes(profile.status)}
 export function resolveFirebaseProfile(identity,profile,template,keys){
-  if(!identity?.uid||!identity.email||!profile||profile.active!==true||profile.status!=='approved')throw Error('AUTH_PROFILE_NOT_APPROVED')
+  if(!identity?.uid||!identity.email||!isApprovedFirebaseProfile(profile))throw Error('AUTH_PROFILE_NOT_APPROVED')
   if(typeof profile.email!=='string'||profile.email.trim().toLowerCase()!==identity.email.trim().toLowerCase())throw Error('AUTH_PROFILE_IDENTITY_MISMATCH')
   if(!roles.includes(profile.role)||typeof profile.username!=='string'||!profile.username.trim()||typeof profile.fullName!=='string'||!profile.fullName.trim())throw Error('AUTH_PROFILE_INVALID')
   if(profile.firebaseUid&&profile.firebaseUid!==identity.uid)throw Error('AUTH_PROFILE_IDENTITY_MISMATCH')
