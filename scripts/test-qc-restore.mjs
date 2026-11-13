@@ -3,8 +3,8 @@ import {createRequire} from 'node:module'
 const requireAdmin=createRequire(new URL('../server/qc-photo-access/package.json',import.meta.url))
 const {initializeApp,deleteApp}=requireAdmin('firebase-admin/app')
 const {getFirestore,FieldValue}=requireAdmin('firebase-admin/firestore')
-import {initializeTestEnvironment,assertFails} from '@firebase/rules-unit-testing'
-import {doc,setDoc} from 'firebase/firestore'
+import {initializeTestEnvironment,assertFails,assertSucceeds} from '@firebase/rules-unit-testing'
+import {doc,getDoc,setDoc} from 'firebase/firestore'
 import {readFileSync} from 'node:fs'
 import {archiveQc,restoreQc} from '../server/qc-photo-access/qcArchiveCore.mjs'
 import {executeNativeAdmin} from '../server/qc-photo-access/nativeAdminService.mjs'
@@ -48,5 +48,14 @@ try{
  const client=env.authenticatedContext(actor.uid).firestore()
  await check('client cannot overwrite restore history',()=>assertFails(setDoc(doc(client,'qc_archive_history_records','archive-rtest1'),row('rtest1'))))
  await check('restored record can be archived again with new revision',async()=>{await archive('rtest1',{operationId:'next-archive',baseRevision:'restore_restore-rtest1'});assert.ok((await d('qc_archive_markers','rtest1').get()).exists);assert.ok((await d('qc_archive_history_records','archive-rtest1').get()).exists)})
+ const legacyOwner=d('users',actor.uid)
+ await q('legacy-restore').set(row('legacy-restore'));await a('legacy-restore').set(actual('legacy-restore'));await archive('legacy-restore')
+ await legacyOwner.update({status:'PENDING'})
+ await check('legacy pending Owner cannot restore',()=>assert.rejects(restore('legacy-restore'),/OWNER_REQUIRED/))
+ await legacyOwner.update({status:'APPROVED',active:false})
+ await check('legacy inactive Owner cannot restore',()=>assert.rejects(restore('legacy-restore'),/OWNER_REQUIRED/))
+ await legacyOwner.update({active:true})
+ await check('legacy approved Owner restores QC and Actual',async()=>{await restore('legacy-restore');assert.equal((await q('legacy-restore').get()).data().clientRevision,'restore_restore-legacy-restore');assert.deepEqual((await a('legacy-restore').get()).data(),actual('legacy-restore'));assert.deepEqual((await d('qc_archive_history_records','archive-legacy-restore').get()).data(),row('legacy-restore'))})
+ await check('legacy approved Owner reads immutable restore history',async()=>{await assertSucceeds(getDoc(doc(client,'qc_archive_history_records','archive-legacy-restore')));await assertFails(setDoc(doc(client,'qc_archive_history_records','archive-legacy-restore'),row('legacy-restore')))})
  console.log('SUCCESS: '+n+' QC restore checks passed (local Firestore emulator only)')
 }finally{await env.cleanup();await deleteApp(app)}
