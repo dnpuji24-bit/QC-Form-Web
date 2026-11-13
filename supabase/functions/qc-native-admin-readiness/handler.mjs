@@ -24,7 +24,8 @@ export function createAdminReadinessHandler({env,verify,readAccount,readProfile,
   if(typeof uid!=='string'||!uidPattern.test(uid)||typeof actor.email!=='string'||!actor.email.trim()||!Number.isInteger(actor.auth_time)||actor.auth_time<=0||actor.auth_time>now()+5)return reply(401,{error:'UNAUTHORIZED'},origin)
   try{
    const account=await readAccount(uid)
-   const validSince=Number(account?.validSince)
+   const rawSince=account?.validSince
+   const validSince=typeof rawSince==='string'&&/^\d+$/.test(rawSince)?Number(rawSince):typeof rawSince==='number'?rawSince:NaN
    if(!account||account.localId!==uid||account.disabled===true||!Number.isSafeInteger(validSince)||validSince<0||actor.auth_time<validSince)return reply(401,{error:'UNAUTHORIZED'},origin)
    const profile=await readProfile(uid)
    if(!isOperationalPhotoIdentityAllowed({uid,tokenEmail:actor.email,account,profile})||profile?.role!=='owner')return reply(403,{error:'OWNER_REQUIRED'},origin)
