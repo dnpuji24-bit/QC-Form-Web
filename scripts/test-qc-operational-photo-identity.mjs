@@ -21,7 +21,7 @@ check('missing token email denied',()=>assert.equal(allowed({...input,tokenEmail
 check('missing profile denied',()=>assert.equal(allowed({...input,profile:null}),false))
 check('normalized email accepted',()=>assert.equal(allowed({...input,tokenEmail:'OWNER@example.test'}),true))
 for(const name of ['qc-photo-upload','qc-photo-sign-operational']){
- const source=readFileSync(new URL('../supabase/functions/'+name+'/index.ts',import.meta.url),'utf8')
- check(name+' invokes identity guard after signature verification',()=>{const verify=source.indexOf('await jwtVerify('),guard=source.indexOf('if(!isOperationalPhotoIdentityAllowed(');assert.ok(verify>=0&&guard>verify);assert.ok(source.includes('../_shared/qcOperationalPhotoIdentity.mjs'));assert.ok(source.includes('validSince'));const nullGuard=source.indexOf('if(!profile)throw new RequestError(403)');assert.ok(nullGuard>verify&&nullGuard<guard)})
+ const source=readFileSync(new URL('../supabase/functions/'+name+'/handler.ts',import.meta.url),'utf8')
+ check(name+' invokes identity guard after signature verification',()=>{const verify=source.indexOf('await jwtVerify('),guard=source.indexOf('if(!isOperationalPhotoIdentityAllowed(');assert.ok(verify>=0&&guard>verify);assert.ok(source.includes('../_shared/qcOperationalPhotoIdentity.mjs'));assert.ok(source.includes('validSince'));const nullGuard=source.indexOf('if(!profile)throw new RequestError(403)');assert.ok(nullGuard>verify&&nullGuard<guard);const entry=readFileSync(new URL('../supabase/functions/'+name+'/index.ts',import.meta.url),'utf8');assert.ok(entry.includes("from './handler.ts'")&&entry.includes('Deno.serve(createHandler())'))})
 }
 console.log('SUCCESS: '+n+' operational photo identity checks passed (offline helper/source only)')
