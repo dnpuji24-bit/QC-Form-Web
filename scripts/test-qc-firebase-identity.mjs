@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import {resolveFirebaseProfile as resolve} from '../src/qcFirebaseIdentity.mjs'
+import {resolveFirebaseProfile as resolve,isApprovedFirebaseProfile} from '../src/qcFirebaseIdentity.mjs'
 const identity={uid:'uid-a',email:'test@example.com'}
 const profile={active:true,status:'approved',role:'manager',username:'test',fullName:'Test User',email:'test@example.com'}
 const template={role:'manager',permissions:{qc_records:'view',qc_spraying:'edit'}}
@@ -18,4 +18,10 @@ test('missing profile rejected',()=>assert.throws(()=>resolve(identity,undefined
 test('wrong email rejected',()=>assert.throws(()=>resolve(identity,{...profile,email:'other@example.com'},template,keys)))
 test('wrong UID rejected',()=>assert.throws(()=>resolve(identity,{...profile,firebaseUid:'other'},template,keys)))
 test('unknown role rejected',()=>assert.throws(()=>resolve(identity,{...profile,role:'unknown'},template,keys)))
+test('legacy uppercase active identity resolves',()=>assert.equal(resolve(identity,{...profile,status:'APPROVED'},template,keys).status,'approved'))
+test('legacy uppercase Owner resolves with full access',()=>assert.ok(Object.values(resolve(identity,{...profile,status:'APPROVED',role:'owner'},undefined,keys).permissions).every(v=>v==='edit')))
+test('legacy uppercase pending rejected',()=>assert.throws(()=>resolve(identity,{...profile,status:'PENDING'},template,keys)))
+test('legacy uppercase inactive rejected',()=>assert.throws(()=>resolve(identity,{...profile,status:'APPROVED',active:false},template,keys)))
+test('unknown mixed-case approval rejected',()=>assert.throws(()=>resolve(identity,{...profile,status:'Approved'},template,keys)))
+test('active string is not active boolean',()=>assert.equal(isApprovedFirebaseProfile({...profile,active:'true'}),false))
 console.log('SUCCESS: '+n+' Firebase identity checks passed (no network, no writes)')
