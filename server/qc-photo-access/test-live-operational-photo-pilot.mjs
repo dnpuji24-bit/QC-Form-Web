@@ -2,7 +2,8 @@
 import assert from 'node:assert/strict'
 import {initializeApp,applicationDefault,deleteApp} from 'firebase-admin/app'
 import {getAuth} from 'firebase-admin/auth'
-import {getFirestore} from 'firebase-admin/firestore'
+import {execFileSync} from 'node:child_process'
+import {createPilotFirestoreRest} from './pilotFirestoreRest.mjs'
 import {randomUUID} from 'node:crypto'
 import {readFileSync} from 'node:fs'
 import {prepareOperationalPhotoManifest} from '../../src/qcOperationalPhotoManifest.mjs'
@@ -10,10 +11,12 @@ const project='form-qc-unm',url='https://mcfwnstdfhhtcbksgrlj.supabase.co',origi
 if(process.argv.slice(2).join(' ')!=='--synthetic-live-confirmed'||process.env.GOOGLE_CLOUD_PROJECT!==project||process.env.FIRESTORE_EMULATOR_HOST||process.env.FIREBASE_AUTH_EMULATOR_HOST)throw Error('LIVE_PILOT_CONFIRMATION_REQUIRED')
 const apiKey=readFileSync(new URL('../../src/firebase.ts',import.meta.url),'utf8').match(/VITE_FIREBASE_API_KEY \|\| '([^']+)'/)?.[1]
 if(!apiKey)throw Error('FIREBASE_CONFIG_MISSING')
-const app=initializeApp({projectId:project,credential:applicationDefault()}),db=getFirestore(app),auth=getAuth(app)
+const app=initializeApp({projectId:project,credential:applicationDefault()}),auth=getAuth(app)
 const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR1sAAAAASUVORK5CYII='
 const bytes=Buffer.from(png,'base64')
 const recordId='qc-live-photo-pilot-'+randomUUID(),revision=randomUUID()
+const accessToken=()=>{try{return execFileSync('gcloud',['auth','print-access-token','--quiet'],{encoding:'utf8',stdio:['ignore','pipe','ignore'],timeout:30000}).trim()}catch{throw Error('GCLOUD_ACCESS_TOKEN_UNAVAILABLE')}}
+const db=createPilotFirestoreRest({recordId,accessToken})
 const intent=db.doc('qc_photo_live_pilot_intents/'+recordId),record=db.doc('qc_photo_live_pilot_records/'+recordId)
 let createdIntent=false,createdRecord=false
 let n=0
@@ -22,7 +25,14 @@ async function login(label,email,password){
  if(!email||!password)throw Error(label+'_CREDENTIALS_REQUIRED')
  const response=await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key='+encodeURIComponent(apiKey),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password,returnSecureToken:true}),signal:AbortSignal.timeout(20000)})
  if(!response.ok)throw Error(label+'_LOGIN_HTTP_'+response.status)
- const data=await response.json(),actor=await auth.verifyIdToken(data.idToken,true)
+ const data=await response.json(),actor=await auth.verifyIdToken(data.idToken,false)
+ // Public certificate verification above does not need ADC. Check revocation and
+ // disabled state with the freshly authenticated user's own Firebase ID token.
+ const lookup=await fetch('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key='+encodeURIComponent(apiKey),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idToken:data.idToken}),signal:AbortSignal.timeout(20000)})
+ if(!lookup.ok)throw Error(label+'_ACCOUNT_LOOKUP_HTTP_'+lookup.status)
+ const account=(await lookup.json()).users?.[0]
+ const validSince=Number(account?.validSince||0)
+ if(!account||account.localId!==actor.uid||account.disabled===true||!Number.isFinite(validSince)||!Number.isInteger(actor.auth_time)||actor.auth_time<validSince||String(account.email||'').trim().toLowerCase()!==String(actor.email||'').trim().toLowerCase())throw Error(label+'_ACCOUNT_INVALID')
  const p=(await db.doc('users/'+actor.uid).get()).data()
  if(!p||p.active!==true||!['approved','APPROVED'].includes(p.status)||String(p.email||'').trim().toLowerCase()!==String(actor.email||'').trim().toLowerCase())throw Error(label+'_PROFILE_INVALID')
  const template=p.role==='owner'?null:(await db.doc('role_access/'+p.role).get()).data()
@@ -78,6 +88,9 @@ try{
  expectStatus(await call('sign',denied.token,main),403,'NO_PERMISSION');pass('account without Data QC access cannot sign')
  expectStatus(await call('sign',owner.token,{...main,objectPath:'forged'}),400,'CLIENT_PATH');pass('client-supplied path denied')
  console.log('SUCCESS: '+n+' live pilot checks passed; operational records untouched')
+}catch(error){
+ const safe=typeof error?.message==='string'&&/^[A-Z0-9_]+$/.test(error.message)?error.message:'LIVE_PILOT_FAILED'
+ console.error(safe);process.exitCode=1
 }finally{
  try{
   if(createdRecord)await record.delete()
