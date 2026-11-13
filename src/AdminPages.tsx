@@ -1,3 +1,4 @@
+import {nativePortalEnabled} from './qcNativePortalConfig'
 import { useEffect, useMemo, useState } from 'react'
 import { collection, deleteDoc, doc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore'
 import { qcApi } from './api'
@@ -223,7 +224,7 @@ export function ActivityLogs({ token }: LogsProps) {
   const [query, setQuery] = useState('')
   const [message, setMessage] = useState('')
   async function load() {
-    setBusy(true); setMessage('')
+    setBusy(true); setMessage(''); setLogs([])
     try { const result = await qcApi.logs(token); setLogs((result.logs || result.data || []) as Record<string, unknown>[]) }
     catch (error) { setMessage(error instanceof Error ? error.message : 'Gagal memuat activity logs') }
     finally { setBusy(false) }
@@ -232,9 +233,10 @@ export function ActivityLogs({ token }: LogsProps) {
   const filtered = useMemo(() => logs.filter((log) => JSON.stringify(log).toLowerCase().includes(query.toLowerCase())), [logs, query])
   return <section>
     <div className="section-head"><div><div className="eyebrow">AUDIT TRAIL</div><h2>Activity Logs</h2></div><YinYangRefreshButton busy={busy} label="Refresh" onClick={()=>void load()}/></div>
+    {nativePortalEnabled&&<p>Menampilkan hingga 100 log terbaru per sumber. Riwayat Apps Script {import.meta.env.VITE_QC_LEGACY_AUDIT==='true'?'dibaca dari Firestore jika telah diimpor.':'belum diaktifkan.'} Log administrasi hanya untuk Owner.</p>}
     {message && <div className="alert">{message}</div>}
     <div className="filters"><input placeholder="Cari user, aksi, deskripsi…" value={query} onChange={(e) => setQuery(e.target.value)} /><span className="badge">{filtered.length} log</span></div>
-    <div className="table-wrap activity-log-table"><table><thead><tr><th>Waktu</th><th>User</th><th>Role</th><th>Aksi</th><th>Deskripsi</th><th>Device</th></tr></thead><tbody>{filtered.map((log, i) => <tr key={i}><td><span className="log-time">{formatLogTime(log.Timestamp)}</span></td><td>{String(log.FullName || log.Username || '-')}<br/><small>{String(log.Username || '')}</small></td><td>{String(log.Role || '-')}</td><td>{String(log.ActionType || '-')}</td><td>{String(log.Description || '-')}</td><td>{String(log.IP_Device || '-')}</td></tr>)}{!filtered.length && <tr><td colSpan={6} className="empty">Tidak ada log yang cocok.</td></tr>}</tbody></table></div>
+    <div className="table-wrap activity-log-table"><table><thead><tr><th>Waktu</th><th>User</th><th>Role</th><th>Aksi</th><th>Deskripsi</th><th>Device</th>{nativePortalEnabled&&<th>Sumber</th>}</tr></thead><tbody>{filtered.map((log, i) => <tr key={String(log.AuditId||i)}><td><span className="log-time">{formatLogTime(log.Timestamp)}</span></td><td>{String(log.FullName || log.Username || '-')}<br/><small>{String(log.Username || '')}</small></td><td>{String(log.Role || '-')}</td><td>{String(log.ActionType || '-')}</td><td>{String(log.Description || '-')}</td><td>{String(log.IP_Device || '-')}</td>{nativePortalEnabled&&<td>{String(log.Source||'-')}</td>}</tr>)}{!filtered.length && <tr><td colSpan={nativePortalEnabled?7:6} className="empty">Tidak ada log yang cocok.</td></tr>}</tbody></table></div>
   </section>
 }
 
