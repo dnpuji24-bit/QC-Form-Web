@@ -11,7 +11,7 @@ const PROJECT='form-qc-unm'
 const BASE='a945122a4238356b0eeaddbe0ed134a811549108'
 const BASE_HASH='1a2eb39419522397c9a5af25418091c25506ee0822d122ac0e851038326e6de2'
 const hash=s=>createHash('sha256').update(s.replace(/\r\n/g,'\n').trimEnd()).digest('hex')
-const block="    match /qc_legacy_activity_logs/{auditId} {\n      allow read: if activeUser() && profile().data.status == 'approved'\n        && (role() == 'owner' || permission('qc_logs') in ['view','edit']);\n      allow write: if false;\n    }\n\n"
+const block="    match /qc_legacy_activity_logs/{auditId} {\n      allow read: if activeUser() && profile().data.status in ['approved','APPROVED']\n        && (role() == 'owner' || permission('qc_logs') in ['view','edit']);\n      allow write: if false;\n    }\n\n"
 const anchor='    match /{document=**} {'
 function validate(baseline,candidate){
  assert.equal(hash(baseline),BASE_HASH,'BASELINE_HASH_MISMATCH')
@@ -47,9 +47,18 @@ async function main(){
   ])
   const permissions=new Map(roles.docs.map(d=>[d.id,d.data().permissions?.qc_logs]))
   const access={approvedActive:0,owner:0,view:0,edit:0,denied:0,unknownPermission:0}
+  const profileStatus={approved:0,APPROVED:0,pending:0,PENDING:0,other:0,missing:0,activeTrue:0,activeFalse:0,activeOther:0,activeApprovedUpper:0,activeApprovedLower:0}
   for(const d of users.docs){
    const u=d.data()
-   if(u.active!==true||u.status!=='approved')continue
+   if(['approved','APPROVED','pending','PENDING'].includes(u.status))profileStatus[u.status]++
+   else if(u.status===undefined||u.status===null)profileStatus.missing++
+   else profileStatus.other++
+   if(u.active===true)profileStatus.activeTrue++
+   else if(u.active===false)profileStatus.activeFalse++
+   else profileStatus.activeOther++
+   if(u.active!==true||!['approved','APPROVED'].includes(u.status))continue
+   if(u.status==='APPROVED')profileStatus.activeApprovedUpper++
+   else profileStatus.activeApprovedLower++
    access.approvedActive++
    const permission=permissions.get(u.role)
    if(u.role==='owner')access.owner++
@@ -70,7 +79,7 @@ async function main(){
   const blockers=[]
   if(!access.owner)blockers.push('NO_ACTIVE_APPROVED_OWNER')
   if(history.data().count!==0)blockers.push('HISTORY_ALREADY_PRESENT_REVIEW_REQUIRED')
-  console.log(JSON.stringify({project:PROJECT,liveRules:rules,candidateHash:hash(candidate),users:users.size,roleTemplates:roles.size,access,historicalCount:history.data().count,backupDirectory:dir,blockers,firestoreWrites:0,releaseApproved:false},null,2))
+  console.log(JSON.stringify({project:PROJECT,liveRules:rules,candidateHash:hash(candidate),users:users.size,roleTemplates:roles.size,profileStatus,access,historicalCount:history.data().count,backupDirectory:dir,blockers,firestoreWrites:0,releaseApproved:false},null,2))
   if(blockers.length)process.exitCode=2
   else console.log('SUCCESS: isolated release preparation and private rules backup complete; no deployment performed')
  }finally{await deleteApp(app)}
