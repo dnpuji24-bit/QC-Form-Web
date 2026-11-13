@@ -84,21 +84,27 @@ function rateLimit(uid:string) {
   return true
 }
 
-const operationalBucket='qc-photos'
 const digest=async (bytes:Uint8Array)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new Uint8Array(bytes))),b=>b.toString(16).padStart(2,'0')).join('')
 const defaults={jwtVerify,googleAccessToken,googleJson,createClient,env:(key:string)=>Deno.env.get(key)}
-export function createHandler(deps=defaults){
+export function createHandler(deps=defaults,pilot=false){
+ // Pilot is a deployment-time constant, never taken from a request.
+ const prefix=pilot?'qc-live-photo-pilot-':'qc-v2-'
+ const records=pilot?'qc_photo_live_pilot_records/':'qc_records/'
+ const intents=pilot?'qc_photo_live_pilot_intents/':'qc_photo_upload_intents/'
+ const targetBucket=pilot?'qc-photos-test':'qc-photos'
+ const originKey=pilot?'QC_LIVE_PHOTO_PILOT_ORIGIN':'QC_OPERATIONAL_PHOTO_ALLOWED_ORIGIN'
+ const enabledKey=pilot?'QC_LIVE_PHOTO_PILOT_ENABLED':'QC_OPERATIONAL_PHOTO_ENABLED'
  const {jwtVerify,googleAccessToken,googleJson,createClient,env}=deps
  return async(request:Request):Promise<Response>=>{
   const origin=request.headers.get('Origin')||''
-  const allowed=env('QC_OPERATIONAL_PHOTO_ALLOWED_ORIGIN')||''
+  const allowed=env(originKey)||''
   if(!/^https:\/\/[^/]+$/.test(allowed)||origin!==allowed)return json(403,{error:'FORBIDDEN'})
   if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{
     'Access-Control-Allow-Origin':allowed,'Access-Control-Allow-Methods':'POST, OPTIONS',
     'Access-Control-Allow-Headers':'Authorization, Content-Type','Cache-Control':'no-store'
   }})
   if(request.method!=='POST')return json(405,{error:'METHOD_NOT_ALLOWED'},origin)
-  if(env('QC_OPERATIONAL_PHOTO_ENABLED')!=='true')return json(503,{error:'OPERATIONAL_PHOTOS_DISABLED'},origin)
+  if(env(enabledKey)!=='true')return json(503,{error:'OPERATIONAL_PHOTOS_DISABLED'},origin)
   try{
     const header=request.headers.get('Authorization')||''
     if(!/^Bearer [A-Za-z0-9_.-]+$/.test(header))throw new RequestError(401)
@@ -132,18 +138,19 @@ export function createHandler(deps=defaults){
     if(data.baseRevision!==null&&(typeof data.baseRevision!=='string'||!idPattern.test(data.baseRevision)))throw new RequestError(400)
     if(typeof data.clientRevision!=='string'||!idPattern.test(data.clientRevision))throw new RequestError(400)
     // Operational endpoints must never accept staging, pilot, or legacy IDs.
-    if(!data.recordId.startsWith('qc-v2-'))throw new RequestError(403)
-    if(await googleJson(docPath('qc_archive_markers/'+data.recordId),oauth))throw new RequestError(409)
-    let parent=decodeFields((await googleJson(docPath('qc_records/'+data.recordId),oauth))?.fields)
+    if(!data.recordId.startsWith(prefix))throw new RequestError(403)
+    if(!pilot&&await googleJson(docPath('qc_archive_markers/'+data.recordId),oauth))throw new RequestError(409)
+    let parent=decodeFields((await googleJson(docPath(records+data.recordId),oauth))?.fields)
     if(!parent&&data.baseRevision===null){
-      parent=decodeFields((await googleJson(docPath('qc_photo_upload_intents/'+data.recordId),oauth))?.fields)
+      parent=decodeFields((await googleJson(docPath(intents+data.recordId),oauth))?.fields)
       if(!parent||parent.clientRevision!==data.clientRevision)throw new RequestError(409)
     }else if(!parent||parent.clientRevision!==data.baseRevision)throw new RequestError(409)
-    if(parent.formType!==data.formType||parent.testOnly===true)throw new RequestError(409)
+    if(parent.formType!==data.formType||(pilot?parent.testOnly!==true:parent.testOnly===true))throw new RequestError(409)
     const template=decodeFields((await googleJson(docPath('role_access/'+profile.role),oauth))?.fields)
     const key=data.formType==='spray'?'qc_spraying':'qc_fertilizer'
     const edit=profile.role==='owner'||(template?.role===profile.role&&template?.permissions?.[key]==='edit')
     if(!edit||parent.ownerUid!==uid)throw new RequestError(403)
+    if(pilot&&(data.contentType!=='image/png'||data.base64!=='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR1sAAAAASUVORK5CYII='||(data.kind==='hold'&&data.holdId!=='hold-pilot')))throw new RequestError(400)
     if(data.kind==='hold'&&(typeof data.holdId!=='string'||!idPattern.test(data.holdId)))throw new RequestError(400)
     if(data.kind!=='hold'&&data.holdId!==undefined)throw new RequestError(400)
     let bytes:Uint8Array
@@ -158,14 +165,14 @@ export function createHandler(deps=defaults){
     const path=uid+'/qc/'+data.recordId+'/'+photoId+'.'+allowedTypes[data.contentType]
     const secret=JSON.parse(env('SUPABASE_SECRET_KEYS')||'{}').default||env('SUPABASE_SECRET_KEY')||''
     if(!secret.startsWith('sb_secret_'))throw new RequestError(503)
-    const storage=createClient(storageUrl,secret,{auth:{persistSession:false,autoRefreshToken:false}}).storage.from(operationalBucket)
+    const storage=createClient(storageUrl,secret,{auth:{persistSession:false,autoRefreshToken:false}}).storage.from(targetBucket)
     // No overwrite, and even a duplicate must match the expected bytes.
     await storage.upload(path,new Blob([new Uint8Array(bytes)],{type:data.contentType}),{contentType:data.contentType,upsert:false})
     const downloaded=await storage.download(path)
     if(downloaded.error||!downloaded.data)throw new RequestError(502)
     const actual=new Uint8Array(await downloaded.data.arrayBuffer())
     if(actual.length!==bytes.length||await digest(actual)!==sha256)throw new RequestError(409)
-    return json(200,{photoId,objectPath:path,sha256,size:bytes.length,bucket:operationalBucket},origin)
+    return json(200,{photoId,objectPath:path,sha256,size:bytes.length,bucket:targetBucket},origin)
   }catch(error){
     const status=error instanceof RequestError?error.status:error instanceof Error&&/^(JWT|JWS)/.test(error.name)?401:500
     return json(status,{error:'REQUEST_FAILED'},origin)
