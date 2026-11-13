@@ -41,5 +41,7 @@ try{
  await check('Owner HTTP deactivation commits',async()=>{await call(owner.token,{action:'setActive',uid:'httpapplicant',active:false},200);assert.equal((await users.doc('httpapplicant').get()).data().active,false)})
  await check('inactive Owner denied with existing token',async()=>{await users.doc('httpowner').update({active:false});await call(owner.token,{action:'setActive',uid:'httpapplicant',active:true},403);assert.equal((await users.doc('httpapplicant').get()).data().active,false)})
  await check('audit rows only for committed changes',async()=>{const rows=await db.collection('qc_admin_audit').where('actorUid','==','httpowner').get();assert.equal(rows.size,3)})
+ await check('legacy uppercase Owner can use verified HTTP session',async()=>{await users.doc('httpowner').update({active:true,status:'APPROVED'});await call(owner.token,{action:'setActive',uid:'httpapplicant',active:true},200);assert.equal((await users.doc('httpapplicant').get()).data().active,true)})
+ await check('legacy uppercase pending Owner denied over HTTP',async()=>{await users.doc('httpowner').update({status:'PENDING'});await call(owner.token,{action:'setActive',uid:'httpapplicant',active:false},403);assert.equal((await users.doc('httpapplicant').get()).data().active,true)})
  console.log('SUCCESS: '+n+' live local HTTP administration checks passed (Auth + Firestore emulators only)')
 }finally{await new Promise(resolve=>server.close(resolve));await deleteApp(app)}
