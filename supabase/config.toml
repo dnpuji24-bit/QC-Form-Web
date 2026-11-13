@@ -11,3 +11,10 @@ verify_jwt = false
 
 [functions.qc-photo-sign-operational]
 verify_jwt = false
+
+# Pilot receives Firebase JWT; handler verifies it and uses test-only scope.
+[functions.qc-photo-live-pilot-upload]
+verify_jwt = false
+
+[functions.qc-photo-live-pilot-sign]
+verify_jwt = false
