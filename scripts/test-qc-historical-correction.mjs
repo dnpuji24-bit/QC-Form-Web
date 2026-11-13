@@ -50,5 +50,58 @@ try{
  await check('client cannot delete corrected Actual',()=>assertFails(deleteDoc(doc(client,'daily_reports','qcactual_old1'))))
  await check('client cannot remove historical lock',()=>assertFails(deleteDoc(doc(client,'qc_historical_correction_locks','old1'))))
  await check('new verified version permits later correction',async()=>{await call(cmd('old1',(await preview('old1')).version,{note:'second correction'},'second'));assert.equal((await q('old1').get()).data().noted,'second correction')})
+ // Stage 17: exact, read-only server preview plus QC and Actual version checks.
+ for(const id of ['preview1','preview2','preview3']){await q(id).set(id==='preview3'?fert(id):spray(id));await a(id).set(actual(id))}
+ const before=(await preview('preview1')).version
+ const change=cmd('preview1',before,{area:7,note:'verified preview'})
+ const preflight=()=>call({...change,action:'previewHistoricalQc'})
+ let checked
+ await check('server preview returns exact QC and Actual before-after values',async()=>{
+  checked=await preflight()
+  assert.equal(checked.version,before);assert.equal(typeof checked.actualVersion,'string')
+  assert.equal(checked.before.actualAreaHa,5);assert.equal(checked.after.actualAreaHa,7)
+  assert.equal(checked.after.estUsagePesticide1,'14.00');assert.equal(checked.after.productivityHaPerHour,3.5)
+  assert.equal(checked.actual.before.actualAreaHa,5);assert.equal(checked.actual.after.actualAreaHa,7)
+  assert.equal(checked.actual.after.dailyVarianceHa,3)
+ })
+ await check('verified preview changes no documents or audit logs',async()=>{
+  assert.equal((await preview('preview1')).version,before)
+  assert.equal((await a('preview1').get()).data().actualAreaHa,5)
+  assert.equal((await d('qc_admin_audit','historical_op-preview1').get()).exists,false)
+  assert.equal((await d('qc_historical_correction_locks','preview1').get()).exists,false)
+ })
+ await check('manager cannot request verified preview',()=>assert.rejects(call({...change,action:'previewHistoricalQc'},{uid:'manager',email:'manager@example.test'}),/OWNER_REQUIRED/))
+ await check('Actual version changed after preview rejects confirmation',async()=>{
+  await a('preview1').update({plannedDailyAreaHa:11})
+  await assert.rejects(call({...change,baseActualVersion:checked.actualVersion}),/QC_REVISION_CONFLICT/)
+  assert.equal((await q('preview1').get()).data().actualAreaHa,5)
+  assert.equal((await d('qc_admin_audit','historical_op-preview1').get()).exists,false)
+ })
+ await check('refreshed preview matches committed result',async()=>{
+  const again=await preflight()
+  assert.equal(again.actual.after.dailyVarianceHa,4)
+  const final={...change,baseActualVersion:again.actualVersion}
+  await call(final)
+  assert.equal((await q('preview1').get()).data().actualAreaHa,again.after.actualAreaHa)
+  assert.equal((await a('preview1').get()).data().dailyVarianceHa,again.actual.after.dailyVarianceHa)
+  assert.equal((await call(final)).replayed,true)
+ })
+ await check('invalid linked Actual rejected at preview stage',async()=>{
+  await a('preview2').update({actualAreaHa:99})
+  const c=cmd('preview2',(await preview('preview2')).version,{area:8})
+  await assert.rejects(call({...c,action:'previewHistoricalQc'}),/QC_ACTUAL_LINK_CONFLICT/)
+  assert.equal((await q('preview2').get()).data().actualAreaHa,5)
+ })
+ await check('fertilizer verified preview derives dosage without writes',async()=>{
+  const c=cmd('preview3',(await preview('preview3')).version,{fillings:[{jumlah:600,hasilKerja:2},{jumlah:900,hasilKerja:4}]})
+  const p=await call({...c,action:'previewHistoricalQc'})
+  assert.equal(p.after.weightedActualDosage,250);assert.equal(p.after.averageActualDosage,262.5)
+  assert.equal(p.after.pengisianList[1].dosisAktual,225)
+  assert.equal((await q('preview3').get()).data().pengisianList[1].hasilKerja,3)
+ })
+ await check('forbidden field rejected during verified preview',async()=>{
+  const c=cmd('preview3',(await preview('preview3')).version,{ownerUid:'histowner'})
+  await assert.rejects(call({...c,action:'previewHistoricalQc'}),/INVALID_COMMAND/)
+ })
  console.log('SUCCESS: '+n+' historical QC correction checks passed (local Firestore emulator only)')
 }finally{await env.cleanup();await deleteApp(app)}
