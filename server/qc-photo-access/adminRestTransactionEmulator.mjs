@@ -2,7 +2,8 @@
 const project='demo-qc-photo-test',root='projects/'+project+'/databases/(default)/documents'
 const collections=new Set(['users','role_access','firebase_registration_requests','qc_admin_audit','qc_native_name_requests','qc_native_name_pending','qc_records','daily_reports','qc_historical_correction_locks','qc_archived_records','qc_archived_actuals','qc_archive_markers','qc_archive_history','qc_archive_history_records','qc_archive_history_actuals','qc_operational_audit'])
 const validId=v=>typeof v==='string'&&/^[A-Za-z0-9_:-]{1,200}$/.test(v)&&!/^__.*__$/.test(v)
-const validField=v=>typeof v==='string'&&/^[A-Za-z_][A-Za-z0-9_]*$/.test(v)&&!/^__.*__$/.test(v)&&!['__proto__','constructor','prototype'].includes(v)
+const validMapKey=v=>typeof v==='string'&&v.length>0&&new TextEncoder().encode(v).length<=1500&&!/^__.*__$/.test(v)&&!['__proto__','constructor','prototype'].includes(v)
+const validField=v=>validMapKey(v)&&/^[A-Za-z_][A-Za-z0-9_]*$/.test(v)
 const stampToken=Symbol('SERVER_TIMESTAMP')
 export const restServerTimestamp=()=>stampToken
 class RestTimestamp{
@@ -15,7 +16,7 @@ class RestTimestamp{
 }
 function fields(data){
  if(!data||Object.getPrototypeOf(data)!==Object.prototype)throw Error('UNSUPPORTED_REST_MAP')
- return Object.fromEntries(Object.entries(data).map(([k,v])=>{if(!validField(k))throw Error('UNSUPPORTED_REST_FIELD');return [k,encode(v)]}))
+ return Object.fromEntries(Object.entries(data).map(([k,v])=>{if(!validMapKey(k))throw Error('UNSUPPORTED_REST_FIELD');return [k,encode(v)]}))
 }
 function encode(v){
  if(v===null)return {nullValue:null}
@@ -32,7 +33,7 @@ function encode(v){
  throw Error('UNSUPPORTED_REST_VALUE')
 }
 function decodeFields(data={}){
- return Object.fromEntries(Object.entries(data).map(([k,v])=>{if(!validField(k))throw Error('UNSUPPORTED_REST_FIELD');return [k,decode(v)]}))
+ return Object.fromEntries(Object.entries(data).map(([k,v])=>{if(!validMapKey(k))throw Error('UNSUPPORTED_REST_FIELD');return [k,decode(v)]}))
 }
 function decode(v){
  if('nullValue'in v)return null
