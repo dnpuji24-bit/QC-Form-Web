@@ -1,8 +1,9 @@
 const idPattern=/^[A-Za-z0-9_-]{1,160}$/
-const bucket='qc-photos'
 const allowedTypes:Record<string,string>={'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}
-export async function resolveOperationalPhotoPath(qc:any,reservation:any,recordId:string,photoId:string):Promise<string|null>{
-  if(!idPattern.test(recordId)||!recordId.startsWith('qc-v2-')||!idPattern.test(photoId))return null
+export async function resolveOperationalPhotoPath(qc:any,reservation:any,recordId:string,photoId:string,pilot=false):Promise<string|null>{
+  const bucket=pilot?'qc-photos-test':'qc-photos'
+  const prefix=pilot?'qc-live-photo-pilot-':'qc-v2-'
+  if(!idPattern.test(recordId)||!recordId.startsWith(prefix)||!idPattern.test(photoId))return null
   const manifest=qc?.operationalPhotoManifest
     if(!qc||!['spray','fertilizer'].includes(qc.formType)||qc.firestoreSaveState!=='confirmed'||!manifest||!idPattern.test(qc.ownerUid||'')||!reservation||reservation.ownerUid!==qc.ownerUid||reservation.formType!==qc.formType)return null
     const matches=Object.entries(manifest).filter(([,value]:[string,any])=>value?.photoId===photoId)
