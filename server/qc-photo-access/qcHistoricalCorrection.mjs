@@ -1,3 +1,4 @@
+import {isDeepStrictEqual} from 'node:util'
 // Historical corrections: trusted Owner, explicit version, narrow field allowlist.
 const norm=v=>String(v??'').trim().toLowerCase()
 const valid=(v,n)=>typeof v==='string'&&v.length<=n&&/^[A-Za-z0-9_-]+$/.test(v)
@@ -72,14 +73,14 @@ export async function historicalQc({db,actor,command,stamp}){
   const marker=db.collection('qc_historical_correction_locks').doc(recordId)
   const qs=await tx.get(q),r=checkRow(qs,recordId)
   if(command.action==='previewHistoricalQc'){
-   return {ok:true,version:version(qs),record:{id:recordId,formType:r.formType,paddock:r.paddock||'',date:r.date||'',note:String(r.noted||r.catatan||''),area:areaOf(r),fillings:Array.isArray(r.pengisianList)?r.pengisianList.map(f=>({jumlah:f.jumlah,hasilKerja:f.hasilKerja,jenisPupuk:f.jenisPupuk||''})):[]}}
+   return {ok:true,version:version(qs),record:{id:recordId,formType:r.formType,paddock:r.paddock||'',date:r.date||'',note:String(r.noted||r.catatan||'').replace(/\s*\|\s*\[UNIT BERHENTI\].*$/is,'').replace(/^\[UNIT BERHENTI\].*$/is,''),area:areaOf(r),fillings:Array.isArray(r.pengisianList)?r.pengisianList.map(f=>({jumlah:f.jumlah,hasilKerja:f.hasilKerja,jenisPupuk:f.jenisPupuk||''})):[]}}
   }
   if(command.action!=='correctHistoricalQc'||!valid(operationId,100)||typeof baseVersion!=='string'||typeof reason!=='string'||reason.trim().length<5||reason.length>300)throw Error('INVALID_COMMAND')
   const log=db.collection('qc_admin_audit').doc('historical_'+operationId)
   const [as,ls,ms,linked]=await Promise.all([tx.get(a),tx.get(log),tx.get(marker),tx.get(db.collection('daily_reports').where('qcRecordId','==',recordId))])
   if(ls.exists){
    const l=ls.data()
-   if(l.action==='correctHistoricalQc'&&l.target===recordId&&l.actorUid===actor.uid&&l.baseVersion===baseVersion&&l.reason===reason.trim()&&JSON.stringify(l.changes)===JSON.stringify(changes))return {ok:true,replayed:true}
+   if(l.action==='correctHistoricalQc'&&l.target===recordId&&l.actorUid===actor.uid&&l.baseVersion===baseVersion&&l.reason===reason.trim()&&isDeepStrictEqual(l.changes,changes))return {ok:true,replayed:true}
    throw Error('QC_HISTORICAL_CONFLICT')
   }
   if(version(qs)!==baseVersion)throw Error('QC_REVISION_CONFLICT')
