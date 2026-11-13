@@ -180,6 +180,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    function historicalQcLocked(recordId) {
+      return exists(/databases/$(database)/documents/qc_historical_correction_locks/$(recordId));
+    }
+    match /qc_historical_correction_locks/{recordId} {
+      allow read: if nativeRegistrationOwner();
+      allow write: if false;
+    }
     match /qc_records/{recordId} {
       // A reservation permits its owner to check a not-yet-created QC document.
       allow get: if activeUser() && resource == null
@@ -190,7 +197,7 @@ service cloud.firestore {
         ((isSprayMandor() || isFertMandor()) && canViewKey('qc_records',['mandor_spraying','mandor_fertilizer']) && ownsExisting())
       );
 
-      allow create: if activeUser() && !qcArchived(recordId) && (!hasOperationalSave(request.resource.data) || validOperationalAudit(recordId)) && (
+      allow create: if activeUser() && !qcArchived(recordId) && !historicalQcLocked(recordId) && (!hasOperationalSave(request.resource.data) || validOperationalAudit(recordId)) && (
         (request.resource.data.formType == 'spray'
           && canEditKey('qc_spraying',['owner','asisten','mandor_spraying'])
           && (!isSprayMandor() || ownsIncoming()))
@@ -200,7 +207,7 @@ service cloud.firestore {
           && (!isFertMandor() || ownsIncoming()))
       );
 
-      allow update: if activeUser() && !qcArchived(recordId) && ((!hasOperationalSave(resource.data) && !hasOperationalSave(request.resource.data)) || (hasOperationalSave(request.resource.data) && request.resource.data.ownerUid == resource.data.ownerUid && request.resource.data.formType == resource.data.formType && request.resource.data.inputtedBy == resource.data.inputtedBy && validOperationalAudit(recordId))) && (
+      allow update: if activeUser() && !qcArchived(recordId) && !historicalQcLocked(recordId) && ((!hasOperationalSave(resource.data) && !hasOperationalSave(request.resource.data)) || (hasOperationalSave(request.resource.data) && request.resource.data.ownerUid == resource.data.ownerUid && request.resource.data.formType == resource.data.formType && request.resource.data.inputtedBy == resource.data.inputtedBy && validOperationalAudit(recordId))) && (
         (request.resource.data.formType == 'spray'
           && canEditKey('qc_spraying',['owner','asisten','mandor_spraying'])
           && (!isSprayMandor() || (ownsExisting() && ownsIncoming())))
@@ -210,7 +217,7 @@ service cloud.firestore {
           && (!isFertMandor() || (ownsExisting() && ownsIncoming())))
       );
 
-      allow delete: if activeUser() && !hasOperationalSave(resource.data) && canEditKey('qc_records',['owner','manager','admin','asisten']);
+      allow delete: if activeUser() && !historicalQcLocked(recordId) && !hasOperationalSave(resource.data) && canEditKey('qc_records',['owner','manager','admin','asisten']);
     }
 
 
@@ -407,17 +414,21 @@ service cloud.firestore {
           && request.resource.data.get('qcRecordId','') != ''
           && qcArchived(request.resource.data.qcRecordId));
     }
+    function lockedHistoricalActual(reportId, data) {
+      return (reportId.matches('^qcactual_.+') && historicalQcLocked(reportId.replace('^qcactual_', '')))
+        || (data.get('qcRecordId','') is string && data.get('qcRecordId','') != '' && historicalQcLocked(data.qcRecordId));
+    }
     match /daily_reports/{reportId} {
       allow read: if activeUser();
-      allow create: if activeUser() && !archivedActual(reportId) && (
+      allow create: if activeUser() && !lockedHistoricalActual(reportId, request.resource.data) && !archivedActual(reportId) && (
         canEditEither('data_plan_actual','data_plan_actual_import',['owner','asisten'])
         || validQcActualWrite()
       );
-      allow update: if activeUser() && !archivedActual(reportId) && (
+      allow update: if activeUser() && !lockedHistoricalActual(reportId, resource.data) && !lockedHistoricalActual(reportId, request.resource.data) && !archivedActual(reportId) && (
         canEditEither('data_plan_actual','data_plan_actual_import',['owner','asisten'])
         || (resource.data.sourceOrigin == 'QC' && resource.data.qcRecordId == request.resource.data.qcRecordId && validQcActualWrite())
       );
-      allow delete: if activeUser() && (
+      allow delete: if activeUser() && !lockedHistoricalActual(reportId, resource.data) && (
         role() == 'owner'
         || (resource.data.sourceOrigin == 'QC' && canEditKey('qc_records',['owner','manager','admin','asisten']))
       );
