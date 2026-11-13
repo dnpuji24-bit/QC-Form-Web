@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import {createAdminRestEmulator,restServerTimestamp} from './adminRestTransactionEmulator.mjs'
 const root='projects/demo-qc-photo-test/databases/(default)/documents',time='2026-11-13T00:00:00.123456Z'
-function fixture({abort=false,unknown=false,raw={active:{booleanValue:true},extra:{stringValue:'keep'}}}={}){
+function fixture({abort=false,unknown=false,rollbackFailure=false,raw={active:{booleanValue:true},extra:{stringValue:'keep'}}}={}){
  const calls=[];let commits=0,begins=0
  const db=createAdminRestEmulator({host:'127.0.0.1:8085',projectId:'demo-qc-photo-test',fetchImpl:async(url,req)=>{
   assert.ok(url.startsWith('http://127.0.0.1:8085/v1/'+root+':'))
@@ -10,8 +10,12 @@ function fixture({abort=false,unknown=false,raw={active:{booleanValue:true},extr
   if(method==='beginTransaction')result={transaction:'tx'+(++begins)}
   if(method==='batchGet')result=body.documents.map(name=>name.endsWith('/missing')?{missing:name}:{found:{name,fields:raw,updateTime:time}})
   if(method==='runQuery')result=[{readTime:time}]
-  if(method==='rollback')result={}
+  if(method==='rollback'){
+   if(rollbackFailure)return new Response(JSON.stringify({error:{status:'UNAVAILABLE'}}),{status:503})
+   return new Response(null,{status:204})
+  }
   if(method==='commit'){
+   assert.ok(body.writes.length>0,'empty commit is forbidden')
    commits++
    if(unknown)throw Error('transport failure')
    if(abort&&commits===1)return new Response(JSON.stringify({error:{status:'ABORTED'}}),{status:409})
@@ -33,4 +37,6 @@ await check('explicit ABORTED retries entire transaction only',async()=>{const {
 await check('unknown commit outcome never replayed',async()=>{const {db,calls}=fixture({unknown:true});await assert.rejects(db.runTransaction(tx=>tx.create(db.collection('users').doc('u'),{active:true})),/REST_COMMIT_OUTCOME_UNKNOWN/);assert.equal(calls.filter(c=>c.method==='commit').length,1)})
 await check('unsupported document value fails closed without writes',async()=>{const {db,calls}=fixture({raw:{extra:{doubleValue:1}}});await assert.rejects(db.runTransaction(tx=>tx.get(db.collection('users').doc('u'))),/UNSUPPORTED_REST_VALUE/);assert.equal(calls.some(c=>c.method==='commit'),false)})
 await check('collection scan and QC equality query use transaction',async()=>{const {db,calls}=fixture();await db.runTransaction(async tx=>{assert.equal((await tx.get(db.collection('users'))).size,0);assert.equal((await tx.get(db.collection('daily_reports').where('qcRecordId','==','qc-v2-1'))).size,0)});const q=calls.filter(c=>c.method==='runQuery');assert.equal(q.length,2);assert.equal(q[1].body.transaction,'tx1');assert.equal(q[1].body.structuredQuery.where.fieldFilter.value.stringValue,'qc-v2-1')})
+await check('zero-write replay returns original result and releases transaction without commit',async()=>{const {db,calls}=fixture();const result=await db.runTransaction(async tx=>{await tx.get(db.collection('users').doc('u'));return {ok:true,replayed:true}});assert.deepEqual(result,{ok:true,replayed:true});assert.deepEqual(calls.map(c=>c.method),['beginTransaction','batchGet','rollback']);assert.equal(calls.at(-1).body.transaction,'tx1')})
+await check('zero-write preview failure to release transaction does not report success',async()=>{const {db,calls}=fixture({rollbackFailure:true});await assert.rejects(db.runTransaction(async tx=>{await tx.get(db.collection('users').doc('u'));return {ok:true}}),/UNAVAILABLE/);assert.equal(calls.filter(c=>c.method==='commit').length,0);assert.equal(calls.filter(c=>c.method==='beginTransaction').length,1)})
 console.log('SUCCESS: '+n+' admin REST transaction mock checks passed (no network or writes)')
