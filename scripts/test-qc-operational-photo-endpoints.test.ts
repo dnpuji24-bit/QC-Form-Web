@@ -69,7 +69,7 @@ function fixture(){
  async function confirmed(){
   const response=await upload(request(input));assert.equal(response.status,200)
   const uploaded=await response.json()
-  const prepared=await prepareOperationalPhotoManifest({recordId,uploaderUid:'mandor',changes:[{kind:'main',action:'replace',dataUrl:'data:image/png;base64,'+png}]})
+  const prepared=await (prepareOperationalPhotoManifest as (input:any)=>Promise<any>)({recordId,uploaderUid:'mandor',changes:[{kind:'main',action:'replace',dataUrl:'data:image/png;base64,'+png}]})
   const ref=prepared.manifest.main
   for(const k of ['photoId','objectPath','bucket','sha256','size'])assert.deepEqual(uploaded[k],ref[k])
   docs.set('qc_records/'+recordId,{...intent,firestoreSaveState:'confirmed',operationalPhotoManifest:prepared.manifest})
@@ -189,4 +189,24 @@ Deno.test('signer bounds request body and rejects non-POST',async()=>{
  assert.equal((await f.sign(f.request({recordId,photoId:'x'.repeat(1500)}))).status,413)
  assert.equal((await f.sign(f.request({},'owner',{method:'GET'}))).status,405)
  assert.equal(f.stats.signs,0)
+})
+
+Deno.test('HOLD and scan use distinct immutable paths matching client manifest',async()=>{
+ const f=fixture()
+ const changes=[{kind:'hold',holdId:'hold1',action:'replace',dataUrl:'data:image/png;base64,'+png},{kind:'scan',action:'replace',dataUrl:'data:image/png;base64,'+png}]
+ const expected=await (prepareOperationalPhotoManifest as (input:any)=>Promise<any>)({recordId,uploaderUid:'mandor',changes})
+ for(const [slot,change] of [['hold_hold1',changes[0]],['scan',changes[1]]] as const){
+  const res=await f.upload(f.request({...f.input,kind:change.kind,...(change.kind==='hold'?{holdId:'hold1'}:{})}));assert.equal(res.status,200)
+  const result=await res.json();const ref=expected.manifest[slot]
+  for(const k of ['photoId','objectPath','bucket','sha256','size'])assert.deepEqual(result[k],ref[k])
+ }
+ assert.equal(f.objects.size,2)
+})
+Deno.test('existing record upload requires matching base revision and rejects test-only parent',async()=>{
+ const f=fixture();await f.confirmed()
+ assert.equal((await f.upload(f.request(f.input))).status,409)
+ assert.equal((await f.upload(f.request({...f.input,baseRevision:'old',clientRevision:'rev2'}))).status,409)
+ const ok=await f.upload(f.request({...f.input,baseRevision:revision,clientRevision:'rev2'}));assert.equal(ok.status,200)
+ f.docs.get('qc_records/'+recordId)!.testOnly=true
+ assert.equal((await f.upload(f.request({...f.input,baseRevision:revision,clientRevision:'rev2'}))).status,409)
 })
