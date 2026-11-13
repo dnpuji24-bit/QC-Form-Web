@@ -2,7 +2,7 @@ import {isDeepStrictEqual} from 'node:util'
 // Historical corrections: trusted Owner, explicit version, narrow field allowlist.
 const norm=v=>String(v??'').trim().toLowerCase()
 const valid=(v,n)=>typeof v==='string'&&v.length<=n&&/^[A-Za-z0-9_-]+$/.test(v)
-const round=(v,n=2)=>Number(v.toFixed(n))
+const round=(v,n=2)=>{if(!Number.isFinite(v))throw Error('QC_HISTORICAL_INVALID_DATA');return Number(v.toFixed(n))}
 const num=v=>{if((typeof v!=='number'&&typeof v!=='string')||String(v).trim()===''||!Number.isFinite(Number(v))||Number(v)<0)throw Error('QC_HISTORICAL_INVALID_DATA');return Number(v)}
 const optional=v=>v===undefined||v===null||v===''?0:num(v)
 const areaOf=r=>num(r.actualAreaHa??r.area??r.resultArea)
@@ -92,10 +92,17 @@ export async function historicalQc({db,actor,command,stamp}){
    if('actualAreaHa'in patch){
     actualPatch.actualAreaHa=patch.actualAreaHa
     actualPatch.dailyVarianceHa=optional(oldActual.plannedDailyAreaHa??r.plannedDailyAreaHa)-patch.actualAreaHa
-    if('actualPlanMaterials'in patch)actualPatch.materials=patch.actualPlanMaterials
+    if('actualPlanMaterials'in patch){
+     if(!isDeepStrictEqual(oldActual.materials??[],r.actualPlanMaterials))throw Error('QC_HISTORICAL_REVIEW_REQUIRED')
+     actualPatch.materials=patch.actualPlanMaterials
+    }
     else if(Array.isArray(oldActual.materials)&&oldActual.materials.length)throw Error('QC_HISTORICAL_REVIEW_REQUIRED')
    }
-   if('note'in changes)actualPatch.notes=['AUTO QC',r.formType.toUpperCase(),next.noted||next.catatan||''].filter(Boolean).join(' · ')
+   if('note'in changes){
+    const previous=['AUTO QC',r.formType.toUpperCase(),r.noted||r.catatan||''].filter(Boolean).join(' · ')
+    if(oldActual.notes&&oldActual.notes!==previous)throw Error('QC_HISTORICAL_REVIEW_REQUIRED')
+    actualPatch.notes=['AUTO QC',r.formType.toUpperCase(),next.noted||next.catatan||''].filter(Boolean).join(' · ')
+   }
   }
   tx.update(q,{...patch,clientRevision:revision,updatedAt:stamp(),updatedBy:profile.username||actor.uid})
   if(oldActual)tx.update(a,{...actualPatch,updatedAt:stamp(),updatedBy:profile.username||actor.uid,lastModifiedSource:'QC_HISTORICAL_CORRECTION'})
