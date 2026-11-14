@@ -93,30 +93,8 @@ smoke(){
  code="$(curl -q -sS --max-time 30 -o "$work/response.json" -w '%{http_code}' -X POST -H "Origin: $origin" -H 'Authorization: Bearer invalid' "$url")" || return 1
  [[ "$code" == "$1" ]] && node -e 'const x=require(process.argv[1]);if(x.error!==process.argv[2])process.exit(1)' "$work/response.json" "$2"
 }
-hosted_version(){
- "$cli" functions list "$functions_target" -o json | node --input-type=module -e '
- import {readFileSync} from "node:fs";
- const matches=JSON.parse(readFileSync(0,"utf8")).filter(x=>x.slug===process.argv[1]);
- const [f]=matches;
- if(matches.length!==1||f.status!=="ACTIVE"||f.id!=="ecde3c88-dd7c-44d9-8300-a90a32514010"||
-    f.verify_jwt!==false||f.import_map!==true||!Number.isSafeInteger(f.version)||f.version<8||
-    !f.entrypoint_path?.endsWith("/"+process.argv[1]+"/index.ts")||
-    !f.import_map_path?.endsWith("/"+process.argv[1]+"/deno.json"))process.exit(1);
- console.log(f.version);
- ' "$slug"
-}
-
 attest_hosted(){
- local kind="$1" minimum="$2" before after download dir expected
- before="$(hosted_version)" && (( before >= minimum )) || return 1
- download="$(mktemp -d "$work/hosted-XXXXXX")" || return 1
- "$cli" init --workdir "$download" || return 1
- "$cli" functions download "$slug" "$download_target" --use-api --workdir "$download" || return 1
- dir="$download/supabase/functions/$slug"
- expected="$work/$kind/supabase/functions/$slug"
- diff -qr -- "$expected" "$dir" || return 1
- after="$(hosted_version)" && [[ "$before" == "$after" ]] || return 1
- echo "PASS: hosted $kind v$after matches staged source and function settings"
+ node scripts/qc-native-admin-hosted-snapshot.mjs "$cli" "$functions_target" "$download_target" "$work" "$1"
 }
 
 # Stage exact v9 candidate and the original reviewed quarantine, never the rebuilt quarantine.
@@ -133,14 +111,11 @@ candidate_hash=36c29d0770fde1a2f692045409d424a109f0b3da1648400ba49f015feb859bc8
 quarantine_hash=7cd9f42f30ed49e66d2af563147a0d44ed24235834cfa62a7f1fce1757891b90
 stage candidate "$bundle/candidate.mjs" "$candidate_hash"
 stage quarantine "$repo/scripts/release-artifacts/$slug/quarantine.mjs" "$quarantine_hash"
-verify_v9(){
- [[ "$(hosted_version)" == 9 ]] && attest_hosted candidate 9 && [[ "$(hosted_version)" == 9 ]]
-}
-verify_v9
+attest_hosted candidate
 [[ "$(rules_status)" == baseline ]]
 verify_flag false
 smoke 503 ADMIN_PILOT_DISABLED
-echo 'PASS: exact hosted v9, baseline rules, OFF digest, OFF endpoint and original rollback workspace'
+echo 'PASS: exact hosted corrected candidate, baseline rules, OFF digest, OFF endpoint and original rollback workspace'
 if ! $apply; then
  echo 'SUCCESS: corrected v9 live-window read-only preflight; no deployment, activation or document writes'
  exit 0
@@ -155,7 +130,7 @@ read -rs -p 'Owner password (hidden): ' TEST_OWNER_PASSWORD; echo
 read -r -p 'No concurrent deployments allowed. Type TEST LIVE ADMIN V9 to open one synthetic pilot window and roll back: ' answer
 [[ "$answer" == 'TEST LIVE ADMIN V9' ]] || { echo CANCELLED; exit 2; }
 fresh_audit
-verify_v9
+attest_hosted candidate
 [[ "$(rules_status)" == baseline ]]
 verify_flag false
 smoke 503 ADMIN_PILOT_DISABLED
@@ -168,19 +143,25 @@ rollback(){
  unset TEST_OWNER_EMAIL TEST_OWNER_PASSWORD TEST_DENIED_EMAIL TEST_DENIED_PASSWORD
  echo 'ROLLBACK: disabling pilot and restoring hard OFF bundle and baseline rules'
  "$cli" secrets set "$flag=false" "$set_target" --yes && verify_flag false || { echo FLAG_OFF_NOT_VERIFIED; bad=1; }
- # Only overwrite our still-attested v9; unexpected hosted drift is not overwritten.
- if verify_v9; then
+ # Secret updates may change version between independent snapshots.
+ local off=unverified action
+ if (( ! bad )); then off=off-verified; fi
+ action="$(node scripts/qc-native-admin-hosted-snapshot.mjs "$cli" "$functions_target" "$download_target" "$work" rollback "$off")" || action=stop
+ if [[ "$action" == already-quarantine ]]; then
+  echo QUARANTINE_ALREADY_PRESENT
+ elif [[ "$action" == restore-quarantine ]]; then
   local dir="$work/quarantine/supabase/functions/$slug"
-  if printf '%s  %s\n' "$quarantine_hash" "$dir/quarantine.mjs" | sha256sum -c -; then
+  if node scripts/qc-native-admin-hosted-snapshot.mjs --verify-source "$dir" quarantine; then
    "$cli" functions deploy "$slug" "$deploy_target" --use-api --no-verify-jwt --import-map "$dir/deno.json" --workdir "$work/quarantine" --yes || echo QUARANTINE_DEPLOY_RESULT_UNCERTAIN
   else
    echo QUARANTINE_ARTIFACT_CHANGED
    bad=1
   fi
  else
-  echo HOSTED_DRIFT_NO_OVERWRITE
+  echo HOSTED_DRIFT_OR_OFF_UNVERIFIED_NO_OVERWRITE
  fi
- attest_hosted quarantine 10 || { echo QUARANTINE_SOURCE_NOT_VERIFIED; bad=1; }
+ attest_hosted quarantine || { echo QUARANTINE_SOURCE_NOT_VERIFIED; bad=1; }
+ verify_flag false || { echo FLAG_OFF_NOT_VERIFIED; bad=1; }
  smoke 503 ADMIN_PILOT_DISABLED || { echo HOSTED_OFF_NOT_VERIFIED; bad=1; }
  current="$(rules_status)" || current=unavailable
  if [[ "$current" == candidate ]]; then
@@ -205,14 +186,14 @@ trap 'exit 129' HUP
 echo 'PASS: isolated candidate rules released; allowing rules propagation'
 sleep 65
 [[ "$(rules_status)" == candidate ]]
-verify_v9
+attest_hosted candidate
 verify_flag false
 "$cli" secrets set "$flag=true" "$set_target" --yes
 verify_flag true
-verify_v9
+attest_hosted candidate
 # Only a malformed-token probe; never repeat a valid write request.
 smoke 401 UNAUTHORIZED
-echo 'PASS: corrected pilot v9 ON; one supervised synthetic transaction only'
+echo 'PASS: corrected pilot ON; one supervised synthetic transaction only'
 TEST_DENIED_EMAIL="$TEST_DENIED_EMAIL" TEST_DENIED_PASSWORD="$TEST_DENIED_PASSWORD" \
 TEST_OWNER_EMAIL="$TEST_OWNER_EMAIL" TEST_OWNER_PASSWORD="$TEST_OWNER_PASSWORD" \
 timeout --foreground 180s node scripts/run-qc-native-admin-transaction.mjs --synthetic-live-confirmed

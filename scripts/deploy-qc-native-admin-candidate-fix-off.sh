@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stage 19F-C2C3D6. The default path is read-only against hosted services.
+# Stage 19F-C2C3D9. The default path verifies the restored quarantine read-only.
 set +x
 set -euo pipefail
 umask 077
@@ -76,30 +76,8 @@ verify_flag(){
  ' "$flag" "$expected"
 }
 
-hosted_version(){
- "$cli" functions list "$list_target" -o json | node --input-type=module -e '
- import {readFileSync} from "node:fs";
- const matches=JSON.parse(readFileSync(0,"utf8")).filter(x=>x.slug===process.argv[1]);
- const [f]=matches;
- if(matches.length!==1||f.status!=="ACTIVE"||f.id!=="ecde3c88-dd7c-44d9-8300-a90a32514010"||
-    f.verify_jwt!==false||f.import_map!==true||!Number.isSafeInteger(f.version)||f.version<8||
-    !f.entrypoint_path?.endsWith("/"+process.argv[1]+"/index.ts")||
-    !f.import_map_path?.endsWith("/"+process.argv[1]+"/deno.json"))process.exit(1);
- console.log(f.version);
- ' "$slug"
-}
-
 attest_hosted(){
- local kind="$1" minimum="$2" before after download dir expected
- before="$(hosted_version)" && (( before >= minimum )) || return 1
- download="$(mktemp -d "$work/hosted-XXXXXX")" || return 1
- "$cli" init --workdir "$download" || return 1
- "$cli" functions download "$slug" "$download_target" --use-api --workdir "$download" || return 1
- dir="$download/supabase/functions/$slug"
- expected="$work/$kind/supabase/functions/$slug"
- diff -qr -- "$expected" "$dir" || return 1
- after="$(hosted_version)" && [[ "$before" == "$after" ]] || return 1
- echo "PASS: hosted $kind v$after matches staged source and function settings"
+ node scripts/qc-native-admin-hosted-snapshot.mjs "$cli" "$list_target" "$download_target" "$work" "$1"
 }
 
 fresh_audit(){
@@ -107,9 +85,8 @@ fresh_audit(){
 }
 
 deploy(){
- local kind="$1" dir="$work/$1/supabase/functions/$slug" digest="$candidate_hash"
- if [[ "$kind" == quarantine ]]; then digest="$quarantine_hash"; fi
- printf '%s  %s\n' "$digest" "$dir/$kind.mjs" | sha256sum -c - || return 1
+ local kind="$1" dir="$work/$1/supabase/functions/$slug"
+ node scripts/qc-native-admin-hosted-snapshot.mjs --verify-source "$dir" "$kind" || return 1
  "$cli" functions deploy "$slug" "$deploy_target" --use-api --no-verify-jwt --import-map "$dir/deno.json" --workdir "$work/$kind" --yes
 }
 
@@ -130,8 +107,7 @@ smoke(){
  echo 'PASS: hosted OFF, wrong origin, OPTIONS and GET'
 }
 
-baseline_version="$(hosted_version)"
-attest_hosted quarantine "$baseline_version"
+attest_hosted quarantine
 verify_flag
 echo 'PASS: explicit OFF secret digest'
 smoke
@@ -144,17 +120,25 @@ fi
 read -r -p 'Confirm exclusive deployment access and deploy the corrected candidate OFF. Type DEPLOY CORRECTED OFF: ' answer
 [[ "$answer" == 'DEPLOY CORRECTED OFF' ]] || { echo CANCELLED; exit 2; }
 fresh_audit
-attest_hosted quarantine "$baseline_version"
 smoke
-[[ "$(hosted_version)" == "$baseline_version" ]] || { echo HOSTED_VERSION_CHANGED_STOP; exit 2; }
 verify_flag
+attest_hosted quarantine
 
 rollback(){
  trap - EXIT
  trap '' INT TERM HUP
  echo CANDIDATE_NOT_VERIFIED_RESTORING_ORIGINAL_QUARANTINE
- deploy quarantine || echo QUARANTINE_DEPLOY_RESULT_UNCERTAIN
- if attest_hosted quarantine "$((baseline_version + 1))" && smoke && verify_flag; then
+ local off=unverified action
+ if verify_flag; then off=off-verified; fi
+ action="$(node scripts/qc-native-admin-hosted-snapshot.mjs "$cli" "$list_target" "$download_target" "$work" rollback "$off")" || action=stop
+ if [[ "$action" == already-quarantine ]]; then
+  echo QUARANTINE_ALREADY_PRESENT
+ elif [[ "$action" == restore-quarantine ]]; then
+  deploy quarantine || echo QUARANTINE_DEPLOY_RESULT_UNCERTAIN
+ else
+  echo HOSTED_DRIFT_OR_OFF_UNVERIFIED_NO_OVERWRITE
+ fi
+ if attest_hosted quarantine && smoke && verify_flag; then
   echo QUARANTINE_RESTORED_DO_NOT_RETRY
   exit 2
  fi
@@ -166,7 +150,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
 deploy candidate
-attest_hosted candidate "$((baseline_version + 1))"
+attest_hosted candidate
 smoke
 verify_flag
 trap - EXIT INT TERM HUP
