@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { firebaseAuth } from './firebase'
 import type { QcRecord } from './types'
+import { qcLocalUat, localUatPhotos, localUatPhotoKey } from './qcLocalUat'
 type Slot={slot:string;photoId:string;contentType:string;size:number;sha256:string}
 type State={key:string;status:'loading'|'ready'|'error';photos:Record<string,string>;message:string}
 const enabled=import.meta.env.VITE_QC_PHOTO_SIGN_PREVIEW==='true'
@@ -26,20 +27,16 @@ export function useOperationalReportPhotos(record:QcRecord){
           return {...p,slot} as Slot
         })
         if(slots.length>100)throw Error('Jumlah foto melebihi batas laporan.')
-        if(slots.length&&!enabled)throw Error('Pembacaan foto private belum diaktifkan.')
+        if(slots.length&&!enabled&&!qcLocalUat)throw Error('Pembacaan foto private belum diaktifkan.')
         const user=firebaseAuth?.currentUser
         if(!user)throw Error('Login diperlukan.')
         const photos:Record<string,string>={}
         for(const p of slots){
           if(cancelled||firebaseAuth?.currentUser?.uid!==user.uid)throw Error('Sesi berubah.')
-          const token=await user.getIdToken()
-          const signed=await fetch(endpoint,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({recordId:record.id,photoId:p.photoId}),cache:'no-store',signal:controller.signal})
-          if(!signed.ok)throw Error('Foto belum dapat dibuka (HTTP '+signed.status+').')
-          const response=await signed.json()
-          const url=new URL(response.signedUrl)
-          if(url.origin!==origin||!url.pathname.startsWith('/storage/v1/object/sign/qc-photos/')||response.expiresIn!==60)throw Error('URL foto tidak valid.')
-          const downloaded=await fetch(url,{cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer',signal:controller.signal})
-          if(!downloaded.ok)throw Error('Unduhan foto gagal.')
+          const downloaded=qcLocalUat
+            ? await (await localUatPhotos()).match(localUatPhotoKey(user.uid,record.id,p.photoId))
+            : await downloadPhoto(user,record.id,p.photoId,controller.signal)
+          if(!downloaded?.ok)throw Error('Unduhan foto gagal.')
           const blob=await downloaded.blob()
           if(blob.size!==p.size||blob.type!==p.contentType)throw Error('Ukuran atau tipe foto tidak sesuai.')
           const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer())),b=>b.toString(16).padStart(2,'0')).join('')
@@ -52,6 +49,15 @@ export function useOperationalReportPhotos(record:QcRecord){
         urls.splice(0).forEach(url=>URL.revokeObjectURL(url))
         if(!cancelled)setState({key,status:'error',photos:{},message:e instanceof Error?e.message:'Foto gagal dimuat.'})
       }
+    }
+    async function downloadPhoto(user:{getIdToken():Promise<string>},recordId:string,photoId:string,signal:AbortSignal){
+      const token=await user.getIdToken()
+      const signed=await fetch(endpoint,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({recordId,photoId}),cache:'no-store',signal})
+      if(!signed.ok)throw Error('Foto belum dapat dibuka (HTTP '+signed.status+').')
+      const response=await signed.json()
+      const url=new URL(response.signedUrl)
+      if(url.origin!==origin||!url.pathname.startsWith('/storage/v1/object/sign/qc-photos/')||response.expiresIn!==60)throw Error('URL foto tidak valid.')
+      return fetch(url,{cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer',signal})
     }
     void load()
     const unsubscribe=firebaseAuth?.onAuthStateChanged(user=>{if(!user||user.uid!==initialUid){cancelled=true;controller.abort();urls.splice(0).forEach(url=>URL.revokeObjectURL(url));setState({key,status:'error',photos:{},message:'Sesi berakhir.'})}})

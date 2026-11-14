@@ -4,6 +4,7 @@ import {enqueueOperationalBatch,flushOperationalJobs,listOperationalJobs,type Op
 import {commitOperationalQc,type AtomicQcInput} from './qcAtomicFirestoreAdapter'
 import type {QcSaveIntent} from './qcFormSaveIntent.mjs'
 import type {QcRecord} from './types'
+import {qcLocalUat,localUatPhotos,localUatPhotoKey} from './qcLocalUat'
 
 export const operationalSaveEnabled=import.meta.env.VITE_QC_OPERATIONAL_SAVE==='true'
 const endpoint='https://mcfwnstdfhhtcbksgrlj.supabase.co/functions/v1/qc-photo-upload'
@@ -68,6 +69,14 @@ export async function flushOperationalQc(){
     async putVerifiedPhoto(ref,bytes,job:Job){
       assertUid(uid)
       if(!acceptJob(job))throw Error('Invalid operational job')
+      if(qcLocalUat){
+        const cache=await localUatPhotos()
+        assertUid(uid)
+        await cache.put(localUatPhotoKey(uid,job.record.id,ref.photoId),new Response(Uint8Array.from(bytes),{
+          headers:{'Content-Type':ref.contentType}
+        }))
+        return
+      }
       const token=await firebaseAuth!.currentUser!.getIdToken()
       assertUid(uid)
       let binary=''
