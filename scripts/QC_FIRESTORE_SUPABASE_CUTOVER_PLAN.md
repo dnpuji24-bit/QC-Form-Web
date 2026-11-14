@@ -365,3 +365,22 @@ Manifest rinci disimpan pada `~/qc-migration-private` dengan permission mode 060
 - Added scripts/deploy-qc-native-admin-candidate-fix-off.sh (25eadbf). Reuses previously exercised CLI targeting and smoke pattern, but calls corrected verifier, pins corrected candidate digest, stages rollback from ORIGINAL reviewed GitHub quarantine (not rebuilt quarantine), checks original hosted version 8, explicit false secret digest, fresh baseline/empty-collection read-only audit and repeats live gates just before deployment. Requires interactive DEPLOY CORRECTED OFF; no pilot flag enable. If deployment outcome/smoke/flag is uncertain, best-effort EXIT/signal rollback to original hard-OFF quarantine and verify OFF digest and smoke; if flag is not verified false during recovery attempts to set only that flag false. No concurrent changes; hard host/session termination may prevent rollback. Reconcile unexpected version drift rather than rerun blindly.
 - New wrapper authored and source reviewed only; no Cloud Shell syntax or live execution yet. Operator run bash -n and then wrapper with corrected bundle directory native-admin-pilot-bundles-xiBeC6 and rollback backup native-admin-pilot-release-3eU7t6. Verify explicit OFF and successful hosted smoke. Independently retrieve deployed candidate bytes and compare SHA256 before any activation. Do not use old live-window wrapper. If CLI metadata/secret output shape, auth, digest or version checks fail, stop without bypassing checks.
 - No production deployment, Firestore rules/data writes, IAM, billing, spreadsheet changes, or activation by this commit. Corrected hosted transaction remains unproved.
+
+
+## Stage 19F-C2C3D6-R — Reconciled Work deployment wrapper
+
+- Operator melaporkan verifier lulus dengan 21 tes source, 8 pemeriksaan bundle, dan 8 pemeriksaan runner. Kandidat terikat pada source commit `6d167318411a598aec81e5e2c7cf385e29c3de7c` dan SHA-256 `36c29d0770fde1a2f692045409d424a109f0b3da1648400ba49f015feb859bc8`. Rollback menggunakan artefak hard-OFF yang sudah direview di repo, dengan SHA-256 `7cd9f42f30ed49e66d2af563147a0d44ed24235834cfa62a7f1fce1757891b90`. Bundle quarantine hasil build baru hanya digunakan oleh verifier untuk pemeriksaan kesetaraan kandidat.
+- Pembacaan Supabase mengonfirmasi Admin Pilot v8 ACTIVE dengan source quarantine yang identik dengan artefak rollback, entrypoint yang hanya mengimpor quarantine, import map kosong, dan `verify_jwt=false` untuk autentikasi Firebase di handler.
+- Dari checkout branch `feature/firebase-auth-claims-supabase` yang sudah berisi commit wrapper, gunakan Cloud Shell dengan sesi Supabase CLI dan gcloud yang sudah terautentikasi. Proyek gcloud aktif harus `form-qc-unm`. Jalankan pemeriksaan read-only berikut.
+
+```bash
+cd ~/QC-Form-Web
+export PATH="$HOME/.local/supabase-cli/node_modules/.bin:$HOME/.deno/bin:$PATH"
+bash scripts/deploy-qc-native-admin-candidate-fix-off.sh \
+  "$HOME/qc-migration-private/native-admin-pilot-bundles-xiBeC6" \
+  "$HOME/qc-migration-private/native-admin-pilot-release-3eU7t6"
+```
+
+- Tunggu `SUCCESS: read-only corrected OFF preflight`. Wrapper mengulang verifier, mengunduh source hosted untuk dibandingkan dengan rollback, memeriksa digest secret `false`, dan menguji HTTP 503, 403, 204, dan 405 tanpa kredensial Firebase. Audit Firestore membaca hash rules baseline dan memastikan kedua koleksi sintetis kosong. Audit menyimpan backup lokal privat dan melaporkan `blockers: []` serta `writes: 0`. Hentikan proses jika ada pemeriksaan yang gagal.
+- Jika deployment OFF kemudian diotorisasi dan akses perubahan eksklusif sudah dikoordinasikan, ulangi perintah dengan `--deploy-off` sebelum kedua argumen direktori. Ketik `DEPLOY CORRECTED OFF` pada prompt interaktif. Wrapper mengulang audit dan pemeriksaan hosted setelah konfirmasi. Satu-satunya perubahan hosted yang dilakukan wrapper adalah deployment fungsi `qc-native-admin-live-pilot`. Flag harus sudah `false` dan diperiksa ulang setelah deployment.
+- Jika deployment atau pemeriksaan pascadeployment meragukan, wrapper mencoba satu kali deployment ulang artefak quarantine asli. `QUARANTINE_RESTORED_DO_NOT_RETRY` berarti source rollback, respons endpoint, dan digest OFF terverifikasi. `ROLLBACK_NOT_VERIFIED_STOP` berarti operator perlu memeriksa keadaan hosted sebelum ada tindakan lain. Simpan lokasi workspace privat bersama hasil pemeriksaan. Aktivasi dan transaksi live berada di luar tahap ini.

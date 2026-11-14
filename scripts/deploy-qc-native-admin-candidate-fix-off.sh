@@ -1,140 +1,173 @@
 #!/usr/bin/env bash
-# Corrected pilot candidate OFF only. Preserve the original verified hard-OFF rollback.
+# Stage 19F-C2C3D6. The default path is read-only against hosted services.
 set +x
 set -euo pipefail
 umask 077
 cd "$(dirname "$0")/.."
 repo="$PWD"
+
 unset SUPABASE_WORKDIR
-rollback_artifact="$repo/scripts/release-artifacts/qc-native-admin-live-pilot/quarantine.mjs"
-[[ "$#" == 2 && -t 0 && -t 1 ]] || { echo INTERACTIVE_ONLY; exit 2; }
-[[ "$(git branch --show-current)" == feature/firebase-auth-claims-supabase ]] || { echo WRONG_BRANCH; exit 2; }
-bundle="$(realpath "$1")"
-backup="$(realpath "$2")"
+
+[[ "$(git branch --show-current)" == "feature/firebase-auth-claims-supabase" ]] || {
+  echo WRONG_BRANCH
+  exit 2
+}
+apply=false
+if [[ "${1:-}" == --deploy-off ]]; then
+ apply=true
+ shift
+fi
+[[ "$#" == 2 ]] || { echo 'USAGE: deploy-qc-native-admin-candidate-fix-off.sh [--deploy-off] BUNDLE_DIR BACKUP_DIR'; exit 2; }
+if $apply && [[ ! -t 0 || ! -t 1 ]]; then echo INTERACTIVE_ONLY; exit 2; fi
+
 ref=mcfwnstdfhhtcbksgrlj
 slug=qc-native-admin-live-pilot
 flag=QC_NATIVE_ADMIN_LIVE_PILOT_ENABLED
 origin=https://form-qc-unm--react-test-ayyxz4hj.web.app
 url="https://$ref.supabase.co/functions/v1/$slug"
-if command -v supabase >/dev/null; then cli="$(command -v supabase)"
-elif [[ -x "$repo/node_modules/.bin/supabase" ]]; then cli="$repo/node_modules/.bin/supabase"
-else echo SUPABASE_CLI_REQUIRED; exit 2; fi
+candidate_hash=36c29d0770fde1a2f692045409d424a109f0b3da1648400ba49f015feb859bc8
+quarantine_hash=7cd9f42f30ed49e66d2af563147a0d44ed24235834cfa62a7f1fce1757891b90
+reviewed=fdfb37f8aa4530184dee8df7d2bc754503588d87
+paths=(scripts/verify-qc-native-admin-candidate-fix.sh scripts/prepare-qc-native-admin-pilot-release.mjs scripts/cleanup-qc-native-admin-pilot.mjs scripts/firestore.legacy-audit-release.rules scripts/test-qc-native-admin-live-pilot.mjs scripts/run-qc-native-admin-transaction.mjs)
+git merge-base --is-ancestor "$reviewed" HEAD
+git diff --exit-code "$reviewed" -- "${paths[@]}"
+bash scripts/verify-qc-native-admin-candidate-fix.sh "$1" "$2"
+
+cli="$(command -v supabase)"
 "$cli" --version
-# Detect supported explicit remote flags; never deploy to an implicit linked project.
-secret_help="$("$cli" secrets set --help)"
-list_help="$("$cli" secrets list --help)"
-deploy_help="$("$cli" functions deploy --help)"
-functions_help="$("$cli" functions list --help)"
 target_args(){
  if [[ "$1" == *--project-ref* ]]; then printf '%s\n' "--project-ref=$ref"
  elif [[ "$1" == *--remote* ]]; then printf '%s\n' "--remote=$ref"
- else return 2; fi
+ else echo CLI_EXPLICIT_TARGET_REQUIRED >&2; return 2; fi
 }
-set_target="$(target_args "$secret_help")"
-list_target="$(target_args "$list_help")"
-deploy_target="$(target_args "$deploy_help")"
-functions_target="$(target_args "$functions_help")"
-[[ "$deploy_help" == *--use-api* && "$deploy_help" == *--no-verify-jwt* && "$deploy_help" == *--import-map* ]] || { echo CLI_DEPLOY_FLAGS_UNSUPPORTED; exit 2; }
-bash scripts/verify-qc-native-admin-candidate-fix.sh "$bundle" "$backup"
-node scripts/prepare-qc-native-admin-pilot-release.mjs --read-only-confirmed
-work="$(mktemp -d "$HOME/qc-migration-private/admin-corrected-off-deploy-XXXXXX")"
-echo "Private deployment workspace: $work"
-cd "$work"
-"$cli" init
-mkdir -p "supabase/functions/$slug"
-dir="$work/supabase/functions/$slug"
-printf '{"imports":{}}\n' > "$dir/deno.json"
-smoke(){
- local code
- code="$(curl -sS --max-time 30 -o "$work/response.json" -w '%{http_code}' -X POST -H "Origin: $origin" -H 'Authorization: Bearer invalid' "$url")" || return 1
- [[ "$code" == 503 ]] && node -e 'const x=require(process.argv[1]);if(x.error!=="ADMIN_PILOT_DISABLED")process.exit(1)' "$work/response.json" || return 1
- code="$(curl -sS --max-time 30 -o "$work/response.json" -w '%{http_code}' -X POST -H 'Origin: https://invalid.example' -H 'Authorization: Bearer invalid' "$url")" || return 1
- [[ "$code" == 403 ]] && node -e 'const x=require(process.argv[1]);if(x.error!=="FORBIDDEN")process.exit(1)' "$work/response.json" || return 1
- code="$(curl -sS --max-time 30 -o "$work/response.json" -w '%{http_code}' -X OPTIONS -H "Origin: $origin" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: authorization' "$url")" || return 1
- [[ "$code" == 204 ]] || return 1
- code="$(curl -sS --max-time 30 -o "$work/response.json" -w '%{http_code}' -H "Origin: $origin" "$url")" || return 1
- [[ "$code" == 405 ]] && node -e 'const x=require(process.argv[1]);if(x.error!=="METHOD_NOT_ALLOWED")process.exit(1)' "$work/response.json" || return 1
- echo 'PASS: hosted OFF, wrong origin, OPTIONS and GET'
+list_target="$(target_args "$("$cli" functions list --help)")"
+secret_target="$(target_args "$("$cli" secrets list --help)")"
+download_help="$("$cli" functions download --help)"
+download_target="$(target_args "$download_help")"
+[[ "$download_help" == *--use-api* ]] || { echo CLI_DOWNLOAD_API_REQUIRED; exit 2; }
+if $apply; then
+ deploy_help="$("$cli" functions deploy --help)"
+ deploy_target="$(target_args "$deploy_help")"
+ [[ "$deploy_help" == *--use-api* && "$deploy_help" == *--no-verify-jwt* && "$deploy_help" == *--import-map* ]] || { echo CLI_DEPLOY_FLAGS_UNSUPPORTED; exit 2; }
+fi
+work="$(mktemp -d "$HOME/qc-migration-private/admin-corrected-off-XXXXXX")"
+echo "Private verification workspace: $work"
+
+stage(){
+ local kind="$1" source="$2" digest="$3" dir="$work/$1/supabase/functions/$slug"
+ mkdir -p "$dir"
+ if $apply; then "$cli" init --workdir "$work/$kind"; fi
+ cp -- "$source" "$dir/$kind.mjs"
+ printf '%s  %s\n' "$digest" "$dir/$kind.mjs" | sha256sum -c -
+ printf "import './%s.mjs'\n" "$kind" > "$dir/index.ts"
+ printf '{"imports":{}}\n' > "$dir/deno.json"
 }
+stage candidate "$1/candidate.mjs" "$candidate_hash"
+stage quarantine "$repo/scripts/release-artifacts/$slug/quarantine.mjs" "$quarantine_hash"
+
 verify_flag(){
  local expected
  expected="$(printf false | sha256sum | cut -d' ' -f1)"
- # CLI table contains digests; never print secret inventory.
- "$cli" secrets list "$list_target" -o json | node --input-type=module -e '
+ "$cli" secrets list "$secret_target" -o json | node --input-type=module -e '
  import {readFileSync} from "node:fs";
  const rows=JSON.parse(readFileSync(0,"utf8"));
- if(!Array.isArray(rows))process.exit(1);
  const matches=rows.filter(x=>x.name===process.argv[1]);
  if(matches.length!==1||(matches[0].digest??matches[0].value)!==process.argv[2])process.exit(1);
  ' "$flag" "$expected"
 }
-stage(){
- local kind="$1"
- [[ "$kind" == candidate || "$kind" == quarantine ]] || return 2
- rm -f -- "$dir/candidate.mjs" "$dir/quarantine.mjs"
- if [[ "$kind" == candidate ]]; then cp "$bundle/candidate.mjs" "$dir/candidate.mjs"
- else cp "$rollback_artifact" "$dir/quarantine.mjs"; fi
- printf "import './%s.mjs'\n" "$kind" > "$dir/index.ts"
- local expected=36c29d0770fde1a2f692045409d424a109f0b3da1648400ba49f015feb859bc8
- [[ "$kind" == candidate ]] || expected=7cd9f42f30ed49e66d2af563147a0d44ed24235834cfa62a7f1fce1757891b90
- printf '%s  %s\n' "$expected" "$dir/$kind.mjs" | sha256sum -c -
-}
-deploy(){
- "$cli" functions deploy "$slug" "$deploy_target" --use-api --no-verify-jwt --import-map "$dir/deno.json" --yes
-}
-# The hosted v8 source was independently attested as the exact original quarantine.
-# Any subsequent function version drift must be reviewed rather than overwritten.
-verify_original_version(){
- "$cli" functions list "$functions_target" -o json | node --input-type=module -e '
+
+hosted_version(){
+ "$cli" functions list "$list_target" -o json | node --input-type=module -e '
  import {readFileSync} from "node:fs";
- const rows=JSON.parse(readFileSync(0,"utf8"));
- if(!Array.isArray(rows))process.exit(1);
- const matches=rows.filter(x=>x.slug===process.argv[1]||x.name===process.argv[1]);
- if(matches.length!==1||Number(matches[0].version)!==8||matches[0].status!=="ACTIVE")process.exit(1);
+ const matches=JSON.parse(readFileSync(0,"utf8")).filter(x=>x.slug===process.argv[1]);
+ const [f]=matches;
+ if(matches.length!==1||f.status!=="ACTIVE"||f.id!=="ecde3c88-dd7c-44d9-8300-a90a32514010"||
+    f.verify_jwt!==false||f.import_map!==true||!Number.isSafeInteger(f.version)||f.version<8||
+    !f.entrypoint_path?.endsWith("/"+process.argv[1]+"/index.ts")||
+    !f.import_map_path?.endsWith("/"+process.argv[1]+"/deno.json"))process.exit(1);
+ console.log(f.version);
  ' "$slug"
 }
-verify_original_version || { echo HOSTED_VERSION_DRIFT_STOP; exit 2; }
-verify_flag || { echo OFF_DIGEST_NOT_VERIFIED_STOP; exit 2; }
+
+attest_hosted(){
+ local kind="$1" minimum="$2" before after download dir expected
+ before="$(hosted_version)" && (( before >= minimum )) || return 1
+ download="$(mktemp -d "$work/hosted-XXXXXX")" || return 1
+ "$cli" init --workdir "$download" || return 1
+ "$cli" functions download "$slug" "$download_target" --use-api --workdir "$download" || return 1
+ dir="$download/supabase/functions/$slug"
+ expected="$work/$kind/supabase/functions/$slug"
+ diff -qr -- "$expected" "$dir" || return 1
+ after="$(hosted_version)" && [[ "$before" == "$after" ]] || return 1
+ echo "PASS: hosted $kind v$after matches staged source and function settings"
+}
+
+fresh_audit(){
+ node scripts/prepare-qc-native-admin-pilot-release.mjs --read-only-confirmed
+}
+
+deploy(){
+ local kind="$1" dir="$work/$1/supabase/functions/$slug" digest="$candidate_hash"
+ if [[ "$kind" == quarantine ]]; then digest="$quarantine_hash"; fi
+ printf '%s  %s\n' "$digest" "$dir/$kind.mjs" | sha256sum -c - || return 1
+ "$cli" functions deploy "$slug" "$deploy_target" --use-api --no-verify-jwt --import-map "$dir/deno.json" --workdir "$work/$kind" --yes
+}
+
+probe(){
+ local method="$1" request_origin="$2" status="$3" error="$4" code
+ shift 4
+ code="$(curl -q -sS --max-time 30 -o "$work/response.json" -w '%{http_code}' \
+  -X "$method" -H "Origin: $request_origin" "$@" "$url")" || return 1
+ [[ "$code" == "$status" ]] || return 1
+ [[ -z "$error" ]] || node -e 'if(require(process.argv[1]).error!==process.argv[2])process.exit(1)' "$work/response.json" "$error"
+}
+
+smoke(){
+ probe POST "$origin" 503 ADMIN_PILOT_DISABLED -H 'Authorization: Bearer invalid' &&
+ probe POST https://invalid.example 403 FORBIDDEN -H 'Authorization: Bearer invalid' &&
+ probe OPTIONS "$origin" 204 '' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: authorization' &&
+ probe GET "$origin" 405 METHOD_NOT_ALLOWED &&
+ echo 'PASS: hosted OFF, wrong origin, OPTIONS and GET'
+}
+
+baseline_version="$(hosted_version)"
+attest_hosted quarantine "$baseline_version"
+verify_flag
+echo 'PASS: explicit OFF secret digest'
 smoke
-stage quarantine
-stage candidate
-echo 'PASS: original v8, explicit OFF digest and both pinned deployment artifacts'
-read -r -p 'Deploy only the corrected admin pilot in OFF mode? Type DEPLOY CORRECTED OFF: ' answer
+fresh_audit
+if ! $apply; then
+ echo 'SUCCESS: read-only corrected OFF preflight'
+ exit 0
+fi
+
+read -r -p 'Confirm exclusive deployment access and deploy the corrected candidate OFF. Type DEPLOY CORRECTED OFF: ' answer
 [[ "$answer" == 'DEPLOY CORRECTED OFF' ]] || { echo CANCELLED; exit 2; }
-# Repeat all live read-only gates immediately before mutation.
-(cd "$repo" && node scripts/prepare-qc-native-admin-pilot-release.mjs --read-only-confirmed)
-verify_original_version || { echo HOSTED_VERSION_DRIFT_STOP; exit 2; }
-verify_flag || { echo OFF_DIGEST_NOT_VERIFIED_STOP; exit 2; }
+fresh_audit
+attest_hosted quarantine "$baseline_version"
 smoke
-stage candidate
-armed=0
-recover(){
- local rc=$?
- trap - EXIT INT TERM HUP
- if [[ "$armed" == 1 ]]; then
-  echo CANDIDATE_NOT_VERIFIED_RESTORING_ORIGINAL_QUARANTINE
-  # Attempt hard OFF even if flag verification fails; never use the new quarantine.
-  if ! verify_flag; then
-   "$cli" secrets set "$flag=false" "$set_target" --yes || echo OFF_SECRET_RESTORE_FAILED
-  fi
-  if stage quarantine && deploy && smoke && verify_flag; then
-   echo ORIGINAL_QUARANTINE_RESTORED_HOSTED_SOURCE_ATTESTATION_REQUIRED
-  else
-   echo QUARANTINE_ROLLBACK_NOT_VERIFIED_STOP
-   exit 3
-  fi
+[[ "$(hosted_version)" == "$baseline_version" ]] || { echo HOSTED_VERSION_CHANGED_STOP; exit 2; }
+verify_flag
+
+rollback(){
+ trap - EXIT
+ trap '' INT TERM HUP
+ echo CANDIDATE_NOT_VERIFIED_RESTORING_ORIGINAL_QUARANTINE
+ deploy quarantine || echo QUARANTINE_DEPLOY_RESULT_UNCERTAIN
+ if attest_hosted quarantine "$((baseline_version + 1))" && smoke && verify_flag; then
+  echo QUARANTINE_RESTORED_DO_NOT_RETRY
   exit 2
  fi
- exit "$rc"
+ echo "ROLLBACK_NOT_VERIFIED_STOP: $work"
+ exit 3
 }
-trap recover EXIT
+trap rollback EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
-armed=1
-deploy
+deploy candidate
+attest_hosted candidate "$((baseline_version + 1))"
 smoke
 verify_flag
-armed=0
-echo 'SUCCESS: corrected candidate deployed OFF; hosted smoke passed; hosted source verification still required'
-echo 'No activation, Firestore rules, IAM, billing, operational records or spreadsheet changes requested.'
+trap - EXIT INT TERM HUP
+echo 'SUCCESS: corrected candidate deployed OFF; hosted source, smoke and flag verified'
