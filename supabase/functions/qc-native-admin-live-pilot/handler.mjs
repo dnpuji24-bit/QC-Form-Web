@@ -3,6 +3,34 @@ import {isOperationalPhotoIdentityAllowed} from '../_shared/qcOperationalPhotoId
 const uidPattern=/^[A-Za-z0-9_-]{1,128}$/
 const paths=new Set(['/qc-native-admin-live-pilot','/functions/v1/qc-native-admin-live-pilot'])
 const reply=(status,data,origin)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Vary':'Origin',...(origin?{'Access-Control-Allow-Origin':origin}:{})}})
+// A gateway may represent a bodyless POST as a zero-byte stream.
+// Reject every actual byte, ambiguous length, stalled or unreadable stream.
+// Never buffer arbitrary input or wait indefinitely for a body.
+async function hasEmptyBody(request){
+ const length=request.headers.get('Content-Length')
+ if(length!==null&&length!=='0')return false
+ if(request.bodyUsed)return false
+ if(request.body===null)return true
+ let reader,timer,complete=false
+ try{
+  reader=request.body.getReader()
+  const deadline=new Promise(resolve=>{timer=setTimeout(()=>resolve(null),1000)})
+  for(let i=0;i<8;i++){
+   const chunk=await Promise.race([reader.read(),deadline])
+   if(chunk===null)return false
+   if(chunk.done){complete=true;return true}
+   if(!(chunk.value instanceof Uint8Array)||chunk.value.byteLength!==0)return false
+  }
+  return false
+ }catch{return false}
+ finally{
+  clearTimeout(timer)
+  if(reader){
+   if(!complete){try{void reader.cancel().catch(()=>{})}catch{}}
+   try{reader.releaseLock()}catch{}
+  }
+ }
+}
 export function createAdminLivePilotHandler({env,verify,readAccount,readProfile,commitPair,now=()=>Math.floor(Date.now()/1000)}){
  return async request=>{
   if(!paths.has(new URL(request.url).pathname))return reply(404,{error:'NOT_FOUND'})
@@ -15,7 +43,7 @@ export function createAdminLivePilotHandler({env,verify,readAccount,readProfile,
   if(request.method!=='POST')return reply(405,{error:'METHOD_NOT_ALLOWED'},origin)
   if(env('QC_NATIVE_ADMIN_LIVE_PILOT_ENABLED')!=='true')return reply(503,{error:'ADMIN_PILOT_DISABLED'},origin)
   // The pilot takes no command, target, body or parameters.
-  if(request.body!==null||new URL(request.url).search)return reply(400,{error:'INVALID_REQUEST'},origin)
+  if(new URL(request.url).search||!await hasEmptyBody(request))return reply(400,{error:'INVALID_REQUEST'},origin)
   const header=request.headers.get('Authorization')||''
   if(header.length>8192||!/^Bearer [A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(header))return reply(401,{error:'UNAUTHORIZED'},origin)
   let actor
