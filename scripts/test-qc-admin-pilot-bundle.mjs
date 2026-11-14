@@ -54,8 +54,8 @@ globalThis.fetch=async(input,opts={})=>{
  throw Error('UNEXPECTED_MOCK_URL')
 }
 let currentToken=token()
-async function request(code,body,t=currentToken,o=origin){
- const r=await handler(new Request(endpoint,{method:'POST',headers:{Origin:o,Authorization:'Bearer '+t}}))
+async function request(code,body,t=currentToken,o=origin,requestBody){
+ const r=await handler(new Request(endpoint,{method:'POST',headers:{Origin:o,Authorization:'Bearer '+t},...(requestBody===undefined?{}:{body:requestBody,duplex:'half'})}))
  assert.equal(r.status,code)
  assert.deepEqual(await r.json(),body)
 }
@@ -73,11 +73,18 @@ await request(403,{error:'FORBIDDEN'},currentToken,'https://invalid.example')
 await request(401,{error:'UNAUTHORIZED'},'invalid')
 assert.equal(calls.length,0)
 console.log('PASS: origin and malformed token blocked before network')
+const emptyStream=()=>new ReadableStream({start(c){c.close()}})
+await request(401,{error:'UNAUTHORIZED'},'invalid',origin,emptyStream())
+await request(400,{error:'INVALID_REQUEST'},currentToken,origin,' ')
+await request(400,{error:'INVALID_REQUEST'},currentToken,origin,new Uint8Array([0]))
+assert.equal(calls.length,0)
+assert.equal(commits,0)
+console.log('PASS: bundled zero-byte stream authenticates; nonempty bodies denied without upstream calls')
 await request(401,{error:'UNAUTHORIZED'},token({aud:'wrong-project'}))
 assert.equal(commits,0)
 console.log('PASS: real signed JWT with wrong audience denied')
 role='pengunjung'
-await request(403,{error:'OWNER_REQUIRED'})
+await request(403,{error:'OWNER_REQUIRED'},currentToken,origin,emptyStream())
 assert.equal(commits,0)
 console.log('PASS: real signed non-Owner rejected')
 role='owner'
@@ -85,7 +92,7 @@ await request(401,{error:'RECENT_AUTH_REQUIRED'},token({auth_time:Math.floor(Dat
 assert.equal(commits,0)
 console.log('PASS: stale signed Owner denied')
 currentToken=token()
-await request(200,{ok:true,testOnly:true,documentsCreated:2})
+await request(200,{ok:true,testOnly:true,documentsCreated:2},currentToken,origin,emptyStream())
 assert.equal(commits,1)
 console.log('PASS: real signed Owner yields only exact mocked synthetic pair')
-console.log('SUCCESS: 7 bundled entrypoint checks passed (mock fetch only; no live writes)')
+console.log('SUCCESS: 8 bundled entrypoint checks passed (mock fetch only; no live writes)')
