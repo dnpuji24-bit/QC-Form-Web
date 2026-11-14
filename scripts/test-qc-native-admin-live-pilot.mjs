@@ -14,7 +14,7 @@ function fixture(overrides={}){
   commitPair:async args=>{calls.commit++;assert.deepEqual(args,{uid:actor.sub,token:'a.b.c'});return overrides.result??'committed'},
   now:()=>1000
  })
- return {calls,run:(opts={})=>handler(new Request(opts.url||url,{method:opts.method||'POST',headers:{Origin:opts.origin??origin,Authorization:opts.auth??'Bearer a.b.c'},...(opts.body===undefined?{}:{body:opts.body})}))}
+ return {calls,run:(opts={})=>handler(new Request(opts.url||url,{method:opts.method||'POST',headers:{Origin:opts.origin??origin,Authorization:opts.auth??'Bearer a.b.c',...opts.headers},...(opts.body===undefined?{}:{body:opts.body,duplex:'half'})}))}
 }
 let n=0
 async function check(label,fn){await fn();console.log('PASS: '+label);n++}
@@ -25,6 +25,29 @@ await check('invalid HTTPS origin config fails closed',async()=>{for(const v of 
 await check('wrong origin and unknown route denied',async()=>{const f=fixture();await status(f,403,{origin:'https://other.test'});await status(f,404,{url:url+'/write'});assert.deepEqual(f.calls,zero)})
 await check('preflight CORS allows authorization only; GET denied',async()=>{const f=fixture();const r=await status(f,204,{method:'OPTIONS'});assert.equal(r.headers.get('Access-Control-Allow-Origin'),origin);await status(f,405,{method:'GET'});assert.deepEqual(f.calls,zero)})
 await check('administrative command and query cannot reach backend',async()=>{const f=fixture();await status(f,400,{body:'{"action":"activate"}'});await status(f,400,{url:url+'?uid=other'});assert.deepEqual(f.calls,zero)})
+const stream=(chunks=[])=>new ReadableStream({start(c){for(const x of chunks)c.enqueue(x);c.close()}})
+await check('zero-byte gateway body reaches authentication, never bypasses it',async()=>{
+ for(const body of ['',stream(),stream([new Uint8Array(0)])]){
+  const f=fixture();assert.deepEqual(await (await status(f,401,{body,auth:'Bearer invalid',headers:{'Content-Length':'0'}})).json(),{error:'UNAUTHORIZED'});assert.deepEqual(f.calls,zero)
+ }
+ const f=fixture();await status(f,200,{body:stream()});assert.deepEqual(f.calls,{verify:1,account:1,profile:1,commit:1})
+ const denied=fixture({profile:{role:'manager'}});await status(denied,403,{body:stream()});assert.equal(denied.calls.commit,0)
+})
+await check('every nonempty body and ambiguous declared length rejected before verification',async()=>{
+ const f=fixture()
+ for(const body of [' ','{}',new Uint8Array([0]),stream([new Uint8Array(0),new Uint8Array([1])])])await status(f,400,{body,headers:{'Content-Length':'0'}})
+ for(const length of ['1','00','0, 0'])await status(f,400,{headers:{'Content-Length':length}})
+ assert.deepEqual(f.calls,zero)
+})
+await check('stalled, errored and excessive empty chunks fail closed',async()=>{
+ const f=fixture()
+ let cancelled=false
+ await status(f,400,{body:new ReadableStream({cancel(){cancelled=true}})})
+ assert.equal(cancelled,true)
+ await status(f,400,{body:new ReadableStream({start(c){c.error(Error('test stream failure'))}})})
+ await status(f,400,{body:stream(Array.from({length:8},()=>new Uint8Array(0)))})
+ assert.deepEqual(f.calls,zero)
+})
 await check('missing and malformed token denied before verification',async()=>{const f=fixture();for(const auth of ['','Bearer invalid','Bearer x.y.z extra'])await status(f,401,{auth});assert.deepEqual(f.calls,zero)})
 await check('invalid signature stops before Google REST',async()=>{const f=fixture({badToken:true});await status(f,401);assert.deepEqual(f.calls,{verify:1,account:0,profile:0,commit:0})})
 await check('invalid UID, email and auth_time rejected',async()=>{for(const a of [{sub:'../other'},{email:''},{auth_time:2000},{auth_time:0}]){const f=fixture({actor:a});await status(f,401);assert.equal(f.calls.account,0)}})
