@@ -23,6 +23,16 @@ done
 )
 cmp "$bundle/quarantine.mjs" scripts/release-artifacts/qc-native-admin-live-pilot/quarantine.mjs
 echo 'PASS: rollback bundle equals reviewed GitHub artifact'
+node --input-type=module - "$bundle/quarantine.mjs" "$bundle/candidate.mjs" <<'NODE'
+import assert from 'node:assert/strict'
+import {readFileSync} from 'node:fs'
+const q=readFileSync(process.argv[2],'utf8'),c=readFileSync(process.argv[3],'utf8')
+const old='var env = (name) => name === "QC_NATIVE_ADMIN_LIVE_PILOT_ENABLED" ? "false" : Deno.env.get(name);'
+assert.equal(q.split(old).length,2)
+assert.equal(q.split('// index.disabled.ts').length,2)
+assert.equal(q.replace('// index.disabled.ts','// index.ts').replace(old,'var env = (name) => Deno.env.get(name);'),c)
+console.log('PASS: exact candidate reconstructed from quarantine with only source label and env gate changed')
+NODE
 source_commit=$(cat "$bundle/source-commit.txt")
 [[ "$source_commit" =~ ^[0-9a-f]{40}$ ]] || { echo INVALID_SOURCE_COMMIT; exit 2; }
 git merge-base --is-ancestor "$source_commit" HEAD
