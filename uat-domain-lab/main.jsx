@@ -1,7 +1,7 @@
 import React,{useRef,useState} from 'react'
 import {createRoot} from 'react-dom/client'
 import {assertBrowserLab,createLabClient,identities} from './client.mjs'
-import './style.css'
+
 assertBrowserLab(window.location)
 if(!import.meta.env.DEV)throw Error('LAB_DEV_ONLY')
 const sections=[
