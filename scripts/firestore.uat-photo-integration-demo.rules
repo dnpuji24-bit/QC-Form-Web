@@ -8,21 +8,23 @@ service cloud.firestore {
     function actor() {
       return request.auth != null && sid(request.auth.uid)
         && request.auth.token.get('qcUat', false) == true
-        && exists(markerPath())
-        && get(markerPath()).data.enabled == true
-        && get(markerPath()).data.testOnly == true
-        && get(markerPath()).data.workspace == 'cutover'
-        && get(markerPath()).data.role in ['owner','asisten','manager','admin','mandor_spraying','mandor_fertilizer','pengunjung']
-        && get(markerPath()).data.permissions is map
+        && markerValid(get(markerPath()).data)
         && !exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
+    function markerValid(m) {
+      return m.enabled == true && m.testOnly == true && m.workspace == 'cutover'
+        && m.role in ['owner','asisten','manager','admin','mandor_spraying','mandor_fertilizer','pengunjung']
+        && m.permissions is map;
+    }
+    // These helpers are used only after actor() has succeeded, or via actorForm().
     function permission(key) { return get(markerPath()).data.permissions.get(key,'none'); }
-    function viewKey(key) { return actor() && permission(key) in ['view','edit']; }
+    function viewKey(key) { return permission(key) in ['view','edit']; }
     function formKey(f) { return f == 'spray' ? 'qc_spraying' : 'qc_fertilizer'; }
     function formView(f) { return f in ['spray','fertilizer'] && viewKey(formKey(f)); }
-    function actorForm(f) { return actor() && f in ['spray','fertilizer'] && permission(formKey(f)) == 'edit'; }
-    function supervisor() { return actor() && get(markerPath()).data.role in ['owner','asisten','manager','admin','pengunjung']; }
-    function ownForm(uid,f) { return uid == request.auth.uid && actorForm(f); }
+    function editForm(f) { return f in ['spray','fertilizer'] && permission(formKey(f)) == 'edit'; }
+    function actorForm(f) { return actor() && editForm(f); }
+    function supervisor() { return get(markerPath()).data.role in ['owner','asisten','manager','admin','pengunjung']; }
+    function ownForm(uid,f) { return uid == request.auth.uid && editForm(f); }
     function qcRead(q) { return q.testOnly == true && (ownForm(q.ownerUid,q.formType) || (viewKey('qc_records') && (q.ownerUid == request.auth.uid || supervisor()))); }
     function actualRead(a) { return a.testOnly == true && (ownForm(a.ownerUid,a.qcFormType) || (viewKey('data_plan_actual') && (a.ownerUid == request.auth.uid || supervisor()))); }
     function auditRead(a) { return a.testOnly == true && (ownForm(a.actorUid,a.formType) || (viewKey('qc_logs') && (a.actorUid == request.auth.uid || supervisor()))); }
@@ -62,22 +64,24 @@ service cloud.firestore {
         && q.shift in ['1','2'] && area(q.actualArea100) && area(q.plannedDailyArea100)
         && (q.dailyPlanId == '' ? q.monthlyPlanLineId == '' && q.plannedDailyArea100 == 0 : dpMatches(q));
     }
+    // Full map equality preserves exact fields, values and absence of extra keys.
     function actualMatches(a,q) {
-      return exact(a,['testOnly','actualReportId','qcRecordId','sourceOrigin','qcFormType','qcSessionId','clientRevision','dailyPlanId','monthlyPlanLineId','pid','date','shift','foreman','actualArea100','plannedDailyArea100','dailyVariance100','ownerUid'])
-        && a.testOnly == true && a.actualReportId == 'qcactual_' + q.id
-        && a.qcRecordId == q.id && a.sourceOrigin == 'QC' && a.qcFormType == q.formType
-        && a.qcSessionId == q.sessionId && a.clientRevision == q.clientRevision
-        && a.dailyPlanId == q.dailyPlanId && a.monthlyPlanLineId == q.monthlyPlanLineId
-        && a.pid == q.pid && a.date == q.date && a.shift == q.shift && a.foreman == q.foreman
-        && a.actualArea100 == q.actualArea100 && a.plannedDailyArea100 == q.plannedDailyArea100
-        && a.dailyVariance100 == q.plannedDailyArea100 - q.actualArea100
-        && a.ownerUid == q.ownerUid;
+      return a == {
+        'testOnly': true, 'actualReportId': 'qcactual_' + q.id,
+        'qcRecordId': q.id, 'sourceOrigin': 'QC', 'qcFormType': q.formType,
+        'qcSessionId': q.sessionId, 'clientRevision': q.clientRevision,
+        'dailyPlanId': q.dailyPlanId, 'monthlyPlanLineId': q.monthlyPlanLineId,
+        'pid': q.pid, 'date': q.date, 'shift': q.shift, 'foreman': q.foreman,
+        'actualArea100': q.actualArea100, 'plannedDailyArea100': q.plannedDailyArea100,
+        'dailyVariance100': q.plannedDailyArea100 - q.actualArea100, 'ownerUid': q.ownerUid
+      };
     }
     function auditMatches(a,q) {
-      return exact(a,['testOnly','recordId','revision','actorUid','username','formType','saveType'])
-        && a.testOnly == true && a.recordId == q.id && a.revision == q.clientRevision
-        && a.actorUid == request.auth.uid && a.actorUid == q.ownerUid
-        && a.username == q.inputtedBy && a.formType == q.formType && a.saveType == q.saveType;
+      return q.ownerUid == request.auth.uid && a == {
+        'testOnly': true, 'recordId': q.id, 'revision': q.clientRevision,
+        'actorUid': request.auth.uid, 'username': q.inputtedBy,
+        'formType': q.formType, 'saveType': q.saveType
+      };
     }
     function newAudit(q) {
       let p = uPath(q.id,q.clientRevision);
@@ -106,9 +110,9 @@ service cloud.firestore {
       return q.operationalPhotoManifest is map
         && q.operationalPhotoManifest.keys().hasOnly(['main','scan','hold_uat-h1'])
         && q.operationalQueueKey is string && q.operationalQueueKey.size() <= 500
-        && r.testOnly == true && r.recordId == q.id && r.ownerUid == q.ownerUid
-        && r.revision == q.clientRevision && r.jobId == j
-        && r.queueKey == q.operationalQueueKey && r.manifest == q.operationalPhotoManifest;
+        && r == {'testOnly': true, 'recordId': q.id, 'ownerUid': q.ownerUid,
+          'revision': q.clientRevision, 'jobId': j, 'queueKey': q.operationalQueueKey,
+          'manifest': q.operationalPhotoManifest};
     }
     function qcWrite(id,q) {
       return qcValid(id,q) && receiptMatches(q) && newAudit(q) && pairedActual(q);
@@ -120,7 +124,7 @@ service cloud.firestore {
     }
     match /qc_uat_workspaces/cutover/qc_records/{id} {
       allow get: if actor() && sid(id)
-        && (resource == null ? (actorForm('spray') || actorForm('fertilizer') || viewKey('qc_records')) : qcRead(resource.data));
+        && (resource == null ? (editForm('spray') || editForm('fertilizer') || viewKey('qc_records')) : qcRead(resource.data));
       allow create: if qcWrite(id,request.resource.data) && !exists(aPath(id));
       allow update: if qcWrite(id,request.resource.data)
         && resource.data.testOnly == true && resource.data.ownerUid == request.auth.uid
@@ -134,14 +138,16 @@ service cloud.firestore {
     }
     match /qc_uat_workspaces/cutover/daily_reports/{id} {
       allow get: if actor() && id.matches('^qcactual_uat-[a-z0-9-]{1,60}$')
-        && (resource == null ? (actorForm('spray') || actorForm('fertilizer') || viewKey('data_plan_actual')) : actualRead(resource.data));
+        && (resource == null ? (editForm('spray') || editForm('fertilizer') || viewKey('data_plan_actual')) : actualRead(resource.data));
       function actualWrite() {
         let a = request.resource.data;
         let q = getAfter(qPath(a.qcRecordId)).data;
         return id == 'qcactual_' + a.qcRecordId && sid(a.qcRecordId)
           && q.ownerUid == request.auth.uid && actorForm(q.formType)
-          && eligible(q) && changedQc(q) && actualMatches(a,q)
-          && newAudit(q);
+          && eligible(q) && changedQc(q) && actualMatches(a,q);
+        // changedQc requires a QC create/update in this atomic request.
+        // Its qcWrite independently requires the new matching audit AND receipt.
+        // Re-evaluating newAudit here is redundant and increases expression cost.
       }
       allow create: if actualWrite();
       allow update: if actualWrite() && resource.data.testOnly == true
@@ -151,12 +157,12 @@ service cloud.firestore {
     }
     match /qc_uat_workspaces/cutover/qc_operational_audit/{id} {
       allow get: if actor() && id.matches('^uat-[a-z0-9-]{1,60}:uat-[a-z0-9-]{1,60}$')
-        && (resource == null ? (actorForm('spray') || actorForm('fertilizer') || viewKey('qc_logs')) : auditRead(resource.data));
+        && (resource == null ? (editForm('spray') || editForm('fertilizer') || viewKey('qc_logs')) : auditRead(resource.data));
       allow create: if actor() && auditCreate(id,request.resource.data);
       function auditCreate(id,a) {
         let q = getAfter(qPath(a.recordId)).data;
         return sid(a.recordId) && sid(a.revision) && id == a.recordId + ':' + a.revision
-          && actorForm(q.formType) && changedQc(q) && auditMatches(a,q);
+          && editForm(q.formType) && changedQc(q) && auditMatches(a,q);
       }
       allow list, update, delete: if false;
     }
