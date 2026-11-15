@@ -10,3 +10,5 @@ Offline: node scripts/test-qc-uat-role-permissions.mjs && node scripts/test-qc-u
 Emulator: firebase emulators:exec --only firestore --project demo-qc-uat-roles --config firebase.uat-role-emulator.json 'env -u GOOGLE_CLOUD_PROJECT -u FIREBASE_PROJECT_ID GCLOUD_PROJECT=demo-qc-uat-roles FIRESTORE_EMULATOR_HOST=127.0.0.1:8385 node scripts/test-qc-uat-role-emulator.mjs --emulator'
 
 27 pure role mapping checks passed before commit. Planned 30 emulator scenarios; Rules compile and SDK tests still pending. Next real Auth marker provisioning, stale claim/token tests, concurrent revision tests and full operational permission policy review before expanding or integrating. Keep hosted UAT OFF.
+
+Operator verification at `fcc17ab`: 30/30 role Firestore SDK and Rules checks passed, exit 0. Owner manually manages user permissions; role defaults initialize only, explicit manual settings persist and take precedence. No production grants changed. See [Owner-managed permissions and real Auth candidate](qc-uat-role-auth-emulator.md).

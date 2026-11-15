@@ -1,0 +1,19 @@
+{
+  "firestore": {
+    "rules": "scripts/firestore.uat-role-demo.rules"
+  },
+  "emulators": {
+    "firestore": {
+      "host": "127.0.0.1",
+      "port": 8485
+    },
+    "auth": {
+      "host": "127.0.0.1",
+      "port": 9299
+    },
+    "ui": {
+      "enabled": false
+    },
+    "singleProjectMode": true
+  }
+}
