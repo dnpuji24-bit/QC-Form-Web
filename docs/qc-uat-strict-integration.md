@@ -12,3 +12,5 @@ node scripts/test-qc-uat-strict-integration.mjs --self-test
 
 Emulator:
 firebase emulators:exec --only firestore,auth --project demo-qc-uat-strict-integration --config firebase.uat-strict-integration-emulator.json 'env -u GOOGLE_CLOUD_PROJECT -u FIREBASE_PROJECT_ID GCLOUD_PROJECT=demo-qc-uat-strict-integration FIRESTORE_EMULATOR_HOST=127.0.0.1:8685 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9499 node scripts/test-qc-uat-strict-integration.mjs --emulator'
+
+Operator verification after `9628e56`: 23/23 strict payload, 13/13 replay and 32/32 trusted fingerprint integration checks passed, safety guards passed, exit 0. See [actual UAT storage smoke gate](qc-uat-real-storage-smoke.md). No production readiness implied.
