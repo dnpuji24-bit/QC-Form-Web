@@ -1,4 +1,4 @@
-name: Firebase Hosting Preview
+name: Firebase Hosting Preview (isolation preflight only)
 
 on:
   workflow_dispatch:
@@ -10,48 +10,17 @@ concurrency:
   group: qc-hosting-uat
 
 jobs:
-  preview:
+  isolation-preflight:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: qc-uat
-    env:
-      VITE_QC_HOSTED_UAT: 'true'
-      VITE_QC_NATIVE_PORTAL: 'true'
-      VITE_FIRESTORE_ENABLED: 'true'
-      VITE_QC_FIRESTORE_ONLY: 'true'
-      VITE_QC_MASTER_FIRESTORE: 'true'
-      VITE_QC_OPERATIONAL_SAVE: 'true'
-      VITE_QC_NATIVE_REGISTRATION: 'true'
-      VITE_QC_PHOTO_SIGN_PREVIEW: 'true'
-      VITE_FIREBASE_API_KEY: ${{ vars.QC_UAT_FIREBASE_API_KEY }}
-      VITE_FIREBASE_APP_ID: ${{ vars.QC_UAT_FIREBASE_APP_ID }}
-      VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars.QC_UAT_RECAPTCHA_ENTERPRISE_SITE_KEY }}
-
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-python@v5
         with:
-          node-version: '22'
-      - run: npm install --no-audit --no-fund
-      - run: python tests/offline_session_persistence_check.py
-      - name: Build isolated QC portal
+          python-version: '3.12'
+      - name: Read-only source inventory
+        run: python scripts/audit-qc-uat-isolation.py
+      - name: Report deployment hold
         run: |
-          npm run build
-          test -f public/react/index.html
-          test -f public/react/sw.js
-          mkdir -p staging-preview/public
-          cp -R public/react staging-preview/public/
-          node -e "const fs = require('node:fs'); const {hosting} = require('./firebase.json'); fs.writeFileSync('staging-preview/firebase.json', JSON.stringify({hosting}));"
-      - name: Deploy Hosting preview in staging
-        id: preview
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          firebaseServiceAccount: ${{ secrets.QC_UAT_FIREBASE_HOSTING_SERVICE_ACCOUNT }}
-          projectId: daily-plan-and-report-unm
-          channelId: qc-cutover
-          entryPoint: staging-preview
-          expires: 7d
-      - name: Show preview URL
-        env:
-          PREVIEW_URL: ${{ steps.preview.outputs.details_url }}
-        run: printf 'QC UAT preview: %s/react/\n' "${PREVIEW_URL%/}" >> "$GITHUB_STEP_SUMMARY"
+          echo 'Hosted UAT deployment is blocked until Form QC UnM namespace isolation is verified.'
+          echo 'No Firebase credentials, build, deployment or live writes were requested.'

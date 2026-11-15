@@ -14,8 +14,9 @@ for token in [
 ]:
     assert token in firebase, f'Missing App Check token: {token}'
 
-assert "VITE_RECAPTCHA_ENTERPRISE_SITE_KEY" in preview
+assert "scripts/audit-qc-uat-isolation.py" in preview
+assert "action-hosting-deploy" not in preview
 assert "VITE_RECAPTCHA_ENTERPRISE_SITE_KEY" in ci
 assert "VITE_RECAPTCHA_ENTERPRISE_SITE_KEY=" in env
 
-print('Firebase App Check regression check passed: reCAPTCHA Enterprise initialization and build-time site key wiring are present.')
+print('Firebase App Check regression check passed: reCAPTCHA Enterprise initialization and production CI site key wiring are present; hosted UAT is held.')

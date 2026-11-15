@@ -7,6 +7,8 @@ import { qcLocalUat } from './qcLocalUat'
 // Firebase web config is intentionally client-visible. Access control is enforced
 // by Firebase Authentication + Firestore Security Rules, never by hiding this config.
 const hostedUat = import.meta.env.VITE_QC_HOSTED_UAT === 'true'
+// Runtime defense in depth; fail before initializing any Firebase app.
+if (hostedUat) throw new Error('QC_HOSTED_UAT_ISOLATION_REQUIRED')
 const demoProject = 'demo-qc-photo-test'
 const firebaseConfig = qcLocalUat ? {
   apiKey: 'demo-key',

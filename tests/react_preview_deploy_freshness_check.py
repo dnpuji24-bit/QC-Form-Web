@@ -6,7 +6,9 @@ sw=(root/'public'/'react'/'sw.js').read_text(encoding='utf-8')
 firebase=(root/'firebase.json').read_text(encoding='utf-8')
 main=(root/'src'/'main.tsx').read_text(encoding='utf-8')
 
-assert "branches:\n      - migrate/react-typescript-vite" in workflow
+assert "workflow_dispatch:" in workflow
+assert "scripts/audit-qc-uat-isolation.py" in workflow
+assert "action-hosting-deploy" not in workflow
 assert "\n    paths:" not in workflow
 assert "qc-react-v3" in sw
 assert "fetch(request, { cache: 'no-store' })" in sw

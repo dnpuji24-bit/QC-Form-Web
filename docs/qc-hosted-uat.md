@@ -1,92 +1,22 @@
-# UAT browser cutover QC
+# Hosted QC UAT — migration hold
 
-Target pengujian adalah Firebase `daily-plan-and-report-unm`, database Firestore
-`dailyplan`, dan Supabase `tcmtqgbpafwciaflgsaa` dengan bucket privat `qc-photos-uat`.
-Gunakan akun dan data sintetis yang ada di staging. Jalur produksi tetap memakai
-konfigurasi sebelumnya.
+Target selected by operator: Firebase `form-qc-unm`, default Firestore, new Hosting preview channel `qc-cutover`. Keep Supabase UAT `tcmtqgbpafwciaflgsaa` / private `qc-photos-uat` separate from production. Cloud Shell inventory confirms only default database, Jakarta region, billing disabled. No second database or billing activation.
 
-## Siapkan staging sekali
+**Do not run the previous Daily Plan hosted UAT deployment commands.** They are retained in Git history only. The feature-branch manual preview workflow is now source-inventory only; Vite and Firebase runtime reject hosted UAT until isolation is implemented. Existing deployments and other branches are unchanged. Local emulator UAT remains available.
 
-- Di Firebase staging, siapkan Hosting, Web App, dua akun Email/Password
-  terverifikasi beserta profil aktif di `users/{uid}` dengan email dan UID yang
-  cocok. Gunakan Owner pengujian untuk Spraying, Data QC dan Actual. Beri akun
-  kedua role `pengunjung` dengan template `role_access/pengunjung` tanpa izin
-  Data QC. Siapkan satu Daily Plan, paddock, unit dan master yang sesuai dengan
-  Spraying di `dailyplan`. Pakai label unik, misalnya `UAT-CUTOVER-01`.
-- Pastikan database staging memakai rules dan indeks calon rilis. Jika perlu,
-  jalankan blok berikut dari root repo. Ini mengubah database staging bernama
-  `dailyplan`.
+## Read-only checkpoint
 
 ```bash
-(
-  set -euo pipefail
-  qc_config=$(mktemp -p . .firebase-uat.XXXXXX.json)
-  trap 'rm -f -- "$qc_config"' EXIT
-  printf '%s\n' '{"firestore":[{"database":"dailyplan","rules":"firestore.rules","indexes":"firestore.indexes.json"}]}' >"$qc_config"
-  npx --yes firebase-tools deploy --project daily-plan-and-report-unm \
-    --config "$qc_config" --only firestore:rules,firestore:indexes
-)
+python scripts/audit-qc-uat-isolation.py
 ```
 
-- Buat environment GitHub Actions `qc-uat`. Isi variable
-  `QC_UAT_FIREBASE_API_KEY` dan `QC_UAT_FIREBASE_APP_ID` dari Web App staging.
-  Isi `QC_UAT_RECAPTCHA_ENTERPRISE_SITE_KEY` jika memakai App Check di browser.
-  Isi secret `QC_UAT_FIREBASE_HOSTING_SERVICE_ACCOUNT` dengan kredensial akun
-  yang diberi akses Firebase Hosting di staging. Jalankan **Firebase Hosting
-  Preview** secara manual pada branch fitur dan ambil URL dari ringkasan job.
-  Workflow hanya mengirim direktori React ke channel `qc-cutover`.
-- Runtime kedua Edge Functions memakai akun staging yang sudah ada,
-  `qc-signer-uat@daily-plan-and-report-unm.iam.gserviceaccount.com`. Akun ini
-  perlu `roles/firebaseauth.viewer`, `roles/datastore.viewer`, dan
-  `roles/serviceusage.serviceUsageConsumer` pada staging. Masukkan kredensial
-  JSON akun tersebut melalui Supabase Edge Function Secrets di proyek UAT
-  dengan nama `GOOGLE_SERVICE_ACCOUNT_JSON`. Simpan kredensial di server.
-  Atur `QC_OPERATIONAL_PHOTO_ALLOWED_ORIGIN` ke origin preview persis tanpa
-  `/react/` atau trailing slash, lalu `QC_OPERATIONAL_PHOTO_ENABLED=true`.
-  Tambahkan domain preview ke konfigurasi staging jika pembatasan Auth, API key,
-  atau App Check mengharuskannya.
-- Skrip smoke membaca QC dan Actual dari Firestore REST memakai ID token staging.
-  Jika staging menerapkan App Check untuk Firestore, jalankan verifikasi
-  QC/Actual melalui sesi browser yang punya App Check atau atur lingkungan UAT
-  yang mendukung panggilan REST tersebut. Pertahankan pengaturan produksi.
+## Required before enabling hosted UAT
 
-Dari root checkout GitHub, login ke Supabase CLI lalu jalankan:
+- Design a fixed synthetic workspace path (candidate: `qc_uat_workspaces/{workspaceId}/...`) and explicit allowlisted test identities; no production user profiles or role grants for UAT identities. Same-project Auth is shared; account creation and profile/registration paths must be audited independently.
+- Route every SDK path, transaction, listener, query, role/profile, registration, audit and REST path through reviewed isolation, including any admin backend and legacy fallback. Do not merely change the Firebase project ID. Reject unknown paths and prevent production identities from writing test namespace and UAT identities from reading/writing production collections. Keep old clients compatible.
+- Review rules, indexes and collection-group behavior. Test cross-boundary allow/deny in emulators before any candidate rules deployment; retain exact live baseline and rollback.
+- Reconfigure UAT photo endpoints to authenticate the new project, only accept explicit UAT identities and synthetic namespace/paths, and use only the private UAT bucket. Disable old origin/target before any retargeted endpoint becomes available. Review server credentials and least privilege separately; no new IAM or secrets in this checkpoint.
+- Verify browser build and network deny tests for Apps Script, old Firebase project, production photo endpoints and unscoped Firestore. Only then consider a separate hosting-only release to `qc-cutover`; never replace `live` or `react-test`.
+- Keep production and spreadsheet writes, billing, and admin pilot untouched until separate approved gates.
 
-```bash
-(
-  set -euo pipefail
-  qc_uat_ref=tcmtqgbpafwciaflgsaa
-  supabase functions deploy qc-photo-upload-uat --project-ref "$qc_uat_ref" --no-verify-jwt
-  supabase functions deploy qc-photo-sign-uat --project-ref "$qc_uat_ref" --no-verify-jwt
-  supabase functions list --project-ref "$qc_uat_ref"
-)
-```
-
-Gateway Supabase melewatkan token Firebase ke handler. Handler memverifikasi
-tanda tangan, issuer, audience, status akun dan izin sebelum mengakses bucket.
-
-## Jalankan satu uji browser
-
-Di desktop yang memiliki Node.js dan browser grafis, buka terminal pada checkout
-repo. Perintah ini menginstal Playwright secara lokal tanpa mengubah lockfile.
-Gunakan URL preview yang ditampilkan GitHub, akhiri dengan `/react/`.
-
-```bash
-npm install --no-save --package-lock=false playwright
-npx playwright install chromium
-node scripts/test-qc-hosted-uat.mjs 'URL-PREVIEW-DARI-GITHUB/react/'
-```
-
-Ikuti petunjuk terminal. Login akun berizin, pilih Daily Plan sintetis dan satu
-foto utama, isi Actual 1 Ha, klik **Simpan Semua Unit**, lalu **Upload** pada Data QC.
-Tekan Enter ketika row sudah Uploaded. Setelah skrip memuat ulang, buka
-**Laporan**. Masuk sebagai akun tanpa izin pada browser kedua yang dibuka skrip.
-Skrip memeriksa bucket respons, status dan relasi dokumen QC/Actual, unduhan
-foto baru setelah reload, gambar yang berhasil didekode di Laporan, dan
-penolakan 403 untuk akun kedua. Permintaan Apps Script atau produksi yang
-terdeteksi membuat tes gagal.
-
-Simpan keluaran PASS. Gunakan record dan objek sintetis untuk pembersihan di
-staging setelah bukti dicatat. UAT ini menutup alur foto/QC. Sebelum rilis live,
-endpoint foto dan admin operasional tetap perlu tersedia pada target live,
-dan antrean lama harus diselesaikan sebelum writer Apps Script ditutup.
+The source inventory is heuristic, not proof of complete isolation. The previous hosted UAT procedure can be inspected at commit 96bc736; it is not an active runbook.
