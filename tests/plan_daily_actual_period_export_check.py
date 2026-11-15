@@ -1,13 +1,13 @@
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 exporter=(root/'src'/'planPeriodExcelExport.ts').read_text(encoding='utf-8')
-dialog=(root/'src'/'PlanPeriodExcelExport.tsx').read_text(encoding='utf-8')
+dialog=(root/'src'/'PlanPeriodExcelExportPanel.tsx').read_text(encoding='utf-8')
 daily=(root/'src'/'DailyPlanWorkspace.tsx').read_text(encoding='utf-8')
 actual=(root/'src'/'ActualPlanWorkspace.tsx').read_text(encoding='utf-8')
 css=(root/'src'/'field-ui.css').read_text(encoding='utf-8')
 for label,content in [('Daily Plan',daily),('Actual Plan',actual)]:
     kind='daily' if label.startswith('Daily') else 'actual'
-    assert "import PlanPeriodExcelExport from './PlanPeriodExcelExport'" in content
+    assert "import PlanPeriodExcelExport from './PlanPeriodExcelExportPanel'" in content
     assert f'<PlanPeriodExcelExport kind="{kind}" />' in content
     assert content.index(f'<PlanPeriodExcelExport kind="{kind}" />') < content.index("{view==='plan'?<div className="), f'{label} export must appear in both Plan and Import tabs'
     assert 'canPlan||canImport' in content, 'View-only users need export access'

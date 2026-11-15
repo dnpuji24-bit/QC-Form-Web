@@ -5,7 +5,7 @@ import DailyPlanWebEntryPanel from './DailyPlanWebEntryPanel'
 import type { DailyComposerRequest } from './dailyPlanWorkspaceTypes'
 import type { User } from './types'
 import { canEditAccess, canViewAccess } from './accessControl'
-import PlanPeriodExcelExport from './PlanPeriodExcelExport'
+import PlanPeriodExcelExport from './PlanPeriodExcelExportPanel'
 
 type Props={user:User;onCopyToActual?:(dailyPlanIds:string[])=>void;jumpRequest?:{date:string;monthlyPlanLineId:string;pid:string}|null}
 type View='plan'|'import'

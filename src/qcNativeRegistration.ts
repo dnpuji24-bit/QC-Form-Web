@@ -1,8 +1,9 @@
-import {createUserWithEmailAndPassword,sendEmailVerification,signInWithEmailAndPassword,signOut,initializeAuth,inMemoryPersistence} from 'firebase/auth'
+import {connectAuthEmulator,createUserWithEmailAndPassword,sendEmailVerification,signInWithEmailAndPassword,signOut,initializeAuth,inMemoryPersistence} from 'firebase/auth'
 import {initializeApp,deleteApp} from 'firebase/app'
-import {doc,collection,getDocsFromServer,getDocFromServer,getFirestore,terminate,runTransaction,serverTimestamp,setDoc} from 'firebase/firestore'
+import {connectFirestoreEmulator,doc,collection,getDocsFromServer,getDocFromServer,getFirestore,terminate,runTransaction,serverTimestamp,setDoc} from 'firebase/firestore'
 import {firebaseAuth,firestoreDb} from './firebase'
 import {readApprovedFirebaseSession} from './qcFirebaseSession'
+import {qcLocalUat} from './qcLocalUat'
 export const nativeRegistrationRoles=['manager','admin','asisten','mandor_spraying','mandor_fertilizer','pengunjung'] as const
 export type NativeRegistrationRole=typeof nativeRegistrationRoles[number]
 export type NativeRegistrationRequest={uid:string;username:string;fullName:string;email:string;requestedRole:NativeRegistrationRole;status:string}
@@ -15,6 +16,10 @@ export async function submitNativeRegistration(input:{username:string;fullName:s
   const app=initializeApp(firebaseAuth.app.options,'qc-registration-'+crypto.randomUUID())
   const auth=initializeAuth(app,{persistence:inMemoryPersistence}),db=getFirestore(app)
   try{
+    if(qcLocalUat){
+      connectAuthEmulator(auth,'http://127.0.0.1:9099')
+      connectFirestoreEmulator(db,'127.0.0.1',8085)
+    }
     const {user}=await (resume?signInWithEmailAndPassword:createUserWithEmailAndPassword)(auth,email,input.password)
     const ref=doc(db,'firebase_registration_requests',user.uid)
     const existing=await getDocFromServer(ref)

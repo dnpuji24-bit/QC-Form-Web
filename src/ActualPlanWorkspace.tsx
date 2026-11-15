@@ -5,7 +5,7 @@ import ActualPlanWebEntryPanel from './ActualPlanWebEntryPanel'
 import type { ActualComposerRequest, SavedActualRow } from './actualPlanWorkspaceTypes'
 import type { User } from './types'
 import { canEditAccess, canViewAccess } from './accessControl'
-import PlanPeriodExcelExport from './PlanPeriodExcelExport'
+import PlanPeriodExcelExport from './PlanPeriodExcelExportPanel'
 
 type Props={user:User;prefillDailyPlanIds?:string[];jumpRequest?:{monthlyPlanLineId:string;actualReportIds:string[];label:string}|null}
 type View='plan'|'import'
