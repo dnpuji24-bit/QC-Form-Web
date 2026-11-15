@@ -12,3 +12,5 @@ node scripts/test-qc-uat-role-auth-emulator.mjs --self-test
 
 Integration:
 firebase emulators:exec --only firestore,auth --project demo-qc-uat-role-auth --config firebase.uat-role-auth-emulator.json 'env -u GOOGLE_CLOUD_PROJECT -u FIREBASE_PROJECT_ID GCLOUD_PROJECT=demo-qc-uat-role-auth FIRESTORE_EMULATOR_HOST=127.0.0.1:8485 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9299 node scripts/test-qc-uat-role-auth-emulator.mjs --emulator'
+
+Operator verification after `54d03c9`: 19/19 real Auth, Owner permission and concurrent transaction checks passed, exit code 0 and normal shutdown. No production approval implied. Next: [isolated photo queue browser checkpoint](qc-uat-photo-queue-browser.md).
