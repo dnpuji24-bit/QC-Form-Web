@@ -116,12 +116,18 @@ const domain= `    // Synthetic workspace only. These are NOT production payload
 export function domainRules(){
   const base=foundationRules()
   assert.equal(base.split(anchor).length,2,'FOUNDATION_ANCHOR_MISMATCH')
-  const next=base.replace(anchor,domain+anchor)
-  assert.equal(next.replace(domain,''),base,'DOMAIN_SPLICE_MISMATCH')
+  // A replacement string interprets $' in the Rules regex as the source suffix.
+  // Use a callback to preserve literal Rules source, including regex end anchors.
+  const next=base.replace(anchor,()=>domain+anchor)
+  assert.ok(next.includes(domain),'DOMAIN_LITERAL_INSERTION_MISMATCH')
+  assert.equal(next.split(anchor).length,2,'DOMAIN_CATCH_ALL_DUPLICATED')
+  assert.ok(next.replace(domain,'')===base,'DOMAIN_SPLICE_MISMATCH')
   return next
 }
 export function selfTest(){
   const rules=domainRules()
+  assert.ok(rules.includes("id.matches('^uat-[a-z0-9-]{1,60}$')"),'DOMAIN_REGEX_ANCHOR_CHANGED')
+  assert.equal(rules.split(anchor).length,2,'DOMAIN_CATCH_ALL_DUPLICATED')
   for(const name of names)assert.ok(rules.includes('/qc_uat_workspaces/cutover/'+name+'/{id}'))
   assert.deepEqual(uatPath('qc_records','uat-q1'),['qc_uat_workspaces','cutover','qc_records','uat-q1'])
   for(const args of [['users','uat-a'],['qc_records','real-id'],['qc_records','../uat-a'],['qc_records','uat-A'],['daily_reports','uat-']])assert.throws(()=>uatPath(...args),/INVALID_UAT_PATH/)
