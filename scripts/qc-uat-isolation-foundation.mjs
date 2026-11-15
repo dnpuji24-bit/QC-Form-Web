@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import {createHash} from 'node:crypto'
 import {readFileSync} from 'node:fs'
-export const demoProject='demo-qc-photo-test'
+export const demoProject='demo-qc-uat-foundation'
 export const workspace='cutover'
 export const baselineHash='1969b01dc886befc8fa65982c5a57fcbf464581a73a1e4916e1485f8922e8e5c'
 const baseline=readFileSync(new URL('./firestore.legacy-audit-release.rules',import.meta.url),'utf8')
@@ -65,7 +65,7 @@ export function assertDemoEnvironment(env=process.env){
   for(const key of ['GOOGLE_CLOUD_PROJECT','FIREBASE_PROJECT_ID']){
     if(env[key])assert.equal(env[key],demoProject,'WRONG_PROJECT')
   }
-  assert.match(env.FIRESTORE_EMULATOR_HOST||'',/^(127\.0\.0\.1|localhost):[0-9]{1,5}$/,'LOOPBACK_EMULATOR_REQUIRED')
+  assert.match(env.FIRESTORE_EMULATOR_HOST||'',/^(127\.0\.0\.1|localhost):8185$/,'LOOPBACK_EMULATOR_REQUIRED')
 }
 export function selfTest(){
   const candidate=candidateRules()
@@ -75,7 +75,7 @@ export function selfTest(){
   assert.throws(()=>candidateRules(baseline+'x'),/BASELINE_HASH_MISMATCH/)
   assert.deepEqual(probePath('uat_1'),['qc_uat_workspaces','cutover','probes','uat_1'])
   for(const bad of ['', '../users', 'a/b', '.', 'a b', null])assert.throws(()=>probePath(bad),/INVALID_PROBE_UID/)
-  assertDemoEnvironment({GCLOUD_PROJECT:demoProject,FIRESTORE_EMULATOR_HOST:'127.0.0.1:8085'})
-  for(const env of [{GCLOUD_PROJECT:'form-qc-unm',FIRESTORE_EMULATOR_HOST:'127.0.0.1:8085'},{GCLOUD_PROJECT:demoProject,FIRESTORE_EMULATOR_HOST:'example.com:8085'},{GCLOUD_PROJECT:demoProject},{GCLOUD_PROJECT:demoProject,GOOGLE_CLOUD_PROJECT:'form-qc-unm',FIRESTORE_EMULATOR_HOST:'localhost:8085'}])assert.throws(()=>assertDemoEnvironment(env))
+  assertDemoEnvironment({GCLOUD_PROJECT:demoProject,FIRESTORE_EMULATOR_HOST:'127.0.0.1:8185'})
+  for(const env of [{GCLOUD_PROJECT:'form-qc-unm',FIRESTORE_EMULATOR_HOST:'127.0.0.1:8185'},{GCLOUD_PROJECT:demoProject,FIRESTORE_EMULATOR_HOST:'example.com:8185'},{GCLOUD_PROJECT:demoProject},{GCLOUD_PROJECT:demoProject,GOOGLE_CLOUD_PROJECT:'form-qc-unm',FIRESTORE_EMULATOR_HOST:'localhost:8185'}])assert.throws(()=>assertDemoEnvironment(env))
   console.log('SUCCESS: UAT foundation source, path and emulator guards passed (offline)')
 }

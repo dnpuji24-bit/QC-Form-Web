@@ -40,6 +40,7 @@ if(process.argv.length===3 && process.argv[2]==='--self-test'){
     await check('stale token with active root Owner profile cannot write production',setDoc(doc(stale,'daily_plans','synthetic-prod4'),{testOnly:true}),true)
     await check('claim-only identity with root Owner profile cannot read production',getDoc(doc(claimOnly,'daily_plans','synthetic-prod')),true)
     await check('claim-only identity cannot write isolated probe',setDoc(probe(claimOnly,'claimOnly'),data('claimOnly')),true)
+    await check('claim without marker or root profile cannot write probe',setDoc(probe(db('unmarked',{qcUat:true}),'unmarked'),data('unmarked')),true)
     await check('identity collision with production profile cannot write probe',setDoc(probe(collision,'collision'),data('collision')),true)
     await check('marker without claim cannot write probe',setDoc(probe(noClaim,'uatB'),data('uatB')),true)
     await check('disabled UAT identity denied',setDoc(probe(db('disabledUat',{qcUat:true}),'disabledUat'),data('disabledUat')),true)
