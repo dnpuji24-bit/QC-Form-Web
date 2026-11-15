@@ -1,0 +1,18 @@
+{
+  "firestore": {
+    "rules": "scripts/firestore.legacy-audit-release.rules"
+  },
+  "emulators": {
+    "firestore": {
+      "host": "127.0.0.1",
+      "port": 8185
+    },
+    "auth": {
+      "host": "127.0.0.1",
+      "port": 9199
+    },
+    "ui": {
+      "enabled": false
+    }
+  }
+}
