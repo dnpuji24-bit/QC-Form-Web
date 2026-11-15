@@ -9,6 +9,7 @@ export type OperationalJob = {
 export function enqueueOperationalJob<J extends OperationalJob>(job:J,factory?:IDBFactory):Promise<J&{id:string;createdAt:number}>
 export function listOperationalJobs(uid:string,factory?:IDBFactory):Promise<Array<OperationalJob&{id:string;createdAt:number}>>
 export function flushOperationalJobs(uid:string,deps:{
+ photoBucket?:string,
   currentUid:()=>Promise<string|null>
   scope?:string
   acceptJob?:(job:OperationalJob)=>boolean

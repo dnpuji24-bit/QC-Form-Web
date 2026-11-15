@@ -7,6 +7,14 @@ export default defineConfig(({ command, mode }) => {
     if (env.VITE_QC_LOCAL_UAT === 'true') {
       throw new Error('VITE_QC_LOCAL_UAT is only supported by the local development server.')
     }
+    if (env.VITE_QC_HOSTED_UAT === 'true' && (
+      env.VITE_QC_NATIVE_PORTAL !== 'true' ||
+      env.VITE_QC_PHOTO_SIGN_PREVIEW !== 'true' ||
+      !env.VITE_FIREBASE_API_KEY?.trim() ||
+      !/^1:\d+:web:[a-f\d]+$/i.test(env.VITE_FIREBASE_APP_ID ?? '')
+    )) {
+      throw new Error('Hosted QC UAT requires the staging Firebase web config and native portal/photo signing.')
+    }
     if (env.VITE_QC_NATIVE_PORTAL === 'true') {
       const required = [
         'VITE_FIRESTORE_ENABLED',

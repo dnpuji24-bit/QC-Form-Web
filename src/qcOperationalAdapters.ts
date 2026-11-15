@@ -5,9 +5,9 @@ import {commitOperationalQc,type AtomicQcInput} from './qcAtomicFirestoreAdapter
 import type {QcSaveIntent} from './qcFormSaveIntent.mjs'
 import type {QcRecord} from './types'
 import {qcLocalUat,localUatPhotos,localUatPhotoKey} from './qcLocalUat'
+import {photoUploadEndpoint as endpoint, operationalPhotoBucket} from './qcPhotoEnvironment'
 
 export const operationalSaveEnabled=import.meta.env.VITE_QC_OPERATIONAL_SAVE==='true'
-const endpoint='https://mcfwnstdfhhtcbksgrlj.supabase.co/functions/v1/qc-photo-upload'
 const validId=(s:string)=>/^[A-Za-z0-9_-]{1,160}$/.test(s)&&!/^qc-(operational-pilot|photo-staging)-/.test(s)
 type RecordInput=AtomicQcInput['record']
 type Job=OperationalJob&{record:RecordInput;scope:'operational';changes:QcSaveIntent['changes']}
@@ -45,7 +45,7 @@ export async function operationalQueuedRecords():Promise<PersistedQcJob[]>{
 export async function flushOperationalQc(){
   const {db,uid}=requireSession()
   return flushOperationalJobs(uid,{
-    scope:'operational',acceptJob,currentUid:async()=>currentUid(),
+    scope:'operational',photoBucket:operationalPhotoBucket,acceptJob,currentUid:async()=>currentUid(),
     async readRecord(id:string,job:Job){
       assertUid(uid)
       if(!acceptJob(job)||id!==job.record.id)throw Error('Invalid operational job')

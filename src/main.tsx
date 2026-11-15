@@ -3,7 +3,7 @@ import {nativePortalEnabled} from './qcNativePortalConfig'
 import React from 'react'
 
 const NativeRegistrationPilot = React.lazy(() => import('./NativeRegistrationPilot'))
-const showNativeRegistrationPilot = import.meta.env.VITE_QC_NATIVE_REGISTRATION === 'true' && new URLSearchParams(window.location.search).get('qc-native-registration-pilot') === '1'
+const showNativeRegistrationPilot = import.meta.env.VITE_QC_HOSTED_UAT !== 'true' && import.meta.env.VITE_QC_NATIVE_REGISTRATION === 'true' && new URLSearchParams(window.location.search).get('qc-native-registration-pilot') === '1'
 const FirebaseAuthPilot = React.lazy(() => import('./FirebaseAuthPilot'))
 const showFirebaseAuthPilot = import.meta.env.VITE_QC_FIREBASE_AUTH_PILOT === 'true' && new URLSearchParams(window.location.search).get('qc-firebase-auth-pilot') === '1'
 const OperationalQcPilot = React.lazy(() => import('./OperationalQcPilot'))

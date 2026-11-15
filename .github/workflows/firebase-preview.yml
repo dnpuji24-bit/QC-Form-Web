@@ -2,93 +2,56 @@ name: Firebase Hosting Preview
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - migrate/react-typescript-vite
 
 permissions:
   contents: read
-  checks: write
-  pull-requests: write
+
+concurrency:
+  group: qc-hosting-uat
 
 jobs:
   preview:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment: qc-uat
+    env:
+      VITE_QC_HOSTED_UAT: 'true'
+      VITE_QC_NATIVE_PORTAL: 'true'
+      VITE_FIRESTORE_ENABLED: 'true'
+      VITE_QC_FIRESTORE_ONLY: 'true'
+      VITE_QC_MASTER_FIRESTORE: 'true'
+      VITE_QC_OPERATIONAL_SAVE: 'true'
+      VITE_QC_NATIVE_REGISTRATION: 'true'
+      VITE_QC_PHOTO_SIGN_PREVIEW: 'true'
+      VITE_FIREBASE_API_KEY: ${{ vars.QC_UAT_FIREBASE_API_KEY }}
+      VITE_FIREBASE_APP_ID: ${{ vars.QC_UAT_FIREBASE_APP_ID }}
+      VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars.QC_UAT_RECAPTCHA_ENTERPRISE_SITE_KEY }}
 
     steps:
-      - name: Checkout migration branch
-        uses: actions/checkout@v4
-        with:
-          ref: migrate/react-typescript-vite
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
-
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
-
-      - name: Offline session regression check
-        run: python tests/offline_session_persistence_check.py
-
-      - name: TypeScript check
-        run: npm run typecheck
-
-      - name: Verify App Check site key variable
-        env:
-          VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: '${{ vars.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY }}'
+      - run: npm ci --no-audit --no-fund
+      - run: python tests/offline_session_persistence_check.py
+      - name: Build isolated QC portal
         run: |
-          test -n "$VITE_RECAPTCHA_ENTERPRISE_SITE_KEY"
-          echo "App Check site key variable is configured."
-
-      - name: Build React
-        env:
-          VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: '${{ vars.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY }}'
-        run: npm run build
-
-      - name: Verify React build output
-        run: |
+          npm run build
           test -f public/react/index.html
           test -f public/react/sw.js
-          echo "React build output verified."
-
-      - name: Prepare Firebase service account
-        env:
-          FIREBASE_SERVICE_ACCOUNT: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_FORM_QC_UNM }}'
-        run: |
-          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
-            echo "Firebase service account secret is empty." >&2
-            exit 1
-          fi
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-service-account.json"
-          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
-
-      - name: Deploy Firestore rules
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: '${{ runner.temp }}/firebase-service-account.json'
-        run: npx --yes firebase-tools@latest deploy --only firestore:rules --project form-qc-unm --non-interactive
-
-      - name: Deploy Firebase Hosting preview
-        id: firebase_preview
+          mkdir -p staging-preview/public
+          cp -R public/react staging-preview/public/
+          node -e "const fs = require('node:fs'); const {hosting} = require('./firebase.json'); fs.writeFileSync('staging-preview/firebase.json', JSON.stringify({hosting}));"
+      - name: Deploy Hosting preview in staging
+        id: preview
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_FORM_QC_UNM }}'
-          projectId: form-qc-unm
-          channelId: react-test
-          # Preview channels expire. Use Firebase's maximum TTL to reduce unexpected downtime.
-          # Permanent operational access should eventually use a live Hosting URL.
-          expires: 30d
-
-      - name: Clean up Firebase service account file
-        if: always()
-        run: rm -f "$RUNNER_TEMP/firebase-service-account.json"
-
-      - name: Show React preview URL
-        run: |
-          echo "React Preview: ${{ steps.firebase_preview.outputs.details_url }}/react/"
-          echo "Hosting root (legacy): ${{ steps.firebase_preview.outputs.details_url }}"
-          echo "### React Preview" >> "$GITHUB_STEP_SUMMARY"
-          echo "${{ steps.firebase_preview.outputs.details_url }}/react/" >> "$GITHUB_STEP_SUMMARY"
+          firebaseServiceAccount: ${{ secrets.QC_UAT_FIREBASE_HOSTING_SERVICE_ACCOUNT }}
+          projectId: daily-plan-and-report-unm
+          channelId: qc-cutover
+          entryPoint: staging-preview
+          expires: 7d
+      - name: Show preview URL
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.details_url }}
+        run: printf 'QC UAT preview: %s/react/\n' "${PREVIEW_URL%/}" >> "$GITHUB_STEP_SUMMARY"

@@ -16,7 +16,7 @@ export async function processOperationalQcJob(job, deps) {
   if ((current?.clientRevision ?? null) !== (baseRevision ?? null))
     throw Error('QC_REVISION_CONFLICT');
   const {manifest,uploads} = await prepareOperationalPhotoManifest({
-    recordId:record.id,uploaderUid,previous:current?.operationalPhotoManifest ?? {},changes
+    recordId:record.id,uploaderUid,previous:current?.operationalPhotoManifest ?? {},changes,bucket:deps.photoBucket
   });
   for (const upload of uploads) {
     if (await deps.currentUid() !== uploaderUid) throw Error('QC_QUEUE_ACCOUNT_MISMATCH');

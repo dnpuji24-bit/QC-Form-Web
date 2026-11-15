@@ -24,3 +24,9 @@ verify_jwt = false
 [functions.qc-native-admin-live-pilot]
 enabled = false
 verify_jwt = false
+
+[functions.qc-photo-upload-uat]
+verify_jwt = false
+
+[functions.qc-photo-sign-uat]
+verify_jwt = false

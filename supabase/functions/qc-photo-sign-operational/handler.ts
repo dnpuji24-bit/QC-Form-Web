@@ -1,3 +1,4 @@
+import { photoUat } from '../_shared/qcPhotoUat.ts'
 import { isOperationalPhotoIdentityAllowed } from '../_shared/qcOperationalPhotoIdentity.mjs'
 import { resolveOperationalPhotoPath } from './manifest.ts'
 // Supabase Edge Function: Firebase ID Token -> current Firestore Data QC permission
@@ -27,8 +28,8 @@ function encode(value:string|Uint8Array) {
   for (const b of input) binary += String.fromCharCode(b)
   return btoa(binary).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')
 }
-async function googleAccessToken(service:ServiceAccount):Promise<string> {
-  if (service.project_id !== projectId || service.client_email !== 'qc-photo-reader@form-qc-unm.iam.gserviceaccount.com') throw new RequestError(500)
+async function googleAccessToken(service:ServiceAccount, uat=false):Promise<string> {
+  if (service.project_id !== (uat ? photoUat.projectId : projectId) || service.client_email !== (uat ? photoUat.serviceEmail : 'qc-photo-reader@form-qc-unm.iam.gserviceaccount.com')) throw new RequestError(500)
   const raw = service.private_key.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g,'')
   const der = Uint8Array.from(atob(raw), character=>character.charCodeAt(0))
   const key = await crypto.subtle.importKey('pkcs8',der,{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['sign'])
@@ -50,10 +51,10 @@ async function googleAccessToken(service:ServiceAccount):Promise<string> {
   if (typeof result.access_token!=='string') throw new RequestError(503)
   return result.access_token
 }
-async function googleJson(url:string, oauth:string, body?:unknown):Promise<any|null> {
+async function googleJson(url:string, oauth:string, body?:unknown, quotaProject?:string):Promise<any|null> {
   const response = await fetch(url,{
     method:body===undefined?'GET':'POST',
-    headers:{Authorization:'Bearer '+oauth,...(body===undefined?{}:{'Content-Type':'application/json'})},
+    headers:{Authorization:'Bearer '+oauth,...(quotaProject?{'X-Goog-User-Project':quotaProject}:{}),...(body===undefined?{}:{'Content-Type':'application/json'})},
     ...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(10000),
   })
   if(response.status===404)return null
@@ -72,28 +73,33 @@ function decodeFields(fields:Record<string,any>|undefined):Record<string,any>|nu
   }
   return out
 }
-const counts = new Map<string,{count:number;reset:number}>()
-function rateLimit(uid:string) {
-  const now=Date.now()
-  const old=counts.get(uid)
-  const state=!old||old.reset<=now?{count:0,reset:now+60000}:old
-  if (state.count>=30)return false
-  state.count++
-  counts.delete(uid)
-  counts.set(uid,state)
-  if(counts.size>3000)counts.delete(counts.keys().next().value!)
-  return true
-}
 const defaults={jwtVerify,googleAccessToken,googleJson,createClient,env:(key:string)=>Deno.env.get(key)}
-export function createHandler(deps=defaults,pilot=false){
+export function createHandler(deps=defaults,pilot=false,uat=false){
+ if(pilot&&uat)throw Error('Incompatible photo modes')
+ const counts = new Map<string,{count:number;reset:number}>()
+ function rateLimit(uid:string) {
+   const now=Date.now()
+   const old=counts.get(uid)
+   const state=!old||old.reset<=now?{count:0,reset:now+60000}:old
+   if (state.count>=30)return false
+   state.count++
+   counts.delete(uid)
+   counts.set(uid,state)
+   if(counts.size>3000)counts.delete(counts.keys().next().value!)
+   return true
+ }
+ const firebaseProject=uat?photoUat.projectId:projectId
+ const storageOrigin=uat?photoUat.storageUrl:storageUrl
+ const documentPath=uat?(path:string)=>'https://firestore.googleapis.com/v1/projects/'+firebaseProject+'/databases/'+photoUat.databaseId+'/documents/'+path:docPath
  // Pilot is a deployment-time constant, never taken from a request.
  const prefix=pilot?'qc-live-photo-pilot-':'qc-v2-'
  const records=pilot?'qc_photo_live_pilot_records/':'qc_records/'
  const intents=pilot?'qc_photo_live_pilot_intents/':'qc_photo_upload_intents/'
- const targetBucket=pilot?'qc-photos-test':'qc-photos'
+ const targetBucket=uat?photoUat.bucket:pilot?'qc-photos-test':'qc-photos'
  const originKey=pilot?'QC_LIVE_PHOTO_PILOT_ORIGIN':'QC_OPERATIONAL_PHOTO_ALLOWED_ORIGIN'
  const enabledKey=pilot?'QC_LIVE_PHOTO_PILOT_ENABLED':'QC_OPERATIONAL_PHOTO_ENABLED'
- const {jwtVerify,googleAccessToken,googleJson,createClient,env}=deps
+ const {jwtVerify,googleAccessToken,googleJson:requestGoogleJson,createClient,env}=deps
+ const googleJson=(url:string,oauth:string,body?:unknown)=>requestGoogleJson(url,oauth,body,uat?firebaseProject:undefined)
  return async(request:Request):Promise<Response>=>{
   const expectedOrigin=env(originKey)||''
   const origin=request.headers.get('Origin')||''
@@ -111,7 +117,7 @@ export function createHandler(deps=defaults,pilot=false){
     const tokenHeader=request.headers.get('Authorization')||''
     if(!/^Bearer [A-Za-z0-9_.-]+$/.test(tokenHeader))throw new RequestError(401)
     const jwt=tokenHeader.slice(7)
-    const verified=await jwtVerify(jwt,jwks,{audience:projectId,issuer:'https://securetoken.google.com/'+projectId,
+    const verified=await jwtVerify(jwt,jwks,{audience:firebaseProject,issuer:'https://securetoken.google.com/'+firebaseProject,
       algorithms:['RS256'],requiredClaims:['exp','iat','sub','auth_time'],clockTolerance:5})
     const uid=verified.payload.sub
     if(typeof uid!=='string'||!idPattern.test(uid)||(typeof verified.payload.auth_time !== 'number' || !Number.isInteger(verified.payload.auth_time)))throw new RequestError(401)
@@ -140,31 +146,31 @@ export function createHandler(deps=defaults,pilot=false){
     if(!secret.startsWith('sb_secret_')||!accountText)throw new RequestError(503)
     let account:ServiceAccount
     try{account=JSON.parse(accountText)}catch{throw new RequestError(503)}
-    const oauth=await googleAccessToken(account)
+    const oauth=await googleAccessToken(account,uat)
     // Firebase Auth authoritative lookup checks disabled state & token revocation.
-    const identity=await googleJson('https://identitytoolkit.googleapis.com/v1/projects/'+projectId+'/accounts:lookup',
+    const identity=await googleJson('https://identitytoolkit.googleapis.com/v1/projects/'+firebaseProject+'/accounts:lookup',
       oauth,{localId:[uid]})
     const userAccount=identity?.users?.[0]
     const validSince=Number(userAccount?.validSince||0)
     if(!userAccount||userAccount.disabled===true||!Number.isFinite(validSince)||
       Number(verified.payload.auth_time)<validSince)throw new RequestError(401)
     const [u,q,reservationDoc]=await Promise.all([
-      googleJson(docPath('users/'+uid),oauth),
-      googleJson(docPath(records+data.recordId),oauth),
-      googleJson(docPath(intents+data.recordId),oauth),
+      googleJson(documentPath('users/'+uid),oauth),
+      googleJson(documentPath(records+data.recordId),oauth),
+      googleJson(documentPath(intents+data.recordId),oauth),
     ])
     const profile=decodeFields(u?.fields),qc=decodeFields(q?.fields),reservation=decodeFields(reservationDoc?.fields)
     // Explicit null narrowing for TypeScript; missing profiles remain forbidden.
     if(!profile)throw new RequestError(403)
     if(!isOperationalPhotoIdentityAllowed({uid,tokenEmail:verified.payload.email,account:userAccount,profile}))throw new RequestError(403)
     if(profile.role!=='owner'){
-      const role=decodeFields((await googleJson(docPath('role_access/'+profile.role),oauth))?.fields)
+      const role=decodeFields((await googleJson(documentPath('role_access/'+profile.role),oauth))?.fields)
       if(!role||role.role!==profile.role||!['view','edit'].includes(role.permissions?.qc_records))throw new RequestError(403)
     }
     if(pilot?(qc?.testOnly!==true||reservation?.testOnly!==true):qc?.testOnly===true)throw new RequestError(403)
-    const path=await resolveOperationalPhotoPath(qc,reservation,data.recordId,data.photoId,pilot)
+    const path=await resolveOperationalPhotoPath(qc,reservation,data.recordId,data.photoId,pilot,targetBucket)
     if(!path)throw new RequestError(403)
-    const client=createClient(storageUrl,secret,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}})
+    const client=createClient(storageOrigin,secret,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}})
     const {data:signed,error}=await client.storage.from(targetBucket).createSignedUrl(path,60)
     if(error||!signed?.signedUrl)throw new RequestError(502)
     return json(200,{signedUrl:signed.signedUrl,expiresIn:60},cors)

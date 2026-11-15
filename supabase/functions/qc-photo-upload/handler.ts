@@ -1,3 +1,4 @@
+import { photoUat } from '../_shared/qcPhotoUat.ts'
 import { isOperationalPhotoIdentityAllowed } from '../_shared/qcOperationalPhotoIdentity.mjs'
 // Candidate operational upload: requires an authorized existing QC or staging parent.
 // Platform verify_jwt is disabled only because callers send Firebase JWTs; this
@@ -26,8 +27,8 @@ function encode(value:string|Uint8Array) {
   for (const b of input) binary += String.fromCharCode(b)
   return btoa(binary).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')
 }
-async function googleAccessToken(service:ServiceAccount):Promise<string> {
-  if (service.project_id !== projectId || service.client_email !== 'qc-photo-reader@form-qc-unm.iam.gserviceaccount.com') throw new RequestError(500)
+async function googleAccessToken(service:ServiceAccount, uat=false):Promise<string> {
+  if (service.project_id !== (uat ? photoUat.projectId : projectId) || service.client_email !== (uat ? photoUat.serviceEmail : 'qc-photo-reader@form-qc-unm.iam.gserviceaccount.com')) throw new RequestError(500)
   const raw = service.private_key.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g,'')
   const der = Uint8Array.from(atob(raw), character=>character.charCodeAt(0))
   const key = await crypto.subtle.importKey('pkcs8',der,{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['sign'])
@@ -49,10 +50,10 @@ async function googleAccessToken(service:ServiceAccount):Promise<string> {
   if (typeof result.access_token!=='string') throw new RequestError(503)
   return result.access_token
 }
-async function googleJson(url:string, oauth:string, body?:unknown):Promise<any|null> {
+async function googleJson(url:string, oauth:string, body?:unknown, quotaProject?:string):Promise<any|null> {
   const response = await fetch(url,{
     method:body===undefined?'GET':'POST',
-    headers:{Authorization:'Bearer '+oauth,...(body===undefined?{}:{'Content-Type':'application/json'})},
+    headers:{Authorization:'Bearer '+oauth,...(quotaProject?{'X-Goog-User-Project':quotaProject}:{}),...(body===undefined?{}:{'Content-Type':'application/json'})},
     ...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(10000),
   })
   if(response.status===404)return null
@@ -71,30 +72,35 @@ function decodeFields(fields:Record<string,any>|undefined):Record<string,any>|nu
   }
   return out
 }
-const counts = new Map<string,{count:number;reset:number}>()
-function rateLimit(uid:string) {
-  const now=Date.now()
-  const old=counts.get(uid)
-  const state=!old||old.reset<=now?{count:0,reset:now+60000}:old
-  if (state.count>=30)return false
-  state.count++
-  counts.delete(uid)
-  counts.set(uid,state)
-  if(counts.size>3000)counts.delete(counts.keys().next().value!)
-  return true
-}
 
 const digest=async (bytes:Uint8Array)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new Uint8Array(bytes))),b=>b.toString(16).padStart(2,'0')).join('')
 const defaults={jwtVerify,googleAccessToken,googleJson,createClient,env:(key:string)=>Deno.env.get(key)}
-export function createHandler(deps=defaults,pilot=false){
+export function createHandler(deps=defaults,pilot=false,uat=false){
+ if(pilot&&uat)throw Error('Incompatible photo modes')
+ const counts = new Map<string,{count:number;reset:number}>()
+ function rateLimit(uid:string) {
+   const now=Date.now()
+   const old=counts.get(uid)
+   const state=!old||old.reset<=now?{count:0,reset:now+60000}:old
+   if (state.count>=30)return false
+   state.count++
+   counts.delete(uid)
+   counts.set(uid,state)
+   if(counts.size>3000)counts.delete(counts.keys().next().value!)
+   return true
+ }
+ const firebaseProject=uat?photoUat.projectId:projectId
+ const storageOrigin=uat?photoUat.storageUrl:storageUrl
+ const documentPath=uat?(path:string)=>'https://firestore.googleapis.com/v1/projects/'+firebaseProject+'/databases/'+photoUat.databaseId+'/documents/'+path:docPath
  // Pilot is a deployment-time constant, never taken from a request.
  const prefix=pilot?'qc-live-photo-pilot-':'qc-v2-'
  const records=pilot?'qc_photo_live_pilot_records/':'qc_records/'
  const intents=pilot?'qc_photo_live_pilot_intents/':'qc_photo_upload_intents/'
- const targetBucket=pilot?'qc-photos-test':'qc-photos'
+ const targetBucket=uat?photoUat.bucket:pilot?'qc-photos-test':'qc-photos'
  const originKey=pilot?'QC_LIVE_PHOTO_PILOT_ORIGIN':'QC_OPERATIONAL_PHOTO_ALLOWED_ORIGIN'
  const enabledKey=pilot?'QC_LIVE_PHOTO_PILOT_ENABLED':'QC_OPERATIONAL_PHOTO_ENABLED'
- const {jwtVerify,googleAccessToken,googleJson,createClient,env}=deps
+ const {jwtVerify,googleAccessToken,googleJson:requestGoogleJson,createClient,env}=deps
+ const googleJson=(url:string,oauth:string,body?:unknown)=>requestGoogleJson(url,oauth,body,uat?firebaseProject:undefined)
  return async(request:Request):Promise<Response>=>{
   const origin=request.headers.get('Origin')||''
   const allowed=env(originKey)||''
@@ -108,16 +114,16 @@ export function createHandler(deps=defaults,pilot=false){
   try{
     const header=request.headers.get('Authorization')||''
     if(!/^Bearer [A-Za-z0-9_.-]+$/.test(header))throw new RequestError(401)
-    const {payload}=await jwtVerify(header.slice(7),jwks,{audience:projectId,issuer:'https://securetoken.google.com/'+projectId,algorithms:['RS256'],requiredClaims:['exp','iat','sub','auth_time']})
+    const {payload}=await jwtVerify(header.slice(7),jwks,{audience:firebaseProject,issuer:'https://securetoken.google.com/'+firebaseProject,algorithms:['RS256'],requiredClaims:['exp','iat','sub','auth_time']})
     const uid=payload.sub
     if(typeof uid!=='string'||!idPattern.test(uid)||typeof payload.auth_time!=='number'||!Number.isInteger(payload.auth_time))throw new RequestError(401)
     if(!rateLimit(uid))throw new RequestError(429)
     const account=JSON.parse(env('GOOGLE_SERVICE_ACCOUNT_JSON')||'{}')
-    const oauth=await googleAccessToken(account)
-    const identity=await googleJson('https://identitytoolkit.googleapis.com/v1/projects/'+projectId+'/accounts:lookup',oauth,{localId:[uid]})
+    const oauth=await googleAccessToken(account,uat)
+    const identity=await googleJson('https://identitytoolkit.googleapis.com/v1/projects/'+firebaseProject+'/accounts:lookup',oauth,{localId:[uid]})
     const user=identity?.users?.[0],validSince=Number(user?.validSince||0)
     if(!user||user.disabled===true||!Number.isFinite(validSince)||payload.auth_time<validSince)throw new RequestError(401)
-    const profile=decodeFields((await googleJson(docPath('users/'+uid),oauth))?.fields)
+    const profile=decodeFields((await googleJson(documentPath('users/'+uid),oauth))?.fields)
     // Explicit null narrowing for TypeScript; missing profiles remain forbidden.
     if(!profile)throw new RequestError(403)
     if(!isOperationalPhotoIdentityAllowed({uid,tokenEmail:payload.email,account:user,profile}))throw new RequestError(403)
@@ -139,14 +145,14 @@ export function createHandler(deps=defaults,pilot=false){
     if(typeof data.clientRevision!=='string'||!idPattern.test(data.clientRevision))throw new RequestError(400)
     // Operational endpoints must never accept staging, pilot, or legacy IDs.
     if(!data.recordId.startsWith(prefix))throw new RequestError(403)
-    if(!pilot&&await googleJson(docPath('qc_archive_markers/'+data.recordId),oauth))throw new RequestError(409)
-    let parent=decodeFields((await googleJson(docPath(records+data.recordId),oauth))?.fields)
+    if(!pilot&&await googleJson(documentPath('qc_archive_markers/'+data.recordId),oauth))throw new RequestError(409)
+    let parent=decodeFields((await googleJson(documentPath(records+data.recordId),oauth))?.fields)
     if(!parent&&data.baseRevision===null){
-      parent=decodeFields((await googleJson(docPath(intents+data.recordId),oauth))?.fields)
+      parent=decodeFields((await googleJson(documentPath(intents+data.recordId),oauth))?.fields)
       if(!parent||parent.clientRevision!==data.clientRevision)throw new RequestError(409)
     }else if(!parent||parent.clientRevision!==data.baseRevision)throw new RequestError(409)
     if(parent.formType!==data.formType||(pilot?parent.testOnly!==true:parent.testOnly===true))throw new RequestError(409)
-    const template=decodeFields((await googleJson(docPath('role_access/'+profile.role),oauth))?.fields)
+    const template=decodeFields((await googleJson(documentPath('role_access/'+profile.role),oauth))?.fields)
     const key=data.formType==='spray'?'qc_spraying':'qc_fertilizer'
     const edit=profile.role==='owner'||(template?.role===profile.role&&template?.permissions?.[key]==='edit')
     if(!edit||parent.ownerUid!==uid)throw new RequestError(403)
@@ -165,7 +171,7 @@ export function createHandler(deps=defaults,pilot=false){
     const path=uid+'/qc/'+data.recordId+'/'+photoId+'.'+allowedTypes[data.contentType]
     const secret=JSON.parse(env('SUPABASE_SECRET_KEYS')||'{}').default||env('SUPABASE_SECRET_KEY')||''
     if(!secret.startsWith('sb_secret_'))throw new RequestError(503)
-    const storage=createClient(storageUrl,secret,{auth:{persistSession:false,autoRefreshToken:false}}).storage.from(targetBucket)
+    const storage=createClient(storageOrigin,secret,{auth:{persistSession:false,autoRefreshToken:false}}).storage.from(targetBucket)
     // No overwrite, and even a duplicate must match the expected bytes.
     await storage.upload(path,new Blob([new Uint8Array(bytes)],{type:data.contentType}),{contentType:data.contentType,upsert:false})
     const downloaded=await storage.download(path)

@@ -1,7 +1,7 @@
 import {connectAuthEmulator,createUserWithEmailAndPassword,sendEmailVerification,signInWithEmailAndPassword,signOut,initializeAuth,inMemoryPersistence} from 'firebase/auth'
 import {initializeApp,deleteApp} from 'firebase/app'
 import {connectFirestoreEmulator,doc,collection,getDocsFromServer,getDocFromServer,getFirestore,terminate,runTransaction,serverTimestamp,setDoc} from 'firebase/firestore'
-import {firebaseAuth,firestoreDb} from './firebase'
+import {firebaseAuth,firestoreDb,firestoreDatabaseId} from './firebase'
 import {readApprovedFirebaseSession} from './qcFirebaseSession'
 import {qcLocalUat} from './qcLocalUat'
 export const nativeRegistrationRoles=['manager','admin','asisten','mandor_spraying','mandor_fertilizer','pengunjung'] as const
@@ -14,7 +14,7 @@ export async function submitNativeRegistration(input:{username:string;fullName:s
   if(!/^[a-z0-9_]{3,40}$/.test(username)||fullName.length<2||fullName.length>120||!nativeRegistrationRoles.includes(input.requestedRole))throw Error('Data pendaftaran tidak valid.')
   if(!firebaseAuth)throw Error('Firebase belum tersedia.')
   const app=initializeApp(firebaseAuth.app.options,'qc-registration-'+crypto.randomUUID())
-  const auth=initializeAuth(app,{persistence:inMemoryPersistence}),db=getFirestore(app)
+  const auth=initializeAuth(app,{persistence:inMemoryPersistence}),db=getFirestore(app,firestoreDatabaseId)
   try{
     if(qcLocalUat){
       connectAuthEmulator(auth,'http://127.0.0.1:9099')

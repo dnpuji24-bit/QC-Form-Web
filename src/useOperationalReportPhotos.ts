@@ -2,11 +2,10 @@ import { useEffect, useState } from 'react'
 import { firebaseAuth } from './firebase'
 import type { QcRecord } from './types'
 import { qcLocalUat, localUatPhotos, localUatPhotoKey } from './qcLocalUat'
+import {photoSignEndpoint as endpoint, operationalPhotoOrigin as origin, operationalPhotoBucket} from './qcPhotoEnvironment'
 type Slot={slot:string;photoId:string;contentType:string;size:number;sha256:string}
 type State={key:string;status:'loading'|'ready'|'error';photos:Record<string,string>;message:string}
 const enabled=import.meta.env.VITE_QC_PHOTO_SIGN_PREVIEW==='true'
-const endpoint='https://mcfwnstdfhhtcbksgrlj.supabase.co/functions/v1/qc-photo-sign-operational'
-const origin='https://mcfwnstdfhhtcbksgrlj.supabase.co'
 export function useOperationalReportPhotos(record:QcRecord){
   const manifest=record.operationalPhotoManifest
   const operational=record.id.startsWith('qc-v2-')
@@ -56,7 +55,7 @@ export function useOperationalReportPhotos(record:QcRecord){
       if(!signed.ok)throw Error('Foto belum dapat dibuka (HTTP '+signed.status+').')
       const response=await signed.json()
       const url=new URL(response.signedUrl)
-      if(url.origin!==origin||!url.pathname.startsWith('/storage/v1/object/sign/qc-photos/')||response.expiresIn!==60)throw Error('URL foto tidak valid.')
+      if(url.origin!==origin||!url.pathname.startsWith('/storage/v1/object/sign/'+operationalPhotoBucket+'/')||response.expiresIn!==60)throw Error('URL foto tidak valid.')
       return fetch(url,{cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer',signal})
     }
     void load()

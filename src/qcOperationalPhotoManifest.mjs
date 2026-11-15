@@ -1,7 +1,7 @@
 // Candidate for the Firestore-only save transport. Not enabled by the live UI.
 // Immutable photo IDs are derived from bytes + slot, scoped by record path.
 // An explicit remove is different from an empty file input on correction.
-export async function prepareOperationalPhotoManifest({recordId, uploaderUid, previous={}, changes=[]}) {
+export async function prepareOperationalPhotoManifest({recordId, uploaderUid, previous={}, changes=[], bucket='qc-photos'}) {
   const valid = s => typeof s === 'string' && /^[A-Za-z0-9_-]{1,160}$/.test(s);
   if (!valid(recordId) || !valid(uploaderUid)) throw Error('Invalid QC record or Firebase UID');
   const manifest = {...previous}, uploads = [], touched = new Set();
@@ -21,7 +21,7 @@ export async function prepareOperationalPhotoManifest({recordId, uploaderUid, pr
     const sha256 = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)), b=>b.toString(16).padStart(2,'0')).join('');
     const slotHash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(slot))), b=>b.toString(16).padStart(2,'0')).join('');
     const photoId = slotHash.slice(0,24)+'_'+sha256;
-    const reference = {photoId, provider:'supabase', bucket:'qc-photos', objectPath:uploaderUid+'/qc/'+recordId+'/'+photoId+'.'+extensions[match[1]], uploaderUid, kind:change.kind, contentType:match[1], sha256, size:bytes.length, ...(change.kind==='hold'?{holdId:change.holdId}:{})};
+    const reference = {photoId, provider:'supabase', bucket, objectPath:uploaderUid+'/qc/'+recordId+'/'+photoId+'.'+extensions[match[1]], uploaderUid, kind:change.kind, contentType:match[1], sha256, size:bytes.length, ...(change.kind==='hold'?{holdId:change.holdId}:{})};
     manifest[slot] = reference;
     uploads.push({slot,reference,bytes});
   }
