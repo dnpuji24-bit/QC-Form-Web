@@ -10,6 +10,25 @@ function guard(e=process.env){
   assert.equal(e.FIRESTORE_EMULATOR_HOST,host+':'+port,'LOOPBACK_EMULATOR_REQUIRED')
   for(const k of ['GOOGLE_CLOUD_PROJECT','FIREBASE_PROJECT_ID'])if(e[k])assert.equal(e[k],projectId,'WRONG_PROJECT')
 }
+async function readWithRulesDisabled(env,fn){
+  let result,completed=false
+  await env.withSecurityRulesDisabled(async ctx=>{
+    result=await fn(ctx)
+    completed=true
+  })
+  if(!completed||result===undefined)throw Error('PRIVILEGED_READBACK_UNDEFINED')
+  return result
+}
+async function readbackSelfTest(){
+  // The real API returns Promise<void>, not the callback value.
+  const fake={withSecurityRulesDisabled:async fn=>{await fn({data:'fixture'})}}
+  assert.equal(await readWithRulesDisabled(fake,async ctx=>ctx.data),'fixture')
+  assert.equal(await readWithRulesDisabled(fake,async()=>null),null)
+  await assert.rejects(readWithRulesDisabled(fake,async()=>undefined),/PRIVILEGED_READBACK_UNDEFINED/)
+  await assert.rejects(readWithRulesDisabled({withSecurityRulesDisabled:async()=>{}},async()=>null),/PRIVILEGED_READBACK_UNDEFINED/)
+  await assert.rejects(readWithRulesDisabled(fake,async()=>{throw Error('READ_FAILURE')}),/READ_FAILURE/)
+  console.log('SUCCESS: 5 privileged readback regression checks passed (offline)')
+}
 function offline(){
   const valid={GCLOUD_PROJECT:projectId,FIRESTORE_EMULATOR_HOST:host+':'+port}
   guard(valid)
@@ -21,6 +40,7 @@ function offline(){
 }
 if(process.argv.length!==3||!['--self-test','--emulator'].includes(process.argv[2]))throw Error('Use --self-test or --emulator')
 offline()
+await readbackSelfTest()
 if(process.argv[2]==='--emulator'){
   guard()
   const {initializeTestEnvironment,assertFails}=await import('@firebase/rules-unit-testing')
@@ -40,8 +60,8 @@ if(process.argv[2]==='--emulator'){
         writeQc:(id,r)=>t.set(path(db,'qc_records',id),r),writeActual:(id,r)=>t.set(path(db,'daily_reports',id),r),writeAudit:(id,r)=>t.set(path(db,'qc_operational_audit',id),r)})
     })
   })
-  const read=(c,id)=>env.withSecurityRulesDisabled(async ctx=>{const s=await getDoc(path(ctx.firestore(),c,id));return s.exists()?s.data():null})
-  const rootRead=()=>env.withSecurityRulesDisabled(async ctx=>(await getDoc(doc(ctx.firestore(),'daily_plans','root-sentinel'))).data())
+  const read=(c,id)=>readWithRulesDisabled(env,async ctx=>{const s=await getDoc(path(ctx.firestore(),c,id));return s.exists()?s.data():null})
+  const rootRead=()=>readWithRulesDisabled(env,async ctx=>{const s=await getDoc(doc(ctx.firestore(),'daily_plans','root-sentinel'));return s.exists()?s.data():null})
   const seed=async()=>env.withSecurityRulesDisabled(async ctx=>{
     const db=ctx.firestore(),sentinel=doc(db,'daily_plans','root-sentinel')
     assert.equal((await getDoc(sentinel)).exists(),false,'FRESH_DEMO_REQUIRED')
@@ -55,13 +75,13 @@ if(process.argv[2]==='--emulator'){
     for(const r of [qc(),qc('fertilizer','uat-q2','uat-fert')])await setDoc(path(db,'daily_plans',r.dailyPlanId),daily(r))
   })
   let n=0
-  async function check(name,fn){await fn();n++;console.log('PASS: '+name)}
+  async function check(name,fn){try{await fn()}catch(error){throw Error('FAIL: '+name,{cause:error})}n++;console.log('PASS: '+name)}
   const q=qc(),aid='qcactual_'+q.id,qr=path(spray,'qc_records',q.id),ar=path(spray,'daily_reports',aid)
   const ready={...q,saveType:'ready',clientRevision:'uat-r2'},uploaded={...ready,saveType:'uploaded',clientRevision:'uat-r3',actualArea100:350}
   const auditId=r=>r.id+':'+r.clientRevision
   try{
     await seed()
-    await check('draft QC plus audit without Actual',async()=>{await run(spray,q);assert.equal((await read('qc_records',q.id)).saveType,'draft');assert.equal(await read('daily_reports',aid),null);assert.equal((await read('qc_operational_audit',auditId(q))).saveType,'draft')})
+    await check('draft QC plus audit without Actual',async()=>{await run(spray,q);const stored=await read('qc_records',q.id);assert.ok(stored,'DRAFT_QC_MISSING');assert.equal(stored.saveType,'draft');assert.equal(await read('daily_reports',aid),null);const audit=await read('qc_operational_audit',auditId(q));assert.ok(audit,'DRAFT_AUDIT_MISSING');assert.equal(audit.saveType,'draft')})
     await check('ready creates Actual and audit atomically',async()=>{await run(spray,ready,'uat-r1','uat-j2');assert.equal((await read('daily_reports',aid)).actualArea100,250);assert.equal((await read('qc_operational_audit',auditId(ready))).revision,'uat-r2')})
     await check('uploaded correction keeps one Actual and signed variance',async()=>{await run(spray,uploaded,'uat-r2','uat-j3');const a=await read('daily_reports',aid);assert.equal(a.actualArea100,350);assert.equal(a.dailyVariance100,-50);assert.equal(a.actualReportId,aid)})
     await check('idempotent replay',async()=>{const before=await read('qc_records',q.id);await run(spray,uploaded,'uat-r2','uat-j3');assert.deepEqual(await read('qc_records',q.id),before)})

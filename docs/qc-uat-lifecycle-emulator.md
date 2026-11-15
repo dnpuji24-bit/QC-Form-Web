@@ -12,3 +12,7 @@ Emulator (from repo root, existing Firebase CLI and rules-unit-testing dependenc
 firebase emulators:exec --only firestore --project demo-qc-uat-lifecycle --config firebase.uat-lifecycle-emulator.json 'env -u GOOGLE_CLOUD_PROJECT -u FIREBASE_PROJECT_ID GCLOUD_PROJECT=demo-qc-uat-lifecycle FIRESTORE_EMULATOR_HOST=127.0.0.1:8285 node scripts/test-qc-uat-lifecycle-emulator.mjs --emulator'
 
 Planned 34 SDK/Rules checks. Source authored and static-reviewed; actual Rules compile and emulator execution NOT yet performed. Operator must run the command and report exact failures before any further gate. Hosted UAT stays OFF.
+
+## Readback harness correction
+
+Operator screenshot at `a258b0a` shows emulator startup and offline guards passed, followed by TypeError reading saveType in the first draft check. `withSecurityRulesDisabled` returns Promise<void> rather than forwarding the callback result. Both privileged readback helpers now capture values within the callback and return them outside, preserve null for missing documents, and explicitly reject undefined. Five focused offline regressions exercise the void-return API, null, missing result and exception propagation. Named failures and explicit draft QC/audit existence checks improve diagnostics. No rules, demo config, production data, or transaction engine changes. The 34 emulator checks still require a fresh rerun; do not mark them passed or advance the release gate yet.
