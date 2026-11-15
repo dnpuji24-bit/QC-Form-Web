@@ -7,3 +7,5 @@ Known gap: existing operational queue returns first job for an identity even if 
 Run: node scripts/test-qc-uat-strict-queue.mjs
 
 23 pure canonical/confirmation tests passed in JS runtime before commit. 13 SHA-256/transport/mock adapter scenarios authored; actual Node run pending. No real Supabase or production changes.
+
+Operator verification after `dea1c6e`: Cloud Shell confirms all 52 checks (23+13+8+8) passed. Next [trusted fingerprint integration candidate](qc-uat-strict-integration.md). No production verification implied.
