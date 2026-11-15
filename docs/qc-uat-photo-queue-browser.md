@@ -9,3 +9,5 @@ The existing operational queue, save transport and photo manifest already implem
 Run offline: node scripts/test-qc-operational-photo-manifest.mjs && node scripts/test-qc-operational-save-transport.mjs && node scripts/test-qc-uat-photo-queue-browser.mjs --self-test
 Run browser: QC_UAT_PLAYWRIGHT_DIR=/absolute/path/to/playwright-install node scripts/test-qc-uat-photo-queue-browser.mjs --browser
 Use same Playwright/Chromium installation as the earlier browser lab; requires free port 4285. Actual browser execution not performed here; operator verification pending. Hosted UAT remains OFF.
+
+Operator verification after `37bab0b`: 16/16 browser photo queue and offline checks passed, real IndexedDB with mock storage/CAS. See [integrated photo transport checkpoint](qc-uat-photo-integration.md). No production readiness implied.

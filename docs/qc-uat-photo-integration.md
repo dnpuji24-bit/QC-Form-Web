@@ -1,0 +1,11 @@
+# Integrated QC photo transport — real Auth and Firestore, mock object storage
+
+Operator screenshot after 37bab0b confirms all 16 real IndexedDB browser queue tests passed, including reload, simulated transport failures, retry, account isolation, and no external connection. Browser tested mock CAS only. Hosted UAT remains OFF.
+
+This new dedicated demo project uses unchanged operational save transport, manifest generator and lifecycle core with actual Auth/Firestore SDK transactions. It maps the real queue identity (UID, record ID, revision) deterministically into a synthetic job ID; stores original queue key and manifest on QC atomically with Actual and audit. Mock trusted verifier checks immutable bytes/hash/slot/path/UID, current form permission, and creates an immutable receipt for exactly that manifest and queue key. New standalone demo Rules require receipt equality and retain existing lifecycle integrity. Clients cannot write receipts. This is a simulation, not a deployed verifier or proof of storage access. Receipt is per revision and can survive a failed commit. No object deletion or automatic garbage collection. Only synthetic main/scan/hold_uat-h1 supported. No real photo, Supabase API or production access. All prior rules and modules unchanged. Existing transport fast replay still trusts identity and confirmed record; divergent payload collision remains a release blocker. Real IndexedDB was separately browser-tested, not exercised in this Node integration.
+
+Run: node scripts/test-qc-uat-photo-integration.mjs --self-test
+
+Emulator: firebase emulators:exec --only firestore,auth --project demo-qc-uat-photo-integration --config firebase.uat-photo-integration-emulator.json 'env -u GOOGLE_CLOUD_PROJECT -u FIREBASE_PROJECT_ID GCLOUD_PROJECT=demo-qc-uat-photo-integration FIRESTORE_EMULATOR_HOST=127.0.0.1:8585 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9399 node scripts/test-qc-uat-photo-integration.mjs --emulator'
+
+18 integration scenarios authored, not yet executed. Rules compile/access limits, actual SDK test, real Supabase private storage and signed URL authorization, portal browser integration, real schema/permission parity and release approval remain pending. Do not deploy demo rules or enable hosted UAT.
