@@ -6,3 +6,5 @@ New isolated in-process service (not HTTP or deployment) authenticates actual em
 
 Run: node scripts/test-qc-uat-spray-full-server.mjs --self-test
 Then: firebase emulators:exec --only firestore,auth --project demo-qc-uat-spray-full --config firebase.uat-spray-full-emulator.json 'env -u GOOGLE_CLOUD_PROJECT -u FIREBASE_PROJECT_ID GCLOUD_PROJECT=demo-qc-uat-spray-full FIRESTORE_EMULATOR_HOST=127.0.0.1:9085 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9899 node scripts/test-qc-uat-spray-full-server.mjs --emulator'
+
+Operator verification at `f518e9a`: 20/20 trusted server photo-free Auth/Firestore transaction checks passed, exit 0. Next [photo and Uploaded candidate](qc-uat-spray-photo-server.md).

@@ -1,0 +1,19 @@
+{
+  "firestore": {
+    "rules": "scripts/firestore.uat-spray-full-demo.rules"
+  },
+  "emulators": {
+    "firestore": {
+      "host": "127.0.0.1",
+      "port": 9185
+    },
+    "auth": {
+      "host": "127.0.0.1",
+      "port": 9999
+    },
+    "ui": {
+      "enabled": false
+    },
+    "singleProjectMode": true
+  }
+}
