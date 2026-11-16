@@ -10,3 +10,5 @@ Offline: node scripts/test-qc-uat-portal-sync.mjs --self-test
 Browser: with QC_UAT_PLAYWRIGHT_DIR and PLAYWRIGHT_BROWSERS_PATH set, firebase emulators:exec --only firestore,auth --project demo-qc-uat-portal-sync --config firebase.uat-portal-sync-emulator.json 'env -u GOOGLE_CLOUD_PROJECT -u FIREBASE_PROJECT_ID GCLOUD_PROJECT=demo-qc-uat-portal-sync FIRESTORE_EMULATOR_HOST=127.0.0.1:8985 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9799 node scripts/test-qc-uat-portal-sync.mjs --emulator'
 
 Follow-up review: add browser interception of a successful HTTP response with changed fingerprint (queue must remain intact), and direct divergent same-revision HTTP replay denial. Session subscription initializes after mounting to avoid missed fixture events. All browser tests pending. No live changes.
+
+Operator verification at `6626cc9`: 16/16 React HTTP sync and atomic Firebase emulator checks passed, exit 0 (mock storage). Next [actual SprayForm browser capture](qc-uat-spray-form.md). No production readiness implied.
