@@ -15,3 +15,5 @@ Added 8 scenarios using the actual function bodies from firestoreStore.ts, selec
 ### Mapper runner compatibility correction
 
 Operator screenshot at 035f70b: full-shape DTO 21/21 PASS in Node, mapper runner failed before its first scenario at ts.ScriptTarget.Latest (undefined compiler API). Remaining regression commands were not reached. Root package declares typescript latest; installed version not confirmed. Replace compiler AST/transpile dependency with Node native stripTypeScriptTypes (mode strip, supported on operator Node 26.13.0). Exact unique source boundaries, ordered mapper declarations, dependency guard, and export guard preserve the source-derived test without loading Firestore SDK or production modules. All eight scenarios unchanged. No dependency or production source changes. Node execution pending.
+
+Operator verification at `aa36830`: 72/72 checks passed (21 DTO, 8 actual mapper/mock atomic, 15 daily, 28 monthly). Node experimental warning only. Next: [trusted full Spray server gate](qc-uat-spray-full-server.md).
