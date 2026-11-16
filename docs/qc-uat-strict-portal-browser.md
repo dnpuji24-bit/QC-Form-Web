@@ -10,3 +10,5 @@ New independent React lab uses actual form intent and role default helpers, stri
 
 Run: node scripts/test-qc-uat-strict-portal-browser.mjs --self-test
 Then: QC_UAT_PLAYWRIGHT_DIR=/absolute/path/to/playwright-install PLAYWRIGHT_BROWSERS_PATH=/absolute/path/to/browsers node scripts/test-qc-uat-strict-portal-browser.mjs --browser
+
+Operator verification after `f705b54`: 14/14 React strict queue browser checks passed, mock backend only. Vite envFile warning corrected to envDir:false in lab build; regression pending. Next: [trusted local endpoint routing](qc-uat-endpoint-routing.md). No production readiness implied.

@@ -24,7 +24,7 @@ if(process.argv[2]==='--browser'){
  const {chromium}=createRequire(dir+'/package.json')('playwright')
  const {build}=await import('vite')
  // Build only this lab in memory. No normal Vite config, env file or output.
- const result=await build({root,configFile:false,envFile:false,publicDir:false,logLevel:'warn',build:{write:false,emptyOutDir:false,minify:false,rollupOptions:{input:root+'uat-strict-portal-lab/main.jsx'}}})
+ const result=await build({root,configFile:false,envDir:false,publicDir:false,logLevel:'warn',build:{write:false,emptyOutDir:false,minify:false,rollupOptions:{input:root+'uat-strict-portal-lab/main.jsx'}}})
  const outputs=(Array.isArray(result)?result:[result]).flatMap(r=>r.output??[])
  const chunks=outputs.filter(o=>o.type==='chunk')
  assert.equal(chunks.length,1,'LAB_SINGLE_BUNDLE_REQUIRED')
