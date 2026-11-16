@@ -24,7 +24,10 @@ export function summarizeFertilizerFillings(fills){
  const brands=new Set(fills.map(f=>key(f.jenisPupuk)).filter(Boolean))
  return {kg,ha,average:doses.length?round(doses.reduce((s,v)=>s+v,0)/doses.length):0,weighted:ha?round(kg/ha):0,distinctProducts:brands.size}
 }
-export function validateFertilizerDto(r,dp){
+export function validateFertilizerDto(r,dp){return validateDto(r,dp,false)}
+// Explicit isolated component candidate; the existing gate remains conservative.
+export function validateFertilizerDtoForComponents(r,dp){return validateDto(r,dp,true)}
+function validateDto(r,dp,componentMode){
  exact(r,['testOnly',...strings,...nums,'pengisianList','downtimeList','holdIntervals','actualPlanMaterials'])
  need(r.testOnly===true&&r.formType==='fertilizer','SYNTHETIC_FERTILIZER_ONLY')
  for(const k of strings)need(typeof r[k]==='string'&&r[k].length<=(k.endsWith('Base64')?2800000:k==='scanRawText'?12000:20000),'INVALID_TEXT_'+k)
@@ -57,7 +60,7 @@ export function validateFertilizerDto(r,dp){
   need(s.ha>0&&key(r.unit)&&key(r.noUnit)&&r.pengisianList.every(f=>key(f.jenisPupuk)&&f.dosis>0&&f.jumlah>0&&f.hasilKerja>0),'READY_FIELDS_REQUIRED')
   // Conservative gate only: the existing DTO cannot identify overlapping physical areas.
   // Do not claim mixed products or multi-component plans are safe to commit.
-  need(s.distinctProducts===1&&dp.materials.length===1,'MIXED_AREA_POLICY_UNRESOLVED')
+  if(!componentMode)need(s.distinctProducts===1&&dp.materials.length===1,'MIXED_AREA_POLICY_UNRESOLVED')
   const start=clock(r.startTime),rawEnd=clock(r.endTime),end=rawEnd<start?rawEnd+1440:rawEnd
   need(end>start,'INVALID_WORKING')
   const day=t=>{const v=clock(t);return rawEnd<start&&v<start?v+1440:v}
