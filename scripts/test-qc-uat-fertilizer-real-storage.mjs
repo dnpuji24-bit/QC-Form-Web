@@ -70,7 +70,7 @@ if(process.argv[2]==='--uat-write'){
   sign=createFertilizerPhotoSigner({db,verifyToken:t=>authAdmin.verifyIdToken(t,true),photoStore,realRunId:runId})
   assert.equal((await authAdmin.listUsers(1)).users.length,0,'FRESH_AUTH_REQUIRED')
   for(const c of ['qc_uat_identities','users',prefix+'/daily_plans',prefix+'/qc_records',prefix+'/daily_reports',prefix+'/qc_operational_audit',prefix+'/fertilizer_master','daily_plans'])assert.equal((await db.collection(c).limit(1).get()).size,0,'FRESH_DB_REQUIRED')
-  for(const [uid,role] of Object.entries({'uat-fertilizer':'mandor_fertilizering','uat-other':'mandor_fertilizering','uat-view':'pengunjung','uat-prod':'owner','uat-noclaim':'mandor_fertilizering'})){
+  for(const [uid,role] of Object.entries({'uat-fertilizer':'mandor_fertilizer','uat-other':'mandor_fertilizer','uat-view':'pengunjung','uat-prod':'owner','uat-noclaim':'mandor_fertilizer'})){
    const email=uid+'@fertilizer-full.example.test',password='Synthetic-full-fertilizer-2026'
    await authAdmin.createUser({uid,email,password,emailVerified:true})
    if(uid!=='uat-noclaim')await authAdmin.setCustomUserClaims(uid,{qcUat:true})
