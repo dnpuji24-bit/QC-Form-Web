@@ -141,3 +141,11 @@ export function resolveQcSessionPlan(rows:QcDailyPlan[],pid:string,activity:stri
   if(!selectedId||rows.filter(row=>row.dailyPlanId===selectedId).length!==1)return null
   return qcSessionPlanMatches(rows,pid,activity,description).find(row=>row.dailyPlanId===selectedId)||null
 }
+
+
+// Carry-over candidates are not automatically selected or a verified balance.
+// Source DP and actual session are independent; only same-date 1 -> 2 is allowed here.
+export function qcShiftOneCarryoverCandidates(rows:QcDailyPlan[],kind:'spray'|'fertilizer',date:string,actualShift:string,actualForeman:string){
+  if(shiftKey(actualShift)!=='2'||!text(date)||!sessionKey(actualForeman))return[]
+  return rows.filter(row=>qcDailyKind(row)===kind&&row.date===text(date)&&shiftKey(row.shift)==='1'&&Boolean(sessionKey(row.foreman))&&Boolean(row.dailyPlanId))
+}
