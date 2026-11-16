@@ -1,6 +1,6 @@
 // Synthetic browser candidate. Separate DB and lock from operational/legacy queues.
 import {openOperationalQueue,enqueueOperationalJob,listOperationalJobs} from './qcOperationalQueue.mjs'
-import {need,prepareStrictJob,enqueueStrictSyntheticJob,processStrictSyntheticJob,assertSameQueuedPayload} from './qcUatStrictQueueContract.mjs'
+import {need,prepareStrictJob,enqueueStrictSyntheticJob,processStrictSyntheticJob,assertSameQueuedPayload,assertConfirmation} from './qcUatStrictQueueContract.mjs'
 export const STRICT_DB='qc_uat_strict_queue_v1'
 export function isolatedQueueFactory(factory=globalThis.indexedDB){
  need(factory&&typeof factory.open==='function','INDEXEDDB_REQUIRED')
@@ -40,21 +40,30 @@ async function deleteConfirmed(job,factory){
 }
 const running=new Map()
 export function flushStrictBrowserJobs(uid,deps,factory){
+ return flushWithProcessor(uid,deps.currentUid,job=>processStrictSyntheticJob(job,deps),factory)
+}
+// Separate candidate entry: remote trusted service receives the original durable job.
+export function flushStrictBrowserJobsViaEndpoint(uid,deps,factory){
+ need(typeof deps.syncJob==='function','STRICT_ENDPOINT_REQUIRED')
+ return flushWithProcessor(uid,deps.currentUid,deps.syncJob,factory)
+}
+function flushWithProcessor(uid,currentUid,processJob,factory){
  uidGuard(uid)
  if(running.has(uid))return running.get(uid)
  const run=async()=>{
   let sent=0;const failures=[],blocked=new Set()
   for(const job of await listStrictBrowserJobs(uid,factory)){
-   if(await deps.currentUid()!==uid)break
+   if(await currentUid()!==uid)break
    const recordId=job?.record?.id
    if(blocked.has(recordId))continue
    try{
     need(job.scope==='uat-strict'&&job.testOnly===true,'STRICT_JOB_SCOPE')
     const checked=await prepareStrictJob(job)
     need(job.payloadFingerprint===checked.payloadFingerprint,'QC_QUEUE_FINGERPRINT_MISMATCH')
-    const result=await processStrictSyntheticJob(job,deps)
-    need(result.status==='confirmed','QC_COMMIT_UNCONFIRMED')
-    need(await deps.currentUid()===uid,'QC_QUEUE_ACCOUNT_MISMATCH')
+    const result=await processJob(job)
+    need(result?.status==='confirmed','QC_COMMIT_UNCONFIRMED')
+    assertConfirmation(result.record,job,checked.payloadFingerprint)
+    need(await currentUid()===uid,'QC_QUEUE_ACCOUNT_MISMATCH')
     await deleteConfirmed(job,factory)
     sent++
    }catch(e){blocked.add(recordId);failures.push({id:job.id,error:String(e?.message??e)})}

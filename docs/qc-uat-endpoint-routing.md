@@ -10,3 +10,5 @@ Offline: node scripts/test-qc-uat-endpoint-routing.mjs --self-test
 Integration: firebase emulators:exec --only firestore,auth --project demo-qc-uat-endpoint --config firebase.uat-endpoint-emulator.json 'env -u GOOGLE_CLOUD_PROJECT -u FIREBASE_PROJECT_ID GCLOUD_PROJECT=demo-qc-uat-endpoint FIRESTORE_EMULATOR_HOST=127.0.0.1:8885 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9699 node scripts/test-qc-uat-endpoint-routing.mjs --emulator'
 
 Follow-up source review: signer checks reference bucket, owner, record path, slot, hash shape and size before calling the storage read adapter, then verifies downloaded bytes. Added regression for corrupted stored objectPath causing no storage read. Emulator execution pending.
+
+Operator verification at `1260c3f`: 23 policy checks and 20 HTTP/Auth/Firestore emulator checks passed, exit 0 (mock storage/tickets only). Next [React HTTP sync integration](qc-uat-portal-sync.md). Hosted UAT stays OFF.
