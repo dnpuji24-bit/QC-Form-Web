@@ -1,7 +1,7 @@
-// Source-derived mapper regression: actual function bodies compiled with TS,
- // no Firebase SDK or network module loaded. Transaction adapter is in-memory.
+// Source-derived mapper regression: actual function bodies stripped by Node,
+// no Firebase SDK or network module loaded. Transaction adapter is in-memory.
 import assert from 'node:assert/strict'
-import ts from 'typescript'
+import {stripTypeScriptTypes} from 'node:module'
 import {readFileSync} from 'node:fs'
 import {fixture} from './qc-uat-spray-full-dto-fixture.mjs'
 import {validateSprayDto} from '../src/qcUatSprayFullDto.mjs'
@@ -9,17 +9,24 @@ import {commitQcAndActual} from '../src/qcAtomicCommit.mjs'
 import {stripOperationalPhotoPayload} from '../src/qcOperationalPhotoManifest.mjs'
 import {operationalQueueId} from '../src/qcOperationalSaveTransport.mjs'
 const source=readFileSync(new URL('../src/firestoreStore.ts',import.meta.url),'utf8')
-const parsed=ts.createSourceFile('firestoreStore.ts',source,ts.ScriptTarget.Latest,true)
+// Node 22.13+/23.2+ includes native type stripping; no project compiler API.
+// Extract only the contiguous mapper declarations, not firestoreStore imports.
+assert.equal(typeof stripTypeScriptTypes,'function','NODE_NATIVE_TYPE_STRIPPING_REQUIRED')
+const startMarker='function qcActualArea(record:QcRecord)'
+const endMarker='export async function mirrorQcActualToFirestore'
+assert.equal(source.split(startMarker).length,2,'ACTUAL_MAPPER_START_CHANGED')
+assert.equal(source.split(endMarker).length,2,'ACTUAL_MAPPER_END_CHANGED')
+const start=source.indexOf(startMarker),end=source.indexOf(endMarker)
+assert.ok(start>=0&&end>start,'ACTUAL_MAPPER_SOURCE_BOUNDARY')
+const picked=source.slice(start,end).trim()
 const names=['qcActualArea','qcActualEligible','qcActualReportId','qcActualMaterials','buildQcActualPayload']
-const picked=names.map(name=>{
- const matches=parsed.statements.filter(s=>ts.isFunctionDeclaration(s)&&s.name?.text===name)
- assert.equal(matches.length,1,'ACTUAL_MAPPER_SOURCE_CHANGED: '+name)
- return matches[0].getText(parsed)
-})
-const code="const firebaseAuth={currentUser:{email:'synthetic@example.test'}};const serverTimestamp=()=>({fixtureTimestamp:true});\n"+picked.join('\n')
-const compiled=ts.transpileModule(code,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022},reportDiagnostics:true})
-assert.deepEqual(compiled.diagnostics,[])
-const {buildQcActualPayload}=await import('data:text/javascript;base64,'+Buffer.from(compiled.outputText).toString('base64'))
+assert.deepEqual([...picked.matchAll(/^(?:export )?function (\w+)\(/gm)].map(m=>m[1]),names,'ACTUAL_MAPPER_SOURCE_CHANGED')
+assert.doesNotMatch(picked,/\b(?:import\s*(?:\(|[{*'"])|require\s*\(|fetch\s*\(|process\.|globalThis\.)/,'ACTUAL_MAPPER_UNEXPECTED_DEPENDENCY')
+const code="const firebaseAuth={currentUser:{email:'synthetic@example.test'}};const serverTimestamp=()=>({fixtureTimestamp:true});\n"+picked
+const compiled=stripTypeScriptTypes(code,{mode:'strip'})
+const loaded=await import('data:text/javascript;base64,'+Buffer.from(compiled).toString('base64'))
+assert.deepEqual(Object.keys(loaded),['buildQcActualPayload'])
+const {buildQcActualPayload}=loaded
 let n=0
 const check=async(name,fn)=>{await fn();n++;console.log('PASS: '+name)}
 function sample(){const {r,dp}=fixture();return {r:validateSprayDto(r,dp),dp}}

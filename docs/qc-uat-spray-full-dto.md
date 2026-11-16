@@ -11,3 +11,7 @@ Run: node scripts/test-qc-uat-spray-full-dto.mjs
 ### Actual mapper and atomic core regression
 
 Added 8 scenarios using the actual function bodies from firestoreStore.ts, selected by TypeScript AST and compiled with only fixture firebaseAuth/serverTimestamp dependencies, plus the actual commitQcAndActual core and photo stripping helper. No Firebase initialization or network calls. The transaction and audit writer are in-memory substitutes; test is not an emulator or real server authorization test. Actual mapping preserves source IDs, actual executor, metadata/materials, overage, correction identity and absence of inline photo bytes. No change to original mapper. Script authored and source-reviewed, Node execution pending. Run: node scripts/test-qc-uat-spray-actual-mapper.mjs
+
+### Mapper runner compatibility correction
+
+Operator screenshot at 035f70b: full-shape DTO 21/21 PASS in Node, mapper runner failed before its first scenario at ts.ScriptTarget.Latest (undefined compiler API). Remaining regression commands were not reached. Root package declares typescript latest; installed version not confirmed. Replace compiler AST/transpile dependency with Node native stripTypeScriptTypes (mode strip, supported on operator Node 26.13.0). Exact unique source boundaries, ordered mapper declarations, dependency guard, and export guard preserve the source-derived test without loading Firestore SDK or production modules. All eight scenarios unchanged. No dependency or production source changes. Node execution pending.
