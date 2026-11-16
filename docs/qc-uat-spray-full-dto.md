@@ -7,3 +7,7 @@ This isolated validator covers the exact fresh SprayForm DTO field set plus test
 Next: actual captured DTO adapter, trusted server transaction with current Owner permissions and authoritative source DP, real buildQcActualPayload and QC/Actual/Audit, full photo manifest binding, replay and failure tests in dedicated emulator. Do not change or deploy existing Rules. No production source touched, hosted UAT remains OFF.
 
 Run: node scripts/test-qc-uat-spray-full-dto.mjs
+
+### Actual mapper and atomic core regression
+
+Added 8 scenarios using the actual function bodies from firestoreStore.ts, selected by TypeScript AST and compiled with only fixture firebaseAuth/serverTimestamp dependencies, plus the actual commitQcAndActual core and photo stripping helper. No Firebase initialization or network calls. The transaction and audit writer are in-memory substitutes; test is not an emulator or real server authorization test. Actual mapping preserves source IDs, actual executor, metadata/materials, overage, correction identity and absence of inline photo bytes. No change to original mapper. Script authored and source-reviewed, Node execution pending. Run: node scripts/test-qc-uat-spray-actual-mapper.mjs
