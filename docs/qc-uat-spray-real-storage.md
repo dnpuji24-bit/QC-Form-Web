@@ -5,3 +5,5 @@ Operator screenshot at 06a243b confirms all 19 full Spray photo and Uploaded Aut
 Signer reads current marker and confirmed QC/manifest inside emulator transaction, matches previous isolated endpoint read policy (own form edit or Data QC view/edit for own or supervisory/viewer roles); fixed 30-second signed URLs. Previously issued URLs remain bearer capabilities until expiration, not revoked instantly by permission change. Direct expiry test uses a 3-second backend ticket. No URL/token logging on failures. No HTTP/browser endpoint or UI integration, no production auth policy changes. 12 new real storage + emulator checks authored, not executed. Requires explicit operator opt-in and UAT secret only in hidden Cloud Shell prompt. If failure, inspect exact run ID, do not remove any unrelated objects.
 
 Run: bash scripts/run-qc-uat-spray-real-storage.sh
+
+Operator verification at `1d8864a`: 12/12 real UAT storage + Firebase emulator checks passed; scoped cleanup verified, exit 0. Next: [report preview and export candidate](qc-uat-spray-report.md).

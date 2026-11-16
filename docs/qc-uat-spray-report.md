@@ -1,0 +1,9 @@
+# 11C.2A.5c — QC Spray report preview and export candidate
+
+Operator screenshot at 1d8864a confirms 12/12 real Supabase UAT / Firebase emulator checks passed, synthetic cleanup verified, exit 0. No need to repeat real storage test for this gate.
+
+App.tsx report previously omitted source DP/MP IDs and source target; Spray Excel export omitted those and working/HOLD metrics. Add three preview fields and append seven Spray Excel columns after all existing columns (including Record ID); no reordering or Fertilizer sheet changes. Target is source DP target, not additive across rows. Actual shift, foreman and area stay unchanged. Do not infer carryover source shift from current executor; source shift not stored on this DTO. Private URL/token and raw bytes not exported into Excel. Existing legacy Drive link column preserved.
+
+Source-derived browser lab extracts exact RecordReport and exportExcel bodies plus their helpers from App.tsx, with guards, uses real report-photo hook, real CSS, html2canvas, jsPDF and xlsx. Auth/cache/signing configuration stubbed; legacy photo viewer stubbed (not tested). Real browser data generated from synthetic full DTO and real manifest helper. No production App initialization, Firebase SDK, external endpoint or live storage. Tests verify rendered fields, photo integrity and failure behavior, mobile geometry, JPG decode, PDF header/page presence, actual XLSX rows and no external network. 12 scenarios authored; browser execution pending. PDF visual clipping and page-by-page content verification, actual signed URL hook integration (existing hook uses photoId/60 seconds vs in-process signer slot/30 seconds), actual production UI wiring, full legacy behavior and Fertilizer remain pending. No deployment. New columns appended to existing Spray export; validate downstream import compatibility before rollout.
+
+Run: node scripts/test-qc-uat-spray-report.mjs --self-test and --browser with QC_UAT_PLAYWRIGHT_DIR set.
