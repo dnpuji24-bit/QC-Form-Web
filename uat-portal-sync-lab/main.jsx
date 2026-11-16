@@ -13,7 +13,7 @@ globalThis.portalSyncLab={installSession,listStrictBrowserJobs}
 function Lab(){
  const [uid,setUid]=useState(session?.uid??''),[kind,setKind]=useState('spray'),[id,setId]=useState('uat-q-browser'),[rev,setRev]=useState('uat-r1'),[base,setBase]=useState(''),[area,setArea]=useState('250'),[photo,setPhoto]=useState(true),[rows,setRows]=useState([]),[msg,setMsg]=useState('Belum ada operasi'),[busy,setBusy]=useState(false)
  const lock=useRef(false)
- useEffect(()=>{const update=()=>{setUid(session?.uid??'');setRows([])};addEventListener('fixture-session',update);return()=>removeEventListener('fixture-session',update)},[])
+ useEffect(()=>{const update=()=>{setUid(session?.uid??'');setRows([])};addEventListener('fixture-session',update);update();return()=>removeEventListener('fixture-session',update)},[])
  useEffect(()=>{let active=true;if(uid)listStrictBrowserJobs(uid).then(r=>{if(active)setRows(r)}).catch(()=>{if(active)setMsg('GAGAL: QUEUE_READ')});return()=>{active=false}},[uid])
  async function operate(fn){
   if(lock.current)return
