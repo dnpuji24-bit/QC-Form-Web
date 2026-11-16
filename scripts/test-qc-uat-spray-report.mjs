@@ -21,7 +21,41 @@ assert.doesNotMatch(read('src/main.tsx'),/uat-spray-report-lab/)
 assert.match(read('src/firebase.ts'),/QC_HOSTED_UAT_ISOLATION_REQUIRED/)
 assert.ok(process.argv.length===3&&['--self-test','--browser'].includes(process.argv[2]))
 const extracted="import React,{useState,useEffect} from 'react'\nimport {createPortal} from 'react-dom'\nimport {useOperationalReportPhotos} from '../src/useOperationalReportPhotos'\nimport {uploadStatusInfo} from '../src/UploadStatus'\nimport type {QcRecord} from '../src/types'\nfunction QcSupabasePhotoViewer(){return null}\n"+excel+"\n"+report+"\nexport {RecordReport}\nexport async function downloadExcel(filtered:QcRecord[]){const setExporting=(_v:boolean)=>{};"+download+";return exportExcel()}\n"
+// Serve only emitted JS/CSS at their original names, including local lazy chunks.
+// No filesystem request handler or external module resolution.
+function reportBundle(output){
+ const files=new Map()
+ for(const o of output){
+  assert.ok(typeof o.fileName==='string'&&o.fileName.split('/').every(p=>/^[A-Za-z0-9_-][A-Za-z0-9_.-]*$/.test(p)),'UNSAFE_BUNDLE_PATH')
+  assert.ok(!files.has(o.fileName),'DUPLICATE_BUNDLE_PATH')
+  if(o.type==='chunk'){
+   assert.match(o.fileName,/\.m?js$/)
+   files.set(o.fileName,{type:'text/javascript; charset=utf-8',body:o.code,chunk:o})
+  }else{
+   assert.equal(o.type,'asset')
+   assert.match(o.fileName,/\.css$/,'UNEXPECTED_BUNDLE_ASSET')
+   files.set(o.fileName,{type:'text/css; charset=utf-8',body:o.source})
+  }
+ }
+ const entries=[...files].filter(([,f])=>f.chunk?.isEntry)
+ assert.equal(entries.length,1,'EXPECTED_ONE_REPORT_ENTRY')
+ const css=[...files].filter(([,f])=>!f.chunk).map(([name])=>name)
+ assert.ok(css.length,'REPORT_CSS_MISSING')
+ for(const [name,f] of files)if(f.chunk){
+  for(const dep of [...f.chunk.imports,...f.chunk.dynamicImports]){
+   assert.ok(files.get(dep)?.chunk,'NONLOCAL_BUNDLE_IMPORT '+name+' -> '+dep)
+  }
+ }
+ return {files,entry:entries[0][0],css}
+}
+const bundleFixture=[{type:'chunk',fileName:'assets/main.js',isEntry:true,code:'',imports:[],dynamicImports:['assets/lazy.js']},{type:'chunk',fileName:'assets/lazy.js',isEntry:false,code:'',imports:['assets/main.js'],dynamicImports:[]},{type:'asset',fileName:'assets/main.css',source:''}]
+assert.equal(reportBundle(bundleFixture).entry,'assets/main.js')
+assert.throws(()=>reportBundle([{...bundleFixture[0],dynamicImports:['https://example.test/lazy.js']},...bundleFixture.slice(1)]),/NONLOCAL_BUNDLE_IMPORT/)
+assert.throws(()=>reportBundle([{...bundleFixture[0],fileName:'../main.js'},...bundleFixture.slice(1)]),/UNSAFE_BUNDLE_PATH/)
+assert.throws(()=>reportBundle(bundleFixture.filter(o=>o.fileName!=='assets/lazy.js')),/NONLOCAL_BUNDLE_IMPORT/)
+assert.throws(()=>reportBundle([...bundleFixture,bundleFixture[0]]),/DUPLICATE_BUNDLE_PATH/)
 console.log('SUCCESS: Spray report source, export and isolation guards passed (offline)')
+console.log('SUCCESS: local emitted report bundle dependency guards passed (offline)')
 if(process.argv[2]==='--browser'){
  const dir=process.env.QC_UAT_PLAYWRIGHT_DIR;assert.ok(dir?.startsWith('/'),'QC_UAT_PLAYWRIGHT_DIR_REQUIRED')
  const {chromium}=createRequire(dir+'/package.json')('playwright'),{build}=await import('vite'),XLSX=await import('xlsx')
@@ -37,25 +71,29 @@ if(process.argv[2]==='--browser'){
   assert.ok(ids.includes(virtual)&&ids.includes(root+'src/useOperationalReportPhotos.ts'))
   assert.deepEqual([...seen].sort(),[...redirects].sort());assert.ok(!ids.some(id=>/node_modules\/(?:firebase|@firebase)\//.test(id)))
  }}
- const built=await build({root,configFile:false,envDir:false,publicDir:false,logLevel:'warn',plugins:[plugin],build:{write:false,emptyOutDir:false,minify:false,rollupOptions:{input:root+'uat-spray-report-lab/main.jsx',output:{inlineDynamicImports:true}}}})
+ const built=await build({root,configFile:false,envDir:false,publicDir:false,base:'/',logLevel:'warn',plugins:[plugin],build:{write:false,emptyOutDir:false,minify:false,modulePreload:false,rollupOptions:{input:root+'uat-spray-report-lab/main.jsx'}}})
  const output=(Array.isArray(built)?built:[built]).flatMap(r=>r.output??[])
- const chunks=output.filter(o=>o.type==='chunk'),css=output.filter(o=>o.type==='asset'&&o.fileName.endsWith('.css'))
- assert.equal(chunks.length,1);assert.equal(chunks[0].imports.length,0);assert.equal(chunks[0].dynamicImports.length,0);assert.ok(css.length)
+ const {files,entry,css}=reportBundle(output)
+ console.log('SUCCESS: report bundle contains only local emitted dependencies ('+files.size+' JS/CSS files)')
  const csp="default-src 'none'; script-src 'self'; connect-src 'none'; img-src blob: data:; style-src 'self' 'unsafe-inline'; frame-src 'self' about:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
  const server=createServer((req,res)=>{
   res.setHeader('Content-Security-Policy',csp);res.setHeader('Cache-Control','no-store')
   if(req.method!=='GET'||req.headers.host!==host+':'+port){res.writeHead(403).end();return}
-  if(req.url==='/'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Report lab</title><link rel="stylesheet" href="/lab.css"><div id="root"></div><script type="module" src="/lab.js"></script>')}
-  else if(req.url==='/lab.js'){res.setHeader('Content-Type','text/javascript; charset=utf-8');res.end(chunks[0].code)}
-  else if(req.url==='/lab.css'){res.setHeader('Content-Type','text/css');res.end(css.map(x=>String(x.source)).join('\n'))}
-  else res.writeHead(404).end()
+  if(req.url==='/'){
+   res.setHeader('Content-Type','text/html; charset=utf-8')
+   res.end('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Report lab</title><link rel="icon" href="data:,">'+css.map(name=>'<link rel="stylesheet" href="/'+name+'">').join('')+'<div id="root"></div><script type="module" src="/'+entry+'"></script>')
+  }else{
+   const f=files.get(req.url?.slice(1))
+   if(!f){res.writeHead(404).end();return}
+   res.setHeader('Content-Type',f.type);res.end(typeof f.body==='string'?f.body:Buffer.from(f.body))
+  }
  })
  let browser,context,n=0;const violations=[]
  const check=async(name,fn)=>{try{await fn()}catch(e){throw Error('FAIL: '+name,{cause:e})}n++;console.log('PASS: '+name)}
  try{
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,host,resolve)})
   browser=await chromium.launch({headless:true});context=await browser.newContext({serviceWorkers:'block',acceptDownloads:true,viewport:{width:1280,height:900}})
-  await context.route('**/*',async route=>{const u=new URL(route.request().url());if(u.origin===origin||['blob:','data:','about:'].includes(u.protocol))await route.continue();else{violations.push('external');await route.abort()}})
+  await context.route('**/*',async route=>{const u=new URL(route.request().url());if((u.origin===origin&&!u.search&&(u.pathname==='/'||files.has(u.pathname.slice(1))))||['blob:','data:','about:'].includes(u.protocol))await route.continue();else{violations.push('unexpected-request '+u.origin+u.pathname);await route.abort()}})
   await context.routeWebSocket('**/*',ws=>{violations.push('websocket');ws.close()})
   await context.addInitScript(()=>{globalThis.cspViolations=[];document.addEventListener('securitypolicyviolation',e=>cspViolations.push(e.effectiveDirective))})
   const page=await context.newPage();page.on('pageerror',e=>violations.push(e.message))
@@ -70,7 +108,7 @@ if(process.argv[2]==='--browser'){
   const ready=()=>page.waitForFunction(()=>!document.querySelector('.report-toolbar button')?.disabled)
   const close=async()=>{await button('Tutup').click();await page.getByRole('dialog').waitFor({state:'detached'})}
   const downloadBytes=async name=>{const d=page.waitForEvent('download');await button(name).click();const f=await d;assert.equal(await f.failure(),null);return {name:f.suggestedFilename(),bytes:readFileSync(await f.path())}}
-  const field=async(label,expected)=>{const row=page.locator('.report-grid>div').filter({has:page.locator('span',{hasText:new RegExp('^'+label.replace(/[.*+?^$\u007b\u007d()|[\]\\]/g,'\\$&')+'$')})});assert.equal(await row.locator('strong').textContent(),expected)}
+  const field=async(label,expected)=>{const row=page.locator('.report-grid>div').filter({has:page.locator('span').filter({hasText:new RegExp('^'+label.replace(/[.*+?^$\u007b\u007d()|[\]\\]/g,'\\$&')+'$')})});assert.equal(await row.count(),1,'REPORT_FIELD '+label);assert.equal(await row.locator('strong').textContent(),expected)}
   await check('preview waits for verified private photo bytes before export',async()=>{await show(record,items,true);assert.ok(await button('JPG').isDisabled());assert.ok(await button('Cetak / PDF').isDisabled());await page.evaluate(()=>reportLab.resume());await ready()})
   await check('report preserves source IDs, actual executor and over-actual',async()=>{await field('Daily Plan ID (Sumber)',r.dailyPlanId);await field('Monthly Plan ID (Sumber)',r.monthlyPlanLineId);await field('Target Daily Plan','8 Ha');await field('Shift','2');await field('Mandor','Mandor B');await field('Luas Aktual','9 Ha')})
   await check('overnight HOLD timing and material values displayed',async()=>{await field('Jam Mulai','15:00');await field('Jam Selesai','01:00');await field('Working Efektif','540 menit');await field('Total HOLD','60 menit');await field('Produktivitas Efektif','1 Ha/Jam');await field('Pesticide 1',r.pesticide1);await page.getByText(/23:30–00:30/).waitFor()})
