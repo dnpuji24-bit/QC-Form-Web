@@ -6,3 +6,5 @@ Dedicated demo only: project demo-qc-uat-fertilizer-full, ports 9285 and 10099. 
 
 Run: node scripts/test-qc-uat-fertilizer-full-server.mjs --self-test
 Then: firebase emulators:exec --only firestore,auth --project demo-qc-uat-fertilizer-full --config firebase.uat-fertilizer-full-emulator.json 'env -u GOOGLE_CLOUD_PROJECT -u FIREBASE_PROJECT_ID GCLOUD_PROJECT=demo-qc-uat-fertilizer-full FIRESTORE_EMULATOR_HOST=127.0.0.1:9285 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:10099 node scripts/test-qc-uat-fertilizer-full-server.mjs --emulator'
+
+Operator verification at `839bada`: 20/20 trusted Fertilizer component server emulator checks passed, exit 0. Next [photo gate](qc-uat-fertilizer-photo-server.md).

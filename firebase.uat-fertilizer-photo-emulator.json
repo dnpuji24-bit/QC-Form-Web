@@ -1,0 +1,19 @@
+{
+  "firestore": {
+    "rules": "scripts/firestore.uat-fertilizer-full-demo.rules"
+  },
+  "emulators": {
+    "firestore": {
+      "host": "127.0.0.1",
+      "port": 9385
+    },
+    "auth": {
+      "host": "127.0.0.1",
+      "port": 10199
+    },
+    "ui": {
+      "enabled": false
+    },
+    "singleProjectMode": true
+  }
+}
