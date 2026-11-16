@@ -113,7 +113,7 @@ if(process.argv[2]==='--emulator'){
    const out=await call({...photo,saveType:'draft'},null,changes),s=await snapshot()
    assert.equal(out.status,'confirmed');assert.equal(s.q.saveType,'draft');assert.equal(s.ap,null);assert.equal(s.audits.length,1)
    const m=s.q.operationalPhotoManifest;assert.deepEqual(Object.keys(m).sort(),['hold_uat-h1','main'])
-   assert.notEqual(m.main.objectPath,m.hold_uat-h1.objectPath);assert.equal(objects.size,2)
+   assert.notEqual(m.main.objectPath,m['hold_uat-h1'].objectPath);assert.equal(objects.size,2)
    assert.equal(s.q.photoBase64,undefined);assert.equal(s.q.holdIntervals[0].photoBase64,undefined)
    assert.equal(s.q.photoManifestFingerprint,s.audits[0].photoManifestFingerprint)
   })
@@ -163,6 +163,44 @@ if(process.argv[2]==='--emulator'){
    await reject(()=>call({...revise(uploaded,'uat-r5',11),photoBase64:png},'uat-r2',[changes[0]]),'QC_REVISION_CONFLICT')
    assert.equal(stats.puts,puts);assert.deepEqual(await snapshot(),before)
    assert.deepEqual((await db.doc('daily_plans/root-sentinel').get()).data(),{testOnly:false,rootSentinel:true})
+  })
+  await check('multiple HOLD photos have independent immutable slots',async()=>{
+   const id='qc-v2-uat-multi-hold',second={...photo.holdIntervals[0],holdId:'uat-h2',start:'20:00',end:'20:30'}
+   const row={...photo,id,holdIntervals:[...photo.holdIntervals,second],holdTotalMinutes:90,effectiveWorkingMinutes:510,productivityHaPerHour:1.06}
+   const intents=[...changes,{kind:'hold',holdId:'uat-h2',action:'replace',dataUrl:png}]
+   const out=await call(row,null,intents),m=out.record.operationalPhotoManifest
+   assert.deepEqual(Object.keys(m).sort(),['hold_uat-h1','hold_uat-h2','main'])
+   assert.equal(new Set(Object.values(m).map(ref=>ref.objectPath)).size,3)
+   assert.equal((await ap(id)).dailyPlanId,dp.dailyPlanId)
+   assert.equal((await call(row,null,intents)).replayed,true)
+  })
+  await check('photo replacement creates new immutable object and preserves untouched HOLD',async()=>{
+   const id='qc-v2-uat-multi-hold',before=await q(id),webp='data:image/webp;base64,UklGRh4AAABXRUJQVlA4TBEAAAAvAAAAAAdQsmZUpv+BiOh/AAA='
+   const second={...r.holdIntervals[0],holdId:'uat-h2',start:'20:00',end:'20:30',photoBase64:''}
+   const next={...r,id,clientRevision:'uat-r2',saveType:'uploaded',photoBase64:webp,holdIntervals:[r.holdIntervals[0],second],holdTotalMinutes:90,effectiveWorkingMinutes:510,productivityHaPerHour:1.06}
+   const out=await call(next,'uat-r1',[{kind:'main',action:'replace',dataUrl:webp}]),m=out.record.operationalPhotoManifest
+   assert.notEqual(m.main.objectPath,before.operationalPhotoManifest.main.objectPath)
+   assert.equal(m.main.contentType,'image/webp');assert.ok(objects.has(before.operationalPhotoManifest.main.objectPath))
+   assert.deepEqual(m['hold_uat-h1'],before.operationalPhotoManifest['hold_uat-h1'])
+   assert.deepEqual(m['hold_uat-h2'],before.operationalPhotoManifest['hold_uat-h2'])
+   assert.equal((await q(id)).saveType,'uploaded')
+  })
+  await check('corrupt object bytes block replay without mutation',async()=>{
+   const before=await snapshot(),ref=before.q.operationalPhotoManifest.main,bytes=objects.get(ref.objectPath),puts=stats.puts
+   objects.set(ref.objectPath,Buffer.alloc(bytes.length,0))
+   try{await reject(()=>call(revise(uploaded,'uat-r4',10),'uat-r3',[{kind:'hold',holdId:'uat-h1',action:'remove'}]),'PHOTO_BYTES_UNVERIFIED');assert.deepEqual(await snapshot(),before);assert.equal(stats.puts,puts)}finally{objects.set(ref.objectPath,bytes)}
+  })
+  await check('concurrent same revision photo intents allow one durable winner',async()=>{
+   const id='qc-v2-uat-multi-hold',before=await q(id)
+   const second={...r.holdIntervals[0],holdId:'uat-h2',start:'20:00',end:'20:30',photoBase64:''}
+   const row={...r,id,clientRevision:'uat-r3',saveType:'uploaded',holdIntervals:[r.holdIntervals[0],second],holdTotalMinutes:90,effectiveWorkingMinutes:510,productivityHaPerHour:1.06}
+   const proposals=[call(row,'uat-r2',[{kind:'main',action:'remove'}]),call({...row,photoBase64:png},'uat-r2',[changes[0]])]
+   const settled=await Promise.allSettled(proposals)
+   assert.equal(settled.filter(x=>x.status==='fulfilled').length,1)
+   assert.equal(settled.find(x=>x.status==='rejected').reason.message,'QC_REPLAY_PAYLOAD_CONFLICT')
+   const s=await snapshot(id);assert.equal(s.q.clientRevision,'uat-r3');assert.equal(s.ap.clientRevision,'uat-r3');assert.equal(s.audits.length,3)
+   assert.deepEqual(s.q.operationalPhotoManifest['hold_uat-h1'],before.operationalPhotoManifest['hold_uat-h1'])
+   assert.equal(s.q.photoManifestFingerprint,s.ap.photoManifestFingerprint);assert.equal(s.q.photoManifestFingerprint,s.audits[2].photoManifestFingerprint)
   })
   console.log('SUCCESS: '+n+' full Spray photo and Uploaded transaction checks (Auth/Firestore emulators, mock storage only)')
  }finally{

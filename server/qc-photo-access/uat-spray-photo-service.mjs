@@ -137,6 +137,9 @@ export function createSprayPhotoService({db,verifyToken,buildActual,photoStore})
   if(pre.status==='confirmed')return pre
   // Immutable staging is outside the retryable transaction. No delete/overwrite.
   for(const u of pre.uploads)await photoStore.putImmutable(u.reference,u.bytes)
+  // Re-verify the original token after staging, then re-read current permissions.
+  let again;try{again=await verifyToken(token)}catch{throw Error('INVALID_TOKEN')}
+  need(again?.uid===actor.uid&&again.qcUat===true,'UAT_IDENTITY_DENIED')
   // Re-read marker, DP, base revision, and verified bytes before atomic commit.
   return run(true)
  }
