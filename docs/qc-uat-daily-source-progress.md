@@ -7,3 +7,5 @@ Read-model candidate: each DP contributes target once, all distinct current link
 Source review: existing firestoreStore.ts buildQcActualPayload already preserves source DP/MP IDs with actual shift/foreman; existing qcUatPlanningProgressContract.mjs handles monthly over-actual; PlanSummaryDashboard.tsx renders actual percentage and overage. Do not change those solely for this rule. This candidate adds explicit DP-level regression. No production modules changed or cloud access. 15 tests executed in authoring JavaScript runtime, Cloud Shell rerun pending. Full DTO server mapping, real AP aggregation integration, actual FertilizerForm carry-over and preview/export still pending.
 
 Run: node scripts/test-qc-uat-daily-source-progress.mjs
+
+Operator verification at `48d6fc3`: 15/15 daily source progress and 28/28 monthly progress checks passed (offline synthetic). Next [full-shape Spray DTO validation](qc-uat-spray-full-dto.md).

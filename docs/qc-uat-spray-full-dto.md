@@ -1,0 +1,9 @@
+# 11C.2A.4a — full-shape Spray DTO validation candidate
+
+Operator screenshot at 48d6fc3 confirms 15 daily source progress and 28 monthly progress checks passed. Previous 22 actual SprayForm browser checks passed. Actual form currently emits full record including source metadata, actual executor, material calculation, timing and photo fields; previous strict emulator receipt and Rules accept a narrower DTO and require DP shift/foreman equal actual executor. They cannot be reused unchanged for carryover.
+
+This isolated validator covers the exact fresh SprayForm DTO field set plus testOnly marker and synthetic fixture IDs. It independently compares source DP metadata and material quantities, actual area consistency, own or same-date 1-to-2 carryover, overnight timing, HOLD overlap and productivity. Actual area is not capped by source area. Draft validation permits incomplete timing. Deliberately restrictive synthetic IDs, normalized source fixture shift/kind, exact hold fields, and decimal checks are lab constraints, NOT production admission policy. Fresh form fixture reconstructed from inspected source, not raw browser captured bytes. No legacy imported records or full finalize DTO yet. Photo fields are shape-checked only; immutable photo transport and binary stripping are separate existing tests. No authentication or server commit performed here. 21 checks executed in authoring JavaScript runtime, Node rerun pending.
+
+Next: actual captured DTO adapter, trusted server transaction with current Owner permissions and authoritative source DP, real buildQcActualPayload and QC/Actual/Audit, full photo manifest binding, replay and failure tests in dedicated emulator. Do not change or deploy existing Rules. No production source touched, hosted UAT remains OFF.
+
+Run: node scripts/test-qc-uat-spray-full-dto.mjs
