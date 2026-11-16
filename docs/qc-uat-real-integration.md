@@ -8,3 +8,5 @@ Derived from the passing 32-scenario strict integration, keeps its Rules unchang
 
 Run offline: node scripts/test-qc-uat-real-integration.mjs --self-test
 Run explicitly: bash scripts/run-qc-uat-real-integration.sh
+
+Operator verification at `69bad36`: 37/37 Firebase emulator and real Supabase UAT integration checks passed, scoped storage cleanup verified, exit 0. Next: [strict React portal queue lab](qc-uat-strict-portal-browser.md). Hosted UAT remains OFF; no production readiness implied.
