@@ -11,3 +11,5 @@ Run: node scripts/test-qc-uat-spray-report.mjs --self-test and --browser with QC
 ### Browser bundle compatibility correction
 
 Operator screenshot at ecbb620: offline report source guards passed; browser build stopped at line 43 before any scenario, dynamicImports length 1 instead of 0 and deprecated inlineDynamicImports warning. Remove single-chunk assumption and deprecated option. Validate every static/dynamic dependency points to an emitted local JS chunk, serve exact emitted JS/CSS names only from memory, reject unsafe paths, missing/external imports and duplicates. Browser routing additionally restricts same-origin requests to exact output paths. Keep source allowlist, CSP, no Firebase, no external network and 12 scenarios. Offline fixture checks exercise bundle guard. This is runner-only correction; browser rerun pending.
+
+Operator verification at `33cf87e`: 12/12 actual Spray preview and export browser checks passed; seven emitted JS/CSS files, no external network, WebSocket or CSP violations. Next [Fertilizer mapping candidate](qc-uat-fertilizer-form.md).
