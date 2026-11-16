@@ -47,7 +47,7 @@ if(process.argv[2]==='--emulator'){
  const {initializeApp,deleteApp}=await import('firebase/app')
  const {initializeAuth,inMemoryPersistence,connectAuthEmulator,signInWithEmailAndPassword,signOut}=await import('firebase/auth')
  const admin=adminInit({projectId},'endpoint-demo-admin'),authAdmin=getAuth(admin),db=getFirestore(admin)
- const prefix='qc_uat_workspaces/cutover',clients=[],objects=new Map(),tickets=[]
+ const prefix='qc_uat_workspaces/cutover',clients=[],objects=new Map(),tickets=[],reads=[]
  const mark=uid=>db.doc('qc_uat_identities/'+uid)
  const qc=id=>db.doc(prefix+'/qc_records/'+id)
  const rolesByUid={'uat-spray':'mandor_spraying','uat-fert':'mandor_fertilizer','uat-other':'mandor_spraying','uat-view':'pengunjung','uat-owner':'owner','uat-disabled':'owner','uat-prod':'owner','uat-noclaim':'mandor_spraying'}
@@ -60,7 +60,7 @@ if(process.argv[2]==='--emulator'){
   verifyToken:token=>authAdmin.verifyIdToken(token,true),
   snapshot:(uid,id)=>db.runTransaction(async tx=>{const [m,p,q]=await Promise.all([tx.get(mark(uid)),tx.get(db.doc('users/'+uid)),tx.get(qc(id))]);return {marker:m.data(),productionProfile:p.exists,record:q.data()??null}}),
   putImmutable:async(r,bytes)=>{const old=objects.get(r.objectPath);if(old)assert.deepEqual(old,Buffer.from(bytes));else objects.set(r.objectPath,Buffer.from(bytes))},
-  readObject:async r=>objects.get(r.objectPath),
+  readObject:async r=>{reads.push(r.objectPath);return objects.get(r.objectPath)},
   issueTicket:async(r,ttl)=>{tickets.push({path:r.objectPath,ttl});return 'mock-'+randomUUID().replaceAll('-','')}
  })
  let n=0
@@ -109,6 +109,7 @@ if(process.argv[2]==='--emulator'){
   await check('manual downgrade prevents upload without token refresh',async()=>{await mark('uat-spray').set(marker('mandor_spraying',{}, {qc_spraying:'view'}));const next=await makeJob('uat-spray','uat-q1','spray','uat-r1','uat-r2');await deny(()=>call('uat-spray','upload',{job:next}),403,'FORM_EDIT_REQUIRED');await mark('uat-spray').set(marker('mandor_spraying'))})
   await check('stale base and cross-owner correction rejected',async()=>{await deny(()=>call('uat-spray','upload',{job:j}),409,'STALE_BASE');const x=await makeJob('uat-other','uat-q1','spray','uat-r1','uat-r2');await deny(()=>call('uat-other','upload',{job:x}),403,'OWNER_REQUIRED')})
   await check('missing photo slot and corrupted reference denied',async()=>{await deny(()=>call('uat-spray','sign',{...sign,slot:'scan'}),404,'PHOTO_SLOT_MISSING');const row=(await qc('uat-q1').get()).data();await qc('uat-q1').update({operationalPhotoManifest:{main:{...uploaded.manifest.main,sha256:'0'.repeat(64)}}});await deny(()=>call('uat-spray','sign',sign),409,'PHOTO_REFERENCE_INVALID');await qc('uat-q1').set(row)})
+  await check('corrupt path rejected before storage adapter read',async()=>{const row=(await qc('uat-q1').get()).data(),before=reads.length;await qc('uat-q1').update({operationalPhotoManifest:{main:{...uploaded.manifest.main,objectPath:'uat-other/qc/foreign/file.png'}}});await deny(()=>call('uat-spray','sign',sign),409,'PHOTO_REFERENCE_INVALID');assert.equal(reads.length,before);await qc('uat-q1').set(row)})
   await check('fertilizer own form allowed',async()=>{const fj=await makeJob('uat-fert','uat-q2','fertilizer');const result=await call('uat-fert','upload',{job:fj});assert.equal(result.manifest.main.uploaderUid,'uat-fert');assert.equal(objects.size,2)})
   await check('response no-store and root sentinel unchanged',async()=>{assert.equal((await raw(endpointPaths.sign,{body:JSON.stringify(sign)})).cache,'no-store');assert.deepEqual((await db.doc('daily_plans/root-sentinel').get()).data(),{testOnly:false,rootSentinel:true});assert.equal((await qc('uat-q2').get()).exists,false)})
   console.log('SUCCESS: '+n+' local HTTP endpoint and Auth/Firestore emulator checks passed (mock storage/tickets only)')

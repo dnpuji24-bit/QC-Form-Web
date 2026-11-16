@@ -34,10 +34,15 @@ async function bodyJson(req){
  for await(const chunk of req){count+=chunk.length;if(count>maxBody){fail(413,'BODY_TOO_LARGE')}parts.push(chunk)}
  try{return JSON.parse(Buffer.concat(parts).toString('utf8'))}catch{fail(400,'INVALID_JSON')}
 }
-function checkReference(r,q,slot,bytes){
+function checkReferenceScope(r,q,slot){
  const ext={'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[r?.contentType]
- const digest=sha(bytes),photoId=sha(slot).slice(0,24)+'_'+digest
- if(!ext||r.provider!=='supabase'||r.bucket!==bucket||r.uploaderUid!==q.ownerUid||r.sha256!==digest||r.size!==bytes.length||bytes.length===0||bytes.length>2097152||r.photoId!==photoId||r.objectPath!==q.ownerUid+'/qc/'+q.id+'/'+photoId+'.'+ext||r.kind!==(slot==='hold_uat-h1'?'hold':slot)||(r.kind==='hold'?r.holdId!=='uat-h1':r.holdId!==undefined))fail(409,'PHOTO_REFERENCE_INVALID')
+ if(!r||!ext||!slotAllowed(slot)||!sid(q.id)||!sid(q.ownerUid)||r.provider!=='supabase'||r.bucket!==bucket||r.uploaderUid!==q.ownerUid||typeof r.sha256!=='string'||!/^[a-f0-9]{64}$/.test(r.sha256)||!Number.isSafeInteger(r.size)||r.size<=0||r.size>2097152)fail(409,'PHOTO_REFERENCE_INVALID')
+ const photoId=sha(slot).slice(0,24)+'_'+r.sha256
+ if(r.photoId!==photoId||r.objectPath!==q.ownerUid+'/qc/'+q.id+'/'+photoId+'.'+ext||r.kind!==(slot==='hold_uat-h1'?'hold':slot)||(r.kind==='hold'?r.holdId!=='uat-h1':r.holdId!==undefined))fail(409,'PHOTO_REFERENCE_INVALID')
+}
+function checkReference(r,q,slot,bytes){
+ checkReferenceScope(r,q,slot)
+ if(r.sha256!==sha(bytes)||r.size!==bytes.length)fail(409,'PHOTO_REFERENCE_INVALID')
 }
 export function createUatEndpointServer(deps){
  return createServer(async(req,res)=>{
@@ -85,6 +90,7 @@ export function createUatEndpointServer(deps){
    if(record.firestoreSaveState!=='confirmed'||record.saveType!=='uploaded')fail(409,'QC_NOT_CONFIRMED')
    const reference=record.operationalPhotoManifest?.[slot]
    if(!reference)fail(404,'PHOTO_SLOT_MISSING')
+   checkReferenceScope(reference,record,slot)
    const bytes=await deps.readObject(reference)
    if(!(bytes instanceof Uint8Array))fail(409,'PHOTO_BYTES_MISSING')
    checkReference(reference,record,slot,bytes)
