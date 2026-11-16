@@ -18,8 +18,7 @@
     "firebase": "latest",
     "html2canvas": "latest",
     "jspdf": "latest",
-    "xlsx": "^0.18.5",
-    "tesseract.js": "latest"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/react": "latest",

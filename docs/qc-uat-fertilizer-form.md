@@ -7,3 +7,5 @@ FertilizerForm uses strict own date/shift/foreman and explicit same-date Shift 1
 Run node scripts/test-qc-uat-fertilizer-form.mjs --self-test / --browser with QC_UAT_PLAYWRIGHT_DIR set.
 
 Operator verification at `a824851`: all 7 actual FertilizerForm browser mapping and carryover checks passed (no backend sync). Next [full DTO and actual mapper candidate](qc-uat-fertilizer-full-dto.md).
+
+Scanner retired by operator decision; existing manual form checks retained and historical correction regression added. See [removal gate](qc-uat-fertilizer-scanner-removal.md).

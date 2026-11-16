@@ -37,4 +37,3 @@ export async function getDocs(q){
 }
 export const getDocsFromServer=getDocs
 
-export default function DisabledScanner(){throw Error('SCANNER_NOT_TESTED')}
