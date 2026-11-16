@@ -29,19 +29,20 @@ export function sprayPhotoFingerprint(record,baseRevision,changes=[]){
 }
 const equal=(a,b)=>canonical(a)===canonical(b)
 const workspace='qc_uat_workspaces/cutover'
-const bucket='qc-photos-uat-mock'
+const mockBucket='qc-photos-uat-mock'
+export const realBucket='qc-photos-uat'
 const exts={'image/png':'png','image/jpeg':'jpg','image/webp':'webp'}
 const holdId=v=>typeof v==='string'&&/^[A-Za-z0-9_-]{1,160}$/.test(v)
-function scope(ref,slot,r){
+function scope(ref,slot,r,bucket){
  const ext=exts[ref?.contentType],kind=slot==='main'?'main':'hold',id=slot.slice(5)
  need(plain(ref)&&ext&&ref.provider==='supabase'&&ref.bucket===bucket&&ref.uploaderUid===r.ownerUid&&ref.kind===kind&&(kind==='main'?ref.holdId===undefined:holdId(id)&&ref.holdId===id&&r.holdIntervals.some(h=>h.holdId===id)),'PHOTO_SCOPE_INVALID')
  need(typeof ref.sha256==='string'&&/^[a-f0-9]{64}$/.test(ref.sha256)&&Number.isSafeInteger(ref.size)&&ref.size>0&&ref.size<=2097152,'PHOTO_SCOPE_INVALID')
  const photoId=digest(slot).slice(0,24)+'_'+ref.sha256
  need(ref.photoId===photoId&&ref.objectPath===r.ownerUid+'/qc/'+r.id+'/'+photoId+'.'+ext,'PHOTO_SCOPE_INVALID')
 }
-function checkManifest(manifest,r){
+function checkManifest(manifest,r,bucket){
  need(plain(manifest)&&Object.keys(manifest).length<=21,'PHOTO_MANIFEST_INVALID')
- for(const [slot,ref] of Object.entries(manifest)){need(slot==='main'||slot.startsWith('hold_'),'PHOTO_SLOT_INVALID');scope(ref,slot,r)}
+ for(const [slot,ref] of Object.entries(manifest)){need(slot==='main'||slot.startsWith('hold_'),'PHOTO_SLOT_INVALID');scope(ref,slot,r,bucket)}
 }
 function validateChanges(r,changes){
  need(r.photoDriveUrl===''&&r.holdIntervals.every(h=>h.photoDriveUrl===''),'LEGACY_PHOTO_NOT_ENABLED')
@@ -70,7 +71,15 @@ function validateChanges(r,changes){
  }
  for(const [slot,value] of inline)if(value)need(slots.has(slot),'PHOTO_INTENT_MISMATCH')
 }
-export function createSprayPhotoService({db,verifyToken,buildActual,photoStore}){
+export function guardRealPhotoRun(runId,e=process.env){
+ guardSprayPhoto(e)
+ need(/^[a-f0-9]{32}$/.test(runId??''),'INVALID_REAL_RUN')
+ need(e.QC_UAT_STORAGE_ORIGIN==='https://tcmtqgbpafwciaflgsaa.supabase.co'&&e.QC_UAT_STORAGE_WRITE==='synthetic-only','EXPLICIT_UAT_WRITE_REQUIRED')
+}
+function recordInRun(id,runId){return qid(id)&&new RegExp('^qc-v2-uat-'+runId+'-[a-z0-9]{1,16}$').test(id)}
+export function createSprayPhotoService({db,verifyToken,buildActual,photoStore,realRunId=null}){
+ if(realRunId!==null)guardRealPhotoRun(realRunId)
+ const bucket=realRunId===null?mockBucket:realBucket
  need(typeof photoStore?.putImmutable==='function'&&typeof photoStore?.read==='function','PHOTO_STORE_REQUIRED')
  guardSprayPhoto()
  const at=(col,id)=>db.doc(workspace+'/'+col+'/'+id)
@@ -81,6 +90,7 @@ export function createSprayPhotoService({db,verifyToken,buildActual,photoStore})
  const auditFor=(q,baseRevision)=>({testOnly:true,recordId:q.id,revision:q.clientRevision,baseRevision,actorUid:q.ownerUid,formType:'spray',saveType:q.saveType,operationalPayloadFingerprint:q.operationalPayloadFingerprint,photoManifestFingerprint:q.photoManifestFingerprint})
  return async function save(token,request){
   guardSprayPhoto()
+  if(realRunId!==null)guardRealPhotoRun(realRunId)
   need(typeof token==='string'&&token.length>0,'AUTH_REQUIRED')
   let actor;try{actor=await verifyToken(token)}catch{throw Error('INVALID_TOKEN')}
   need(sid(actor?.uid)&&actor.qcUat===true,'UAT_IDENTITY_DENIED')
@@ -88,6 +98,7 @@ export function createSprayPhotoService({db,verifyToken,buildActual,photoStore})
   const {baseRevision}=request,r=structuredClone(request.record),changes=structuredClone(request.changes)
   need(baseRevision===null||sid(baseRevision),'INVALID_BASE_REVISION')
   need(plain(r)&&qid(r.id)&&sid(r.dailyPlanId)&&sid(r.clientRevision),'INVALID_RECORD_SCOPE')
+  if(realRunId!==null)need(recordInRun(r.id,realRunId),'REAL_RECORD_SCOPE_DENIED')
   need(r.ownerUid===actor.uid&&r.inputtedBy===actor.uid,'OWNER_REQUIRED')
   const run=commit=>db.runTransaction(async tx=>{
    const qref=at('qc_records',r.id),aref=at('daily_reports','qcactual_'+r.id),uref=at('qc_operational_audit',r.id+':'+r.clientRevision)
@@ -106,10 +117,10 @@ export function createSprayPhotoService({db,verifyToken,buildActual,photoStore})
     need(current.dailyPlanId===r.dailyPlanId&&current.monthlyPlanLineId===r.monthlyPlanLineId&&current.date===r.date&&current.createdAt===r.createdAt,'SOURCE_LINK_IMMUTABLE')
    }
    const previous=current?.operationalPhotoManifest??{}
-   checkManifest(previous,current??r)
+   checkManifest(previous,current??r,bucket)
    if(current)need(current.photoManifestFingerprint===digest(canonical(previous)),'STORED_MANIFEST_MISMATCH')
    const {manifest,uploads}=await prepareOperationalPhotoManifest({recordId:r.id,uploaderUid:r.ownerUid,previous,changes,bucket})
-   checkManifest(manifest,r)
+   checkManifest(manifest,r,bucket)
    const next={...stripOperationalPhotoPayload(r),operationalPhotoManifest:manifest,photoManifestFingerprint:digest(canonical(manifest)),operationalPayloadFingerprint:fingerprint,operationalSaveId:fingerprint.slice(10),firestoreSaveState:'confirmed'}
    const verifyObjects=async()=>{for(const ref of Object.values(manifest)){const bytes=await photoStore.read(ref);need(bytes instanceof Uint8Array&&bytes.length===ref.size&&digest(bytes)===ref.sha256,'PHOTO_BYTES_UNVERIFIED')}}
    const actual=actualFor(next),audit=auditFor(next,baseRevision)
@@ -142,5 +153,32 @@ export function createSprayPhotoService({db,verifyToken,buildActual,photoStore})
   need(again?.uid===actor.uid&&again.qcUat===true,'UAT_IDENTITY_DENIED')
   // Re-read marker, DP, base revision, and verified bytes before atomic commit.
   return run(true)
+ }
+}
+
+// Ticket policy matches previous isolated endpoint: own form edit, or Data QC
+// view/edit for own record or authorized supervisory/viewer roles.
+export function createSprayPhotoSigner({db,verifyToken,photoStore,realRunId}){
+ guardRealPhotoRun(realRunId)
+ return async function sign(token,request){
+  guardRealPhotoRun(realRunId)
+  let actor;try{actor=await verifyToken(token)}catch{throw Error('INVALID_TOKEN')}
+  need(sid(actor?.uid)&&actor.qcUat===true,'UAT_IDENTITY_DENIED')
+  need(plain(request)&&Object.keys(request).sort().join(',')==='recordId,slot'&&recordInRun(request.recordId,realRunId)&&typeof request.slot==='string'&&(request.slot==='main'||request.slot.startsWith('hold_')),'INVALID_SIGN_REQUEST')
+  const ref=await db.runTransaction(async tx=>{
+   const [m,p,q]=await Promise.all([tx.get(db.doc('qc_uat_identities/'+actor.uid)),tx.get(db.doc('users/'+actor.uid)),tx.get(db.doc(workspace+'/qc_records/'+request.recordId))])
+   const marker=m.data(),row=q.data()
+   need(!p.exists&&marker?.testOnly===true&&marker.enabled===true&&marker.workspace==='cutover'&&roles.includes(marker.role)&&plain(marker.permissions),'UAT_IDENTITY_DENIED')
+   need(row?.testOnly===true&&row.formType==='spray'&&row.id===request.recordId&&sid(row.ownerUid)&&row.firestoreSaveState==='confirmed','PHOTO_RECORD_UNAVAILABLE')
+   const own=row.ownerUid===actor.uid
+   need((own&&marker.permissions.qc_spraying==='edit')||(['view','edit'].includes(marker.permissions.qc_records)&&(own||['owner','asisten','manager','admin','pengunjung'].includes(marker.role))),'PHOTO_READ_DENIED')
+   const manifest=row.operationalPhotoManifest
+   checkManifest(manifest,row,realBucket)
+   need(row.photoManifestFingerprint===digest(canonical(manifest)),'STORED_MANIFEST_MISMATCH')
+   need(Object.hasOwn(manifest,request.slot),'PHOTO_SLOT_NOT_FOUND')
+   return manifest[request.slot]
+  })
+  // A previously issued URL is a bearer capability until expiry.
+  return {signedUrl:await photoStore.sign(ref,30),expiresIn:30}
  }
 }

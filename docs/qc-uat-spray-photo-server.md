@@ -8,3 +8,5 @@ Offline: node scripts/test-qc-uat-spray-photo-server.mjs --self-test
 Emulator: firebase emulators:exec --only firestore,auth --project demo-qc-uat-spray-photo --config firebase.uat-spray-photo-emulator.json 'env -u GOOGLE_CLOUD_PROJECT -u FIREBASE_PROJECT_ID GCLOUD_PROJECT=demo-qc-uat-spray-photo FIRESTORE_EMULATOR_HOST=127.0.0.1:9185 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9999 node scripts/test-qc-uat-spray-photo-server.mjs --emulator'
 
 Follow-up source review adds multi-HOLD slots, WebP replacement retaining old immutable bytes, corrupted-object replay, and concurrent divergent photo intents. Original Firebase token rechecked after staging before second transaction; current marker still read inside transaction. All 19 emulator checks pending. No storage cleanup or actual Supabase call.
+
+Operator verification at `06a243b`: 19/19 photo and Uploaded emulator checks passed (mock storage), exit 0. Next [real storage and signed URL candidate](qc-uat-spray-real-storage.md).
