@@ -31,6 +31,7 @@ export function fertilizerPhotoFingerprint(record,baseRevision,changes=[]){
 const equal=(a,b)=>canonical(a)===canonical(b)
 const workspace='qc_uat_workspaces/cutover'
 const mockBucket='qc-photos-uat-mock'
+export const realBucket='qc-photos-uat'
 const exts={'image/png':'png','image/jpeg':'jpg','image/webp':'webp'}
 const holdId=v=>typeof v==='string'&&/^[A-Za-z0-9_-]{1,160}$/.test(v)
 function scope(ref,slot,r,bucket){
@@ -72,8 +73,15 @@ function validateChanges(r,changes){
  for(const [slot,value] of inline)if(value)need(slots.has(slot),'PHOTO_INTENT_MISMATCH')
 }
 const componentKeys=q=>q.fertilizerComponents.map(c=>[c.componentId,c.material,c.targetArea100,c.targetDoseKgHa])
-export function createFertilizerPhotoService({db,verifyToken,buildActual,photoStore}){
- const bucket=mockBucket
+export function guardRealPhotoRun(runId,e=process.env){
+ guardFertilizerPhoto(e)
+ need(/^[a-f0-9]{32}$/.test(runId??''),'INVALID_REAL_RUN')
+ need(e.QC_UAT_STORAGE_ORIGIN==='https://tcmtqgbpafwciaflgsaa.supabase.co'&&e.QC_UAT_STORAGE_WRITE==='synthetic-only','EXPLICIT_UAT_WRITE_REQUIRED')
+}
+function recordInRun(id,runId){return qid(id)&&new RegExp('^qc-v2-uat-'+runId+'-[a-z0-9]{1,16}$').test(id)}
+export function createFertilizerPhotoService({db,verifyToken,buildActual,photoStore,realRunId=null}){
+ if(realRunId!==null)guardRealPhotoRun(realRunId)
+ const bucket=realRunId===null?mockBucket:realBucket
  need(typeof photoStore?.putImmutable==='function'&&typeof photoStore?.read==='function','PHOTO_STORE_REQUIRED')
  guardFertilizerPhoto()
  const at=(col,id)=>db.doc(workspace+'/'+col+'/'+id)
@@ -84,6 +92,7 @@ export function createFertilizerPhotoService({db,verifyToken,buildActual,photoSt
  const auditFor=(q,baseRevision)=>({testOnly:true,recordId:q.id,revision:q.clientRevision,baseRevision,actorUid:q.ownerUid,formType:'fertilizer',saveType:q.saveType,operationalPayloadFingerprint:q.operationalPayloadFingerprint,photoManifestFingerprint:q.photoManifestFingerprint})
  return async function save(token,request){
   guardFertilizerPhoto()
+  if(realRunId!==null)guardRealPhotoRun(realRunId)
   need(typeof token==='string'&&token.length>0,'AUTH_REQUIRED')
   let actor;try{actor=await verifyToken(token)}catch{throw Error('INVALID_TOKEN')}
   need(sid(actor?.uid)&&actor.qcUat===true,'UAT_IDENTITY_DENIED')
@@ -91,7 +100,9 @@ export function createFertilizerPhotoService({db,verifyToken,buildActual,photoSt
   const {baseRevision}=request,r=structuredClone(request.record),changes=structuredClone(request.changes)
   need(baseRevision===null||sid(baseRevision),'INVALID_BASE_REVISION')
   need(plain(r)&&qid(r.id)&&sid(r.dailyPlanId)&&sid(r.clientRevision),'INVALID_RECORD_SCOPE')
+  if(realRunId!==null)need(recordInRun(r.id,realRunId),'REAL_RECORD_SCOPE_DENIED')
   need(r.ownerUid===actor.uid&&r.inputtedBy===actor.uid,'OWNER_REQUIRED')
+  if(realRunId!==null)need(actor.uid==='uat-fertilizer','REAL_RECORD_SCOPE_DENIED')
   const run=commit=>db.runTransaction(async tx=>{
    const qref=at('qc_records',r.id),aref=at('daily_reports','qcactual_'+r.id),uref=at('qc_operational_audit',r.id+':'+r.clientRevision)
    const [m,p,d,q,a,u,master]=await Promise.all([tx.get(db.doc('qc_uat_identities/'+actor.uid)),tx.get(db.doc('users/'+actor.uid)),tx.get(at('daily_plans',r.dailyPlanId)),tx.get(qref),tx.get(aref),tx.get(uref),tx.get(at('fertilizer_master','uat-products'))])
@@ -153,3 +164,30 @@ export function createFertilizerPhotoService({db,verifyToken,buildActual,photoSt
  }
 }
 
+
+// Ticket policy matches previous isolated endpoint: own form edit, or Data QC
+// view/edit for own record or authorized supervisory/viewer roles.
+export function createFertilizerPhotoSigner({db,verifyToken,photoStore,realRunId}){
+ guardRealPhotoRun(realRunId)
+ return async function sign(token,request){
+  guardRealPhotoRun(realRunId)
+  let actor;try{actor=await verifyToken(token)}catch{throw Error('INVALID_TOKEN')}
+  need(sid(actor?.uid)&&actor.qcUat===true,'UAT_IDENTITY_DENIED')
+  need(plain(request)&&Object.keys(request).sort().join(',')==='recordId,slot'&&recordInRun(request.recordId,realRunId)&&typeof request.slot==='string'&&(request.slot==='main'||request.slot==='scan'||request.slot.startsWith('hold_')),'INVALID_SIGN_REQUEST')
+  const ref=await db.runTransaction(async tx=>{
+   const [m,p,q]=await Promise.all([tx.get(db.doc('qc_uat_identities/'+actor.uid)),tx.get(db.doc('users/'+actor.uid)),tx.get(db.doc(workspace+'/qc_records/'+request.recordId))])
+   const marker=m.data(),row=q.data()
+   need(!p.exists&&marker?.testOnly===true&&marker.enabled===true&&marker.workspace==='cutover'&&roles.includes(marker.role)&&plain(marker.permissions),'UAT_IDENTITY_DENIED')
+   need(row?.testOnly===true&&row.formType==='fertilizer'&&row.id===request.recordId&&row.ownerUid==='uat-fertilizer'&&row.firestoreSaveState==='confirmed','PHOTO_RECORD_UNAVAILABLE')
+   const own=row.ownerUid===actor.uid
+   need((own&&marker.permissions.qc_fertilizer==='edit')||(['view','edit'].includes(marker.permissions.qc_records)&&(own||['owner','asisten','manager','admin','pengunjung'].includes(marker.role))),'PHOTO_READ_DENIED')
+   const manifest=row.operationalPhotoManifest
+   checkManifest(manifest,row,realBucket)
+   need(row.photoManifestFingerprint===digest(canonical(manifest)),'STORED_MANIFEST_MISMATCH')
+   need(Object.hasOwn(manifest,request.slot),'PHOTO_SLOT_NOT_FOUND')
+   return manifest[request.slot]
+  })
+  // A previously issued URL is a bearer capability until expiry.
+  return {signedUrl:await photoStore.sign(ref,30),expiresIn:30}
+ }
+}

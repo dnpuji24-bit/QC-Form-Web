@@ -4,3 +4,5 @@ Operator screenshot confirms 20/20 trusted Fertilizer component server Auth/Fire
 
 Run: node scripts/test-qc-uat-fertilizer-photo-server.mjs --self-test
 Then: firebase emulators:exec --only firestore,auth --project demo-qc-uat-fertilizer-photo --config firebase.uat-fertilizer-photo-emulator.json 'env -u GOOGLE_CLOUD_PROJECT -u FIREBASE_PROJECT_ID GCLOUD_PROJECT=demo-qc-uat-fertilizer-photo FIRESTORE_EMULATOR_HOST=127.0.0.1:9385 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:10199 node scripts/test-qc-uat-fertilizer-photo-server.mjs --emulator'
+
+Operator screenshot 2026-11-16: all 21/21 full Fertilizer photo and Uploaded Auth/Firestore mock storage checks passed; script exit 0. Next [real UAT storage](qc-uat-fertilizer-real-storage.md).
