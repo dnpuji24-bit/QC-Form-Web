@@ -29,6 +29,11 @@ export const plans=[
  dp('DP-2','Shift II','B-002','Mandor B',2),
  dp('DP-C1','1','C-003','Mandor A',3),
  dp('DP-C2','2','C-003','Mandor B',4),
+ dp('DP-C3','2','C-003','Mandor A',7),
+ dp('DP-D1','2','D-004','Mandor B',8),
+ dp('DP-D2','2','D-004','Mandor B',9,{masterVariety:'UAT-V2',materials:[{material:'Synthetic C',dosePerHa:3,doseUnit:'L',unit:'L',totalMaterial:60}]}),
+ dp('DP-NOSHIFT','','NO-SHIFT','Mandor B',10),
+ dp('DP-NOMANDOR','2','NO-MANDOR','',11),
  dp('DP-F','2','F-004','Mandor B',5,{activity:'Top Dressing',type:'FERTILIZER',activityCategory:'Fertilizer'}),
  dp('DP-OLD','2','OLD-001','Mandor B',6,{date:'2026-11-11'})
 ]

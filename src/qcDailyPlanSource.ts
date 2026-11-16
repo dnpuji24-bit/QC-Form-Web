@@ -124,3 +124,20 @@ export function resolveQcDailyPlan(rows:QcDailyPlan[],pid:string,activity:string
 export function qcDailyPlanLabel(row:QcDailyPlan){
   return `${row.pid} — ${row.description||row.activity} — ${row.dailyPlanId}`
 }
+
+
+// Strict session mapping is opt-in. Existing legacy callers keep their behavior.
+const sessionKey=(value:unknown)=>text(value).toLowerCase().replace(/\s+/g,' ')
+export function dailyPlansForQcSession(rows:QcDailyPlan[],kind:'spray'|'fertilizer',date:string,shift:string,foreman:string){
+  const s=shiftKey(shift),f=sessionKey(foreman),d=text(date)
+  if(!d||!s||!f)return[]
+  return rows.filter(row=>qcDailyKind(row)===kind&&row.date===d&&shiftKey(row.shift)===s&&sessionKey(row.foreman)===f&&Boolean(row.dailyPlanId))
+}
+export function qcSessionPlanMatches(rows:QcDailyPlan[],pid:string,activity:string,description:string){
+  if(!text(pid)||!text(activity)||!text(description))return[]
+  return rows.filter(row=>sessionKey(row.pid)===sessionKey(pid)&&sessionKey(row.activity)===sessionKey(activity)&&sessionKey(row.description)===sessionKey(description))
+}
+export function resolveQcSessionPlan(rows:QcDailyPlan[],pid:string,activity:string,description:string,selectedId:string){
+  if(!selectedId||rows.filter(row=>row.dailyPlanId===selectedId).length!==1)return null
+  return qcSessionPlanMatches(rows,pid,activity,description).find(row=>row.dailyPlanId===selectedId)||null
+}
