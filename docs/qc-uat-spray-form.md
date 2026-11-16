@@ -10,3 +10,5 @@ Important source finding: SprayForm uses dailyPlansForQc(dailyPlanRows,'spray','
 
 Run: node scripts/test-qc-uat-spray-form.mjs --self-test
 Browser: with QC_UAT_PLAYWRIGHT_DIR and PLAYWRIGHT_BROWSERS_PATH set, node scripts/test-qc-uat-spray-form.mjs --browser
+
+Operator run at `1d21c5b`: source guards and first browser scenario passed; second scenario timed out locating exact No. Unit label. Remaining scenarios not reached. Follow-up uses the actual single select inside .working-section, waits for the expected option, asserts selected value, and waits for hydrated unit selection after refresh. No production form or master mapping changed. Browser rerun required; mapping blocker remains open.
