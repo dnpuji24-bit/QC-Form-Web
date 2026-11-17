@@ -79,15 +79,14 @@ service cloud.firestore {
         && d.formType == q.formType && area(d.area100) && d.area100 > 0
         && q.plannedDailyArea100 == d.area100;
     }
+    // Structural DTO validation occurs before the trusted receipt is issued.
+    // Exact expectedQc equality below prevents altering ANY validated field.
+    // Recheck actor and current DP at commit, not only at receipt issuance.
     function qcValid(id,q) {
-      return exact(q,['testOnly','id','ownerUid','inputtedBy','formType','clientRevision','saveType','dailyPlanId','monthlyPlanLineId','pid','date','shift','foreman','actualArea100','sessionId','plannedDailyArea100','operationalSaveId','firestoreSaveState','operationalPhotoManifest','operationalQueueKey','operationalPayloadFingerprint'])
-        && q.testOnly == true && sid(id) && q.id == id && q.ownerUid == request.auth.uid
+      return q.testOnly == true && sid(id) && q.id == id
+        && actorForm(q.formType) && q.ownerUid == request.auth.uid
         && q.inputtedBy == request.auth.uid && sid(q.clientRevision) && sid(q.operationalSaveId)
         && q.saveType in ['draft','ready','uploaded'] && q.firestoreSaveState == 'confirmed'
-        && actorForm(q.formType) && optId(q.dailyPlanId) && optId(q.monthlyPlanLineId)
-        && sid(q.pid) && sid(q.foreman) && sid(q.sessionId)
-        && q.date is string && q.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
-        && q.shift in ['1','2'] && area(q.actualArea100) && area(q.plannedDailyArea100)
         && (q.dailyPlanId == '' ? q.monthlyPlanLineId == '' && q.plannedDailyArea100 == 0 : dpMatches(q));
     }
     // Full map equality preserves exact fields, values and absence of extra keys.
@@ -111,15 +110,15 @@ service cloud.firestore {
         'operationalPayloadFingerprint': q.operationalPayloadFingerprint
       };
     }
-    function newAudit(q) {
+    function newAudit(q,r) {
       let p = uPath(q.id,q.clientRevision);
-      return !exists(p) && existsAfter(p) && auditMatches(getAfter(p).data,q);
+      return !exists(p) && r.expectedAudit is map && getAfter(p).data == r.expectedAudit;
     }
-    function pairedActual(q) {
+    function pairedActual(q,r) {
       let p = aPath(q.id);
       return eligible(q)
-        ? existsAfter(p) && actualMatches(getAfter(p).data,q)
-        : !exists(p) && !existsAfter(p);
+        ? r.expectedActual is map && getAfter(p).data == r.expectedActual
+        : r.expectedActual == null && !exists(p) && !existsAfter(p);
     }
     function changedQc(q) {
       let p = qPath(q.id);
@@ -131,13 +130,18 @@ service cloud.firestore {
     }
     // A private immutable receipt binds the entire expected QC map and base revision.
     // Created only by the trusted synthetic verifier; never client-writable.
-    function receiptMatches(q,base) {
+    function receiptFor(q) {
       let j = q.operationalSaveId;
-      let p = /databases/$(database)/documents/qc_uat_workspaces/cutover/photo_receipts/$(j);
-      return get(p).data == {'testOnly': true, 'baseRevision': base, 'expectedQc': q};
+      return get(/databases/$(database)/documents/qc_uat_workspaces/cutover/photo_receipts/$(j)).data;
+    }
+    function receiptMatches(q,base,r) {
+      return r.testOnly == true && r.baseRevision == base && r.expectedQc == q;
+    }
+    function qcWriteWithReceipt(id,q,base,r) {
+      return receiptMatches(q,base,r) && newAudit(q,r) && pairedActual(q,r);
     }
     function qcWrite(id,q,base) {
-      return qcValid(id,q) && receiptMatches(q,base) && newAudit(q) && pairedActual(q);
+      return qcValid(id,q) && qcWriteWithReceipt(id,q,base,receiptFor(q));
     }
     match /qc_uat_workspaces/cutover/daily_plans/{id} {
       allow get: if actor() && sid(id)

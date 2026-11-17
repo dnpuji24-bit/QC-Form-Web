@@ -28,6 +28,20 @@ function actualFor(r){if(!r.dailyPlanId||r.actualArea100===0||r.saveType==='draf
 
 function auditFor(r,actor){return {testOnly:true,recordId:r.id,revision:r.clientRevision,actorUid:actor,username:r.inputtedBy,formType:r.formType,saveType:r.saveType}}
 
+// Used by the isolated trusted receipt issuer BEFORE any immutable receipt is created.
+export function validateSyntheticReceiptRecord(record,daily,uploaderUid){
+  const r=canonicalRecord(record);
+  requireThat(r.ownerUid===uploaderUid&&r.inputtedBy===uploaderUid,'QC_OWNER_ONLY');
+  return r.dailyPlanId?dailySnapshot(daily,r):0;
+}
+export function syntheticReceiptPairs(expectedQc,uploaderUid){
+  requireThat(expectedQc.ownerUid===uploaderUid&&expectedQc.inputtedBy===uploaderUid,'QC_OWNER_ONLY');
+  const fp=expectedQc.operationalPayloadFingerprint;
+  requireThat(typeof fp==='string'&&/^sha256-v1:[0-9a-f]{64}$/.test(fp),'INVALID_FINGERPRINT');
+  const a=actualFor(expectedQc);
+  return {expectedActual:a?{...a,operationalPayloadFingerprint:fp}:null,expectedAudit:{...auditFor(expectedQc,uploaderUid),operationalPayloadFingerprint:fp}};
+}
+
 function equalRecord(a,b){return a===null||b===null?a===b:!!a&&!!b&&Object.keys(a).length===Object.keys(b).length&&Object.keys(a).every(k=>Object.hasOwn(b,k)&&a[k]===b[k])}
 
 export async function commitSyntheticQc(input,deps){

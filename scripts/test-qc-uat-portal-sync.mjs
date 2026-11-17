@@ -9,7 +9,7 @@ import {syncOrigin,syncPath} from '../src/qcUatPortalSyncClient.mjs'
 import {marker} from '../src/qcUatRolePermissions.mjs'
 import {roleDefinition,assignIdentityRole,permissionsForIdentity,isCustomRoleId} from '../src/qcUatCustomRoles.mjs'
 import {operationalPermissions} from '../server/qc-photo-access/uat-operational-permissions.mjs'
-import {commitSyntheticQc} from '../src/qcUatQcLifecycleContract.mjs'
+import {commitSyntheticQc,validateSyntheticReceiptRecord,syntheticReceiptPairs} from '../src/qcUatQcLifecycleContract.mjs'
 import {operationalQueueId} from '../src/qcOperationalSaveTransport.mjs'
 import {jobPayload,prepareStrictJob,processStrictSyntheticJob} from '../src/qcUatStrictQueueContract.mjs'
 import {prepareOperationalPhotoManifest,stripOperationalPhotoPayload} from '../src/qcOperationalPhotoManifest.mjs'
@@ -29,12 +29,16 @@ for(const e of [{},{...valid,GCLOUD_PROJECT:'form-qc-unm'},{...valid,FIRESTORE_E
 assert.equal(config.firestore.rules,'scripts/firestore.uat-portal-sync-role-demo.rules')
 assert.deepEqual(config.emulators.firestore,{host,port})
 assert.deepEqual(config.emulators.auth,{host,port:authPort})
-assert.ok(rules.includes("get(p).data == {'testOnly': true, 'baseRevision': base, 'expectedQc': q}"))
-assert.ok(rules.includes('qcValid(id,q) && receiptMatches(q,base) && newAudit(q) && pairedActual(q)'))
+assert.ok(rules.includes('r.testOnly == true && r.baseRevision == base && r.expectedQc == q'))
+assert.ok(rules.includes('qcValid(id,q) && qcWriteWithReceipt(id,q,base,receiptFor(q))'))
+assert.ok(rules.includes('receiptMatches(q,base,r) && newAudit(q,r) && pairedActual(q,r)'))
+assert.ok(rules.includes('!exists(p) && r.expectedAudit is map && getAfter(p).data == r.expectedAudit'))
+assert.ok(rules.includes('r.expectedActual is map && getAfter(p).data == r.expectedActual'))
 assert.ok(rules.includes('qcWrite(id,request.resource.data,resource.data.clientRevision)'))
 assert.ok(rules.includes('eligible(q) && changedQc(q) && actualMatches(a,q)'))
 assert.ok(rules.includes('changedQc(q) && auditMatches(a,q)'))
-assert.ok(rules.includes('actorForm(q.formType) && optId(q.dailyPlanId)'))
+assert.ok(rules.includes('actorForm(q.formType) && q.ownerUid == request.auth.uid'))
+assert.ok(rules.includes('q.plannedDailyArea100 == d.area100'))
 assert.ok(rules.includes('request.auth != null && q.ownerUid == request.auth.uid'))
 assert.ok(rules.includes('allow create: if request.auth != null && auditCreate(id,request.resource.data)'))
 const digest=v=>createHash('sha256').update(v).digest('hex')
@@ -139,6 +143,9 @@ if(process.argv[2]==='--emulator'){
     assert.equal(current.operationalPayloadFingerprint,fp,'TRUSTED_RECEIPT_CONFLICT')
     assert.equal(expected.baseRevision,raw.baseRevision,'TRUSTED_RECEIPT_CONFLICT')
     assert.deepEqual(expected.expectedQc,current,'TRUSTED_RECEIPT_CONFLICT')
+    const pair=syntheticReceiptPairs(current,raw.uploaderUid)
+    assert.deepEqual(expected.expectedActual,pair.expectedActual,'TRUSTED_RECEIPT_CONFLICT')
+    assert.deepEqual(expected.expectedAudit,pair.expectedAudit,'TRUSTED_RECEIPT_CONFLICT')
     return expected.expectedQc
    }
    assert.equal(current?.clientRevision??null,raw.baseRevision,'TRUSTED_BASE_REVISION_CONFLICT')
@@ -148,10 +155,12 @@ if(process.argv[2]==='--emulator'){
     assert.ok(bytes,'MOCK_OBJECT_MISSING')
     verifyObject(r,bytes,record,slot)
    }
-   const plannedDailyArea100=record.dailyPlanId?dp?.data()?.area100:0
-   assert.ok(Number.isSafeInteger(plannedDailyArea100)&&plannedDailyArea100>=0,'TRUSTED_DP_MISSING')
+   // Validate the complete core DTO and current authoritative DP before issuing proof.
+   let plannedDailyArea100
+   try{plannedDailyArea100=validateSyntheticReceiptRecord(record,dp?.data(),raw.uploaderUid)}
+   catch(e){throw Object.assign(e,{status:400})}
    const expectedQc={...record,saveType:raw.action==='finalizeRecord'?'uploaded':record.saveType,plannedDailyArea100,operationalSaveId:jobId,firestoreSaveState:'confirmed',operationalPhotoManifest:manifest,operationalQueueKey:key,operationalPayloadFingerprint:fp}
-   const expected={testOnly:true,baseRevision:raw.baseRevision,expectedQc}
+   const expected={testOnly:true,baseRevision:raw.baseRevision,expectedQc,...syntheticReceiptPairs(expectedQc,raw.uploaderUid)}
    if(existing.exists)assert.deepEqual(existing.data(),expected,'TRUSTED_RECEIPT_CONFLICT')
    else t.create(p,expected)
    return expectedQc
@@ -341,6 +350,52 @@ if(process.argv[2]==='--emulator'){
    afterReceipt=()=>useCustom('uat-spray','mandor_spraying',{qc_spraying:'none'})
    try{await click('flush');await result('FORM_EDIT_REQUIRED');await count(1);assert.deepEqual(await queued('uat-spray'),before);await absent(r)}finally{afterReceipt=null}
    await useCustom('uat-spray','mandor_spraying');await click('flush');await result('"sent":1');await count(0);await pair(r)
+  })
+  await check('invalid DTO cannot mint trusted receipt or create any paired records',async()=>{
+   const invalid=[{shift:'3'},{date:'2026-02-30'},{pid:'uat-wrong-pid'},{inputtedBy:'uat-other'},{actualArea100:-1},{actualArea100:10000001}]
+   for(let i=0;i<invalid.length;i++){
+    const r={...qc('spray','spray','uat-q-invalid-'+i),...invalid[i]}
+    const next=await prepareStrictJob(job(r,null,[]))
+    const response=await raw(tokens.get('uat-spray'),{job:next})
+    assert.equal(response.status,400)
+    assert.equal(await read('photo_receipts',syntheticJob(next.id)),null)
+    await absent(r)
+   }
+  })
+  await check('private receipt cannot be forged or used with a different QC payload and paired maps',async()=>{
+   const r=qc('spray','spray','uat-q-receipt-proof')
+   const next=await prepareStrictJob(job(r,null,[]))
+   // A legitimate proof is minted before the deliberate revocation.
+   afterReceipt=()=>useCustom('uat-spray','mandor_spraying',{qc_spraying:'none'})
+   try{assert.equal((await raw(tokens.get('uat-spray'),{job:next})).status,403)}finally{afterReceipt=null}
+   await absent(r)
+   const receiptId=syntheticJob(next.id),proof=await read('photo_receipts',receiptId)
+   assert.ok(proof&&proof.expectedActual&&proof.expectedAudit)
+   await useCustom('uat-spray','mandor_spraying')
+   await denied(()=>setDoc(path(spray,'photo_receipts',receiptId),{...proof,baseRevision:'uat-r99'}))
+   const forged={...proof.expectedQc,actualArea100:251}
+   const pairs=syntheticReceiptPairs(forged,r.ownerUid)
+   const batch=writeBatch(spray.db)
+   batch.set(path(spray,'qc_records',r.id),forged)
+   batch.set(path(spray,'daily_reports','qcactual_'+r.id),pairs.expectedActual)
+   batch.set(path(spray,'qc_operational_audit',r.id+':'+r.clientRevision),pairs.expectedAudit)
+   await denied(()=>batch.commit());await absent(r)
+   const wrongPair=writeBatch(spray.db)
+   wrongPair.set(path(spray,'qc_records',r.id),proof.expectedQc)
+   wrongPair.set(path(spray,'daily_reports','qcactual_'+r.id),{...proof.expectedActual,actualArea100:251})
+   wrongPair.set(path(spray,'qc_operational_audit',r.id+':'+r.clientRevision),proof.expectedAudit)
+   await denied(()=>wrongPair.commit());await absent(r)
+   const dp=ref('daily_plans',r.dailyPlanId)
+   await dp.update({area100:301})
+   try{
+    const stale=writeBatch(spray.db)
+    stale.set(path(spray,'qc_records',r.id),proof.expectedQc)
+    stale.set(path(spray,'daily_reports','qcactual_'+r.id),proof.expectedActual)
+    stale.set(path(spray,'qc_operational_audit',r.id+':'+r.clientRevision),proof.expectedAudit)
+    await denied(()=>stale.commit());await absent(r)
+   }finally{await dp.update({area100:300})}
+   const retry=await raw(tokens.get('uat-spray'),{job:next})
+   assert.equal(retry.status,200);await pair(r)
   })
   await check('root sentinel unchanged and only isolated IndexedDB exists',async()=>{assert.deepEqual((await adb.doc('daily_plans/root-sentinel').get()).data(),{testOnly:false,rootSentinel:true});assert.deepEqual(await page.evaluate(async()=> (await indexedDB.databases()).map(d=>d.name)),['qc_uat_strict_queue_v1'])})
   await check('no external requests WebSockets or CSP violations',async()=>{assert.deepEqual(violations,[]);assert.deepEqual(await page.evaluate(()=>cspViolations),[])})
