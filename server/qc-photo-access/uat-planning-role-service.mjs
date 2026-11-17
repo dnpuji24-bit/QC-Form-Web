@@ -2,6 +2,7 @@
 import {keys,roles} from '../../src/qcUatRolePermissions.mjs'
 import {permissionsForIdentity} from '../../src/qcUatCustomRoles.mjs'
 import {operationalPermissions} from './uat-operational-permissions.mjs'
+import {planningRequest,nextPlanningRow,verifyMonthlyParent} from '../../src/qcUatPlanningWriteContract.mjs'
 
 export const projectId='demo-qc-uat-planning-role',host='127.0.0.1',firestorePort=9085,authPort=9899
 const prefix='qc_uat_workspaces/cutover'
@@ -19,7 +20,7 @@ export function planningMode(permissions,scope,operation){
  if(mode!=='edit'&&(operation!=='view'||mode!=='view'))fail('PLANNING_PERMISSION_DENIED')
  return mode
 }
-export function createPlanningService({adb,authAdmin}){
+function createAuthorizer({adb,authAdmin}){
  guard()
  if(authAdmin.app.options.projectId!==projectId||adb.projectId!==projectId)fail('WRONG_PROJECT')
  async function authorize(raw,scope,operation,read){
@@ -40,9 +41,13 @@ export function createPlanningService({adb,authAdmin}){
     if(Object.keys(p).length!==keys.length||keys.some(k=>!Object.hasOwn(p,k)||p[k]!==expected[k]))fail('UAT_IDENTITY_DENIED')
    }
    const mode=planningMode(p,scope,operation)
-   return read?read(tx):{scope,operation,mode}
+   return read?read(tx,token.uid):{scope,operation,mode}
   })
  }
+ return authorize
+}
+export function createPlanningService(deps){
+ const {adb}=deps,authorize=createAuthorizer(deps)
  return Object.freeze({
   // Capability check only: does not authorize a particular payload or perform a write.
   check:(raw,scope,operation)=>authorize(raw,scope,operation),
@@ -55,6 +60,46 @@ export function createPlanningService({adb,authAdmin}){
     if(row.testOnly!==true||row.id!==id||!sid(row.pid)||!Number.isSafeInteger(area)||area<0||area>10000000)fail('INVALID_SYNTHETIC_PLAN')
     // Minimal safe projection. No raw document, QC records, photos or cross-domain fields.
     return {id,pid:row.pid,area100:area}
+   })
+  }
+ })
+}
+
+ // Separate factory: verified read-only API remains unchanged. Never mounted in HTTP or production.
+export function createPlanningWriteService(deps){
+ const {adb}=deps,authorize=createAuthorizer(deps)
+ const ref=(collection,id)=>adb.doc(prefix+'/'+collection+'/'+id)
+ const linked=async(tx,collection,key,id)=>!(await tx.get(adb.collection(prefix+'/'+collection).where(key,'==',id).limit(1))).empty
+ return Object.freeze({
+  async mutate(raw,scope,input){
+   const q=planningRequest(scope,input)
+   return authorize(raw,scope,'edit',async(tx,uid)=>{
+    const target=ref(collections[scope],q.id),snap=await tx.get(target),current=snap.data()
+    const next=nextPlanningRow(scope,q,current,uid)
+    // Never modify linked QC/Actual. Block all daily updates/cancellations once any dependent row exists, including drafts.
+    // MP period/target edits preserve immutable identity and linked history; cancel conservatively blocks any child.
+    if(q.action!=='create'){
+     const key=scope==='daily'?'dailyPlanId':'monthlyPlanLineId'
+     if(scope==='daily'||q.action==='cancel'){
+      const [qc,actual]=await Promise.all([linked(tx,'qc_records',key,q.id),linked(tx,'daily_reports',key,q.id)])
+      if(qc||actual)fail('PLAN_HAS_DEPENDENTS')
+     }
+     if(scope==='monthly'&&q.action==='cancel'&&await linked(tx,'daily_plans','monthlyPlanLineId',q.id))fail('PLAN_HAS_DEPENDENTS')
+    }
+    if(q.action!=='cancel'){
+     const [p,a]=await Promise.all([tx.get(ref('master_paddocks',next.pid)),tx.get(ref('master_activities',next.activityId))])
+     const paddock=p.data(),activity=a.data()
+     if(paddock?.testOnly!==true||paddock.pid!==next.pid||paddock.active!==true||activity?.testOnly!==true||activity.id!==next.activityId||activity.active!==true)fail('INVALID_PLANNING_MASTER')
+     if(scope==='daily'){
+      if(activity.formType!==next.formType)fail('PLANNING_FORM_MISMATCH')
+      if(next.sourceType==='MONTHLY')verifyMonthlyParent(next,(await tx.get(ref('monthly_plans',next.monthlyPlanLineId))).data())
+     }
+    }
+    // Audit and plan are atomic; create fails if a revision audit already exists.
+    const audit=ref('planning_audit',scope+':'+q.id+':'+next.revision)
+    tx.create(audit,{testOnly:true,scope,id:q.id,action:q.action,actorUid:uid,previousRevision:current?.revision??null,revision:next.revision,before:current??null,after:next})
+    if(q.action==='create')tx.create(target,next);else tx.set(target,next)
+    return next
    })
   }
  })

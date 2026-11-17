@@ -11,3 +11,5 @@ Run emulator:
 `firebase emulators:exec --only firestore,auth --project demo-qc-uat-planning-role --config firebase.uat-planning-role-emulator.json 'env -u GOOGLE_CLOUD_PROJECT -u FIREBASE_PROJECT_ID GCLOUD_PROJECT=demo-qc-uat-planning-role FIRESTORE_EMULATOR_HOST=127.0.0.1:9085 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9899 node scripts/test-qc-uat-planning-role.mjs --emulator'`
 
 19 planned emulator checks include same-token revocation/restoration, forged marker/catalog, built-in policy parity, independent menu keys, malformed row, root isolation and direct client denial. Tests authored; execution and typecheck pending operator Cloud Shell. After pass: design complete MP/DP DTO write/update/cancel semantics, linked Actual constraints and audit; separate summary/actual read policies, then browser/HTTP integration. Hosted UAT remains OFF.
+
+Operator screenshots at 2f62aa1 confirm 89 offline checks, TypeScript, 19/19 Planning Auth/Firestore emulator checks, exit 0. Next: [Planning write lifecycle](qc-uat-planning-write.md).
