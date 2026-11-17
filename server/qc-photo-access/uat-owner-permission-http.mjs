@@ -1,11 +1,10 @@
 // Dedicated demo only. Never mount in production HTTP service.
 import {createServer} from 'node:http'
-import {roles,effectivePermissions} from '../../src/qcUatRolePermissions.mjs'
 import {ownerPermissionChange} from '../../src/qcUatOwnerPermissionContract.mjs'
-import {roleDefinition,builtinRoles,validateCustomRole} from '../../src/qcUatCustomRoles.mjs'
+import {roleDefinition,builtinRoles,validateCustomRole,isRoleId,isCustomRoleId,permissionsForIdentity,assignIdentityRole} from '../../src/qcUatCustomRoles.mjs'
 export const projectId='demo-qc-uat-owner-http',host='127.0.0.1',firestorePort=9485,authPort=10299,httpPort=4497
 export const origin='http://'+host+':'+httpPort
-export const paths=Object.freeze({list:'/uat/owner/permissions/list',patch:'/uat/owner/permissions/patch',session:'/uat/session/permissions',rolesList:'/uat/owner/permissions/roles-list',rolesCreate:'/uat/owner/permissions/roles-create'})
+export const paths=Object.freeze({list:'/uat/owner/permissions/list',patch:'/uat/owner/permissions/patch',session:'/uat/session/permissions',rolesList:'/uat/owner/permissions/roles-list',rolesCreate:'/uat/owner/permissions/roles-create',rolesAssign:'/uat/owner/permissions/roles-assign'})
 const prefix='qc_uat_workspaces/cutover'
 const sid=v=>typeof v==='string'&&/^uat-[a-z0-9-]{1,60}$/.test(v)
 const exact=(v,keys)=>v&&Object.getPrototypeOf(v)===Object.prototype&&Object.keys(v).length===keys.length&&keys.every(k=>Object.hasOwn(v,k))
@@ -17,9 +16,9 @@ export function guard(e=process.env){
 function ownerAllowed(token,m,profile){
  return sid(token.uid)&&token.qcUat===true&&m?.testOnly===true&&m.workspace==='cutover'&&m.enabled===true&&m.role==='owner'&&!profile
 }
-function row(uid,m,allowOwner=false){
- if(!sid(uid)||m?.testOnly!==true||m.workspace!=='cutover'||!roles.includes(m.role)||(!allowOwner&&m.role==='owner')||typeof m.enabled!=='boolean'||!Number.isSafeInteger(m.policyRevision)||m.policyRevision<0||m.policyRevision>=1000000)fail(409,'INVALID_MARKER')
- const permissions=effectivePermissions(m.role,m.roleOverrides,m.manualOverrides)
+function row(uid,m,allowOwner=false,definition){
+ if(!sid(uid)||m?.testOnly!==true||m.workspace!=='cutover'||!isRoleId(m.role)||(!allowOwner&&m.role==='owner')||typeof m.enabled!=='boolean'||!Number.isSafeInteger(m.policyRevision)||m.policyRevision<0||m.policyRevision>=1000000)fail(409,'INVALID_MARKER')
+ let permissions;try{permissions=permissionsForIdentity(m,definition)}catch{fail(409,'INVALID_MARKER')}
  if(!m.permissions||Object.keys(permissions).length!==Object.keys(m.permissions).length||Object.entries(permissions).some(([k,v])=>m.permissions[k]!==v))fail(409,'INVALID_MARKER')
  return {uid,role:m.role,enabled:m.enabled,policyRevision:m.policyRevision,manualOverrides:m.manualOverrides,permissions}
 }
@@ -33,7 +32,33 @@ export function createOwnerService({adb,authAdmin}){
   return token
  }
  const catalog=adb.collection(prefix+'/role_catalog'),roleAudit=adb.collection(prefix+'/role_catalog_audit')
+ async function definitionFor(tx,id){
+  if(!isCustomRoleId(id))return undefined
+  const snapshot=await tx.get(catalog.doc(id)),r=snapshot.data()
+  if(!r||r.testOnly!==true||r.workspace!=='cutover'||r.definition?.id!==id)fail(409,'ROLE_NOT_FOUND')
+  try{return validateCustomRole(r.definition)}catch{fail(409,'INVALID_ROLE_RECORD')}
+ }
  return {
+  async assignRole(raw,input){
+   const token=await tokenFor(raw)
+   if(!exact(input,['targetUid','expectedRevision','roleId'])||!sid(input.targetUid)||!isRoleId(input.roleId)||input.roleId==='owner'||!Number.isSafeInteger(input.expectedRevision)||input.expectedRevision<0)fail(400,'INVALID_REQUEST')
+   return adb.runTransaction(async tx=>{
+    const [actor,target,actorProd,targetProd]=await Promise.all([tx.get(mark(token.uid)),tx.get(mark(input.targetUid)),tx.get(profile(token.uid)),tx.get(profile(input.targetUid))])
+    if(!ownerAllowed(token,actor.data(),actorProd.exists))fail(403,'OWNER_REQUIRED')
+    const m=target.data()
+    if(input.targetUid===token.uid||targetProd.exists||!m||m.role==='owner'||m.enabled!==true||m.testOnly!==true||m.workspace!=='cutover')fail(403,'TARGET_NOT_ELIGIBLE')
+    const oldDefinition=await definitionFor(tx,m.role)
+    row(input.targetUid,m,false,oldDefinition)
+    if(m.policyRevision!==input.expectedRevision)fail(409,'PERMISSION_REVISION_CONFLICT')
+    const definition=await definitionFor(tx,input.roleId)
+    let next
+    try{next=assignIdentityRole(m,input.roleId,definition)}catch(e){fail(e.message==='ROLE_ALREADY_ASSIGNED'?409:400,e.message)}
+    const result=row(input.targetUid,next,false,definition)
+    tx.update(mark(input.targetUid),{role:next.role,roleOverrides:next.roleOverrides,permissions:next.permissions,policyRevision:next.policyRevision})
+    tx.create(adb.doc(prefix+'/permission_audit/'+input.targetUid+':'+next.policyRevision),{testOnly:true,workspace:'cutover',actorUid:token.uid,targetUid:input.targetUid,previousRevision:m.policyRevision,revision:next.policyRevision,action:'assign_role',previousRole:m.role,role:next.role})
+    return result
+   })
+  },
   async listRoles(raw){
    const token=await tokenFor(raw)
    return adb.runTransaction(async tx=>{
@@ -69,7 +94,7 @@ export function createOwnerService({adb,authAdmin}){
     const [identity,prod]=await Promise.all([tx.get(mark(token.uid)),tx.get(profile(token.uid))])
     const m=identity.data()
     if(!m||m.enabled!==true||m.testOnly!==true||m.workspace!=='cutover'||prod.exists)fail(403,'SESSION_DENIED')
-    const {uid,role,policyRevision,permissions}=row(token.uid,m,true)
+    const {uid,role,policyRevision,permissions}=row(token.uid,m,true,await definitionFor(tx,m.role))
     return {uid,role,policyRevision,permissions}
    })
   },
@@ -82,7 +107,7 @@ export function createOwnerService({adb,authAdmin}){
     if(snapshot.size>100)fail(409,'LIST_LIMIT')
     const candidates=snapshot.docs.filter(d=>sid(d.id)&&d.id!==token.uid&&d.data().testOnly===true&&d.data().workspace==='cutover'&&d.data().role!=='owner')
     const profiles=await Promise.all(candidates.map(d=>tx.get(profile(d.id))))
-    return candidates.filter((d,i)=>!profiles[i].exists).map(d=>row(d.id,d.data()))
+    return Promise.all(candidates.filter((d,i)=>!profiles[i].exists).map(async d=>row(d.id,d.data(),false,await definitionFor(tx,d.data().role))))
    })
   },
   async patch(raw,input){
@@ -91,11 +116,12 @@ export function createOwnerService({adb,authAdmin}){
    return adb.runTransaction(async tx=>{
     const [actor,target,actorProd,targetProd]=await Promise.all([tx.get(mark(token.uid)),tx.get(mark(input.targetUid)),tx.get(profile(token.uid)),tx.get(profile(input.targetUid))])
     if(!ownerAllowed(token,actor.data(),actorProd.exists))fail(403,'OWNER_REQUIRED')
+    const definition=await definitionFor(tx,target.data()?.role)
     let result
-    try{result=ownerPermissionChange(input,{actorUid:token.uid,claim:token.qcUat===true,actor:actor.data(),target:target.data(),actorProductionProfile:actorProd.exists,targetProductionProfile:targetProd.exists})}
+    try{result=ownerPermissionChange(input,{actorUid:token.uid,claim:token.qcUat===true,actor:actor.data(),target:target.data(),actorProductionProfile:actorProd.exists,targetProductionProfile:targetProd.exists,roleDefinition:definition})}
     catch(e){const code=e.message;fail(code==='PERMISSION_REVISION_CONFLICT'?409:['OWNER_REQUIRED','SELF_PERMISSION_CHANGE_DENIED','TARGET_NOT_ELIGIBLE'].includes(code)?403:400,code)}
-    row(input.targetUid,target.data())
-    const next=row(input.targetUid,result.next)
+    row(input.targetUid,target.data(),false,definition)
+    const next=row(input.targetUid,result.next,false,definition)
     tx.update(mark(input.targetUid),{manualOverrides:next.manualOverrides,permissions:next.permissions,policyRevision:next.policyRevision})
     tx.create(adb.doc(prefix+'/permission_audit/'+input.targetUid+':'+next.policyRevision),result.audit)
     return next
@@ -130,6 +156,7 @@ export function createOwnerHttp(service,labAssets=null){
    if(!auth)fail(401,'AUTH_REQUIRED')
    const input=await json(req)
    if(req.url===paths.rolesList){if(!exact(input,[]))fail(400,'INVALID_REQUEST');return send(200,{roles:await service.listRoles(auth[1])})}
+   if(req.url===paths.rolesAssign)return send(200,{row:await service.assignRole(auth[1],input)})
    if(req.url===paths.rolesCreate)return send(200,{role:await service.createRole(auth[1],input)})
    if(req.url===paths.session){if(!exact(input,[]))fail(400,'INVALID_REQUEST');return send(200,{session:await service.session(auth[1])})}
    if(req.url===paths.list){if(!exact(input,[]))fail(400,'INVALID_REQUEST');return send(200,{rows:await service.list(auth[1])})}

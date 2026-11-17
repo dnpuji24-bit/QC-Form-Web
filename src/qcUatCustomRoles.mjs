@@ -1,4 +1,4 @@
-// Isolated custom-role catalog. Creation is not assignment or an authority grant.
+// Isolated custom-role catalog. Catalog creation alone is not an authority grant.
 import {keys,roles,effectivePermissions} from './qcUatRolePermissions.mjs'
 const plain=v=>!!v&&Object.getPrototypeOf(v)===Object.prototype
 const exact=(v,k)=>plain(v)&&Reflect.ownKeys(v).length===k.length&&k.every(x=>Object.hasOwn(v,x))
@@ -26,4 +26,26 @@ export function validateCustomRole(value){
  const expected=roleDefinition({name:value.name,permissions:value.permissions})
  need(value.id===expected.id&&value.name===expected.name&&value.kind==='custom'&&value.revision===0&&Object.keys(value.permissions).length===keys.length,'INVALID_ROLE_RECORD')
  return expected
+}
+
+export const isCustomRoleId=id=>typeof id==='string'&&/^custom-[a-z][a-z0-9-]{0,49}$/.test(id)
+export const isRoleId=id=>roles.includes(id)||isCustomRoleId(id)
+// Custom defaults replace the entire old role baseline; explicit user overrides win.
+export function permissionsForIdentity(m,definition){
+ if(!isCustomRoleId(m.role)){
+  need(definition===undefined,'UNEXPECTED_ROLE_DEFINITION')
+  return effectivePermissions(m.role,m.roleOverrides,m.manualOverrides)
+ }
+ const r=validateCustomRole(definition)
+ need(r.id===m.role,'ROLE_DEFINITION_MISMATCH')
+ need(plain(m.roleOverrides)&&Reflect.ownKeys(m.roleOverrides).length===0,'CUSTOM_ROLE_OVERRIDES_DENIED')
+ return effectivePermissions('pengunjung',r.permissions,m.manualOverrides)
+}
+export function assignIdentityRole(m,id,definition){
+ need(plain(m)&&m.testOnly===true&&m.workspace==='cutover'&&m.enabled===true&&isRoleId(m.role)&&m.role!=='owner','TARGET_NOT_ELIGIBLE')
+ need(isRoleId(id)&&id!=='owner','INVALID_ASSIGNMENT_ROLE')
+ need(id!==m.role,'ROLE_ALREADY_ASSIGNED')
+ need(Number.isSafeInteger(m.policyRevision)&&m.policyRevision>=0&&m.policyRevision<999999,'INVALID_POLICY_REVISION')
+ const next={...m,role:id,roleOverrides:{},policyRevision:m.policyRevision+1}
+ return {...next,permissions:permissionsForIdentity(next,definition)}
 }

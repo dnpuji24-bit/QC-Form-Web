@@ -12,9 +12,14 @@ service cloud.firestore {
         && get(markerPath()).data.enabled == true
         && get(markerPath()).data.testOnly == true
         && get(markerPath()).data.workspace == 'cutover'
-        && get(markerPath()).data.role in ['owner','asisten','manager','admin','mandor_spraying','mandor_fertilizer','pengunjung']
+        && (get(markerPath()).data.role in ['owner','asisten','manager','admin','mandor_spraying','mandor_fertilizer','pengunjung']
+          || customRole(get(markerPath()).data.role))
         && get(markerPath()).data.permissions is map
         && !exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    function customRole(role) {
+      return role is string && role.matches('^custom-[a-z][a-z0-9-]{0,49}$')
+        && exists(/databases/$(database)/documents/qc_uat_workspaces/cutover/role_catalog/$(role));
     }
     function permission(key) { return get(markerPath()).data.permissions.get(key,'none'); }
     function viewKey(key) { return actor() && permission(key) in ['view','edit']; }

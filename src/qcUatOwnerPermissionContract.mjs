@@ -1,5 +1,6 @@
 // Pure synthetic Owner permission policy. The trusted caller must derive context from verified token and current transaction reads.
-import {roles,keys,effectivePermissions} from './qcUatRolePermissions.mjs'
+import {keys} from './qcUatRolePermissions.mjs'
+import {isRoleId,permissionsForIdentity} from './qcUatCustomRoles.mjs'
 
 export function requireThat(ok,code){if(!ok)throw Error(code)}
 
@@ -9,7 +10,7 @@ function sid(v){requireThat(typeof v==='string'&&/^uat-[a-z0-9-]{1,60}$/.test(v)
 
 function revision(v){requireThat(Number.isSafeInteger(v)&&v>=0&&v<1000000,'INVALID_POLICY_REVISION');return v}
 
-function isolated(m){return !!m&&m.testOnly===true&&m.workspace==='cutover'&&roles.includes(m.role)}
+function isolated(m){return !!m&&m.testOnly===true&&m.workspace==='cutover'&&isRoleId(m.role)}
 
 export function ownerPermissionChange(input,context){
   requireThat(input&&Object.getPrototypeOf(input)===Object.prototype&&Object.keys(input).length===3&&['targetUid','expectedRevision','patch'].every(k=>Object.hasOwn(input,k)),'INVALID_REQUEST');
@@ -23,7 +24,7 @@ export function ownerPermissionChange(input,context){
   requireThat(Object.keys(patch).length>0,'EMPTY_PERMISSION_PATCH');
   const previous=permissionMap(target.manualOverrides);
   const manualOverrides={...previous,...patch};
-  const permissions=effectivePermissions(target.role,permissionMap(target.roleOverrides),manualOverrides);
+  const permissions=permissionsForIdentity({...target,roleOverrides:permissionMap(target.roleOverrides),manualOverrides},context.roleDefinition);
   const policyRevision=currentRevision+1;
   return {next:{...target,manualOverrides,permissions,policyRevision},audit:{testOnly:true,workspace:'cutover',actorUid:uid,targetUid,previousRevision:currentRevision,revision:policyRevision,patch}};
 }

@@ -1,11 +1,12 @@
 // Isolated session candidate, not imported by the production portal.
 // Current identity must be a Firebase User object; change/reset on every auth event.
-import {roles,keys} from './qcUatRolePermissions.mjs'
+import {keys} from './qcUatRolePermissions.mjs'
+import {isRoleId} from './qcUatCustomRoles.mjs'
 const origin='http://127.0.0.1:4497'
 const sid=v=>typeof v==='string'&&/^uat-[a-z0-9-]{1,60}$/.test(v)
 const plain=v=>!!v&&Object.getPrototypeOf(v)===Object.prototype
 export function validateSession(value,uid){
- if(!plain(value)||Object.keys(value).length!==4||value.uid!==uid||!sid(uid)||!roles.includes(value.role)||!Number.isSafeInteger(value.policyRevision)||value.policyRevision<0||value.policyRevision>=1000000||!plain(value.permissions)||Object.keys(value.permissions).length!==keys.length||!keys.every(k=>Object.hasOwn(value.permissions,k)&&['none','view','edit'].includes(value.permissions[k])))throw Error('INVALID_SESSION')
+ if(!plain(value)||Object.keys(value).length!==4||value.uid!==uid||!sid(uid)||!isRoleId(value.role)||!Number.isSafeInteger(value.policyRevision)||value.policyRevision<0||value.policyRevision>=1000000||!plain(value.permissions)||Object.keys(value.permissions).length!==keys.length||!keys.every(k=>Object.hasOwn(value.permissions,k)&&['none','view','edit'].includes(value.permissions[k])))throw Error('INVALID_SESSION')
  return Object.freeze({uid,role:value.role,policyRevision:value.policyRevision,permissions:Object.freeze({...value.permissions})})
 }
 export function createUatSession({currentUser,request=globalThis.fetch,notify=()=>{}}){
