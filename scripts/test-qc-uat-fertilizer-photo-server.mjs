@@ -7,6 +7,7 @@ import {componentProgressRecords} from '../src/qcUatFertilizerMaterialIntegratio
 import {fertilizerComponentProgress} from '../src/qcUatFertilizerComponentProgress.mjs'
 import {buildQcActualPayload} from './qc-uat-load-actual-mapper.mjs'
 import {marker} from '../src/qcUatRolePermissions.mjs'
+import {roleDefinition,assignIdentityRole,permissionsForIdentity} from '../src/qcUatCustomRoles.mjs'
 import {createFertilizerPhotoService,fertilizerPhotoFingerprint,guardFertilizerPhoto,demoProject,demoHost,firestorePort,authPort} from '../server/qc-photo-access/uat-fertilizer-photo-service.mjs'
 const config=JSON.parse(readFileSync(new URL('../firebase.uat-fertilizer-photo-emulator.json',import.meta.url),'utf8'))
 const rules=readFileSync(new URL('../scripts/firestore.uat-fertilizer-full-demo.rules',import.meta.url),'utf8')
@@ -218,6 +219,57 @@ if(process.argv[2]==='--emulator'){
    const id='qc-v2-uat-master-revoke',catalog=ref('fertilizer_master','uat-products')
    afterStage=()=>catalog.set({testOnly:true,products:master.map(p=>({...p,active:false}))})
    try{await reject(()=>call({...photo,id},null,changes),'PRODUCT_NOT_AUTHORIZED');assert.deepEqual(await snapshot(id),{q:null,ap:null,audits:[]})}finally{await catalog.set({testOnly:true,products:master})}
+  })
+  const custom=roleDefinition({name:'Field Operator',permissions:{qc_fertilizer:'edit',qc_records:'view'}})
+  const catalogRef=ref('role_catalog',custom.id)
+  const identity={...marker('mandor_fertilizer'),policyRevision:0,roleOverrides:{},manualOverrides:{}}
+  const assigned=assignIdentityRole(identity,custom.id,custom)
+  const useCustom=async(overrides={})=>{
+   const m={...assigned,manualOverrides:overrides}
+   await mark('uat-fertilizer').set({...m,permissions:permissionsForIdentity(m,custom)})
+  }
+  await check('catalog assigned role can save own QC with atomic Actual and replay',async()=>{
+   await catalogRef.set({testOnly:true,workspace:'cutover',definition:custom})
+   await useCustom()
+   const id='qc-v2-uat-custom-role',row={...photo,id}
+   try{
+    const out=await call(row,null,changes)
+    assert.equal(out.status,'confirmed');assert.equal((await ap(id)).ownerUid,'uat-fertilizer');assert.equal((await snapshot(id)).audits.length,1)
+    assert.equal((await call(row,null,changes)).replayed,true)
+    await reject(()=>call({...row,id:'qc-v2-uat-custom-foreign',ownerUid:'uat-other',inputtedBy:'uat-other'},null,changes),'OWNER_REQUIRED')
+   }finally{await mark('uat-fertilizer').set(marker('mandor_fertilizer'))}
+  })
+  await check('manual none blocks custom role before staging and exact replay',async()=>{
+   await useCustom({qc_fertilizer:'none'})
+   const id='qc-v2-uat-custom-role',before=await snapshot(id),puts=stats.puts
+   try{
+    await reject(()=>call({...photo,id},null,changes),'FORM_EDIT_REQUIRED')
+    await reject(()=>call({...photo,id:'qc-v2-uat-custom-denied'},null,changes),'FORM_EDIT_REQUIRED')
+    assert.equal(stats.puts,puts);assert.deepEqual(await snapshot(id),before)
+    assert.deepEqual(await snapshot('qc-v2-uat-custom-denied'),{q:null,ap:null,audits:[]})
+   }finally{await mark('uat-fertilizer').set(marker('mandor_fertilizer'))}
+  })
+  await check('missing catalog and forged materialized permission fail closed',async()=>{
+   await useCustom()
+   const id='qc-v2-uat-custom-missing',puts=stats.puts
+   try{
+    await catalogRef.delete()
+    await reject(()=>call({...photo,id},null,changes),'UAT_IDENTITY_DENIED')
+    await catalogRef.set({testOnly:true,workspace:'cutover',definition:custom})
+    await useCustom({qc_fertilizer:'none'})
+    await mark('uat-fertilizer').update({'permissions.qc_fertilizer':'edit'})
+    await reject(()=>call({...photo,id},null,changes),'UAT_IDENTITY_DENIED')
+    assert.equal(stats.puts,puts);assert.deepEqual(await snapshot(id),{q:null,ap:null,audits:[]})
+   }finally{await mark('uat-fertilizer').set(marker('mandor_fertilizer'))}
+  })
+  await check('custom role permission change during immutable staging blocks atomic commit',async()=>{
+   await useCustom()
+   const id='qc-v2-uat-custom-revoked'
+   afterStage=()=>useCustom({qc_fertilizer:'none'})
+   try{
+    await reject(()=>call({...photo,id},null,changes),'FORM_EDIT_REQUIRED')
+    assert.deepEqual(await snapshot(id),{q:null,ap:null,audits:[]})
+   }finally{afterStage=null;await mark('uat-fertilizer').set(marker('mandor_fertilizer'))}
   })
   console.log('SUCCESS: '+n+' full Fertilizer photo and Uploaded transaction checks (Auth/Firestore emulators, mock storage only)')
  }finally{

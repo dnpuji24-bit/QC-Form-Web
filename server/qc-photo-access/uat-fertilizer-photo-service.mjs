@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto'
 import {validateFertilizerDtoForComponents} from '../../src/qcUatFertilizerFullDto.mjs'
 import {prepareComponentFertilizer,componentActual} from '../../src/qcUatFertilizerMaterialIntegration.mjs'
 import {prepareOperationalPhotoManifest} from '../../src/qcOperationalPhotoManifest.mjs'
-import {roles} from '../../src/qcUatRolePermissions.mjs'
+import {operationalPermissions,canReadOperationalPhoto} from './uat-operational-permissions.mjs'
 export const demoProject='demo-qc-uat-fertilizer-photo'
 export const demoHost='127.0.0.1'
 export const firestorePort=9385,authPort=10199
@@ -107,8 +107,8 @@ export function createFertilizerPhotoService({db,verifyToken,buildActual,photoSt
    const qref=at('qc_records',r.id),aref=at('daily_reports','qcactual_'+r.id),uref=at('qc_operational_audit',r.id+':'+r.clientRevision)
    const [m,p,d,q,a,u,master]=await Promise.all([tx.get(db.doc('qc_uat_identities/'+actor.uid)),tx.get(db.doc('users/'+actor.uid)),tx.get(at('daily_plans',r.dailyPlanId)),tx.get(qref),tx.get(aref),tx.get(uref),tx.get(at('fertilizer_master','uat-products'))])
    const marker=m.data()
-   need(!p.exists&&marker?.testOnly===true&&marker.enabled===true&&marker.workspace==='cutover'&&roles.includes(marker.role)&&plain(marker.permissions),'UAT_IDENTITY_DENIED')
-   need(marker.permissions.qc_fertilizer==='edit','FORM_EDIT_REQUIRED')
+   const permissions=await operationalPermissions({tx,db,marker,productionProfile:p.exists})
+   need(permissions.qc_fertilizer==='edit','FORM_EDIT_REQUIRED')
    need(d.exists,'SOURCE_DP_NOT_FOUND')
    validateFertilizerDtoForComponents(r,d.data())
    validateChanges(r,changes)
@@ -177,10 +177,9 @@ export function createFertilizerPhotoSigner({db,verifyToken,photoStore,realRunId
   const ref=await db.runTransaction(async tx=>{
    const [m,p,q]=await Promise.all([tx.get(db.doc('qc_uat_identities/'+actor.uid)),tx.get(db.doc('users/'+actor.uid)),tx.get(db.doc(workspace+'/qc_records/'+request.recordId))])
    const marker=m.data(),row=q.data()
-   need(!p.exists&&marker?.testOnly===true&&marker.enabled===true&&marker.workspace==='cutover'&&roles.includes(marker.role)&&plain(marker.permissions),'UAT_IDENTITY_DENIED')
+   const permissions=await operationalPermissions({tx,db,marker,productionProfile:p.exists})
    need(row?.testOnly===true&&row.formType==='fertilizer'&&row.id===request.recordId&&row.ownerUid==='uat-fertilizer'&&row.firestoreSaveState==='confirmed','PHOTO_RECORD_UNAVAILABLE')
-   const own=row.ownerUid===actor.uid
-   need((own&&marker.permissions.qc_fertilizer==='edit')||(['view','edit'].includes(marker.permissions.qc_records)&&(own||['owner','asisten','manager','admin','pengunjung'].includes(marker.role))),'PHOTO_READ_DENIED')
+   need(canReadOperationalPhoto(marker,permissions,actor.uid,row,'qc_fertilizer'),'PHOTO_READ_DENIED')
    const manifest=row.operationalPhotoManifest
    checkManifest(manifest,row,realBucket)
    need(row.photoManifestFingerprint===digest(canonical(manifest)),'STORED_MANIFEST_MISMATCH')
