@@ -4,6 +4,8 @@ import {createRoot} from 'react-dom/client'
 import {initializeApp} from 'firebase/app'
 import {initializeAuth,inMemoryPersistence,connectAuthEmulator,onAuthStateChanged,signInWithEmailAndPassword,signOut} from 'firebase/auth'
 import Panel from '../src/UatOwnerPermissionPanel'
+import AddRole from '../src/UatAddRolePanel'
+import {validateCustomRole,builtinRoles} from '../src/qcUatCustomRoles.mjs'
 import {createUatSession,validateSession} from '../src/qcUatSessionPermissions.mjs'
 import {keys} from '../src/qcUatRolePermissions.mjs'
 if(location.origin!=='http://127.0.0.1:4497')throw Error('SESSION_LAB_ORIGIN')
@@ -28,7 +30,10 @@ function ownerAdapter(user){
   if(value.role==='owner'||value.uid===user.uid||typeof value.enabled!=='boolean'||!value.manualOverrides||Object.getPrototypeOf(value.manualOverrides)!==Object.prototype||Object.entries(value.manualOverrides).some(([k,v])=>!keys.includes(k)||!['none','view','edit'].includes(v)))throw Error('INVALID_OWNER_ROW')
   return value
  }
- return {list:async()=>{const {rows}=await call('list',{});if(!Array.isArray(rows)||rows.length>100||new Set(rows.map(r=>r.uid)).size!==rows.length)throw Error('INVALID_ROWS');return rows.map(row)},patch:async input=>row((await call('patch',input)).row)}
+ return {list:async()=>{const {rows}=await call('list',{});if(!Array.isArray(rows)||rows.length>100||new Set(rows.map(r=>r.uid)).size!==rows.length)throw Error('INVALID_ROWS');return rows.map(row)},patch:async input=>row((await call('patch',input)).row),roles:{
+  list:async()=>{const {roles}=await call('roles-list',{});if(!Array.isArray(roles)||roles.length>107||new Set(roles.map(r=>r.id)).size!==roles.length)throw Error('INVALID_ROLES');const built=builtinRoles();return roles.map(r=>r.kind==='custom'?validateCustomRole(r):built.find(x=>x.id===r.id)??(()=>{throw Error('UNKNOWN_BUILTIN')})())},
+  create:async input=>validateCustomRole((await call('roles-create',input)).role)
+ }}
 }
 function App(){
  const [user,setUser]=useState(null),[confirmed,setConfirmed]=useState(null),[pending,setPending]=useState(false),[status,setStatus]=useState('signed-out'),[loginBusy,setLoginBusy]=useState(false)
@@ -84,7 +89,7 @@ function App(){
   {['qc_spraying','qc_fertilizer','qc_records'].map(k=><p key={k} data-testid={'mode-'+k}>{visible?.permissions[k]??'none'}</p>)}
   {visible&&visible.permissions.qc_spraying!=='none'&&<section aria-label="Spray menu"><button disabled={visible.permissions.qc_spraying!=='edit'}>Simulasi simpan Spray</button></section>}
   {visible&&visible.permissions.qc_fertilizer!=='none'&&<section aria-label="Fertilizer menu"><button disabled={visible.permissions.qc_fertilizer!=='edit'}>Simulasi simpan Fertilizer</button></section>}
-  {owner&&<div hidden={pending}><Panel key={user.uid} actorUid={user.uid} isOwner={true} adapter={adapterRef.current}/></div>}
+  {owner&&<div hidden={pending}><Panel key={user.uid} actorUid={user.uid} isOwner={true} adapter={adapterRef.current}/><AddRole key={'roles-'+user.uid} adapter={adapterRef.current.roles}/></div>}
  </main>
 }
 createRoot(document.getElementById('root')).render(<App/>)

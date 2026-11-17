@@ -17,7 +17,7 @@ if(process.argv[2]==='--browser'){
  guard()
  const dir=process.env.QC_UAT_PLAYWRIGHT_DIR;assert.ok(dir?.startsWith('/'),'QC_UAT_PLAYWRIGHT_DIR_REQUIRED')
  const {chromium}=createRequire(dir+'/package.json')('playwright'),{build}=await import('vite')
- const allowed=['UatOwnerPermissionPanel.tsx','accessControl.ts','qcUatSessionPermissions.mjs','qcUatRolePermissions.mjs']
+ const allowed=['UatOwnerPermissionPanel.tsx','accessControl.ts','qcUatSessionPermissions.mjs','qcUatRolePermissions.mjs','qcUatCustomRoles.mjs','UatAddRolePanel.tsx']
  const plugin={name:'owner-session-isolation',enforce:'pre',generateBundle(_opts,bundle){
   const ids=Object.values(bundle).filter(o=>o.type==='chunk').flatMap(o=>Object.keys(o.modules))
   const src=ids.filter(id=>id.startsWith(root+'src/')).map(id=>id.slice((root+'src/').length))
@@ -64,7 +64,7 @@ if(process.argv[2]==='--browser'){
  async function save(p,value){await p.getByRole('combobox',{name:'qc_spraying',exact:true}).selectOption(value);await p.getByRole('button',{name:'Simpan hak akses pengguna'}).click();await wait(ownerStatus(p),'Hak akses tersimpan.')}
  try{
   assert.equal((await authAdmin.listUsers(1)).users.length,0,'FRESH_AUTH_REQUIRED')
-  for(const col of ['qc_uat_identities','users','daily_plans','qc_uat_workspaces/cutover/permission_audit'])assert.equal((await adb.collection(col).limit(1).get()).size,0,'FRESH_FIRESTORE_REQUIRED')
+  for(const col of ['qc_uat_identities','users','daily_plans','qc_uat_workspaces/cutover/permission_audit','qc_uat_workspaces/cutover/role_catalog','qc_uat_workspaces/cutover/role_catalog_audit'])assert.equal((await adb.collection(col).limit(1).get()).size,0,'FRESH_FIRESTORE_REQUIRED')
   for(const [uid,role] of [['uat-owner','owner'],['uat-spray','mandor_spraying'],['uat-spray-b','mandor_spraying'],['uat-fert','mandor_fertilizer']]){
    await authAdmin.createUser({uid,email:uid+'@owner-browser.example.test',password:'Synthetic-only-2026-'+uid,emailVerified:true})
    await authAdmin.setCustomUserClaims(uid,{qcUat:true})
@@ -120,8 +120,24 @@ if(process.argv[2]==='--browser'){
    await owner.getByRole('button',{name:'Refresh hak akses'}).click();await wait(ownerStatus(owner),'Hak akses dimuat.');await choose(owner,'uat-spray')
    assert.equal(await owner.getByTestId('manual-qc_spraying').innerText(),'view');await wait(mode(a),'view');assert.equal((await audit()).size,4)
   })
+  await check('Owner creates custom role from UI without changing existing users',async()=>{
+   const rolePanel=owner.getByRole('region',{name:'Kelola role UAT'})
+   await wait(owner.getByTestId('role-message'),'Daftar role dimuat.')
+   assert.equal(await a.getByRole('region',{name:'Kelola role UAT'}).count(),0)
+   await rolePanel.getByRole('textbox',{name:'Nama role'}).fill('QC Inspector')
+   assert.equal(await rolePanel.getByRole('combobox',{name:'role-qc_spraying',exact:true}).inputValue(),'none')
+   await rolePanel.getByRole('combobox',{name:'role-qc_records',exact:true}).selectOption('view')
+   const before=(await mark('uat-spray').get()).data()
+   await rolePanel.getByRole('button',{name:'Simpan role baru'}).click()
+   await wait(owner.getByTestId('role-message'),'Role berhasil dibuat.')
+   await owner.getByTestId('role-custom-qc-inspector').waitFor()
+   assert.equal((await adb.doc('qc_uat_workspaces/cutover/role_catalog/custom-qc-inspector').get()).data().definition.permissions.qc_records,'view')
+   assert.deepEqual((await mark('uat-spray').get()).data(),before)
+   await rolePanel.getByRole('button',{name:'Refresh daftar role'}).click();await wait(owner.getByTestId('role-message'),'Daftar role dimuat.')
+   await owner.getByTestId('role-custom-qc-inspector').waitFor()
+  })
   await check('revoked owner loses panel on automatic refresh; root unchanged',async()=>{
-   await mark('uat-owner').update({enabled:false});await wait(state(owner),'denied');assert.equal(await selected(owner).count(),0)
+   await mark('uat-owner').update({enabled:false});await wait(state(owner),'denied');assert.equal(await selected(owner).count(),0);assert.equal(await owner.getByRole('region',{name:'Kelola role UAT'}).count(),0)
    assert.deepEqual((await adb.doc('daily_plans/root-sentinel').get()).data(),{rootSentinel:true})
   })
   await check('no external requests WebSocket or CSP violations',async()=>{

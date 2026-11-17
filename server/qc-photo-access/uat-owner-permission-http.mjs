@@ -2,9 +2,10 @@
 import {createServer} from 'node:http'
 import {roles,effectivePermissions} from '../../src/qcUatRolePermissions.mjs'
 import {ownerPermissionChange} from '../../src/qcUatOwnerPermissionContract.mjs'
+import {roleDefinition,builtinRoles,validateCustomRole} from '../../src/qcUatCustomRoles.mjs'
 export const projectId='demo-qc-uat-owner-http',host='127.0.0.1',firestorePort=9485,authPort=10299,httpPort=4497
 export const origin='http://'+host+':'+httpPort
-export const paths=Object.freeze({list:'/uat/owner/permissions/list',patch:'/uat/owner/permissions/patch',session:'/uat/session/permissions'})
+export const paths=Object.freeze({list:'/uat/owner/permissions/list',patch:'/uat/owner/permissions/patch',session:'/uat/session/permissions',rolesList:'/uat/owner/permissions/roles-list',rolesCreate:'/uat/owner/permissions/roles-create'})
 const prefix='qc_uat_workspaces/cutover'
 const sid=v=>typeof v==='string'&&/^uat-[a-z0-9-]{1,60}$/.test(v)
 const exact=(v,keys)=>v&&Object.getPrototypeOf(v)===Object.prototype&&Object.keys(v).length===keys.length&&keys.every(k=>Object.hasOwn(v,k))
@@ -31,7 +32,37 @@ export function createOwnerService({adb,authAdmin}){
   if(!sid(token.uid)||token.qcUat!==true)fail(403,'OWNER_REQUIRED')
   return token
  }
+ const catalog=adb.collection(prefix+'/role_catalog'),roleAudit=adb.collection(prefix+'/role_catalog_audit')
  return {
+  async listRoles(raw){
+   const token=await tokenFor(raw)
+   return adb.runTransaction(async tx=>{
+    const [actor,prod]=await Promise.all([tx.get(mark(token.uid)),tx.get(profile(token.uid))])
+    if(!ownerAllowed(token,actor.data(),prod.exists))fail(403,'OWNER_REQUIRED')
+    const snapshot=await tx.get(catalog.limit(101))
+    if(snapshot.size>100)fail(409,'ROLE_LIST_LIMIT')
+    const custom=snapshot.docs.map(d=>{
+     const r=d.data()
+     if(r.testOnly!==true||r.workspace!=='cutover'||d.id!==r.definition?.id)fail(409,'INVALID_ROLE_RECORD')
+     try{return validateCustomRole(r.definition)}catch{fail(409,'INVALID_ROLE_RECORD')}
+    })
+    return [...builtinRoles(),...custom]
+   })
+  },
+  async createRole(raw,input){
+   const token=await tokenFor(raw)
+   let definition
+   try{definition=roleDefinition(input)}catch(e){fail(400,e.message)}
+   return adb.runTransaction(async tx=>{
+    const [actor,prod,existing,count]=await Promise.all([tx.get(mark(token.uid)),tx.get(profile(token.uid)),tx.get(catalog.doc(definition.id)),tx.get(catalog.limit(100))])
+    if(!ownerAllowed(token,actor.data(),prod.exists))fail(403,'OWNER_REQUIRED')
+    if(existing.exists)fail(409,'ROLE_EXISTS')
+    if(count.size>=100)fail(409,'ROLE_LIST_LIMIT')
+    tx.create(catalog.doc(definition.id),{testOnly:true,workspace:'cutover',definition})
+    tx.create(roleAudit.doc(definition.id),{testOnly:true,workspace:'cutover',actorUid:token.uid,action:'create_role',definition})
+    return definition
+   })
+  },
   async session(raw){
    const token=await tokenFor(raw)
    return adb.runTransaction(async tx=>{
@@ -98,6 +129,8 @@ export function createOwnerHttp(service,labAssets=null){
    const auth=/^Bearer ([^\s]+)$/.exec(req.headers.authorization??'')
    if(!auth)fail(401,'AUTH_REQUIRED')
    const input=await json(req)
+   if(req.url===paths.rolesList){if(!exact(input,[]))fail(400,'INVALID_REQUEST');return send(200,{roles:await service.listRoles(auth[1])})}
+   if(req.url===paths.rolesCreate)return send(200,{role:await service.createRole(auth[1],input)})
    if(req.url===paths.session){if(!exact(input,[]))fail(400,'INVALID_REQUEST');return send(200,{session:await service.session(auth[1])})}
    if(req.url===paths.list){if(!exact(input,[]))fail(400,'INVALID_REQUEST');return send(200,{rows:await service.list(auth[1])})}
    return send(200,{row:await service.patch(auth[1],input)})

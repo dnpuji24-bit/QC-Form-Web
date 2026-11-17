@@ -45,7 +45,7 @@ if(process.argv[2]==='--emulator'){
  const readMarker=async uid=>(await mark(uid).get()).data()
  try{
   assert.equal((await authAdmin.listUsers(1)).users.length,0,'FRESH_AUTH_REQUIRED')
-  for(const col of ['qc_uat_identities','users','daily_plans',prefix+'/permission_audit',prefix+'/daily_plans'])assert.equal((await adb.collection(col).limit(1).get()).size,0,'FRESH_FIRESTORE_REQUIRED')
+  for(const col of ['qc_uat_identities','users','daily_plans',prefix+'/permission_audit',prefix+'/daily_plans',prefix+'/role_catalog',prefix+'/role_catalog_audit'])assert.equal((await adb.collection(col).limit(1).get()).size,0,'FRESH_FIRESTORE_REQUIRED')
   for(const [uid,role,claim,enabled] of specs){
    await authAdmin.createUser({uid,email:email(uid),password:password(uid),emailVerified:true})
    if(claim)await authAdmin.setCustomUserClaims(uid,{qcUat:true})
@@ -131,6 +131,34 @@ if(process.argv[2]==='--emulator'){
     const ref=doc(owner.db,...path);await assert.rejects(getDocFromServer(ref),{code:'permission-denied'});await assert.rejects(setDoc(ref,{fake:true}),{code:'permission-denied'})
    }
   })
+  const catalog=adb.collection(prefix+'/role_catalog'),roleAudit=adb.collection(prefix+'/role_catalog_audit')
+  const roleInput=(name='QC Inspector',permissions={qc_records:'view'})=>({name,permissions})
+  await check('role catalog owner only and builtin list unchanged',async()=>{
+   const list=await call(paths.rolesList,ot);assert.equal(list.status,200);assert.equal(list.data.roles.length,7)
+   for(const c of [spray,disabled,noClaim,prod]){const t=await token(c);assert.equal((await call(paths.rolesList,t)).status,403);assert.equal((await call(paths.rolesCreate,t,roleInput())).status,403)}
+  })
+  await check('custom role creation and audit atomic; no identity changed',async()=>{
+   const before=await readMarker('uat-spray')
+   const result=await call(paths.rolesCreate,ot,roleInput());assert.equal(result.status,200);const role=result.data.role
+   assert.equal(role.id,'custom-qc-inspector');assert.equal(role.permissions.qc_records,'view');assert.equal(role.permissions.qc_spraying,'none')
+   assert.deepEqual((await catalog.doc(role.id).get()).data().definition,role);assert.equal((await roleAudit.doc(role.id).get()).data().actorUid,'uat-owner')
+   assert.deepEqual(await readMarker('uat-spray'),before)
+   assert.equal((await call(paths.rolesList,ot)).data.roles.length,8)
+  })
+  await check('duplicates reserved names and forged privileges rejected',async()=>{
+   assert.equal((await call(paths.rolesCreate,ot,roleInput('qc_inspector'))).status,409)
+   for(const input of [roleInput('Owner'),roleInput('Manager'),roleInput('New Role',{owner:'edit'}),{...roleInput(),id:'owner'}])assert.equal((await call(paths.rolesCreate,ot,input)).status,400)
+   assert.equal((await catalog.get()).size,1);assert.equal((await roleAudit.get()).size,1)
+  })
+  await check('concurrent duplicate role creation has one winner',async()=>{
+   const r=await Promise.all([call(paths.rolesCreate,ot,roleInput('Planning Officer')),call(paths.rolesCreate,ot,roleInput('planning_officer'))])
+   assert.deepEqual(r.map(x=>x.status).sort(),[200,409]);assert.equal((await catalog.get()).size,2);assert.equal((await roleAudit.get()).size,2)
+  })
+  await check('role audit collision rolls back creation and client access denied',async()=>{
+   await roleAudit.doc('custom-audit-collision').create({collision:true})
+   assert.equal((await call(paths.rolesCreate,ot,roleInput('Audit Collision'))).status,500);assert.equal((await catalog.doc('custom-audit-collision').get()).exists,false)
+   for(const path of ['role_catalog','role_catalog_audit']){const ref=doc(owner.db,'qc_uat_workspaces','cutover',path,'custom-qc-inspector');await assert.rejects(getDocFromServer(ref),{code:'permission-denied'});await assert.rejects(setDoc(ref,{fake:true}),{code:'permission-denied'})}
+  })
   await check('owner revocation blocks existing token and root remains untouched',async()=>{
    const before=await readMarker('uat-spray');await mark('uat-owner').update({enabled:false})
    assert.equal((await call(paths.list,ot)).status,403);assert.equal((await patch(input(3,{qc_spraying:'edit'}))).status,403)
@@ -138,7 +166,7 @@ if(process.argv[2]==='--emulator'){
   })
   await check('revoked owner session denied and client clears access',async()=>{
    const own=createUatSession({currentUser:()=>owner.auth.currentUser});assert.equal(await own.refresh(),null);assert.equal(own.canEdit('qc_spraying'),false)
-   assert.equal((await call(paths.session,ot)).status,403)
+   assert.equal((await call(paths.session,ot)).status,403);assert.equal((await call(paths.rolesList,ot)).status,403);assert.equal((await call(paths.rolesCreate,ot,roleInput('After Revocation'))).status,403)
   })
   console.log('SUCCESS: '+n+' Owner HTTP permission and real Auth/Firestore transaction checks (dedicated demo only)')
  }finally{
