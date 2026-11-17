@@ -33,7 +33,10 @@ assert.ok(rules.includes("get(p).data == {'testOnly': true, 'baseRevision': base
 assert.ok(rules.includes('qcValid(id,q) && receiptMatches(q,base) && newAudit(q) && pairedActual(q)'))
 assert.ok(rules.includes('qcWrite(id,request.resource.data,resource.data.clientRevision)'))
 assert.ok(rules.includes('eligible(q) && changedQc(q) && actualMatches(a,q)'))
-assert.ok(rules.includes('editForm(q.formType) && changedQc(q) && auditMatches(a,q)'))
+assert.ok(rules.includes('changedQc(q) && auditMatches(a,q)'))
+assert.ok(rules.includes('actorForm(q.formType) && optId(q.dailyPlanId)'))
+assert.ok(rules.includes('request.auth != null && q.ownerUid == request.auth.uid'))
+assert.ok(rules.includes('allow create: if request.auth != null && auditCreate(id,request.resource.data)'))
 const digest=v=>createHash('sha256').update(v).digest('hex')
 const syntheticJob=key=>'uat-job-'+digest(key).slice(0,48)
 assert.match(syntheticJob(operationalQueueId('uat-spray','uat-q1','uat-r1')), /^uat-[a-z0-9-]{1,60}$/)
@@ -246,7 +249,18 @@ if(process.argv[2]==='--emulator'){
   await context.addInitScript(()=>{globalThis.cspViolations=[];document.addEventListener('securitypolicyviolation',e=>cspViolations.push(e.effectiveDirective))})
   const page=await context.newPage();page.on('pageerror',e=>violations.push(e.message))
   const count=async n=>page.waitForFunction(v=>document.querySelector('#count')?.textContent===String(v),n)
-  const result=async s=>{await page.waitForFunction(v=>document.querySelector('#result')?.textContent.includes(v),s);await page.waitForFunction(()=>!document.querySelector('#flush').disabled)}
+  const result=async s=>{
+   try{await page.waitForFunction(v=>document.querySelector('#result')?.textContent.includes(v),s);await page.waitForFunction(()=>!document.querySelector('#flush').disabled)}
+   catch(e){
+    const status=await page.locator('#result').textContent().catch(()=>null)
+    const count=await page.locator('#count').textContent().catch(()=>null)
+    let safe='UNEXPECTED_STATUS'
+    try{const r=JSON.parse(status);safe=JSON.stringify({sent:r.sent,left:r.left,errors:(r.failures??[]).map(f=>/^[A-Z_]+$/.test(f.error)?f.error:'UNCLASSIFIED_ERROR')})}
+    catch{if(typeof status==='string'&&/^GAGAL: [A-Z_]+$/.test(status))safe=status;else if(typeof status==='string'&&status.startsWith('QUEUED '))safe='QUEUED'}
+    console.error('UAT_BROWSER_DIAGNOSTIC expected='+s+' actual='+safe+' count='+count)
+    throw e
+   }
+  }
   const click=id=>page.locator('#'+id).click()
   const field=(id,v)=>page.locator('#'+id).fill(v)
   const login=async uid=>{await page.evaluate(s=>portalSyncLab.installSession(s),{uid,token:tokens.get(uid)});await page.waitForFunction(v=>document.querySelector('#uid')?.textContent===v,uid)}
@@ -301,6 +315,12 @@ if(process.argv[2]==='--emulator'){
    const before=await queued('uat-spray');await useCustom('uat-spray','mandor_spraying',{qc_spraying:'none'})
    await click('flush');await result('FORM_EDIT_REQUIRED');await count(1);assert.deepEqual(await queued('uat-spray'),before);await pair(customSpray)
    await useCustom('uat-spray','mandor_spraying');await click('flush');await result('"sent":1');await count(0);await pair({...customSpray,clientRevision:'uat-r2',actualArea100:375})
+   // Regression: dependent paths cannot be changed standalone even with a valid custom role.
+   const actualId='qcactual_'+customSpray.id,auditId=customSpray.id+':uat-r2'
+   const a=await read('daily_reports',actualId),u=await read('qc_operational_audit',auditId)
+   await denied(()=>setDoc(path(spray,'daily_reports',actualId),{...a,actualArea100:376}))
+   await denied(()=>setDoc(path(spray,'qc_operational_audit',customSpray.id+':uat-r99'),{...u,revision:'uat-r99'}))
+   assert.deepEqual(await read('daily_reports',actualId),a);assert.equal(await read('qc_operational_audit',customSpray.id+':uat-r99'),null)
   })
   await check('custom foreign account cannot read QC Actual audit or submit original job',async()=>{
    await useCustom('uat-other','mandor_spraying')

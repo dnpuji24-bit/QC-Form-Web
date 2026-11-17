@@ -51,6 +51,12 @@ export function createPortalSyncServer(deps,bundle){
    const known=['MOCK_UPLOAD_OFFLINE','MOCK_COMMIT_OFFLINE','MOCK_ACK_LOST','QC_REVISION_CONFLICT','QC_REPLAY_PAYLOAD_CONFLICT','QC_REPLAY_FINGERPRINT_MISSING','QC_QUEUE_ACCOUNT_MISMATCH','TRUSTED_REPLAY_PAIR_MISMATCH','MOCK_PHOTO_PERMISSION_DENIED']
    const status=[400,401,403,404,405,409,413,415].includes(e?.status)?e.status:e?.code==='permission-denied'?403:known.includes(e?.message)?409:500
    const code=status===500?'SYNC_INTERNAL_ERROR':e?.code==='permission-denied'?'FORM_EDIT_REQUIRED':/^[A-Z_]+$/.test(e?.message??'')?e.message:'SYNC_FAILED'
+   // Dedicated synthetic lab diagnostics: classify failures, never log request content or tokens.
+   if(status===500||e?.code==='permission-denied'){
+    const message=String(e?.message??'')
+    const classification=/maximum.*(expression|evaluation)|expression.*(limit|1000)/i.test(message)?'RULE_EXPRESSION_LIMIT':/permission.denied/i.test(message)||e?.code==='permission-denied'?'RULE_PERMISSION_DENIED':/^[A-Z_]+$/.test(message)?message:'UNCLASSIFIED'
+    console.error('UAT_SYNC_DIAGNOSTIC status='+status+' classification='+classification)
+   }
    if(!res.headersSent)send(status,{error:code});else res.end()
   }
  })

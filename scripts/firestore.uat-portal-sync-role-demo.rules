@@ -165,11 +165,11 @@ service cloud.firestore {
         let a = request.resource.data;
         let q = getAfter(qPath(a.qcRecordId)).data;
         return id == 'qcactual_' + a.qcRecordId && sid(a.qcRecordId)
-          && q.ownerUid == request.auth.uid && actorForm(q.formType)
+          && request.auth != null && q.ownerUid == request.auth.uid
           && eligible(q) && changedQc(q) && actualMatches(a,q);
-        // changedQc requires a QC create/update in this atomic request.
-        // Its qcWrite independently requires the new matching audit AND receipt.
-        // Re-evaluating newAudit here is redundant and increases expression cost.
+        // changedQc requires a QC create/update in this same atomic request.
+        // qcWrite independently requires actorForm, matching audit and receipt.
+        // Do not repeat catalog authorization on the dependent Actual write.
       }
       allow create: if actualWrite();
       allow update: if actualWrite() && resource.data.testOnly == true
@@ -180,11 +180,12 @@ service cloud.firestore {
     match /qc_uat_workspaces/cutover/qc_operational_audit/{id} {
       allow get: if actor() && id.matches('^uat-[a-z0-9-]{1,60}:uat-[a-z0-9-]{1,60}$')
         && (resource == null ? (editForm('spray') || editForm('fertilizer') || viewKey('qc_logs')) : auditRead(resource.data));
-      allow create: if actor() && auditCreate(id,request.resource.data);
+      allow create: if request.auth != null && auditCreate(id,request.resource.data);
       function auditCreate(id,a) {
         let q = getAfter(qPath(a.recordId)).data;
         return sid(a.recordId) && sid(a.revision) && id == a.recordId + ':' + a.revision
-          && editForm(q.formType) && changedQc(q) && auditMatches(a,q);
+          && changedQc(q) && auditMatches(a,q);
+        // The paired QC must independently pass actorForm and receipt binding.
       }
       allow list, update, delete: if false;
     }
