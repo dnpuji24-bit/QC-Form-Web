@@ -1,0 +1,5 @@
+# 11D.2 — Owner permission trusted HTTP backend candidate
+
+Operator screenshot at e1707f3 confirms 20/20 pure Owner contract, 9/9 isolated UI checks and TypeScript pass. UI checkpoint verified. This gate adds fixed local list/patch routes using actual Auth Emulator tokens and Admin Firestore transactions. List is bounded to 100 marker documents; rejects larger dataset rather than returning incomplete results; excludes Owner and production-profile targets, emits only permission fields. Patch uses current actor/target and production-profile reads, exact target/revision/patch, existing synthetic contract, atomic audit create. Direct client access remains denied. No automatic reset, no role changes, no production credentials, no actual portal integration. Separate demo project, fixed loopback addresses only. Existing Rules unchanged.
+
+13 integration checks authored, not executed here. HTTP exercised by Node clients, not browser. Session hydration and real browser adapter integration are next gates. Run offline and dedicated emulator with firebase.uat-owner-permission-http.json; use existing server dependencies. No deployment or production data changes.
