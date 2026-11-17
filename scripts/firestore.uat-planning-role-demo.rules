@@ -1,0 +1,7 @@
+// DEMO ONLY. Trusted Planning read lab; no client access.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} { allow read, write: if false; }
+  }
+}
