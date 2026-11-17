@@ -32,7 +32,9 @@ function ownerAdapter(user){
  }
  return {list:async()=>{const {rows}=await call('list',{});if(!Array.isArray(rows)||rows.length>100||new Set(rows.map(r=>r.uid)).size!==rows.length)throw Error('INVALID_ROWS');return rows.map(row)},patch:async input=>row((await call('patch',input)).row),roles:{
   list:async()=>{const {roles}=await call('roles-list',{});if(!Array.isArray(roles)||roles.length>107||new Set(roles.map(r=>r.id)).size!==roles.length)throw Error('INVALID_ROLES');const built=builtinRoles();return roles.map(r=>r.kind==='custom'?validateCustomRole(r):built.find(x=>x.id===r.id)??(()=>{throw Error('UNKNOWN_BUILTIN')})())},
-  create:async input=>validateCustomRole((await call('roles-create',input)).role)
+  create:async input=>validateCustomRole((await call('roles-create',input)).role),
+  users:async()=>{const {rows}=await call('list',{});if(!Array.isArray(rows)||rows.length>100)throw Error('INVALID_ROWS');return rows.map(row)},
+  assign:async input=>row((await call('roles-assign',input)).row)
  }}
 }
 function App(){
@@ -82,6 +84,7 @@ function App(){
   <h1>UAT Session Lifecycle</h1>
   <p data-testid="identity">{user?.uid??'signed-out'}</p>
   <p data-testid="session-state">{pending?'loading':status}</p>
+  <output data-testid="session-role">{visible?.role??'-'}</output>
   <output data-testid="session-revision">{visible?.policyRevision??'-'}</output>
   {fixtureUsers.map(uid=><button key={uid} disabled={loginBusy} onClick={()=>void login(uid)}>Login {uid}</button>)}
   <button disabled={!user||loginBusy} onClick={()=>void signOut(auth)}>Logout</button>

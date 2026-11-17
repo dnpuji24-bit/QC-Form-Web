@@ -159,6 +159,48 @@ if(process.argv[2]==='--emulator'){
    assert.equal((await call(paths.rolesCreate,ot,roleInput('Audit Collision'))).status,500);assert.equal((await catalog.doc('custom-audit-collision').get()).exists,false)
    for(const path of ['role_catalog','role_catalog_audit']){const ref=doc(owner.db,'qc_uat_workspaces','cutover',path,'custom-qc-inspector');await assert.rejects(getDocFromServer(ref),{code:'permission-denied'});await assert.rejects(setDoc(ref,{fake:true}),{code:'permission-denied'})}
   })
+  const assign=(targetUid,expectedRevision,roleId,t=ot)=>call(paths.rolesAssign,t,{targetUid,expectedRevision,roleId})
+  await check('assignment denies nonowner owner targets forged and unknown roles',async()=>{
+   assert.equal((await assign('uat-spray-b',0,'custom-qc-inspector',await token(spray))).status,403)
+   for(const uid of ['uat-owner','uat-other-owner','uat-prod-target','uat-missing'])assert.equal((await assign(uid,0,'custom-qc-inspector')).status,403)
+   assert.equal((await assign('uat-spray-b',0,'owner')).status,400)
+   assert.equal((await assign('uat-spray-b',0,'custom-missing')).status,409)
+   assert.equal((await call(paths.rolesAssign,ot,{targetUid:'uat-spray-b',expectedRevision:0,roleId:'custom-qc-inspector',permissions:{qc_spraying:'edit'}})).status,400)
+  })
+  const sprayB=await open('uat-spray-b')
+  const customSession=createUatSession({currentUser:()=>sprayB.auth.currentUser})
+  await check('custom assignment replaces defaults and preserves manual overrides in active session',async()=>{
+   assert.equal((await patch(input(0,{qc_records:'none'},'uat-spray-b'))).status,200)
+   const r=await assign('uat-spray-b',1,'custom-qc-inspector');assert.equal(r.status,200);assert.equal(r.data.row.role,'custom-qc-inspector');assert.equal(r.data.row.permissions.qc_spraying,'none');assert.equal(r.data.row.permissions.qc_records,'none')
+   await customSession.refresh();assert.equal(customSession.snapshot().role,'custom-qc-inspector');assert.equal(customSession.canView('qc_spraying'),false)
+   await assert.rejects(getDocFromServer(dp(sprayB)),{code:'permission-denied'})
+   const log=(await adb.doc(prefix+'/permission_audit/uat-spray-b:2').get()).data();assert.equal(log.previousRole,'mandor_spraying');assert.equal(log.role,'custom-qc-inspector')
+   assert.equal((await readMarker('uat-spray')).role,'mandor_spraying')
+  })
+  await check('manual grant on custom role works in isolated Rules without supervisor authority',async()=>{
+   assert.equal((await patch(input(2,{qc_spraying:'view',qc_records:'view'},'uat-spray-b'))).status,200)
+   await customSession.refresh();assert.equal(customSession.canView('qc_spraying'),true);assert.equal(customSession.canEdit('qc_spraying'),false)
+   assert.equal((await getDocFromServer(dp(sprayB))).exists(),true)
+   await adb.doc(prefix+'/qc_records/uat-foreign-probe').set({testOnly:true,ownerUid:'uat-spray',formType:'spray'})
+   await assert.rejects(getDocFromServer(doc(sprayB.db,'qc_uat_workspaces','cutover','qc_records','uat-foreign-probe')),{code:'permission-denied'})
+   assert.equal((await call(paths.rolesList,await token(sprayB))).status,403)
+  })
+  await check('assignment stale revision and same role rejected; audit collision rolls back',async()=>{
+   const before=await readMarker('uat-spray-b');assert.equal((await assign('uat-spray-b',2,'custom-planning-officer')).status,409)
+   assert.equal((await assign('uat-spray-b',3,'custom-qc-inspector')).status,409)
+   await adb.doc(prefix+'/permission_audit/uat-spray-b:4').create({collision:true})
+   assert.equal((await assign('uat-spray-b',3,'custom-planning-officer')).status,500);assert.deepEqual(await readMarker('uat-spray-b'),before)
+  })
+  await check('concurrent assignments share revision and one wins; builtin return preserves overrides',async()=>{
+   const r=await Promise.all([assign('uat-fert',0,'custom-qc-inspector'),assign('uat-fert',0,'custom-planning-officer')]);assert.deepEqual(r.map(x=>x.status).sort(),[200,409])
+   assert.equal((await assign('uat-fert',1,'mandor_fertilizer')).status,200);assert.equal((await readMarker('uat-fert')).permissions.qc_fertilizer,'edit')
+  })
+  await check('missing custom catalog denies session and direct Rules access',async()=>{
+   await catalog.doc('custom-qc-inspector').delete()
+   assert.equal((await call(paths.session,await token(sprayB))).status,409)
+   await customSession.refresh();assert.equal(customSession.snapshot(),null)
+   await assert.rejects(getDocFromServer(dp(sprayB)),{code:'permission-denied'})
+  })
   await check('owner revocation blocks existing token and root remains untouched',async()=>{
    const before=await readMarker('uat-spray');await mark('uat-owner').update({enabled:false})
    assert.equal((await call(paths.list,ot)).status,403);assert.equal((await patch(input(3,{qc_spraying:'edit'}))).status,403)
@@ -166,7 +208,7 @@ if(process.argv[2]==='--emulator'){
   })
   await check('revoked owner session denied and client clears access',async()=>{
    const own=createUatSession({currentUser:()=>owner.auth.currentUser});assert.equal(await own.refresh(),null);assert.equal(own.canEdit('qc_spraying'),false)
-   assert.equal((await call(paths.session,ot)).status,403);assert.equal((await call(paths.rolesList,ot)).status,403);assert.equal((await call(paths.rolesCreate,ot,roleInput('After Revocation'))).status,403)
+   assert.equal((await call(paths.session,ot)).status,403);assert.equal((await call(paths.rolesList,ot)).status,403);assert.equal((await call(paths.rolesCreate,ot,roleInput('After Revocation'))).status,403);assert.equal((await assign('uat-fert',2,'custom-planning-officer')).status,403)
   })
   console.log('SUCCESS: '+n+' Owner HTTP permission and real Auth/Firestore transaction checks (dedicated demo only)')
  }finally{

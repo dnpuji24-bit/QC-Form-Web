@@ -136,6 +136,19 @@ if(process.argv[2]==='--browser'){
    await rolePanel.getByRole('button',{name:'Refresh daftar role'}).click();await wait(owner.getByTestId('role-message'),'Daftar role dimuat.')
    await owner.getByTestId('role-custom-qc-inspector').waitFor()
   })
+  await check('Owner assigns custom role and both active sessions hydrate without old defaults',async()=>{
+   const rolePanel=owner.getByRole('region',{name:'Kelola role UAT'})
+   await login(b,'uat-spray');await wait(mode(b),'view')
+   await rolePanel.getByRole('button',{name:'Refresh daftar role'}).click();await wait(owner.getByTestId('role-message'),'Daftar role dimuat.')
+   await rolePanel.getByRole('combobox',{name:'Target pengguna role'}).selectOption('uat-spray')
+   await rolePanel.getByRole('combobox',{name:'Role pengganti'}).selectOption('custom-qc-inspector')
+   await rolePanel.getByRole('button',{name:'Tetapkan role'}).click();await wait(owner.getByTestId('role-message'),'Role pengguna tersimpan.')
+   for(const p of [a,b]){await wait(p.getByTestId('session-role'),'custom-qc-inspector');await wait(mode(p),'view');assert.equal(await mode(p,'qc_records').innerText(),'none')}
+   assert.equal((await mark('uat-spray').get()).data().permissions.qc_dashboard,'none')
+   assert.equal((await mark('uat-spray').get()).data().manualOverrides.qc_spraying,'view')
+   assert.equal((await mark('uat-spray-b').get()).data().role,'mandor_spraying')
+   assert.equal((await audit()).size,5)
+  })
   await check('revoked owner loses panel on automatic refresh; root unchanged',async()=>{
    await mark('uat-owner').update({enabled:false});await wait(state(owner),'denied');assert.equal(await selected(owner).count(),0);assert.equal(await owner.getByRole('region',{name:'Kelola role UAT'}).count(),0)
    assert.deepEqual((await adb.doc('daily_plans/root-sentinel').get()).data(),{rootSentinel:true})
