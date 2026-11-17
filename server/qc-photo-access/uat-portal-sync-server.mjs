@@ -34,14 +34,18 @@ export function createPortalSyncServer(deps,bundle){
    let job;try{job=await prepareStrictJob(body.job)}catch{failure(400,'INVALID_STRICT_JOB')}
    if(body.job.payloadFingerprint!==job.payloadFingerprint)failure(400,'FINGERPRINT_REQUIRED')
    if(job.uploaderUid!==token.uid)failure(403,'OWNER_REQUIRED')
-   const {marker,productionProfile,record}=await deps.snapshot(token.uid,job.record.id)
-   if(!actorAllowed(token.uid,token.qcUat,marker,productionProfile))failure(403,'UAT_IDENTITY_DENIED')
+   const {marker,productionProfile,record,catalog}=await deps.snapshot(token.uid,job.record.id)
+   if(!actorAllowed(token.uid,token.qcUat,marker,productionProfile,catalog))failure(403,'UAT_IDENTITY_DENIED')
    if(!editAllowed(token.uid,marker,job.record))failure(403,'FORM_EDIT_REQUIRED')
    if(record&&(!editAllowed(token.uid,marker,record)||record.formType!==job.record.formType))failure(403,'OWNER_REQUIRED')
    // Allow replay only through the strict trusted verifier, never by ID alone.
    const result=await deps.sync(token.uid,match[1],job)
    if(result?.status!=='confirmed')failure(409,'QC_COMMIT_UNCONFIRMED')
    assertConfirmation(result.record,job,job.payloadFingerprint)
+   // A late revocation must not acknowledge the queue; an already committed revision remains durable.
+   const latest=await deps.snapshot(token.uid,job.record.id)
+   if(!actorAllowed(token.uid,token.qcUat,latest.marker,latest.productionProfile,latest.catalog))failure(403,'UAT_IDENTITY_DENIED')
+   if(!editAllowed(token.uid,latest.marker,job.record)||!editAllowed(token.uid,latest.marker,latest.record))failure(403,'FORM_EDIT_REQUIRED')
    send(200,result)
   }catch(e){
    const known=['MOCK_UPLOAD_OFFLINE','MOCK_COMMIT_OFFLINE','MOCK_ACK_LOST','QC_REVISION_CONFLICT','QC_REPLAY_PAYLOAD_CONFLICT','QC_REPLAY_FINGERPRINT_MISSING','QC_QUEUE_ACCOUNT_MISMATCH','TRUSTED_REPLAY_PAIR_MISMATCH','MOCK_PHOTO_PERMISSION_DENIED']

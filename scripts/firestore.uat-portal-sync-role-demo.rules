@@ -1,0 +1,193 @@
+// DEMO ONLY. Standalone deny-by-default rules; never deploy or merge into live rules.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function markerPath() {
+      return /databases/$(database)/documents/qc_uat_identities/$(request.auth.uid);
+    }
+    function actor() {
+      return request.auth != null && sid(request.auth.uid)
+        && request.auth.token.get('qcUat', false) == true
+        && markerValid(get(markerPath()).data)
+        && !exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    function markerValid(m) {
+      return m.enabled == true && m.testOnly == true && m.workspace == 'cutover'
+        && (m.role in ['owner','asisten','manager','admin','mandor_spraying','mandor_fertilizer','pengunjung'] || customMarker(m))
+        && m.permissions is map;
+    }
+    function customId(role) {
+      return role is string && role.matches('^custom-[a-z][a-z0-9-]{0,49}$');
+    }
+    function rolePath(role) {
+      return /databases/$(database)/documents/qc_uat_workspaces/cutover/role_catalog/$(role);
+    }
+    function customMarker(m) {
+      return customId(m.role) && customDefinition(m,get(rolePath(m.role)).data);
+    }
+    function customDefinition(m,c) {
+      return c.testOnly == true && c.workspace == 'cutover'
+        && c.definition.id == m.role && c.definition.kind == 'custom' && c.definition.revision == 0
+        && m.policyRevision is int && m.policyRevision >= 0 && m.policyRevision < 1000000
+        && m.roleOverrides is map && m.roleOverrides.size() == 0
+        && m.manualOverrides is map && c.definition.permissions is map && m.permissions is map
+        && m.permissions.keys().toSet() == c.definition.permissions.keys().toSet()
+        && c.definition.permissions.keys().hasAll(m.manualOverrides.keys())
+        && m.permissions.diff(c.definition.permissions).affectedKeys().hasOnly(m.manualOverrides.keys());
+    }
+    // Effective permission is checked again against the catalog and manual override for each used key.
+    function permission(key) { return checkedPermission(get(markerPath()).data,key); }
+    function checkedPermission(m,key) {
+      return customId(m.role) ? customPermission(m,key,get(rolePath(m.role)).data.definition.permissions) : m.permissions.get(key,'none');
+    }
+    function customPermission(m,key,defaults) {
+      let value = m.manualOverrides.get(key,defaults.get(key,'none'));
+      return value in ['none','view','edit'] && m.permissions.get(key,'none') == value ? value : 'none';
+    }
+    function viewKey(key) { return permission(key) in ['view','edit']; }
+    function formKey(f) { return f == 'spray' ? 'qc_spraying' : 'qc_fertilizer'; }
+    function formView(f) { return f in ['spray','fertilizer'] && viewKey(formKey(f)); }
+    function editForm(f) { return f in ['spray','fertilizer'] && permission(formKey(f)) == 'edit'; }
+    function actorForm(f) { return actor() && editForm(f); }
+    function supervisor() { return get(markerPath()).data.role in ['owner','asisten','manager','admin','pengunjung']; }
+    function ownForm(uid,f) { return uid == request.auth.uid && editForm(f); }
+    function qcRead(q) { return q.testOnly == true && (ownForm(q.ownerUid,q.formType) || (viewKey('qc_records') && (q.ownerUid == request.auth.uid || supervisor()))); }
+    function actualRead(a) { return a.testOnly == true && (ownForm(a.ownerUid,a.qcFormType) || (viewKey('data_plan_actual') && (a.ownerUid == request.auth.uid || supervisor()))); }
+    function auditRead(a) { return a.testOnly == true && (ownForm(a.actorUid,a.formType) || (viewKey('qc_logs') && (a.actorUid == request.auth.uid || supervisor()))); }
+    function sid(s) { return s is string && s.matches('^uat-[a-z0-9-]{1,60}$'); }
+    function optId(s) { return s == '' || sid(s); }
+    function area(n) { return n is int && n >= 0 && n <= 10000000; }
+    function exact(d, fields) { return d.keys().hasAll(fields) && d.keys().hasOnly(fields); }
+    function qPath(id) { return /databases/$(database)/documents/qc_uat_workspaces/cutover/qc_records/$(id); }
+    function aPath(id) {
+      let aid = 'qcactual_' + id;
+      return /databases/$(database)/documents/qc_uat_workspaces/cutover/daily_reports/$(aid);
+    }
+    function uPath(id, rev) {
+      let aid = id + ':' + rev;
+      return /databases/$(database)/documents/qc_uat_workspaces/cutover/qc_operational_audit/$(aid);
+    }
+    function dPath(id) { return /databases/$(database)/documents/qc_uat_workspaces/cutover/daily_plans/$(id); }
+    function eligible(q) {
+      return q.dailyPlanId != '' && q.actualArea100 > 0 && q.saveType in ['ready','uploaded'];
+    }
+    function dpMatches(q) {
+      let d = get(dPath(q.dailyPlanId)).data;
+      return d.testOnly == true && d.dailyPlanId == q.dailyPlanId
+        && d.monthlyPlanLineId == q.monthlyPlanLineId && d.pid == q.pid
+        && d.date == q.date && d.shift == q.shift && d.foreman == q.foreman
+        && d.formType == q.formType && area(d.area100) && d.area100 > 0
+        && q.plannedDailyArea100 == d.area100;
+    }
+    function qcValid(id,q) {
+      return exact(q,['testOnly','id','ownerUid','inputtedBy','formType','clientRevision','saveType','dailyPlanId','monthlyPlanLineId','pid','date','shift','foreman','actualArea100','sessionId','plannedDailyArea100','operationalSaveId','firestoreSaveState','operationalPhotoManifest','operationalQueueKey','operationalPayloadFingerprint'])
+        && q.testOnly == true && sid(id) && q.id == id && q.ownerUid == request.auth.uid
+        && q.inputtedBy == request.auth.uid && sid(q.clientRevision) && sid(q.operationalSaveId)
+        && q.saveType in ['draft','ready','uploaded'] && q.firestoreSaveState == 'confirmed'
+        && actorForm(q.formType) && optId(q.dailyPlanId) && optId(q.monthlyPlanLineId)
+        && sid(q.pid) && sid(q.foreman) && sid(q.sessionId)
+        && q.date is string && q.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && q.shift in ['1','2'] && area(q.actualArea100) && area(q.plannedDailyArea100)
+        && (q.dailyPlanId == '' ? q.monthlyPlanLineId == '' && q.plannedDailyArea100 == 0 : dpMatches(q));
+    }
+    // Full map equality preserves exact fields, values and absence of extra keys.
+    function actualMatches(a,q) {
+      return a == {
+        'testOnly': true, 'actualReportId': 'qcactual_' + q.id,
+        'qcRecordId': q.id, 'sourceOrigin': 'QC', 'qcFormType': q.formType,
+        'qcSessionId': q.sessionId, 'clientRevision': q.clientRevision,
+        'dailyPlanId': q.dailyPlanId, 'monthlyPlanLineId': q.monthlyPlanLineId,
+        'pid': q.pid, 'date': q.date, 'shift': q.shift, 'foreman': q.foreman,
+        'actualArea100': q.actualArea100, 'plannedDailyArea100': q.plannedDailyArea100,
+        'dailyVariance100': q.plannedDailyArea100 - q.actualArea100, 'ownerUid': q.ownerUid,
+        'operationalPayloadFingerprint': q.operationalPayloadFingerprint
+      };
+    }
+    function auditMatches(a,q) {
+      return q.ownerUid == request.auth.uid && a == {
+        'testOnly': true, 'recordId': q.id, 'revision': q.clientRevision,
+        'actorUid': request.auth.uid, 'username': q.inputtedBy,
+        'formType': q.formType, 'saveType': q.saveType,
+        'operationalPayloadFingerprint': q.operationalPayloadFingerprint
+      };
+    }
+    function newAudit(q) {
+      let p = uPath(q.id,q.clientRevision);
+      return !exists(p) && existsAfter(p) && auditMatches(getAfter(p).data,q);
+    }
+    function pairedActual(q) {
+      let p = aPath(q.id);
+      return eligible(q)
+        ? existsAfter(p) && actualMatches(getAfter(p).data,q)
+        : !exists(p) && !existsAfter(p);
+    }
+    function changedQc(q) {
+      let p = qPath(q.id);
+      return !exists(p) || get(p).data.clientRevision != q.clientRevision;
+    }
+    function ownExistingActual(a,q) {
+      return a.testOnly == true && a.ownerUid == request.auth.uid
+        && a.sourceOrigin == 'QC' && a.qcRecordId == q.id && a.actualReportId == 'qcactual_' + q.id;
+    }
+    // A private immutable receipt binds the entire expected QC map and base revision.
+    // Created only by the trusted synthetic verifier; never client-writable.
+    function receiptMatches(q,base) {
+      let j = q.operationalSaveId;
+      let p = /databases/$(database)/documents/qc_uat_workspaces/cutover/photo_receipts/$(j);
+      return get(p).data == {'testOnly': true, 'baseRevision': base, 'expectedQc': q};
+    }
+    function qcWrite(id,q,base) {
+      return qcValid(id,q) && receiptMatches(q,base) && newAudit(q) && pairedActual(q);
+    }
+    match /qc_uat_workspaces/cutover/daily_plans/{id} {
+      allow get: if actor() && sid(id)
+        && (resource == null ? (formView('spray') || formView('fertilizer') || viewKey('data_plan_daily')) : (resource.data.testOnly == true && (formView(resource.data.formType) || viewKey('data_plan_daily'))));
+      allow list, write: if false;
+    }
+    match /qc_uat_workspaces/cutover/qc_records/{id} {
+      allow get: if actor() && sid(id)
+        && (resource == null ? (editForm('spray') || editForm('fertilizer') || viewKey('qc_records')) : qcRead(resource.data));
+      allow create: if qcWrite(id,request.resource.data,null) && !exists(aPath(id));
+      allow update: if qcWrite(id,request.resource.data,resource.data.clientRevision)
+        && resource.data.testOnly == true && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.formType == resource.data.formType
+        && request.resource.data.inputtedBy == resource.data.inputtedBy
+        && request.resource.data.clientRevision != resource.data.clientRevision
+        && request.resource.data.operationalSaveId != resource.data.operationalSaveId
+        && (resource.data.saveType != 'uploaded' || request.resource.data.saveType == 'uploaded')
+        && (!exists(aPath(id)) || ownExistingActual(get(aPath(id)).data,resource.data));
+      allow list, delete: if false;
+    }
+    match /qc_uat_workspaces/cutover/daily_reports/{id} {
+      allow get: if actor() && id.matches('^qcactual_uat-[a-z0-9-]{1,60}$')
+        && (resource == null ? (editForm('spray') || editForm('fertilizer') || viewKey('data_plan_actual')) : actualRead(resource.data));
+      function actualWrite() {
+        let a = request.resource.data;
+        let q = getAfter(qPath(a.qcRecordId)).data;
+        return id == 'qcactual_' + a.qcRecordId && sid(a.qcRecordId)
+          && q.ownerUid == request.auth.uid && actorForm(q.formType)
+          && eligible(q) && changedQc(q) && actualMatches(a,q);
+        // changedQc requires a QC create/update in this atomic request.
+        // Its qcWrite independently requires the new matching audit AND receipt.
+        // Re-evaluating newAudit here is redundant and increases expression cost.
+      }
+      allow create: if actualWrite();
+      allow update: if actualWrite() && resource.data.testOnly == true
+        && resource.data.ownerUid == request.auth.uid && resource.data.sourceOrigin == 'QC'
+        && resource.data.qcRecordId == request.resource.data.qcRecordId;
+      allow list, delete: if false;
+    }
+    match /qc_uat_workspaces/cutover/qc_operational_audit/{id} {
+      allow get: if actor() && id.matches('^uat-[a-z0-9-]{1,60}:uat-[a-z0-9-]{1,60}$')
+        && (resource == null ? (editForm('spray') || editForm('fertilizer') || viewKey('qc_logs')) : auditRead(resource.data));
+      allow create: if actor() && auditCreate(id,request.resource.data);
+      function auditCreate(id,a) {
+        let q = getAfter(qPath(a.recordId)).data;
+        return sid(a.recordId) && sid(a.revision) && id == a.recordId + ':' + a.revision
+          && editForm(q.formType) && changedQc(q) && auditMatches(a,q);
+      }
+      allow list, update, delete: if false;
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

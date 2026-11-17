@@ -7,13 +7,15 @@ import {fileURLToPath} from 'node:url'
 import {createPortalSyncServer} from '../server/qc-photo-access/uat-portal-sync-server.mjs'
 import {syncOrigin,syncPath} from '../src/qcUatPortalSyncClient.mjs'
 import {marker} from '../src/qcUatRolePermissions.mjs'
+import {roleDefinition,assignIdentityRole,permissionsForIdentity,isCustomRoleId} from '../src/qcUatCustomRoles.mjs'
+import {operationalPermissions} from '../server/qc-photo-access/uat-operational-permissions.mjs'
 import {commitSyntheticQc} from '../src/qcUatQcLifecycleContract.mjs'
 import {operationalQueueId} from '../src/qcOperationalSaveTransport.mjs'
 import {jobPayload,prepareStrictJob,processStrictSyntheticJob} from '../src/qcUatStrictQueueContract.mjs'
 import {prepareOperationalPhotoManifest,stripOperationalPhotoPayload} from '../src/qcOperationalPhotoManifest.mjs'
 const projectId='demo-qc-uat-portal-sync',host='127.0.0.1',port=8985,authPort=9799
 const config=JSON.parse(readFileSync(new URL('../firebase.uat-portal-sync-emulator.json',import.meta.url),'utf8'))
-const rules=readFileSync(new URL('../scripts/firestore.uat-strict-integration-demo.rules',import.meta.url),'utf8')
+const rules=readFileSync(new URL('../scripts/firestore.uat-portal-sync-role-demo.rules',import.meta.url),'utf8')
 function guard(e=process.env){
  assert.equal(e.GCLOUD_PROJECT,projectId,'DEMO_PROJECT_REQUIRED')
  assert.equal(e.FIRESTORE_EMULATOR_HOST,host+':'+port,'FIRESTORE_LOOPBACK_REQUIRED')
@@ -24,7 +26,7 @@ const valid={GCLOUD_PROJECT:projectId,FIRESTORE_EMULATOR_HOST:host+':'+port,FIRE
 assert.ok(process.argv.length===3&&['--self-test','--emulator'].includes(process.argv[2]))
 guard(valid)
 for(const e of [{},{...valid,GCLOUD_PROJECT:'form-qc-unm'},{...valid,FIRESTORE_EMULATOR_HOST:'127.0.0.1:8485'},{...valid,FIREBASE_AUTH_EMULATOR_HOST:'remote:9799'},{...valid,GOOGLE_CLOUD_PROJECT:'form-qc-unm'}])assert.throws(()=>guard(e))
-assert.equal(config.firestore.rules,'scripts/firestore.uat-strict-integration-demo.rules')
+assert.equal(config.firestore.rules,'scripts/firestore.uat-portal-sync-role-demo.rules')
 assert.deepEqual(config.emulators.firestore,{host,port})
 assert.deepEqual(config.emulators.auth,{host,port:authPort})
 assert.ok(rules.includes("get(p).data == {'testOnly': true, 'baseRevision': base, 'expectedQc': q}"))
@@ -75,6 +77,7 @@ if(process.argv[2]==='--emulator'){
  const changes=[{kind:'main',action:'replace',dataUrl:png},{kind:'hold',holdId:'uat-h1',action:'replace',dataUrl:png},{kind:'scan',action:'replace',dataUrl:png}]
  const job=(r,baseRevision=null,edits=changes)=>({testOnly:true,scope:'uat-strict',record:{...r,photoBase64:png,scanReportPhotoBase64:png},uploaderUid:r.ownerUid,baseRevision,action:'finalizeRecord',changes:edits,id:operationalQueueId(r.ownerUid,r.id,r.clientRevision)})
  const stats={uploads:0,commits:0,failUpload:false,failCommit:false,loseAck:false}
+ let afterReceipt=null
  async function open(k){
   guard()
   const app=initializeApp({projectId,apiKey:'demo-only-not-a-real-key'},'photo-integration-'+crypto.randomUUID())
@@ -89,9 +92,15 @@ if(process.argv[2]==='--emulator'){
   const u=c.auth.currentUser
   if(!u||u.uid!==record.ownerUid)throw Error('MOCK_OWNER_REQUIRED')
   const token=await authAdmin.verifyIdToken(await u.getIdToken(),true)
-  const m=(await markRef(token.uid).get()).data()
-  const key=record.formType==='spray'?'qc_spraying':'qc_fertilizer'
-  if(token.qcUat!==true||!m?.enabled||m.testOnly!==true||m.workspace!=='cutover'||m.permissions?.[key]!=='edit'||(await adb.doc('users/'+token.uid).get()).exists)throw Error('MOCK_PHOTO_PERMISSION_DENIED')
+  if(token.qcUat!==true)throw Error('MOCK_PHOTO_PERMISSION_DENIED')
+  await adb.runTransaction(t=>authorizeInTransaction(t,token.uid,record))
+ }
+ async function authorizeInTransaction(t,id,record){
+  const [m,p]=await Promise.all([t.get(markRef(id)),t.get(adb.doc('users/'+id))])
+  const key=record.formType==='spray'?'qc_spraying':record.formType==='fertilizer'?'qc_fertilizer':null
+  let permissions
+  try{permissions=await operationalPermissions({tx:t,db:adb,marker:m.data(),productionProfile:p.exists})}catch{throw Error('MOCK_PHOTO_PERMISSION_DENIED')}
+  if(id!==record.ownerUid||!key||permissions[key]!=='edit')throw Error('MOCK_PHOTO_PERMISSION_DENIED')
  }
  function verifyObject(r,bytes,record,slot){
   assert.ok(['main','scan','hold_uat-h1'].includes(slot),'MOCK_SLOT')
@@ -118,6 +127,7 @@ if(process.argv[2]==='--emulator'){
   await authorize(c,record)
   const jobId=syntheticJob(key),p=ref('photo_receipts',jobId)
   return adb.runTransaction(async t=>{
+   await authorizeInTransaction(t,c.auth.currentUser?.uid,record)
    const [old,existing,dp]=await Promise.all([t.get(ref('qc_records',record.id)),t.get(p),record.dailyPlanId?t.get(ref('daily_plans',record.dailyPlanId)):Promise.resolve(null)])
    const current=old.data()
    if(current?.clientRevision===record.clientRevision&&current?.operationalSaveId===jobId){
@@ -157,6 +167,7 @@ if(process.argv[2]==='--emulator'){
   assert.equal(baseRevision,original.baseRevision,'TRUSTED_BASE_REVISION_CONFLICT')
   assert.equal(uploaderUid,original.uploaderUid,'TRUSTED_OWNER_MISMATCH')
   const expected=await receipt(c,original,fp),jobId=expected.operationalSaveId
+  if(afterReceipt)await afterReceipt()
   const {plannedDailyArea100,operationalQueueKey,...expectedTransport}=transportView(expected)
   assert.deepEqual(record,expectedTransport,'TRUSTED_PROCESSED_PAYLOAD_MISMATCH')
   const result=await commitSyntheticQc({record:canonical,baseRevision,jobId,uploaderUid},{
@@ -181,6 +192,7 @@ if(process.argv[2]==='--emulator'){
  const run=(c,j)=>processStrictSyntheticJob(j,{
   currentUid:async()=>c.auth.currentUser?.uid??null,
   readRecord:async id=>{
+   await authorize(c,j.record)
    const row=await get(c,'qc_records',id)
    if(row?.clientRevision===j.record.clientRevision&&row?.operationalQueueKey===j.id){
     const audit=await get(c,'qc_operational_audit',id+':'+row.clientRevision)
@@ -209,7 +221,7 @@ if(process.argv[2]==='--emulator'){
  const absent=async r=>{for(const [c,id] of [['qc_records',r.id],['daily_reports','qcactual_'+r.id],['qc_operational_audit',r.id+':'+r.clientRevision]])assert.equal(await read(c,id),null)}
  try{
   assert.equal((await authAdmin.listUsers(1)).users.length,0,'FRESH_AUTH_REQUIRED')
-  for(const col of ['qc_uat_identities','users','daily_plans',prefix+'/qc_records',prefix+'/daily_reports',prefix+'/qc_operational_audit',prefix+'/daily_plans',prefix+'/photo_receipts'])assert.equal((await adb.collection(col).limit(1).get()).size,0,'FRESH_FIRESTORE_REQUIRED')
+  for(const col of ['qc_uat_identities','users','daily_plans',prefix+'/qc_records',prefix+'/daily_reports',prefix+'/qc_operational_audit',prefix+'/daily_plans',prefix+'/photo_receipts',prefix+'/role_catalog'])assert.equal((await adb.collection(col).limit(1).get()).size,0,'FRESH_FIRESTORE_REQUIRED')
   for(const [k,role] of [['spray','mandor_spraying'],['fert','mandor_fertilizer'],['visitor','pengunjung'],['other','mandor_spraying']]){
    await authAdmin.createUser({uid:uid(k),email:email(k),password:password(k),emailVerified:true})
    await authAdmin.setCustomUserClaims(uid(k),{qcUat:true})
@@ -222,7 +234,7 @@ if(process.argv[2]==='--emulator'){
   const tokens=new Map(await Promise.all([...byUid].map(async([id,c])=>[id,await c.auth.currentUser.getIdToken()])))
   server=createPortalSyncServer({
    verifyToken:t=>authAdmin.verifyIdToken(t,true),
-   snapshot:(id,recordId)=>adb.runTransaction(async t=>{const [m,p,q]=await Promise.all([t.get(markRef(id)),t.get(adb.doc('users/'+id)),t.get(ref('qc_records',recordId))]);return {marker:m.data(),productionProfile:p.exists,record:q.data()??null}}),
+   snapshot:(id,recordId)=>adb.runTransaction(async t=>{const [m,p,q]=await Promise.all([t.get(markRef(id)),t.get(adb.doc('users/'+id)),t.get(ref('qc_records',recordId))]);const identity=m.data();const catalog=isCustomRoleId(identity?.role)?(await t.get(ref('role_catalog',identity.role))).data():undefined;return {marker:identity,productionProfile:p.exists,record:q.data()??null,catalog}}),
    sync:async(id,token,j)=>{assert.equal(tokens.get(id),token,'FIXTURE_SESSION_REQUIRED');return run(byUid.get(id),j)}
   },chunks[0].code)
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(4585,host,resolve)})
@@ -256,6 +268,60 @@ if(process.argv[2]==='--emulator'){
   await check('new revision updates same Actual and preserves photo',async()=>{const before=await read('qc_records',qr.id);await field('revision','uat-r2');await field('base','uat-r1');await field('area','350');await page.locator('#photo').uncheck();await click('save');await result('QUEUED');await count(1);await click('flush');await result('"sent":1');await count(0);const after=await read('qc_records',qr.id);assert.deepEqual(after.operationalPhotoManifest,before.operationalPhotoManifest);await pair({...qr,clientRevision:'uat-r2',actualArea100:350})})
   await check('manual permission denies queued correction until restored',async()=>{await field('revision','uat-r3');await field('base','uat-r2');await field('area','360');await click('save');await result('QUEUED');await count(1);await markRef(qr.ownerUid).set(marker('mandor_spraying',{}, {qc_spraying:'view'}));await click('flush');await result('FORM_EDIT_REQUIRED');await count(1);assert.equal((await read('qc_records',qr.id)).clientRevision,'uat-r2');await markRef(qr.ownerUid).set(marker('mandor_spraying'));await click('flush');await result('"sent":1');await count(0);await pair({...qr,clientRevision:'uat-r3',actualArea100:360})})
   await check('fertilizer form independent atomic transaction',async()=>{await login('uat-fert');await page.locator('#kind').selectOption('fertilizer');await field('record-id','uat-q-fert-browser');await field('revision','uat-r1');await field('base','');await field('area','250');await page.locator('#photo').check();await click('save');await result('QUEUED');await count(1);await click('flush');await result('"sent":1');await count(0);await pair(qc('fert','fertilizer','uat-q-fert-browser'))})
+  const custom=roleDefinition({name:'Field Operator',permissions:{qc_spraying:'edit',qc_fertilizer:'edit',qc_records:'view'}})
+  const roleDoc=ref('role_catalog',custom.id)
+  const useCustom=async(id,builtin,overrides={})=>{
+   const assigned=assignIdentityRole({...marker(builtin),policyRevision:0,roleOverrides:{},manualOverrides:{}},custom.id,custom)
+   const m={...assigned,manualOverrides:overrides}
+   await markRef(id).set({...m,permissions:permissionsForIdentity(m,custom)})
+  }
+  const customSpray=qc('spray','spray','uat-q-custom-spray')
+  const customFert=qc('fert','fertilizer','uat-q-custom-fert')
+  async function enqueueNew(r){
+   await login(r.ownerUid);await page.locator('#kind').selectOption(r.formType)
+   await field('record-id',r.id);await field('revision',r.clientRevision);await field('base','');await field('area',String(r.actualArea100));await page.locator('#photo').check()
+   await click('save');await result('QUEUED');await count(1)
+  }
+  await check('custom role offline Spray survives reload and existing token commits atomically',async()=>{
+   await roleDoc.set({testOnly:true,workspace:'cutover',definition:custom})
+   await useCustom('uat-spray','mandor_spraying')
+   await login('uat-spray');await context.setOffline(true)
+   try{await enqueueNew(customSpray);await absent(customSpray);await click('flush');await result('OFFLINE');await count(1)}finally{await context.setOffline(false)}
+   const before=await queued('uat-spray');await page.reload();await page.locator('#save').waitFor();await login('uat-spray');await count(1);assert.deepEqual(await queued('uat-spray'),before)
+   await click('flush');await result('"sent":1');await count(0);await pair(customSpray)
+  })
+  await check('custom Fertilizer lost ACK retains queue and exact retry does not duplicate records',async()=>{
+   await useCustom('uat-fert','mandor_fertilizer');await enqueueNew(customFert)
+   stats.loseAck=true;await click('flush');await result('MOCK_ACK_LOST');await count(1);await pair(customFert)
+   const before={...stats};await click('flush');await result('"sent":1');await count(0);assert.deepEqual(stats,before);await pair(customFert)
+  })
+  await check('custom manual none retains queued correction and restores access with same token',async()=>{
+   await login('uat-spray');await page.locator('#kind').selectOption('spray');await field('record-id',customSpray.id);await field('revision','uat-r2');await field('base','uat-r1');await field('area','375');await page.locator('#photo').uncheck()
+   await click('save');await result('QUEUED');await count(1)
+   const before=await queued('uat-spray');await useCustom('uat-spray','mandor_spraying',{qc_spraying:'none'})
+   await click('flush');await result('FORM_EDIT_REQUIRED');await count(1);assert.deepEqual(await queued('uat-spray'),before);await pair(customSpray)
+   await useCustom('uat-spray','mandor_spraying');await click('flush');await result('"sent":1');await count(0);await pair({...customSpray,clientRevision:'uat-r2',actualArea100:375})
+  })
+  await check('custom foreign account cannot read QC Actual audit or submit original job',async()=>{
+   await useCustom('uat-other','mandor_spraying')
+   const r=qc('spray','spray','uat-q-custom-private');await enqueueNew(r);const [pending]=await queued('uat-spray')
+   await login('uat-other');await count(0);assert.equal((await raw(tokens.get('uat-other'),{job:pending})).status,403)
+   for(const [col,id] of [['qc_records',customSpray.id],['daily_reports','qcactual_'+customSpray.id],['qc_operational_audit',customSpray.id+':uat-r2'],['role_catalog',custom.id]])await denied(()=>get(other,col,id))
+   await login('uat-spray');await count(1);await click('flush');await result('"sent":1');await count(0);await pair(r)
+  })
+  await check('missing catalog or forged marker blocks sync and retains pending bytes',async()=>{
+   const r=qc('spray','spray','uat-q-custom-missing');await enqueueNew(r);const before=await queued('uat-spray')
+   await roleDoc.delete();await click('flush');await result('UAT_IDENTITY_DENIED');await count(1);await absent(r);await denied(()=>get(spray,'qc_records',customSpray.id))
+   await roleDoc.set({testOnly:true,workspace:'cutover',definition:custom});await useCustom('uat-spray','mandor_spraying',{qc_spraying:'none'});await markRef('uat-spray').update({'permissions.qc_spraying':'edit'})
+   await click('flush');await result('UAT_IDENTITY_DENIED');await count(1);assert.deepEqual(await queued('uat-spray'),before);await absent(r)
+   await useCustom('uat-spray','mandor_spraying');await click('flush');await result('"sent":1');await count(0);await pair(r)
+  })
+  await check('revocation after trusted receipt blocks client commit and leaves queue retryable',async()=>{
+   const r=qc('spray','spray','uat-q-custom-revoked');await enqueueNew(r);const before=await queued('uat-spray')
+   afterReceipt=()=>useCustom('uat-spray','mandor_spraying',{qc_spraying:'none'})
+   try{await click('flush');await result('FORM_EDIT_REQUIRED');await count(1);assert.deepEqual(await queued('uat-spray'),before);await absent(r)}finally{afterReceipt=null}
+   await useCustom('uat-spray','mandor_spraying');await click('flush');await result('"sent":1');await count(0);await pair(r)
+  })
   await check('root sentinel unchanged and only isolated IndexedDB exists',async()=>{assert.deepEqual((await adb.doc('daily_plans/root-sentinel').get()).data(),{testOnly:false,rootSentinel:true});assert.deepEqual(await page.evaluate(async()=> (await indexedDB.databases()).map(d=>d.name)),['qc_uat_strict_queue_v1'])})
   await check('no external requests WebSockets or CSP violations',async()=>{assert.deepEqual(violations,[]);assert.deepEqual(await page.evaluate(()=>cspViolations),[])})
   console.log('SUCCESS: '+n+' React HTTP sync and atomic Firebase emulator checks passed (mock storage only)')

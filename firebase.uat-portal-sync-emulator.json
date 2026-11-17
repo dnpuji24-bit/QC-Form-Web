@@ -1,6 +1,6 @@
 {
   "firestore": {
-    "rules": "scripts/firestore.uat-strict-integration-demo.rules"
+    "rules": "scripts/firestore.uat-portal-sync-role-demo.rules"
   },
   "emulators": {
     "firestore": {

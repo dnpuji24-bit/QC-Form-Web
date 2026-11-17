@@ -1,3 +1,5 @@
 # 11D.4c.2a — Custom role HTTP and photo-free QC authorization candidate
 
 Shared resolver now accepts a catalog document from a trusted consistent snapshot; marker and catalog are validated, manual overrides remain authoritative, custom roles have no cross-owner supervisor authority. The isolated endpoint upload and mock-ticket routes and both photo-free full DTO services use the same resolver. The existing portal sync adapter does not supply a catalog and therefore still denies custom roles; its Rules, receipt and browser path require a separate gate. Built-in fixture behavior remains unchanged. Auth/Firestore emulator only; HTTP tickets are mock and upload staging is not commit. Test additions: 4 endpoint checks (24 total), 3 per full DTO service (23 each). No production data or deploy; planning, registration, real signing, role edit/delete and unified operational portal remain pending. Tests authored, not executed here.
+
+Operator log at aaff5b6 verified 67 offline, TypeScript, 24 HTTP, 23 Spray and 23 Fertilizer emulator checks with all three exits 0. 11D.4c.2a verified in its stated scope. See [portal role sync](qc-uat-portal-role-sync.md).
