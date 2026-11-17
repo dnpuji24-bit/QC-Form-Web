@@ -2,7 +2,7 @@
 // No SDK imports, hosted endpoint, storage, or production configuration.
 import {createHash} from 'node:crypto'
 import {prepareComponentFertilizer,componentActual} from '../../src/qcUatFertilizerMaterialIntegration.mjs'
-import {roles} from '../../src/qcUatRolePermissions.mjs'
+import {operationalPermissions} from './uat-operational-permissions.mjs'
 export const demoProject='demo-qc-uat-fertilizer-full'
 export const demoHost='127.0.0.1'
 export const firestorePort=9285,authPort=10099
@@ -51,8 +51,8 @@ export function createFullFertilizerService({db,verifyToken,buildActual}){
    const qref=at('qc_records',r.id),aref=at('daily_reports','qcactual_'+r.id),uref=at('qc_operational_audit',r.id+':'+r.clientRevision)
    const [m,p,d,q,a,u,master]=await Promise.all([tx.get(db.doc('qc_uat_identities/'+actor.uid)),tx.get(db.doc('users/'+actor.uid)),tx.get(at('daily_plans',r.dailyPlanId)),tx.get(qref),tx.get(aref),tx.get(uref),tx.get(at('fertilizer_master','uat-products'))])
    const marker=m.data()
-   need(!p.exists&&marker?.testOnly===true&&marker.enabled===true&&marker.workspace==='cutover'&&roles.includes(marker.role)&&plain(marker.permissions),'UAT_IDENTITY_DENIED')
-   need(marker.permissions.qc_fertilizer==='edit','FORM_EDIT_REQUIRED')
+   const permissions=await operationalPermissions({tx,db,marker,productionProfile:p.exists})
+   need(permissions.qc_fertilizer==='edit','FORM_EDIT_REQUIRED')
    need(d.exists,'SOURCE_DP_NOT_FOUND')
    need(['draft','ready'].includes(r.saveType),'FINALIZE_NOT_ENABLED')
    const catalog=master.data()

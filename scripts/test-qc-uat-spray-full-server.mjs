@@ -5,6 +5,7 @@ import {createRequire} from 'node:module'
 import {fixture} from './qc-uat-spray-full-dto-fixture.mjs'
 import {buildQcActualPayload} from './qc-uat-load-actual-mapper.mjs'
 import {marker} from '../src/qcUatRolePermissions.mjs'
+import {roleDefinition,assignIdentityRole,permissionsForIdentity} from '../src/qcUatCustomRoles.mjs'
 import {createFullSprayService,fullSprayFingerprint,guardFullSpray,demoProject,demoHost,firestorePort,authPort} from '../server/qc-photo-access/uat-spray-full-service.mjs'
 const config=JSON.parse(readFileSync(new URL('../firebase.uat-spray-full-emulator.json',import.meta.url),'utf8'))
 const rules=readFileSync(new URL('../scripts/firestore.uat-spray-full-demo.rules',import.meta.url),'utf8')
@@ -169,6 +170,43 @@ if(process.argv[2]==='--emulator'){
    await reject(()=>call(winner,'uat-r2'),'QC_REPLAY_PAIR_MISMATCH')
    await ref('daily_reports','qcactual_'+r.id).set(s.ap)
    assert.deepEqual(await snapshot(),s);assert.deepEqual((await db.doc('daily_plans/root-sentinel').get()).data(),{testOnly:false,rootSentinel:true})
+  })
+  const custom=roleDefinition({name:'Field Operator',permissions:{qc_spraying:'edit',qc_records:'view'}})
+  const roleDoc=ref('role_catalog',custom.id)
+  const assigned=assignIdentityRole({...marker('mandor_spraying'),policyRevision:0,roleOverrides:{},manualOverrides:{}},custom.id,custom)
+  const useCustom=async(overrides={})=>{
+   const m={...assigned,manualOverrides:overrides}
+   await mark('uat-spray').set({...m,permissions:permissionsForIdentity(m,custom)})
+  }
+  await check('custom role saves and replays own photo-free QC without duplicate Actual or audit',async()=>{
+   await roleDoc.set({testOnly:true,workspace:'cutover',definition:custom});await useCustom()
+   const id='qc-v2-uat-custom-full',record=fresh(id)
+   try{
+    assert.equal((await call(record)).replayed,false)
+    const before=await snapshot(id)
+    assert.equal(before.ap.ownerUid,'uat-spray');assert.equal(before.audits.length,1)
+    assert.equal((await call(record)).replayed,true);assert.deepEqual(await snapshot(id),before)
+   }finally{await mark('uat-spray').set(marker('mandor_spraying'))}
+  })
+  await check('manual none overrides custom form edit and blocks replay and new QC',async()=>{
+   await useCustom({qc_spraying:'none',qc_fertilizer:'edit'})
+   const id='qc-v2-uat-custom-full',before=await snapshot(id)
+   try{
+    await reject(()=>call(fresh(id)),'FORM_EDIT_REQUIRED')
+    await reject(()=>call(fresh('qc-v2-uat-custom-full-denied')),'FORM_EDIT_REQUIRED')
+    assert.deepEqual(await snapshot(id),before);assert.deepEqual(await snapshot('qc-v2-uat-custom-full-denied'),{q:null,ap:null,audits:[]})
+   }finally{await mark('uat-spray').set(marker('mandor_spraying'))}
+  })
+  await check('missing role catalog or forged cached grant denies photo-free QC',async()=>{
+   await useCustom()
+   const id='qc-v2-uat-custom-full-invalid'
+   try{
+    await roleDoc.delete();await reject(()=>call(fresh(id)),'UAT_IDENTITY_DENIED')
+    await roleDoc.set({testOnly:true,workspace:'cutover',definition:custom})
+    await useCustom({qc_spraying:'none'});await mark('uat-spray').update({'permissions.qc_spraying':'edit'})
+    await reject(()=>call(fresh(id)),'UAT_IDENTITY_DENIED')
+    assert.deepEqual(await snapshot(id),{q:null,ap:null,audits:[]})
+   }finally{await mark('uat-spray').set(marker('mandor_spraying'))}
   })
   console.log('SUCCESS: '+n+' full Spray trusted server Auth and Firestore transaction checks (photo-free demo only)')
  }finally{

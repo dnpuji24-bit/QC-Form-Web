@@ -5,6 +5,7 @@ import {randomUUID} from 'node:crypto'
 import {endpointOrigin,endpointPaths,endpointUrl,callUatEndpoint} from '../src/qcUatEndpointRouting.mjs'
 import {createUatEndpointServer,actorAllowed,editAllowed,readAllowed,exact,slotAllowed} from '../server/qc-photo-access/uat-endpoint-server.mjs'
 import {marker} from '../src/qcUatRolePermissions.mjs'
+import {roleDefinition,assignIdentityRole,permissionsForIdentity,isCustomRoleId} from '../src/qcUatCustomRoles.mjs'
 import {prepareStrictJob} from '../src/qcUatStrictQueueContract.mjs'
 const roles=["owner","asisten","manager","admin","mandor_spraying","mandor_fertilizer","pengunjung"]
 function policyTests(){
@@ -58,7 +59,7 @@ if(process.argv[2]==='--emulator'){
  const makeJob=(uid='uat-spray',id='uat-q1',formType='spray',baseRevision=null,clientRevision='uat-r1')=>prepareStrictJob({testOnly:true,scope:'uat-strict',uploaderUid:uid,record:{testOnly:true,id,ownerUid:uid,formType,clientRevision,saveType:'ready',actualArea100:250},baseRevision,action:'finalizeRecord',changes:[{kind:'main',action:'replace',dataUrl:png}]})
  const server=createUatEndpointServer({
   verifyToken:token=>authAdmin.verifyIdToken(token,true),
-  snapshot:(uid,id)=>db.runTransaction(async tx=>{const [m,p,q]=await Promise.all([tx.get(mark(uid)),tx.get(db.doc('users/'+uid)),tx.get(qc(id))]);return {marker:m.data(),productionProfile:p.exists,record:q.data()??null}}),
+  snapshot:(uid,id)=>db.runTransaction(async tx=>{const [m,p,q]=await Promise.all([tx.get(mark(uid)),tx.get(db.doc('users/'+uid)),tx.get(qc(id))]);const identity=m.data();const catalog=isCustomRoleId(identity?.role)?(await tx.get(db.doc(prefix+'/role_catalog/'+identity.role))).data():undefined;return {marker:identity,productionProfile:p.exists,record:q.data()??null,catalog}}),
   putImmutable:async(r,bytes)=>{const old=objects.get(r.objectPath);if(old)assert.deepEqual(old,Buffer.from(bytes));else objects.set(r.objectPath,Buffer.from(bytes))},
   readObject:async r=>{reads.push(r.objectPath);return objects.get(r.objectPath)},
   issueTicket:async(r,ttl)=>{tickets.push({path:r.objectPath,ttl});return 'mock-'+randomUUID().replaceAll('-','')}
@@ -112,6 +113,45 @@ if(process.argv[2]==='--emulator'){
   await check('corrupt path rejected before storage adapter read',async()=>{const row=(await qc('uat-q1').get()).data(),before=reads.length;await qc('uat-q1').update({operationalPhotoManifest:{main:{...uploaded.manifest.main,objectPath:'uat-other/qc/foreign/file.png'}}});await deny(()=>call('uat-spray','sign',sign),409,'PHOTO_REFERENCE_INVALID');assert.equal(reads.length,before);await qc('uat-q1').set(row)})
   await check('fertilizer own form allowed',async()=>{const fj=await makeJob('uat-fert','uat-q2','fertilizer');const result=await call('uat-fert','upload',{job:fj});assert.equal(result.manifest.main.uploaderUid,'uat-fert');assert.equal(objects.size,2)})
   await check('response no-store and root sentinel unchanged',async()=>{assert.equal((await raw(endpointPaths.sign,{body:JSON.stringify(sign)})).cache,'no-store');assert.deepEqual((await db.doc('daily_plans/root-sentinel').get()).data(),{testOnly:false,rootSentinel:true});assert.equal((await qc('uat-q2').get()).exists,false)})
+  const custom=roleDefinition({name:'Field Inspector',permissions:{qc_spraying:'edit',qc_fertilizer:'edit',qc_records:'view'}})
+  const roleDoc=db.doc(prefix+'/role_catalog/'+custom.id)
+  const useCustom=async(uid,builtin,overrides={})=>{
+   const assigned=assignIdentityRole({...marker(builtin),policyRevision:0,roleOverrides:{},manualOverrides:{}},custom.id,custom)
+   const m={...assigned,manualOverrides:overrides}
+   await mark(uid).set({...m,permissions:permissionsForIdentity(m,custom)})
+  }
+  await check('custom role stages Spray and Fertilizer photos with existing Auth token',async()=>{
+   await roleDoc.set({testOnly:true,workspace:'cutover',definition:custom})
+   await useCustom('uat-spray','mandor_spraying');await useCustom('uat-fert','mandor_fertilizer')
+   try{
+    for(const [uid,kind] of [['uat-spray','spray'],['uat-fert','fertilizer']]){
+     const job=await makeJob(uid,'uat-custom-'+kind,kind)
+     const out=await call(uid,'upload',{job});assert.equal(out.manifest.main.uploaderUid,uid)
+     assert.equal((await qc(job.record.id).get()).exists,false)
+    }
+   }finally{await mark('uat-spray').set(marker('mandor_spraying'));await mark('uat-fert').set(marker('mandor_fertilizer'))}
+  })
+  await check('custom record visibility does not imply foreign photo tickets',async()=>{
+   await useCustom('uat-spray','mandor_spraying');await useCustom('uat-other','mandor_spraying')
+   try{assert.match((await call('uat-spray','sign',sign)).ticket,/^mock-[a-f0-9]{32}$/);const count=tickets.length;await deny(()=>call('uat-other','sign',sign),403,'QC_READ_REQUIRED');assert.equal(tickets.length,count)}
+   finally{await mark('uat-spray').set(marker('mandor_spraying'));await mark('uat-other').set(marker('mandor_spraying'))}
+  })
+  await check('custom manual none denies staging and signing without token refresh',async()=>{
+   await useCustom('uat-spray','mandor_spraying',{qc_spraying:'none',qc_records:'none'})
+   const job=await makeJob('uat-spray','uat-custom-denied'),count=objects.size,t=tickets.length
+   try{await deny(()=>call('uat-spray','upload',{job}),403,'FORM_EDIT_REQUIRED');await deny(()=>call('uat-spray','sign',sign),403,'QC_READ_REQUIRED');assert.equal(objects.size,count);assert.equal(tickets.length,t)}
+   finally{await mark('uat-spray').set(marker('mandor_spraying'))}
+  })
+  await check('missing catalog and forged marker reject custom HTTP operations',async()=>{
+   await useCustom('uat-spray','mandor_spraying')
+   try{
+    await roleDoc.delete();await deny(()=>call('uat-spray','sign',sign),403,'UAT_IDENTITY_DENIED')
+    await roleDoc.set({testOnly:true,workspace:'cutover',definition:custom})
+    await useCustom('uat-spray','mandor_spraying',{qc_spraying:'none'})
+    await mark('uat-spray').update({'permissions.qc_spraying':'edit'})
+    await deny(()=>call('uat-spray','sign',sign),403,'UAT_IDENTITY_DENIED')
+   }finally{await mark('uat-spray').set(marker('mandor_spraying'))}
+  })
   console.log('SUCCESS: '+n+' local HTTP endpoint and Auth/Firestore emulator checks passed (mock storage/tickets only)')
  }finally{
   if(server.listening)await new Promise(resolve=>server.close(resolve))

@@ -4,15 +4,16 @@ import {createHash} from 'node:crypto'
 import {endpointOrigin,endpointPaths} from '../../src/qcUatEndpointRouting.mjs'
 import {prepareStrictJob} from '../../src/qcUatStrictQueueContract.mjs'
 import {prepareOperationalPhotoManifest} from '../../src/qcOperationalPhotoManifest.mjs'
-const roles=["owner","asisten","manager","admin","mandor_spraying","mandor_fertilizer","pengunjung"]
+import {resolveOperationalPermissions} from './uat-operational-permissions.mjs'
 function fail(status,code){throw Object.assign(Error(code),{status})}
 
 function sid(v){return typeof v==='string'&&/^uat-[a-z0-9-]{1,60}$/.test(v)}
 
 function formKey(f){return f==='spray'?'qc_spraying':f==='fertilizer'?'qc_fertilizer':null}
 
-export function actorAllowed(uid,claim,m,profile){
- return sid(uid)&&claim===true&&profile===false&&m?.testOnly===true&&m.workspace==='cutover'&&m.enabled===true&&roles.includes(m.role)&&m.permissions&&Object.getPrototypeOf(m.permissions)===Object.prototype
+export function actorAllowed(uid,claim,m,profile,catalog){
+ if(!sid(uid)||claim!==true||profile!==false)return false
+ try{resolveOperationalPermissions({marker:m,productionProfile:profile,catalog});return true}catch{return false}
 }
 
 export function editAllowed(uid,m,q){const key=formKey(q?.formType);return !!key&&q.testOnly===true&&sid(q.id)&&q.ownerUid===uid&&m.permissions[key]==='edit'}
@@ -71,8 +72,8 @@ export function createUatEndpointServer(deps){
    }
    // Trusted adapter must read current marker, production-profile absence and
    // current record in one consistent snapshot, never use client role/claims alone.
-   const {marker,productionProfile,record}=await deps.snapshot(token.uid,id)
-   if(!actorAllowed(token.uid,token.qcUat,marker,productionProfile))fail(403,'UAT_IDENTITY_DENIED')
+   const {marker,productionProfile,record,catalog}=await deps.snapshot(token.uid,id)
+   if(!actorAllowed(token.uid,token.qcUat,marker,productionProfile,catalog))fail(403,'UAT_IDENTITY_DENIED')
    if(upload){
     const q=job.record
     if(!editAllowed(token.uid,marker,q))fail(403,'FORM_EDIT_REQUIRED')

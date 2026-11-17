@@ -7,6 +7,7 @@ import {componentProgressRecords} from '../src/qcUatFertilizerMaterialIntegratio
 import {fertilizerComponentProgress} from '../src/qcUatFertilizerComponentProgress.mjs'
 import {buildQcActualPayload} from './qc-uat-load-actual-mapper.mjs'
 import {marker} from '../src/qcUatRolePermissions.mjs'
+import {roleDefinition,assignIdentityRole,permissionsForIdentity} from '../src/qcUatCustomRoles.mjs'
 import {createFullFertilizerService,fullFertilizerFingerprint,guardFullFertilizer,demoProject,demoHost,firestorePort,authPort} from '../server/qc-photo-access/uat-fertilizer-full-service.mjs'
 const config=JSON.parse(readFileSync(new URL('../firebase.uat-fertilizer-full-emulator.json',import.meta.url),'utf8'))
 const rules=readFileSync(new URL('../scripts/firestore.uat-fertilizer-full-demo.rules',import.meta.url),'utf8')
@@ -93,6 +94,43 @@ if(process.argv[2]==='--emulator'){
   await check('concurrent divergent same revision has one durable winner',async()=>{const settled=await Promise.allSettled([19,22].map(area=>call(revise(r,'uat-r3',area),'uat-r2')));assert.equal(settled.filter(x=>x.status==='fulfilled').length,1);assert.equal(settled.find(x=>x.status==='rejected').reason.message,'QC_REPLAY_PAYLOAD_CONFLICT');const s=await snapshot();assert.deepEqual(s.q.fertilizerComponents,s.ap.fertilizerComponents);assert.equal(s.audits.length,3)})
   await check('orphan Actual and audit collision prevent partial writes',async()=>{const id='qc-v2-uat-orphan';await ref('daily_reports','qcactual_'+id).set({testOnly:true,orphan:true});await reject(()=>call(fresh(id)),'QC_ACTUAL_PAIR_MISMATCH');assert.equal(await q(id),null);assert.equal(await audit(id),null);await ref('qc_operational_audit',r.id+':uat-r4').set({testOnly:true,recordId:r.id,revision:'uat-r4',collision:true});const before=await snapshot();await reject(()=>call(revise(r,'uat-r4',23),'uat-r3'),'AUDIT_REVISION_EXISTS');assert.deepEqual(await snapshot(),before)})
   await check('corrupt paired Actual blocks replay; root sentinel unchanged',async()=>{const s=await snapshot(),area=s.ap.fertilizerComponents[1].actualArea100/100;await ref('daily_reports','qcactual_'+r.id).update({applicationArea100:999});await reject(()=>call(revise(r,'uat-r3',area),'uat-r2'),'QC_REPLAY_PAIR_MISMATCH');await ref('daily_reports','qcactual_'+r.id).set(s.ap);assert.deepEqual(await snapshot(),s);assert.deepEqual((await db.doc('daily_plans/root-sentinel').get()).data(),{testOnly:false,rootSentinel:true})})
+  const custom=roleDefinition({name:'Field Operator',permissions:{qc_fertilizer:'edit',qc_records:'view'}})
+  const roleDoc=ref('role_catalog',custom.id)
+  const assigned=assignIdentityRole({...marker('mandor_fertilizer'),policyRevision:0,roleOverrides:{},manualOverrides:{}},custom.id,custom)
+  const useCustom=async(overrides={})=>{
+   const m={...assigned,manualOverrides:overrides}
+   await mark('uat-fertilizer').set({...m,permissions:permissionsForIdentity(m,custom)})
+  }
+  await check('custom role saves and replays own photo-free QC without duplicate Actual or audit',async()=>{
+   await roleDoc.set({testOnly:true,workspace:'cutover',definition:custom});await useCustom()
+   const id='qc-v2-uat-custom-full',record=fresh(id)
+   try{
+    assert.equal((await call(record)).replayed,false)
+    const before=await snapshot(id)
+    assert.equal(before.ap.ownerUid,'uat-fertilizer');assert.equal(before.audits.length,1)
+    assert.equal((await call(record)).replayed,true);assert.deepEqual(await snapshot(id),before)
+   }finally{await mark('uat-fertilizer').set(marker('mandor_fertilizer'))}
+  })
+  await check('manual none overrides custom form edit and blocks replay and new QC',async()=>{
+   await useCustom({qc_fertilizer:'none',qc_spraying:'edit'})
+   const id='qc-v2-uat-custom-full',before=await snapshot(id)
+   try{
+    await reject(()=>call(fresh(id)),'FORM_EDIT_REQUIRED')
+    await reject(()=>call(fresh('qc-v2-uat-custom-full-denied')),'FORM_EDIT_REQUIRED')
+    assert.deepEqual(await snapshot(id),before);assert.deepEqual(await snapshot('qc-v2-uat-custom-full-denied'),{q:null,ap:null,audits:[]})
+   }finally{await mark('uat-fertilizer').set(marker('mandor_fertilizer'))}
+  })
+  await check('missing role catalog or forged cached grant denies photo-free QC',async()=>{
+   await useCustom()
+   const id='qc-v2-uat-custom-full-invalid'
+   try{
+    await roleDoc.delete();await reject(()=>call(fresh(id)),'UAT_IDENTITY_DENIED')
+    await roleDoc.set({testOnly:true,workspace:'cutover',definition:custom})
+    await useCustom({qc_fertilizer:'none'});await mark('uat-fertilizer').update({'permissions.qc_fertilizer':'edit'})
+    await reject(()=>call(fresh(id)),'UAT_IDENTITY_DENIED')
+    assert.deepEqual(await snapshot(id),{q:null,ap:null,audits:[]})
+   }finally{await mark('uat-fertilizer').set(marker('mandor_fertilizer'))}
+  })
   console.log('SUCCESS: '+n+' full Fertilizer component trusted server Auth and Firestore transaction checks (photo-free demo only)')
  }finally{
   for(const c of clients){try{await signOut(c.auth)}finally{await terminate(c.f);await deleteApp(c.app)}}
