@@ -4,7 +4,7 @@ import {roles,effectivePermissions} from '../../src/qcUatRolePermissions.mjs'
 import {ownerPermissionChange} from '../../src/qcUatOwnerPermissionContract.mjs'
 export const projectId='demo-qc-uat-owner-http',host='127.0.0.1',firestorePort=9485,authPort=10299,httpPort=4497
 export const origin='http://'+host+':'+httpPort
-export const paths=Object.freeze({list:'/uat/owner/permissions/list',patch:'/uat/owner/permissions/patch'})
+export const paths=Object.freeze({list:'/uat/owner/permissions/list',patch:'/uat/owner/permissions/patch',session:'/uat/session/permissions'})
 const prefix='qc_uat_workspaces/cutover'
 const sid=v=>typeof v==='string'&&/^uat-[a-z0-9-]{1,60}$/.test(v)
 const exact=(v,keys)=>v&&Object.getPrototypeOf(v)===Object.prototype&&Object.keys(v).length===keys.length&&keys.every(k=>Object.hasOwn(v,k))
@@ -16,8 +16,8 @@ export function guard(e=process.env){
 function ownerAllowed(token,m,profile){
  return sid(token.uid)&&token.qcUat===true&&m?.testOnly===true&&m.workspace==='cutover'&&m.enabled===true&&m.role==='owner'&&!profile
 }
-function row(uid,m){
- if(!sid(uid)||m?.testOnly!==true||m.workspace!=='cutover'||!roles.includes(m.role)||m.role==='owner'||typeof m.enabled!=='boolean'||!Number.isSafeInteger(m.policyRevision)||m.policyRevision<0||m.policyRevision>=1000000)fail(409,'INVALID_MARKER')
+function row(uid,m,allowOwner=false){
+ if(!sid(uid)||m?.testOnly!==true||m.workspace!=='cutover'||!roles.includes(m.role)||(!allowOwner&&m.role==='owner')||typeof m.enabled!=='boolean'||!Number.isSafeInteger(m.policyRevision)||m.policyRevision<0||m.policyRevision>=1000000)fail(409,'INVALID_MARKER')
  const permissions=effectivePermissions(m.role,m.roleOverrides,m.manualOverrides)
  if(!m.permissions||Object.keys(permissions).length!==Object.keys(m.permissions).length||Object.entries(permissions).some(([k,v])=>m.permissions[k]!==v))fail(409,'INVALID_MARKER')
  return {uid,role:m.role,enabled:m.enabled,policyRevision:m.policyRevision,manualOverrides:m.manualOverrides,permissions}
@@ -32,6 +32,16 @@ export function createOwnerService({adb,authAdmin}){
   return token
  }
  return {
+  async session(raw){
+   const token=await tokenFor(raw)
+   return adb.runTransaction(async tx=>{
+    const [identity,prod]=await Promise.all([tx.get(mark(token.uid)),tx.get(profile(token.uid))])
+    const m=identity.data()
+    if(!m||m.enabled!==true||m.testOnly!==true||m.workspace!=='cutover'||prod.exists)fail(403,'SESSION_DENIED')
+    const {uid,role,policyRevision,permissions}=row(token.uid,m,true)
+    return {uid,role,policyRevision,permissions}
+   })
+  },
   async list(raw){
    const token=await tokenFor(raw)
    return adb.runTransaction(async tx=>{
@@ -81,6 +91,7 @@ export function createOwnerHttp(service){
    const auth=/^Bearer ([^\s]+)$/.exec(req.headers.authorization??'')
    if(!auth)fail(401,'AUTH_REQUIRED')
    const input=await json(req)
+   if(req.url===paths.session){if(!exact(input,[]))fail(400,'INVALID_REQUEST');return send(200,{session:await service.session(auth[1])})}
    if(req.url===paths.list){if(!exact(input,[]))fail(400,'INVALID_REQUEST');return send(200,{rows:await service.list(auth[1])})}
    return send(200,{row:await service.patch(auth[1],input)})
   }catch(e){const status=[400,401,403,404,405,409,413,415].includes(e.status)?e.status:500;send(status,{error:status!==500&&/^[A-Z_]+$/.test(e.message)?e.message:'UAT_INTERNAL_ERROR'})}

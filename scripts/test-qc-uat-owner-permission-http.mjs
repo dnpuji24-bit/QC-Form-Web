@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import {readFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import {marker} from '../src/qcUatRolePermissions.mjs'
+import {createUatSession} from '../src/qcUatSessionPermissions.mjs'
 import {projectId,host,firestorePort,authPort,httpPort,origin,paths,guard,createOwnerService,createOwnerHttp} from '../server/qc-photo-access/uat-owner-permission-http.mjs'
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8')
 const config=JSON.parse(read('firebase.uat-owner-permission-http.json'))
@@ -82,10 +83,25 @@ if(process.argv[2]==='--emulator'){
    for(const p of [{role:'edit'},{qc_spraying:'admin'},{}])assert.equal((await patch(input(0,p))).status,400)
    assert.equal((await audit()).size,0)
   })
+  const sessionA=createUatSession({currentUser:()=>spray.auth.currentUser}),sessionB=createUatSession({currentUser:()=>spray2.auth.currentUser})
+  await check('session endpoint returns own effective permissions only',async()=>{
+   assert.equal((await call(paths.session,ot)).status,200)
+   const a=await call(paths.session,await token(spray));assert.equal(a.status,200);assert.equal(a.data.session.uid,'uat-spray');assert.deepEqual(Object.keys(a.data.session).sort(),['uid','role','policyRevision','permissions'].sort())
+   assert.equal((await call(paths.session,await token(spray),{targetUid:'uat-fert'})).status,400)
+   await sessionA.refresh();await sessionB.refresh();assert.equal(sessionA.canEdit('qc_spraying'),true);assert.equal(sessionB.canView('qc_records'),false)
+  })
+  await check('session rejects disabled claimless production and invalid token',async()=>{
+   for(const c of [disabled,noClaim,prod])assert.equal((await call(paths.session,await token(c))).status,403)
+   assert.equal((await call(paths.session,'bad')).status,401)
+  })
   await check('manual view committed atomically and other user unchanged',async()=>{
    const a=await patch(input());assert.equal(a.status,200);assert.equal(a.data.row.policyRevision,1);assert.equal(a.data.row.permissions.qc_spraying,'view')
    const m=await readMarker('uat-spray');assert.equal(m.manualOverrides.qc_records,'none');assert.equal((await readMarker('uat-spray-b')).permissions.qc_spraying,'edit')
    const log=(await adb.doc(prefix+'/permission_audit/uat-spray:1').get()).data();assert.equal(log.actorUid,'uat-owner');assert.deepEqual(log.patch,{qc_spraying:'view'})
+  })
+  await check('both session adapters refresh to view using existing auth',async()=>{
+   await sessionA.refresh();await sessionB.refresh()
+   for(const s of [sessionA,sessionB]){assert.equal(s.snapshot().policyRevision,1);assert.equal(s.canView('qc_spraying'),true);assert.equal(s.canEdit('qc_spraying'),false);assert.equal(s.canView('qc_records'),false)}
   })
   await check('stale patch rejected with no audit or marker mutation',async()=>{
    const before=await readMarker('uat-spray');assert.equal((await patch(input(0,{qc_spraying:'edit'}))).status,409);assert.deepEqual(await readMarker('uat-spray'),before);assert.equal((await audit()).size,1)
@@ -98,6 +114,12 @@ if(process.argv[2]==='--emulator'){
    assert.equal((await patch(input(2,{qc_spraying:'none'}))).status,200)
    for(const c of [spray,spray2])await assert.rejects(getDocFromServer(dp(c)),{code:'permission-denied'})
    assert.equal((await readMarker('uat-spray')).manualOverrides.qc_records,'none')
+  })
+  await check('session refresh and relogin retain manual none',async()=>{
+   await sessionA.refresh();assert.equal(sessionA.access('qc_spraying'),'none')
+   await signOut(spray2.auth);sessionB.reset();assert.equal(sessionB.snapshot(),null)
+   await signInWithEmailAndPassword(spray2.auth,email('uat-spray'),password('uat-spray'));sessionB.reset();await sessionB.refresh()
+   assert.equal(sessionB.snapshot().policyRevision,3);assert.equal(sessionB.canView('qc_spraying'),false)
   })
   await check('audit collision rolls back permission change',async()=>{
    const before=await readMarker('uat-spray');await adb.doc(prefix+'/permission_audit/uat-spray:4').create({collision:true})
@@ -113,6 +135,10 @@ if(process.argv[2]==='--emulator'){
    const before=await readMarker('uat-spray');await mark('uat-owner').update({enabled:false})
    assert.equal((await call(paths.list,ot)).status,403);assert.equal((await patch(input(3,{qc_spraying:'edit'}))).status,403)
    assert.deepEqual(await readMarker('uat-spray'),before);assert.deepEqual((await adb.doc('daily_plans/root-sentinel').get()).data(),{rootSentinel:true})
+  })
+  await check('revoked owner session denied and client clears access',async()=>{
+   const own=createUatSession({currentUser:()=>owner.auth.currentUser});assert.equal(await own.refresh(),null);assert.equal(own.canEdit('qc_spraying'),false)
+   assert.equal((await call(paths.session,ot)).status,403)
   })
   console.log('SUCCESS: '+n+' Owner HTTP permission and real Auth/Firestore transaction checks (dedicated demo only)')
  }finally{
