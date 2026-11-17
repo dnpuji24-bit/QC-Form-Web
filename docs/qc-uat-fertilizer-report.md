@@ -5,3 +5,5 @@ Operator screenshots confirm 80/80 Python regressions, TypeScript exit 0 and 8/8
 14 browser scenarios authored, not executed here. Uses synthetic fixture private photo bytes and legacy inline data, not live Firebase, signed URLs, or Google Drive. Actual JPG/PDF/Excel generation, mobile, hash errors and sign-out for operational photos, no scanner, no external network/WebSockets/CSP violations. Existing Spray regression must rerun because shared report code changed. No deployment or production reads/writes.
 
 Run node scripts/test-qc-uat-fertilizer-report.mjs --self-test and --browser. Also run node scripts/test-qc-uat-spray-report.mjs --browser and npm run typecheck. No cloud credentials. Live historical Drive URL availability and full portal integration remain separate gates.
+
+Operator screenshot 2026-11-17: 14/14 Fertilizer and 12/12 Spray preview/export browser checks passed at a2c1114 (isolated fixture photo I/O). Prior safety guards and typecheck passed. Verified within this scope. Next [Owner permission UI](qc-uat-owner-permission-ui.md).
