@@ -78,7 +78,7 @@ async function json(req){
  for await(const chunk of req){n+=chunk.length;if(n>8192)fail(413,'BODY_TOO_LARGE');chunks.push(chunk)}
  try{return JSON.parse(Buffer.concat(chunks).toString('utf8'))}catch{fail(400,'INVALID_JSON')}
 }
-export function createOwnerHttp(service){
+export function createOwnerHttp(service,labAssets=null){
  guard()
  return createServer(async(req,res)=>{
   res.setHeader('Cache-Control','no-store');res.setHeader('Content-Type','application/json');res.setHeader('X-Content-Type-Options','nosniff')
@@ -86,6 +86,13 @@ export function createOwnerHttp(service){
   try{
    guard()
    if(req.headers.host!==host+':'+httpPort||(req.headers.origin!==undefined&&req.headers.origin!==origin))fail(403,'ORIGIN_DENIED')
+   // Optional in-memory browser bundle for the dedicated emulator runner only.
+   if(labAssets&&req.method==='GET'&&labAssets.has(req.url)){
+    const asset=labAssets.get(req.url)
+    res.setHeader('Content-Type',asset.type)
+    res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; connect-src 'self' http://127.0.0.1:10299; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
+    res.end(asset.body);return
+   }
    if(!Object.values(paths).includes(req.url))fail(404,'ROUTE_DENIED')
    if(req.method!=='POST')fail(405,'METHOD_DENIED')
    const auth=/^Bearer ([^\s]+)$/.exec(req.headers.authorization??'')
