@@ -7,6 +7,7 @@ import {planningQcInput,planningQcSnapshot,planningCarryoverSnapshot} from '../.
 import {commitSyntheticQc} from '../../src/qcUatQcLifecycleContract.mjs'
 import {dailyGroupCreate} from '../../src/qcUatDailyGroupContract.mjs'
 import {activityComponents,monthlySnapshotRequest,monthlySnapshot,dailySnapshot,validateGroupResources,aggregateGroupMaterials,materialTotals,readMonthlySnapshot,readGroupSnapshot,reviseDailySnapshot} from '../../src/qcUatPlanningMasterSnapshot.mjs'
+import {sprayCommitRequest,preparePlanningSpray,historicalSpraySource,equalSprayValue} from '../../src/qcUatPlanningSprayCommit.mjs'
 import {qcSourceRequest,projectQcSource} from '../../src/qcUatPlanningQcSource.mjs'
 import {groupHeaderIds,validateGroupState,groupMutationRequest,nextDailyGroup,groupReorderRequest,nextGroupOrder} from '../../src/qcUatDailyGroupLifecycle.mjs'
 
@@ -135,6 +136,7 @@ function createPlanningQcCommitService(deps,carryover){
      transaction:fn=>fn({
       readQc:async id=>{
        const row=await read('qc_records',id)
+       if(await read('qc_spray_full',id)||(row&&sid(row.clientRevision)&&await read('qc_spray_full_audit',id+':'+row.clientRevision)))fail('FULL_SPRAY_COMMIT_REQUIRED')
        if(row&&(row.ownerUid!==uid||row.inputtedBy!==uid))fail('QC_OWNER_ONLY')
        if(row&&['dailyPlanId','monthlyPlanLineId','pid','date','shift','foreman'].some(k=>row[k]!==r[k]))fail('QC_PLANNING_LINK_IMMUTABLE')
        return row
@@ -397,24 +399,82 @@ export function createPlanningMasterSnapshotLifecycleService(deps){
 }
 
 // A form editor can read the validated selected source, without Planning menu rights.
-export function createPlanningQcSourceService(deps){
- const {adb}=deps,authorize=createAuthorizer(deps),{state,frozenState}=createGroupStateReader(adb)
+function createQcSourceReader(adb){
+ const {state,frozenState}=createGroupStateReader(adb)
  const read=async(tx,c,id)=>(await tx.get(adb.doc(prefix+'/'+c+'/'+id))).data()
+ return async(tx,q)=>{
+  const d=await read(tx,'daily_plans',q.dailyPlanId)
+  if(!d)fail('MISSING_DAILY_PLAN')
+  const m=await read(tx,'daily_group_members',q.dailyPlanId)
+  if(m?.testOnly!==true||m.dailyPlanId!==q.dailyPlanId||!sid(m.workGroupId))fail('INVALID_GROUP_MEMBERS')
+  const {header,rows}=await state(tx,m.workGroupId)
+  const i=rows.findIndex(r=>r.id===q.dailyPlanId)
+  if(i<0)fail('INVALID_GROUP_MEMBERS')
+  const {groupSnapshot,snapshots,sources}=await frozenState(tx,header,rows)
+  const parent=rows[i].monthlyPlanLineId?await read(tx,'monthly_plans',rows[i].monthlyPlanLineId):null
+  const foreman=await read(tx,'master_foremen',q.foreman)
+  return projectQcSource(q,rows[i],snapshots[i],parent,sources[i],header,groupSnapshot,foreman)
+ }
+}
+export function createPlanningQcSourceService(deps){
+ const {adb}=deps,authorize=createAuthorizer(deps),source=createQcSourceReader(adb)
  return Object.freeze({
   async readSource(raw,input){
    const q=qcSourceRequest(input)
-   return authorize(raw,q.formType,'edit',async tx=>{
-    const d=await read(tx,'daily_plans',q.dailyPlanId)
-    if(!d)fail('MISSING_DAILY_PLAN')
-    const m=await read(tx,'daily_group_members',q.dailyPlanId)
-    if(m?.testOnly!==true||m.dailyPlanId!==q.dailyPlanId||!sid(m.workGroupId))fail('INVALID_GROUP_MEMBERS')
-    const {header,rows}=await state(tx,m.workGroupId)
-    const i=rows.findIndex(r=>r.id===q.dailyPlanId)
-    if(i<0)fail('INVALID_GROUP_MEMBERS')
-    const {groupSnapshot,snapshots,sources}=await frozenState(tx,header,rows)
-    const parent=rows[i].monthlyPlanLineId?await read(tx,'monthly_plans',rows[i].monthlyPlanLineId):null
-    const foreman=await read(tx,'master_foremen',q.foreman)
-    return projectQcSource(q,rows[i],snapshots[i],parent,sources[i],header,groupSnapshot,foreman)
+   return authorize(raw,q.formType,'edit',tx=>source(tx,q),true)
+  }
+ })
+}
+// Full DTO details are committed atomically with the verified canonical scalar pair.
+// No photos, production transport, or component Fertilizer writes.
+export function createPlanningSprayCommitService(deps){
+ const {adb}=deps,authorize=createAuthorizer(deps),source=createQcSourceReader(adb)
+ const ref=(c,id)=>adb.doc(prefix+'/'+c+'/'+id)
+ return Object.freeze({
+  async commit(raw,input){
+   const {id,sourceRequest:q}=sprayCommitRequest(input)
+   return authorize(raw,'spray','edit',async(tx,uid)=>{
+    if(input.uploaderUid!==uid||input.record.ownerUid!==uid||input.record.inputtedBy!==uid)fail('QC_OWNER_ONLY')
+    const read=async(c,i)=>(await tx.get(ref(c,i))).data()??null
+    const projected=await source(tx,q)
+    const [current,old,oldActual]=await Promise.all([read('qc_records',id),read('qc_spray_full',id),read('daily_reports','qcactual_'+id)])
+    if(current&&(current.ownerUid!==uid||current.inputtedBy!==uid))fail('QC_OWNER_ONLY')
+    if(Boolean(current)!==Boolean(old))fail('FULL_SPRAY_PAIR_REQUIRES_REVIEW')
+    if(current&&!sid(current.clientRevision))fail('FULL_SPRAY_PAIR_REQUIRES_REVIEW')
+    const trusted=old?historicalSpraySource(projected,old.source):projected
+    const prepared=preparePlanningSpray(input,trusted,uid)
+    const r=prepared.record,detail=prepared.detail
+    const snapshot={testOnly:true,dailyPlanId:r.dailyPlanId,monthlyPlanLineId:r.monthlyPlanLineId,pid:r.pid,date:r.date,shift:r.shift,foreman:r.foreman,formType:'spray',area100:trusted.area100}
+    const audit=await read('qc_operational_audit',id+':'+r.clientRevision)
+    const oldAudit=current?(current.clientRevision===r.clientRevision?audit:await read('qc_operational_audit',id+':'+current.clientRevision)):null
+    const priorFullAudit=current?await read('qc_spray_full_audit',id+':'+current.clientRevision):null
+    const newFullAudit=current?.clientRevision===r.clientRevision?priorFullAudit:await read('qc_spray_full_audit',id+':'+r.clientRevision)
+    const run=(job,auditRow)=>commitSyntheticQc(job,{
+     currentUid:async()=>uid,
+     transaction:fn=>fn({
+      readQc:async()=>current,readActual:async()=>oldActual,readAudit:async()=>auditRow,readDaily:async()=>snapshot,
+      writeQc:(i,row)=>tx.set(ref('qc_records',i),row),
+      writeActual:(i,row)=>tx.set(ref('daily_reports',i),row),
+      writeAudit:(i,row)=>tx.create(ref('qc_operational_audit',i),row)
+     })
+    })
+    if(old){
+     if(!equalSprayValue(old,priorFullAudit)||old.jobId!==current.operationalSaveId||old.clientRevision!==current.clientRevision)fail('FULL_SPRAY_PAIR_REQUIRES_REVIEW')
+     const prior=preparePlanningSpray({record:old.form,baseRevision:null,jobId:old.jobId,uploaderUid:uid,expectedDailyRevision:trusted.dailyRevision,foremanId:trusted.executionForemanId},trusted,uid)
+     if(!equalSprayValue(prior.detail,old))fail('FULL_SPRAY_PAIR_REQUIRES_REVIEW')
+     // The old canonical exact replay validates its existing Actual and audit without writes.
+     await run(prior.job,oldAudit)
+     if(current.clientRevision===r.clientRevision){
+      if(!equalSprayValue(old,detail))fail('QC_REPLAY_PAYLOAD_MISMATCH')
+      return {record:current,detail:old}
+     }
+     if(current.sessionId!==r.sessionId||old.form.createdAt!==detail.form.createdAt)fail('QC_SPRAY_IDENTITY_IMMUTABLE')
+    }
+    if(newFullAudit)fail('QC_REVISION_REUSED')
+    const result=await run(prepared.job,audit)
+    tx.set(ref('qc_spray_full',id),detail)
+    tx.create(ref('qc_spray_full_audit',id+':'+r.clientRevision),detail)
+    return {record:result,detail}
    },true)
   }
  })
