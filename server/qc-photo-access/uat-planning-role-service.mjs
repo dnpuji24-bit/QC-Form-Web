@@ -7,6 +7,7 @@ import {planningQcInput,planningQcSnapshot,planningCarryoverSnapshot} from '../.
 import {commitSyntheticQc} from '../../src/qcUatQcLifecycleContract.mjs'
 import {dailyGroupCreate} from '../../src/qcUatDailyGroupContract.mjs'
 import {activityComponents,monthlySnapshotRequest,monthlySnapshot,dailySnapshot,validateGroupResources,aggregateGroupMaterials,materialTotals,readMonthlySnapshot,readGroupSnapshot,reviseDailySnapshot} from '../../src/qcUatPlanningMasterSnapshot.mjs'
+import {qcSourceRequest,projectQcSource} from '../../src/qcUatPlanningQcSource.mjs'
 import {groupHeaderIds,validateGroupState,groupMutationRequest,nextDailyGroup,groupReorderRequest,nextGroupOrder} from '../../src/qcUatDailyGroupLifecycle.mjs'
 
 export const projectId='demo-qc-uat-planning-role',host='127.0.0.1',firestorePort=9085,authPort=9899
@@ -218,9 +219,7 @@ function createDailyGroupInternal(deps,full){
 }
 export function createDailyGroupService(deps){return createDailyGroupInternal(deps,false)}
 
-// Separate lifecycle factory preserves the previously verified create-only public shape.
-function createDailyGroupLifecycleInternal(deps,full){
- const {adb}=deps,authorize=createAuthorizer(deps)
+function createGroupStateReader(adb){
  const ref=(c,id)=>adb.doc(prefix+'/'+c+'/'+id)
  const col=c=>adb.collection(prefix+'/'+c)
  const read=async(tx,c,id)=>(await tx.get(ref(c,id))).data()
@@ -246,6 +245,16 @@ function createDailyGroupLifecycleInternal(deps,full){
   readGroupSnapshot(header,rows,groupSnapshot,snapshots,sources)
   return {groupSnapshot,snapshots,sources}
  }
+ return {state,frozenState}
+}
+
+// Separate lifecycle factory preserves the previously verified create-only public shape.
+function createDailyGroupLifecycleInternal(deps,full){
+ const {adb}=deps,authorize=createAuthorizer(deps)
+ const ref=(c,id)=>adb.doc(prefix+'/'+c+'/'+id)
+ const col=c=>adb.collection(prefix+'/'+c)
+ const read=async(tx,c,id)=>(await tx.get(ref(c,id))).data()
+ const {state,frozenState}=createGroupStateReader(adb)
  function audit(tx,scope,id,action,uid,before,after){
   tx.create(ref('planning_audit',scope+':'+id+':'+after.revision),{testOnly:true,scope,id,action,actorUid:uid,previousRevision:before.revision,revision:after.revision,before,after})
  }
@@ -384,5 +393,29 @@ export function createPlanningMasterSnapshotLifecycleService(deps){
   },
   readGroup:groups.read,
   editGroup:groups.mutate
+ })
+}
+
+// A form editor can read the validated selected source, without Planning menu rights.
+export function createPlanningQcSourceService(deps){
+ const {adb}=deps,authorize=createAuthorizer(deps),{state,frozenState}=createGroupStateReader(adb)
+ const read=async(tx,c,id)=>(await tx.get(adb.doc(prefix+'/'+c+'/'+id))).data()
+ return Object.freeze({
+  async readSource(raw,input){
+   const q=qcSourceRequest(input)
+   return authorize(raw,q.formType,'edit',async tx=>{
+    const d=await read(tx,'daily_plans',q.dailyPlanId)
+    if(!d)fail('MISSING_DAILY_PLAN')
+    const m=await read(tx,'daily_group_members',q.dailyPlanId)
+    if(m?.testOnly!==true||m.dailyPlanId!==q.dailyPlanId||!sid(m.workGroupId))fail('INVALID_GROUP_MEMBERS')
+    const {header,rows}=await state(tx,m.workGroupId)
+    const i=rows.findIndex(r=>r.id===q.dailyPlanId)
+    if(i<0)fail('INVALID_GROUP_MEMBERS')
+    const {groupSnapshot,snapshots,sources}=await frozenState(tx,header,rows)
+    const parent=rows[i].monthlyPlanLineId?await read(tx,'monthly_plans',rows[i].monthlyPlanLineId):null
+    const foreman=await read(tx,'master_foremen',q.foreman)
+    return projectQcSource(q,rows[i],snapshots[i],parent,sources[i],header,groupSnapshot,foreman)
+   },true)
+  }
  })
 }
