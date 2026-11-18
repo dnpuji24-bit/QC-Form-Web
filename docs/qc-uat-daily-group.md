@@ -6,3 +6,5 @@ Source DailyPlanWebEntryPanel.tsx persists workGroupId, workGroupPidCount, plann
 
 Run offline: node scripts/test-qc-uat-daily-group-contract.mjs (11 checks).
 Run existing dedicated Planning emulator config with node scripts/test-qc-uat-daily-group.mjs --emulator (17 planned checks); regress all Planning read/write/QC/carryover gates because single-row mutation changed. Execution pending operator. Hosted UAT OFF.
+
+Operator Cloud Shell at 33fa7b7: 126 offline checks, TypeScript, 17/17 group-create and 77/77 regression emulator checks passed, all exit 0. Next: [group lifecycle](qc-uat-daily-group-lifecycle.md).

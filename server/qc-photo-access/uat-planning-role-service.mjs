@@ -6,6 +6,7 @@ import {planningRequest,nextPlanningRow,verifyMonthlyParent} from '../../src/qcU
 import {planningQcInput,planningQcSnapshot,planningCarryoverSnapshot} from '../../src/qcUatPlanningQcBridge.mjs'
 import {commitSyntheticQc} from '../../src/qcUatQcLifecycleContract.mjs'
 import {dailyGroupCreate} from '../../src/qcUatDailyGroupContract.mjs'
+import {groupHeaderIds,validateGroupState,groupMutationRequest,nextDailyGroup,groupReorderRequest,nextGroupOrder} from '../../src/qcUatDailyGroupLifecycle.mjs'
 
 export const projectId='demo-qc-uat-planning-role',host='127.0.0.1',firestorePort=9085,authPort=9899
 const prefix='qc_uat_workspaces/cutover'
@@ -188,6 +189,83 @@ export function createDailyGroupService(deps){
      tx.create(ref('planning_audit','daily:'+r.id+':0'),{testOnly:true,scope:'daily',id:r.id,action:'create',actorUid:uid,previousRevision:null,revision:0,before:null,after:r})
     }
     return {header,rows}
+   })
+  }
+ })
+}
+
+// Separate lifecycle factory preserves the previously verified create-only public shape.
+export function createDailyGroupLifecycleService(deps){
+ const {adb}=deps,authorize=createAuthorizer(deps)
+ const ref=(c,id)=>adb.doc(prefix+'/'+c+'/'+id)
+ const col=c=>adb.collection(prefix+'/'+c)
+ const read=async(tx,c,id)=>(await tx.get(ref(c,id))).data()
+ async function state(tx,id,header){
+  const h=header??await read(tx,'daily_work_groups',id),ids=groupHeaderIds(id,h)
+  const [rows,members,index]=await Promise.all([
+   Promise.all(ids.map(i=>read(tx,'daily_plans',i))),
+   Promise.all(ids.map(i=>read(tx,'daily_group_members',i))),
+   tx.get(col('daily_group_members').where('workGroupId','==',id).limit(21))
+  ])
+  if(index.size!==ids.length||index.docs.some(x=>!ids.includes(x.id)))fail('INVALID_GROUP_MEMBERS')
+  validateGroupState(id,h,rows,members)
+  return {header:h,rows,members}
+ }
+ function audit(tx,scope,id,action,uid,before,after){
+  tx.create(ref('planning_audit',scope+':'+id+':'+after.revision),{testOnly:true,scope,id,action,actorUid:uid,previousRevision:before.revision,revision:after.revision,before,after})
+ }
+ return Object.freeze({
+  async read(raw,id){
+   if(!sid(id))fail('INVALID_SYNTHETIC_ID')
+   return authorize(raw,'daily','view',async tx=>{const {header,rows}=await state(tx,id);return {header,rows}})
+  },
+  async mutate(raw,input){
+   const q=groupMutationRequest(input)
+   return authorize(raw,'daily','edit',async(tx,uid)=>{
+    const {header,rows,members}=await state(tx,q.workGroupId)
+    const next=nextDailyGroup(q,header,rows,members,uid)
+    // All member dependency and master checks precede writes.
+    for(const r of rows){
+     const [qc,actual]=await Promise.all([tx.get(col('qc_records').where('dailyPlanId','==',r.id).limit(1)),tx.get(col('daily_reports').where('dailyPlanId','==',r.id).limit(1))])
+     if(!qc.empty||!actual.empty)fail('GROUP_HAS_DEPENDENTS')
+    }
+    if(q.action==='edit'){
+     const a=await read(tx,'master_activities',next.header.activityId)
+     if(a?.testOnly!==true||a.id!==next.header.activityId||a.active!==true)fail('INVALID_PLANNING_MASTER')
+     if(a.formType!==next.header.formType)fail('PLANNING_FORM_MISMATCH')
+     for(const r of next.rows){
+      const p=await read(tx,'master_paddocks',r.pid)
+      if(p?.testOnly!==true||p.pid!==r.pid||p.active!==true)fail('INVALID_PLANNING_MASTER')
+      if(r.sourceType==='MONTHLY')verifyMonthlyParent(r,await read(tx,'monthly_plans',r.monthlyPlanLineId))
+     }
+    }
+    const action=q.action==='edit'?'update':'cancel'
+    audit(tx,'group',header.workGroupId,action,uid,header,next.header)
+    tx.set(ref('daily_work_groups',header.workGroupId),next.header)
+    for(let i=0;i<rows.length;i++){
+     audit(tx,'daily',rows[i].id,action,uid,rows[i],next.rows[i])
+     tx.set(ref('daily_plans',rows[i].id),next.rows[i])
+    }
+    return next
+   })
+  },
+  async reorder(raw,input){
+   const q=groupReorderRequest(input)
+   return authorize(raw,'daily','edit',async(tx,uid)=>{
+    const snap=await tx.get(col('daily_work_groups').where('date','==',q.date).limit(101))
+    if(snap.size>100)fail('REORDER_SCOPE_LIMIT')
+    const headers=[]
+    for(const x of snap.docs){
+     const h=x.data();groupHeaderIds(x.id,h)
+     if(h.status==='open'){await state(tx,x.id,h);headers.push(h)}
+    }
+    const next=nextGroupOrder(q,headers,uid)
+    for(const h of next){
+     const before=headers.find(x=>x.workGroupId===h.workGroupId)
+     audit(tx,'group',h.workGroupId,'reorder',uid,before,h)
+     tx.set(ref('daily_work_groups',h.workGroupId),h)
+    }
+    return next
    })
   }
  })
