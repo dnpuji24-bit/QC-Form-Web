@@ -9,6 +9,7 @@ import {dailyGroupCreate} from '../../src/qcUatDailyGroupContract.mjs'
 import {activityComponents,monthlySnapshotRequest,monthlySnapshot,dailySnapshot,validateGroupResources,aggregateGroupMaterials,materialTotals,readMonthlySnapshot,readGroupSnapshot,reviseDailySnapshot} from '../../src/qcUatPlanningMasterSnapshot.mjs'
 import {fertilizerCommitRequest,preparePlanningFertilizer,historicalFertilizerSource,verifyFertilizerPair} from '../../src/qcUatPlanningFertilizerCommit.mjs'
 import {sprayCommitRequest,preparePlanningSpray,historicalSpraySource,equalSprayValue} from '../../src/qcUatPlanningSprayCommit.mjs'
+import {correctionRequest,duplicateCandidate,appliedReview,correctionReceipt,verifyCorrectionReceipt} from '../../src/qcUatPlanningControlledCorrection.mjs'
 import {issueCodes,evidenceFingerprint,reviewRequest,verifyReview,nextReview} from '../../src/qcUatPlanningReconciliationReview.mjs'
 import {manualActualId,manualRequest,nextManualActual,verifyManualActual,manualProjection} from '../../src/qcUatPlanningManualActual.mjs'
 import {planningWeek} from '../../src/qcUatPlanningProgressContract.mjs'
@@ -54,7 +55,7 @@ function createAuthorizer({adb,authAdmin}){
    }
    const mode=internalQc ? p[scope==='spray'?'qc_spraying':'qc_fertilizer'] : planningMode(p,scope,operation)
    if(internalQc&&(!['spray','fertilizer'].includes(scope)||operation!=='edit'||mode!=='edit'))fail('QC_PERMISSION_DENIED')
-   return read?read(tx,token.uid):{scope,operation,mode}
+   return read?read(tx,token.uid,p):{scope,operation,mode}
   })
  }
  return authorize
@@ -558,7 +559,7 @@ function createPlanningActualSummaryInternal(deps,reconciliation){
   if(s.size>max)fail('SUMMARY_SCOPE_LIMIT')
   return s.docs.map(x=>({id:x.id,row:x.data()}))
  }
- async function loadDaily(tx,id){
+ async function loadDaily(tx,id,excludeDuplicate=null){
   const d=await read(tx,'daily_plans',id)
   if(!d)fail('MISSING_DAILY_PLAN')
   currentPlanningRow('daily',id,d)
@@ -568,7 +569,8 @@ function createPlanningActualSummaryInternal(deps,reconciliation){
   const i=rows.findIndex(r=>r.id===id)
   if(i<0)fail('INVALID_GROUP_MEMBERS')
   const {groupSnapshot,snapshots,sources}=await frozenState(tx,header,rows)
-  const [qcs,actuals]=await Promise.all([query(tx,'qc_records','dailyPlanId',id),query(tx,'daily_reports','dailyPlanId',id)])
+  const [qcs,allActuals]=await Promise.all([query(tx,'qc_records','dailyPlanId',id),query(tx,'daily_reports','dailyPlanId',id)])
+  const actuals=excludeDuplicate===null?allActuals:allActuals.filter(a=>a.id!==excludeDuplicate)
   const parent=d.monthlyPlanLineId?await read(tx,'monthly_plans',d.monthlyPlanLineId):null
   if(d.status==='cancelled'&&(qcs.length||actuals.length))fail('CANCELLED_PLAN_HAS_ACTUAL')
   const seenActual=new Set(),projected=[]
@@ -652,8 +654,56 @@ function createPlanningActualSummaryInternal(deps,reconciliation){
   const row=await read(tx,'reconciliation_cases',id)
   if(!row)return null
   if(!Number.isSafeInteger(row.revision)||row.revision<0||row.revision>=1000000)fail('INVALID_REVIEW_ROW')
-  return verifyReview(row,await read(tx,'reconciliation_case_audit',id+':'+row.revision),id)
+  const checked=verifyReview(row,await read(tx,'reconciliation_case_audit',id+':'+row.revision),id)
+  if(checked.status==='APPLIED')verifyCorrectionReceipt(await read(tx,'reconciliation_correction_archive',id+':'+checked.revision),checked)
+  return checked
  }
+ // Only this private branch may simulate exclusion; public reports never exclude records.
+ async function validatedDuplicate(tx,id){
+  const candidate=duplicateCandidate(id,await query(tx,'daily_reports','dailyPlanId',id))
+  if(!candidate)fail('EXACT_DUPLICATE_REQUIRED')
+  const x=await loadDaily(tx,id,candidate.duplicateId)
+  if(!x.actuals.some(a=>a.id===candidate.canonicalId)||!x.actualIds.includes(candidate.canonicalId))fail('EXACT_DUPLICATE_REQUIRED')
+  dailySummary(x) // confirm report aggregation succeeds after removal
+  return candidate
+ }
+ if(reconciliation==='correction')return Object.freeze({
+  async preview(raw,id){
+   if(!sid(id))fail('INVALID_SUMMARY_REQUEST')
+   return authorize(raw,'reconciliation','view',async tx=>{
+    const evidence=await reviewEvidence(tx,id)
+    if(evidence.status==='CLEAR')return {dailyPlanId:id,status:'CLEAR',fingerprint:null}
+    if(evidence.code!=='ACTUAL_RECONCILIATION_REQUIRED')return {...evidence,correction:'MANUAL_REVIEW_REQUIRED'}
+    try{
+     const c=await validatedDuplicate(tx,id)
+     return {...evidence,correction:'ARCHIVE_EXACT_QC_DUPLICATE',duplicateId:c.duplicateId,canonicalId:c.canonicalId}
+    }catch(e){
+     if(e.message!=='EXACT_DUPLICATE_REQUIRED'&&!issueCodes.includes(e.message))throw e
+     return {...evidence,correction:'MANUAL_REVIEW_REQUIRED'}
+    }
+   })
+  },
+  async apply(raw,input){
+   const q=correctionRequest(input)
+   return authorize(raw,'reconciliation','edit',async(tx,uid,p)=>{
+    planningMode(p,'actual','edit')
+    const before=await readReview(tx,q.dailyPlanId)
+    const evidence=await reviewEvidence(tx,q.dailyPlanId)
+    const after=appliedReview(q,before,evidence,uid)
+    const candidate=await validatedDuplicate(tx,q.dailyPlanId)
+    const receipt=correctionReceipt(q,before,after,candidate,uid)
+    const audit={testOnly:true,dailyPlanId:q.dailyPlanId,revision:after.revision,actorUid:uid,action:'apply',before,after}
+    verifyReview(after,audit,q.dailyPlanId)
+    verifyCorrectionReceipt(receipt,after)
+    // Archive is immutable; no overwrite, no arbitrary path, no write to canonical QC/Actual.
+    tx.create(ref('reconciliation_correction_archive',q.dailyPlanId+':'+after.revision),receipt)
+    tx.create(ref('reconciliation_case_audit',q.dailyPlanId+':'+after.revision),audit)
+    tx.set(ref('reconciliation_cases',q.dailyPlanId),after)
+    tx.delete(ref('daily_reports',candidate.duplicateId))
+    return {case:after,duplicateId:candidate.duplicateId,canonicalId:candidate.canonicalId}
+   })
+  }
+ })
  if(reconciliation==='review')return Object.freeze({
   async inspect(raw,id){
    if(!sid(id))fail('INVALID_SUMMARY_REQUEST')
@@ -720,6 +770,7 @@ function createPlanningActualSummaryInternal(deps,reconciliation){
 export function createPlanningActualSummaryService(deps){return createPlanningActualSummaryInternal(deps,false)}
 export function createPlanningReconciliationService(deps){return createPlanningActualSummaryInternal(deps,true)}
 export function createPlanningReconciliationReviewService(deps){return createPlanningActualSummaryInternal(deps,'review')}
+export function createPlanningControlledCorrectionService(deps){return createPlanningActualSummaryInternal(deps,'correction')}
 export function createPlanningManualActualService(deps){
  const {adb}=deps,authorize=createAuthorizer(deps),source=createQcSourceReader(adb)
  const ref=(c,id)=>adb.doc(prefix+'/'+c+'/'+id),col=c=>adb.collection(prefix+'/'+c)

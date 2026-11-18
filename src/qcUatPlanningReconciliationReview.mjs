@@ -30,13 +30,14 @@ export function reviewRequest(q){
 export function verifyReview(row,audit,id){
  need(row&&audit,'REVIEW_AUDIT_REQUIRED')
  exact(row,['testOnly','dailyPlanId','revision','status','issueCode','fingerprint','proposal','reason','submittedBy','decisionBy','decisionReason','applied'])
- need(row.testOnly===true&&row.dailyPlanId===id&&sid(id)&&rev(row.revision)&&['PENDING','APPROVED','REJECTED','WITHDRAWN'].includes(row.status)&&issueCodes.includes(row.issueCode)&&hex(row.fingerprint)&&proposals.includes(row.proposal)&&reason(row.reason)&&sid(row.submittedBy)&&row.applied===false,'INVALID_REVIEW_ROW')
+ need(row.testOnly===true&&row.dailyPlanId===id&&sid(id)&&rev(row.revision)&&['PENDING','APPROVED','REJECTED','WITHDRAWN','APPLIED'].includes(row.status)&&issueCodes.includes(row.issueCode)&&hex(row.fingerprint)&&proposals.includes(row.proposal)&&reason(row.reason)&&sid(row.submittedBy)&&row.applied===(row.status==='APPLIED'),'INVALID_REVIEW_ROW')
  if(row.status==='PENDING')need(row.decisionBy===null&&row.decisionReason===null,'INVALID_REVIEW_ROW')
  else need(sid(row.decisionBy)&&reason(row.decisionReason)&&(row.status==='WITHDRAWN'?row.decisionBy===row.submittedBy:row.decisionBy!==row.submittedBy),'INVALID_REVIEW_ROW')
- const action={PENDING:'submit',APPROVED:'approve',REJECTED:'reject',WITHDRAWN:'withdraw'}[row.status]
+ const action={PENDING:'submit',APPROVED:'approve',REJECTED:'reject',WITHDRAWN:'withdraw',APPLIED:'apply'}[row.status]
  exact(audit,['testOnly','dailyPlanId','revision','actorUid','action','before','after'])
  need(audit.testOnly===true&&audit.dailyPlanId===id&&audit.revision===row.revision&&audit.action===action&&audit.actorUid===(row.decisionBy??row.submittedBy)&&equalSprayValue(audit.after,row),'REVIEW_AUDIT_REQUIRED')
  need(row.revision===0?audit.before===null:audit.before?.revision===row.revision-1&&audit.before.dailyPlanId===id,'REVIEW_AUDIT_REQUIRED')
+ if(row.status==='APPLIED')need(audit.before?.status==='APPROVED'&&audit.before.applied===false&&equalSprayValue({...audit.before,revision:row.revision,status:'APPLIED',applied:true},row),'REVIEW_AUDIT_REQUIRED')
  return row
 }
 export function nextReview(input,prior,evidence,uid){
