@@ -9,6 +9,7 @@ import {dailyGroupCreate} from '../../src/qcUatDailyGroupContract.mjs'
 import {activityComponents,monthlySnapshotRequest,monthlySnapshot,dailySnapshot,validateGroupResources,aggregateGroupMaterials,materialTotals,readMonthlySnapshot,readGroupSnapshot,reviseDailySnapshot} from '../../src/qcUatPlanningMasterSnapshot.mjs'
 import {fertilizerCommitRequest,preparePlanningFertilizer,historicalFertilizerSource,verifyFertilizerPair} from '../../src/qcUatPlanningFertilizerCommit.mjs'
 import {sprayCommitRequest,preparePlanningSpray,historicalSpraySource,equalSprayValue} from '../../src/qcUatPlanningSprayCommit.mjs'
+import {legacyMappingRequest,validateLegacyLink,assessLegacyActual} from '../../src/qcUatPlanningLegacyMapping.mjs'
 import {correctionRequest,duplicateCandidate,appliedReview,correctionReceipt,verifyCorrectionReceipt} from '../../src/qcUatPlanningControlledCorrection.mjs'
 import {issueCodes,evidenceFingerprint,reviewRequest,verifyReview,nextReview} from '../../src/qcUatPlanningReconciliationReview.mjs'
 import {manualActualId,manualRequest,nextManualActual,verifyManualActual,manualProjection} from '../../src/qcUatPlanningManualActual.mjs'
@@ -794,6 +795,36 @@ export function createPlanningManualActualService(deps){
     tx.set(ref('daily_reports',id),next)
     tx.create(ref('manual_actual_audit',id+':'+next.revision),{testOnly:true,id,revision:next.revision,actorUid:uid,action:q.action,before,after:next})
     return next
+   })
+  }
+ })
+}
+
+// Reads only pre-staged synthetic legacy rows and explicit crosswalks in the isolated demo.
+// No export, import, repair or live database access.
+export function createPlanningLegacyMappingService(deps){
+ const {adb}=deps,authorize=createAuthorizer(deps),source=createQcSourceReader(adb)
+ const ref=(c,id)=>adb.doc(prefix+'/'+c+'/'+id),col=c=>adb.collection(prefix+'/'+c)
+ return Object.freeze({
+  async dryRun(raw,input){
+   const q=legacyMappingRequest(input)
+   return authorize(raw,'reconciliation','view',async(tx,uid)=>{
+    const dp=(await tx.get(ref('daily_plans',q.dailyPlanId))).data()
+    if(!dp)fail('MISSING_DAILY_PLAN')
+    currentPlanningRow('daily',q.dailyPlanId,dp)
+    const trusted=await source(tx,{dailyPlanId:dp.id,expectedDailyRevision:q.expectedDailyRevision,formType:dp.formType,date:dp.date,shift:dp.shift,foreman:dp.foreman})
+    const link=(await tx.get(ref('legacy_daily_links',q.dailyPlanId))).data()
+    if(!link)return {testOnly:true,dailyPlanId:q.dailyPlanId,status:'REVIEW_REQUIRED',code:'LEGACY_MAPPING_REQUIRED',writeAuthorized:false}
+    validateLegacyLink(link,trusted)
+    const reverse=await tx.get(col('legacy_daily_links').where('legacyDailyPlanId','==',link.legacyDailyPlanId).limit(2))
+    if(reverse.size!==1||reverse.docs[0].id!==q.dailyPlanId)fail('LEGACY_MAPPING_AMBIGUOUS')
+    const [legacy,qcs,actuals]=await Promise.all([
+     tx.get(col('legacy_actual_staging').where('dailyPlanId','==',link.legacyDailyPlanId).limit(101)),
+     tx.get(col('qc_records').where('dailyPlanId','==',q.dailyPlanId).limit(1)),
+     tx.get(col('daily_reports').where('dailyPlanId','==',q.dailyPlanId).limit(1))
+    ])
+    if(legacy.size>100)fail('LEGACY_SCOPE_LIMIT')
+    return assessLegacyActual(trusted,link,legacy.docs.map(d=>({id:d.id,row:d.data()})),!qcs.empty||!actuals.empty,uid)
    })
   }
  })
