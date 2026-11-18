@@ -2,13 +2,15 @@
 import {keys,roles} from '../../src/qcUatRolePermissions.mjs'
 import {permissionsForIdentity} from '../../src/qcUatCustomRoles.mjs'
 import {operationalPermissions} from './uat-operational-permissions.mjs'
-import {planningRequest,nextPlanningRow,verifyMonthlyParent} from '../../src/qcUatPlanningWriteContract.mjs'
+import {planningRequest,nextPlanningRow,verifyMonthlyParent,currentPlanningRow} from '../../src/qcUatPlanningWriteContract.mjs'
 import {planningQcInput,planningQcSnapshot,planningCarryoverSnapshot} from '../../src/qcUatPlanningQcBridge.mjs'
 import {commitSyntheticQc} from '../../src/qcUatQcLifecycleContract.mjs'
 import {dailyGroupCreate} from '../../src/qcUatDailyGroupContract.mjs'
 import {activityComponents,monthlySnapshotRequest,monthlySnapshot,dailySnapshot,validateGroupResources,aggregateGroupMaterials,materialTotals,readMonthlySnapshot,readGroupSnapshot,reviseDailySnapshot} from '../../src/qcUatPlanningMasterSnapshot.mjs'
 import {fertilizerCommitRequest,preparePlanningFertilizer,historicalFertilizerSource,verifyFertilizerPair} from '../../src/qcUatPlanningFertilizerCommit.mjs'
 import {sprayCommitRequest,preparePlanningSpray,historicalSpraySource,equalSprayValue} from '../../src/qcUatPlanningSprayCommit.mjs'
+import {planningWeek} from '../../src/qcUatPlanningProgressContract.mjs'
+import {summaryRequest,actualProjection,summarizeActualPlan} from '../../src/qcUatPlanningActualSummary.mjs'
 import {qcSourceRequest,projectQcSource} from '../../src/qcUatPlanningQcSource.mjs'
 import {groupHeaderIds,validateGroupState,groupMutationRequest,nextDailyGroup,groupReorderRequest,nextGroupOrder} from '../../src/qcUatDailyGroupLifecycle.mjs'
 
@@ -527,6 +529,98 @@ export function createPlanningFertilizerCommitService(deps){
     tx.create(ref('qc_fertilizer_full_audit',id+':'+rev),next.detail)
     return {record:next.record,actual:next.actual,detail:next.detail}
    },true)
+  }
+ })
+}
+
+// Independent Actual and Summary read-only gates, enriched source only. No raw QC form exposure.
+export function createPlanningActualSummaryService(deps){
+ const {adb}=deps,authorize=createAuthorizer(deps),{state,frozenState}=createGroupStateReader(adb)
+ const ref=(c,id)=>adb.doc(prefix+'/'+c+'/'+id),col=c=>adb.collection(prefix+'/'+c)
+ const read=async(tx,c,id)=>(await tx.get(ref(c,id))).data()??null
+ async function query(tx,c,k,id,max=100){
+  const s=await tx.get(col(c).where(k,'==',id).limit(max+1))
+  if(s.size>max)fail('SUMMARY_SCOPE_LIMIT')
+  return s.docs.map(x=>({id:x.id,row:x.data()}))
+ }
+ async function loadDaily(tx,id){
+  const d=await read(tx,'daily_plans',id)
+  if(!d)fail('MISSING_DAILY_PLAN')
+  currentPlanningRow('daily',id,d)
+  const member=await read(tx,'daily_group_members',id)
+  if(member?.testOnly!==true||member.dailyPlanId!==id||!sid(member.workGroupId))fail('ENRICHED_SOURCE_REQUIRED')
+  const {header,rows}=await state(tx,member.workGroupId)
+  const i=rows.findIndex(r=>r.id===id)
+  if(i<0)fail('INVALID_GROUP_MEMBERS')
+  const {groupSnapshot,snapshots,sources}=await frozenState(tx,header,rows)
+  const [qcs,actuals]=await Promise.all([query(tx,'qc_records','dailyPlanId',id),query(tx,'daily_reports','dailyPlanId',id)])
+  const parent=d.monthlyPlanLineId?await read(tx,'monthly_plans',d.monthlyPlanLineId):null
+  if(d.status==='cancelled'&&(qcs.length||actuals.length))fail('CANCELLED_PLAN_HAS_ACTUAL')
+  const seenActual=new Set(),projected=[]
+  for(const {id:qid,row:q} of qcs){
+   if(!sid(qid)||q.id!==qid||q.testOnly!==true||q.formType!==d.formType||!sid(q.ownerUid)||!sid(q.clientRevision)||!sid(q.foreman))fail('INVALID_ACTUAL_PAIR')
+   const isSpray=d.formType==='spray',fullCol=isSpray?'qc_spray_full':'qc_fertilizer_full',fullAuditCol=fullCol+'_audit'
+   const [detail,fullAudit,audit]=await Promise.all([read(tx,fullCol,qid),read(tx,fullAuditCol,qid+':'+q.clientRevision),read(tx,'qc_operational_audit',qid+':'+q.clientRevision)])
+   if(!detail||!fullAudit||!audit)fail('ACTUAL_RECONCILIATION_REQUIRED')
+   const s=detail.source
+   if(!s||s.executionForemanId!==q.foreman||s.executionShift!==q.shift)fail('INVALID_ACTUAL_PAIR')
+   // Historical names/products are validated from immutable snapshot, not today's active masters.
+   const current=projectQcSource({dailyPlanId:id,expectedDailyRevision:d.revision,formType:d.formType,date:q.date,shift:q.shift,foreman:q.foreman},d,snapshots[i],parent,sources[i],header,groupSnapshot,{testOnly:true,id:q.foreman,active:true,name:s.executionForemanName})
+   const trusted=isSpray?historicalSpraySource(current,s):historicalFertilizerSource(current,s)
+   const aid='qcactual_'+qid
+   const stored=await read(tx,'daily_reports',aid)
+   if(stored){
+    const hit=actuals.find(a=>a.id===aid)
+    if(!hit||!equalSprayValue(hit.row,stored))fail('INVALID_ACTUAL_PAIR')
+    seenActual.add(aid)
+   }
+   if(isSpray){
+    if(!equalSprayValue(detail,fullAudit)||q.operationalSaveId!==detail.jobId||q.clientRevision!==detail.clientRevision||q.plannedDailyArea100!==d.area100)fail('INVALID_ACTUAL_PAIR')
+    const prior=preparePlanningSpray({record:detail.form,baseRevision:null,jobId:detail.jobId,uploaderUid:q.ownerUid,expectedDailyRevision:trusted.dailyRevision,foremanId:q.foreman},trusted,q.ownerUid)
+    if(!equalSprayValue(detail,prior.detail))fail('INVALID_ACTUAL_PAIR')
+    const r=prior.record,snapshot={testOnly:true,dailyPlanId:r.dailyPlanId,monthlyPlanLineId:r.monthlyPlanLineId,pid:r.pid,date:r.date,shift:r.shift,foreman:r.foreman,formType:'spray',area100:d.area100}
+    const noWrite=()=>fail('SUMMARY_WRITE_FORBIDDEN')
+    await commitSyntheticQc(prior.job,{currentUid:async()=>q.ownerUid,transaction:fn=>fn({readQc:async()=>q,readActual:async()=>stored,readAudit:async()=>audit,readDaily:async()=>snapshot,writeQc:noWrite,writeActual:noWrite,writeAudit:noWrite})})
+   }else verifyFertilizerPair(q,stored,detail,audit,fullAudit,trusted,q.ownerUid)
+   if(stored)projected.push(actualProjection(stored,detail))
+  }
+  if(seenActual.size!==actuals.length)fail('ACTUAL_RECONCILIATION_REQUIRED')
+  return {d,snapshot:snapshots[i],actuals:projected,qcIds:qcs.map(x=>x.id),draftCount:qcs.filter(x=>x.row.saveType==='draft').length}
+ }
+ function dailySummary(x){
+  const {d,snapshot:s,actuals,draftCount}=x
+  return {id:d.id,pid:d.pid,monthlyPlanLineId:d.monthlyPlanLineId,date:d.date,shift:d.shift,foreman:d.foreman,sourceType:d.sourceType,activity:s.activity,description:s.description,selectedVarieties:s.selectedVarieties,draftCount,...summarizeActualPlan({kind:d.formType,targetArea100:d.area100,cancelled:d.status==='cancelled',materials:s.materials,actuals})}
+ }
+ return Object.freeze({
+  async readActuals(raw,id){
+   if(!sid(id))fail('INVALID_SUMMARY_REQUEST')
+   return authorize(raw,'actual','view',async tx=>{
+    const x=await loadDaily(tx,id)
+    return {dailyPlanId:id,pid:x.d.pid,kind:x.d.formType,actuals:x.actuals}
+   })
+  },
+  async readSummary(raw,input){
+   const q=summaryRequest(input)
+   return authorize(raw,'summary','view',async tx=>{
+    if(q.scope==='daily')return dailySummary(await loadDaily(tx,q.id))
+    const [mp,s]=await Promise.all([read(tx,'monthly_plans',q.id),read(tx,'monthly_plan_snapshots',q.id)])
+    if(mp?.id!==q.id)fail('MISSING_MONTHLY_SNAPSHOT')
+    const parent=readMonthlySnapshot(mp,s)
+    const linked=await query(tx,'daily_plans','monthlyPlanLineId',q.id,20)
+    const xs=[]
+    for(const {id,row} of linked){
+     currentPlanningRow('daily',id,row)
+     if(row.pid!==mp.pid||row.activityId!==mp.activityId||row.formType!==s.formType||row.sourceType!=='MONTHLY')fail('MONTHLY_PARENT_MISMATCH')
+     xs.push(await loadDaily(tx,id))
+    }
+    const all=xs.flatMap(x=>x.actuals),qcIds=xs.flatMap(x=>x.qcIds)
+    if(qcIds.length>100||all.length>100)fail('SUMMARY_SCOPE_LIMIT')
+    const [ap,qcs]=await Promise.all([query(tx,'daily_reports','monthlyPlanLineId',q.id),query(tx,'qc_records','monthlyPlanLineId',q.id)])
+    if(ap.length!==all.length||ap.some(a=>!all.some(x=>x.id===a.id))||qcs.length!==qcIds.length||qcs.some(x=>!qcIds.includes(x.id)))fail('ACTUAL_RECONCILIATION_REQUIRED')
+    const {startDate,endDate}=planningWeek(mp.monthKey,mp.week)
+    const daily=xs.map(dailySummary)
+    return {id:mp.id,pid:mp.pid,activity:s.activity,description:s.description,selectedVarieties:s.selectedVarieties,monthKey:mp.monthKey,week:mp.week,startDate,endDate,scheduledArea100:xs.filter(x=>x.d.status==='open').reduce((n,x)=>n+x.d.area100,0),outOfPeriodDailyIds:xs.filter(x=>x.d.date<startDate||x.d.date>endDate).map(x=>x.d.id),draftCount:xs.reduce((n,x)=>n+x.draftCount,0),daily,...summarizeActualPlan({kind:s.formType,targetArea100:mp.targetArea100,cancelled:mp.status==='cancelled',materials:parent.materials,actuals:all})}
+   })
   }
  })
 }
