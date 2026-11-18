@@ -30,3 +30,18 @@ export function planningQcSnapshot(input,daily,parent,uid){
  validateSyntheticReceiptRecord(r,snapshot,uid)
  return snapshot
 }
+
+// Explicit same-day shift 1 -> 2 only; source identity stays fixed.
+// The legacy lifecycle accepts one execution snapshot, so project only the execution
+// shift/foreman after validating the authoritative source DP independently.
+export function planningCarryoverSnapshot(input,daily,parent,uid){
+ const q=planningQcInput(input),r=q.record
+ need(q.uploaderUid===uid&&r.ownerUid===uid&&r.inputtedBy===uid,'QC_OWNER_ONLY')
+ need(daily,'MISSING_DAILY_PLAN')
+ currentPlanningRow('daily',r.dailyPlanId,daily)
+ need(daily.shift==='1'&&r.shift==='2'&&r.date===daily.date,'CARRYOVER_SESSION_DENIED')
+ const source=planningQcSnapshot({...q,record:{...r,shift:daily.shift,foreman:daily.foreman}},daily,parent,uid)
+ const execution={...source,shift:r.shift,foreman:r.foreman}
+ validateSyntheticReceiptRecord(r,execution,uid)
+ return execution
+}

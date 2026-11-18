@@ -7,3 +7,5 @@ Separate trusted QC factory shares the existing Planning authorizer and exact cu
 Strict same date/shift/foreman as source DP for this gate; carry-over with different executor remains separate and must use explicit source/execution mapping later. No photos, offline queue, HTTP, browser, full material/multi-PID DTO, manual AP, real Supabase, live Rules or production data. Not production parity. Dedicated existing demo project and deny-all client Rules; only trusted lab writes. No hosted deployment.
 
 Run `node scripts/test-qc-uat-planning-qc-bridge.mjs` (11 offline checks) and existing Planning role emulator config with `node scripts/test-qc-uat-planning-qc.mjs --emulator` (22 planned checks). Execution pending operator Cloud Shell. Rerun previous read/write gates after shared authorizer change. Keep hosted UAT OFF.
+
+Operator screenshots at bbd5a31 confirm 106 offline checks, typecheck, 22/22 integration and 19/19 write regression, exit 0. Read regression not directly visible; rerun explicitly. Next: [explicit carryover](qc-uat-planning-carryover.md).

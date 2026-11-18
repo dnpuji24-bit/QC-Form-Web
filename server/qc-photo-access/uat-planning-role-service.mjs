@@ -3,7 +3,7 @@ import {keys,roles} from '../../src/qcUatRolePermissions.mjs'
 import {permissionsForIdentity} from '../../src/qcUatCustomRoles.mjs'
 import {operationalPermissions} from './uat-operational-permissions.mjs'
 import {planningRequest,nextPlanningRow,verifyMonthlyParent} from '../../src/qcUatPlanningWriteContract.mjs'
-import {planningQcInput,planningQcSnapshot} from '../../src/qcUatPlanningQcBridge.mjs'
+import {planningQcInput,planningQcSnapshot,planningCarryoverSnapshot} from '../../src/qcUatPlanningQcBridge.mjs'
 import {commitSyntheticQc} from '../../src/qcUatQcLifecycleContract.mjs'
 
 export const projectId='demo-qc-uat-planning-role',host='127.0.0.1',firestorePort=9085,authPort=9899
@@ -109,7 +109,7 @@ export function createPlanningWriteService(deps){
 }
 
 // Trusted photo-free integration lab only. No HTTP/portal route, no live Rules, no Supabase.
-export function createPlanningQcService(deps){
+function createPlanningQcCommitService(deps,carryover){
  const {adb}=deps,authorize=createAuthorizer(deps)
  const ref=(collection,id)=>adb.doc(prefix+'/'+collection+'/'+id)
  return Object.freeze({
@@ -123,7 +123,7 @@ export function createPlanningQcService(deps){
     const parentId=daily?.monthlyPlanLineId
     if(parentId!==undefined&&parentId!==''&&!sid(parentId))fail('INVALID_SYNTHETIC_PLAN')
     const parent=parentId?await read('monthly_plans',parentId):null
-    const snapshot=planningQcSnapshot(q,daily,parent,uid)
+    const snapshot=(carryover?planningCarryoverSnapshot:planningQcSnapshot)(q,daily,parent,uid)
     const {expectedDailyRevision,...job}=q
     return commitSyntheticQc(job,{
      currentUid:async()=>uid,
@@ -150,3 +150,7 @@ export function createPlanningQcService(deps){
   }
  })
 }
+
+// Explicit separate entrypoints; strict own-session path remains unchanged.
+export function createPlanningQcService(deps){return createPlanningQcCommitService(deps,false)}
+export function createPlanningCarryoverService(deps){return createPlanningQcCommitService(deps,true)}
