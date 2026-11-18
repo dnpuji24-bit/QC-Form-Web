@@ -9,6 +9,7 @@ import {dailyGroupCreate} from '../../src/qcUatDailyGroupContract.mjs'
 import {activityComponents,monthlySnapshotRequest,monthlySnapshot,dailySnapshot,validateGroupResources,aggregateGroupMaterials,materialTotals,readMonthlySnapshot,readGroupSnapshot,reviseDailySnapshot} from '../../src/qcUatPlanningMasterSnapshot.mjs'
 import {fertilizerCommitRequest,preparePlanningFertilizer,historicalFertilizerSource,verifyFertilizerPair} from '../../src/qcUatPlanningFertilizerCommit.mjs'
 import {sprayCommitRequest,preparePlanningSpray,historicalSpraySource,equalSprayValue} from '../../src/qcUatPlanningSprayCommit.mjs'
+import {issueCodes,evidenceFingerprint,reviewRequest,verifyReview,nextReview} from '../../src/qcUatPlanningReconciliationReview.mjs'
 import {manualActualId,manualRequest,nextManualActual,verifyManualActual,manualProjection} from '../../src/qcUatPlanningManualActual.mjs'
 import {planningWeek} from '../../src/qcUatPlanningProgressContract.mjs'
 import {summaryRequest,actualProjection,summarizeActualPlan} from '../../src/qcUatPlanningActualSummary.mjs'
@@ -615,17 +616,71 @@ function createPlanningActualSummaryInternal(deps,reconciliation){
   const {d,snapshot:s,actuals,draftCount}=x
   return {id:d.id,pid:d.pid,monthlyPlanLineId:d.monthlyPlanLineId,date:d.date,shift:d.shift,foreman:d.foreman,sourceType:d.sourceType,activity:s.activity,description:s.description,selectedVarieties:s.selectedVarieties,draftCount,...summarizeActualPlan({kind:d.formType,targetArea100:d.area100,cancelled:d.status==='cancelled',materials:s.materials,actuals})}
  }
+ async function diagnostic(tx,id){
+  try{const x=await loadDaily(tx,id);return {dailyPlanId:id,status:'CLEAR',actualCount:x.actuals.length,draftCount:x.draftCount}}
+  catch(e){
+   if(!issueCodes.includes(e.message))throw e
+   return {dailyPlanId:id,status:'REVIEW_REQUIRED',code:e.message}
+  }
+ }
+ // Observe document versions, including missing pair/audit documents, not raw DTOs.
+ // Include all linked QC/Actual rows even if the diagnostic exits on its first issue.
+ async function reviewEvidence(tx,id){
+  const observed=new Map()
+  const track=s=>{
+   const path=s.ref.path
+   const t=s.exists?s.updateTime:null
+   if(s.exists&&(!Number.isSafeInteger(t?.seconds)||!Number.isSafeInteger(t?.nanoseconds)))fail('INVALID_REVIEW_EVIDENCE')
+   const version=t?t.seconds+':'+t.nanoseconds:null
+   if(observed.has(path)&&observed.get(path)!==version)fail('REVIEW_EVIDENCE_CHANGED')
+   observed.set(path,version)
+  }
+  const tracked={get:async refOrQuery=>{const s=await tx.get(refOrQuery);if(Array.isArray(s.docs))s.docs.forEach(track);else track(s);return s}}
+  await tracked.get(ref('daily_plans',id))
+  const [qcs,actuals]=await Promise.all([query(tracked,'qc_records','dailyPlanId',id),query(tracked,'daily_reports','dailyPlanId',id)])
+  for(const {id:qid,row:q} of qcs){
+   if(!sid(qid))continue
+   await tracked.get(ref('daily_reports','qcactual_'+qid))
+   for(const c of ['qc_spray_full','qc_fertilizer_full'])await tracked.get(ref(c,qid))
+   if(sid(q.clientRevision))for(const c of ['qc_operational_audit','qc_spray_full_audit','qc_fertilizer_full_audit'])await tracked.get(ref(c,qid+':'+q.clientRevision))
+  }
+  for(const a of actuals)if(a.id===manualActualId(id)&&Number.isSafeInteger(a.row.revision)&&a.row.revision>=0&&a.row.revision<1000000)await tracked.get(ref('manual_actual_audit',a.id+':'+a.row.revision))
+  const result=await diagnostic(tracked,id)
+  return result.status==='CLEAR'?{...result,fingerprint:null}:{...result,fingerprint:evidenceFingerprint(id,result.code,[...observed])}
+ }
+ async function readReview(tx,id){
+  const row=await read(tx,'reconciliation_cases',id)
+  if(!row)return null
+  if(!Number.isSafeInteger(row.revision)||row.revision<0||row.revision>=1000000)fail('INVALID_REVIEW_ROW')
+  return verifyReview(row,await read(tx,'reconciliation_case_audit',id+':'+row.revision),id)
+ }
+ if(reconciliation==='review')return Object.freeze({
+  async inspect(raw,id){
+   if(!sid(id))fail('INVALID_SUMMARY_REQUEST')
+   return authorize(raw,'reconciliation','view',tx=>reviewEvidence(tx,id))
+  },
+  async readCase(raw,id){
+   if(!sid(id))fail('INVALID_SUMMARY_REQUEST')
+   return authorize(raw,'reconciliation','view',tx=>readReview(tx,id))
+  },
+  async mutate(raw,input){
+   const q=reviewRequest(input)
+   return authorize(raw,'reconciliation','edit',async(tx,uid)=>{
+    const before=await readReview(tx,q.dailyPlanId)
+    const evidence=['submit','approve'].includes(q.action)?await reviewEvidence(tx,q.dailyPlanId):null
+    const after=nextReview(q,before,evidence,uid)
+    const audit={testOnly:true,dailyPlanId:q.dailyPlanId,revision:after.revision,actorUid:uid,action:q.action,before,after}
+    verifyReview(after,audit,q.dailyPlanId)
+    tx.set(ref('reconciliation_cases',q.dailyPlanId),after)
+    tx.create(ref('reconciliation_case_audit',q.dailyPlanId+':'+after.revision),audit)
+    return after
+   })
+  }
+ })
  if(reconciliation)return Object.freeze({
   async inspectDaily(raw,id){
    if(!sid(id))fail('INVALID_SUMMARY_REQUEST')
-   return authorize(raw,'reconciliation','view',async tx=>{
-    try{const x=await loadDaily(tx,id);return {dailyPlanId:id,status:'CLEAR',actualCount:x.actuals.length,draftCount:x.draftCount}}
-    catch(e){
-     const codes=['ACTUAL_RECONCILIATION_REQUIRED','MANUAL_RECONCILIATION_REQUIRED','MANUAL_ACTUAL_CONFLICT','MANUAL_SOURCE_CHANGED','INVALID_ACTUAL_PAIR','FULL_FERTILIZER_PAIR_REQUIRES_REVIEW','ENRICHED_SOURCE_REQUIRED','MISSING_DAILY_PLAN','CANCELLED_PLAN_HAS_ACTUAL']
-     if(!codes.includes(e.message))throw e
-     return {dailyPlanId:id,status:'REVIEW_REQUIRED',code:e.message}
-    }
-   })
+   return authorize(raw,'reconciliation','view',tx=>diagnostic(tx,id))
   }
  })
  return Object.freeze({
@@ -664,6 +719,7 @@ function createPlanningActualSummaryInternal(deps,reconciliation){
 
 export function createPlanningActualSummaryService(deps){return createPlanningActualSummaryInternal(deps,false)}
 export function createPlanningReconciliationService(deps){return createPlanningActualSummaryInternal(deps,true)}
+export function createPlanningReconciliationReviewService(deps){return createPlanningActualSummaryInternal(deps,'review')}
 export function createPlanningManualActualService(deps){
  const {adb}=deps,authorize=createAuthorizer(deps),source=createQcSourceReader(adb)
  const ref=(c,id)=>adb.doc(prefix+'/'+c+'/'+id),col=c=>adb.collection(prefix+'/'+c)
