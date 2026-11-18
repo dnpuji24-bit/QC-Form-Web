@@ -68,7 +68,8 @@ export function dailySnapshot(row,source,p,company,a){
   const ks=['companyCode','farm','stage','masterVariety','areaPaddock100','plantArea100','masterVarietyBreakdown','selectedVarieties','selectedVarietyDetails','selectedPlantArea100']
   // Validate frozen snapshot without substituting newly changed paddock metadata.
   pad=paddockSnapshot({testOnly:true,pid:source.pid,active:true,companyCode:source.companyCode,farm:source.farm,stage:source.stage,variety:source.masterVariety,areaPaddock100:source.areaPaddock100,plantArea100:source.plantArea100,varietyBreakdown:source.masterVarietyBreakdown},row.pid,{testOnly:true,code:source.companyCode,active:true},source.selectedVarieties)
-  need(ks.every(k=>JSON.stringify(pad[k])===JSON.stringify(source[k])),'INVALID_MONTHLY_SNAPSHOT')
+  const varietyRowsEqual=(left,right)=>Array.isArray(right)&&left.length===right.length&&left.every((v,i)=>right[i]&&Object.keys(right[i]).length===2&&right[i].variety===v.variety&&right[i].area100===v.area100)
+  need(ks.every(k=>k==='masterVarietyBreakdown'||k==='selectedVarietyDetails'?varietyRowsEqual(pad[k],source[k]):k==='selectedVarieties'?Array.isArray(source[k])&&pad[k].length===source[k].length&&pad[k].every((v,i)=>v===source[k][i]):pad[k]===source[k]),'INVALID_MONTHLY_SNAPSHOT')
   master(p,row.pid,'pid');master(company,sid(p.companyCode),'code')
   need(p.companyCode===pad.companyCode,'PADDOCK_COMPANY_CHANGED')
   componentsSnapshot=source.componentsSnapshot;activity=label(source.activity);description=label(source.description)
