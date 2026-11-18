@@ -6,6 +6,7 @@ import {planningRequest,nextPlanningRow,verifyMonthlyParent} from '../../src/qcU
 import {planningQcInput,planningQcSnapshot,planningCarryoverSnapshot} from '../../src/qcUatPlanningQcBridge.mjs'
 import {commitSyntheticQc} from '../../src/qcUatQcLifecycleContract.mjs'
 import {dailyGroupCreate} from '../../src/qcUatDailyGroupContract.mjs'
+import {activityComponents,monthlySnapshotRequest,monthlySnapshot,dailySnapshot,validateGroupResources,aggregateGroupMaterials,materialTotals} from '../../src/qcUatPlanningMasterSnapshot.mjs'
 import {groupHeaderIds,validateGroupState,groupMutationRequest,nextDailyGroup,groupReorderRequest,nextGroupOrder} from '../../src/qcUatDailyGroupLifecycle.mjs'
 
 export const projectId='demo-qc-uat-planning-role',host='127.0.0.1',firestorePort=9085,authPort=9899
@@ -160,7 +161,7 @@ export function createPlanningCarryoverService(deps){return createPlanningQcComm
 
 // Atomic create only. Keep canonical DP rows unchanged for existing QC bridge.
 // Membership documents prevent old single-row mutation API from splitting a group.
-export function createDailyGroupService(deps){
+function createDailyGroupInternal(deps,full){
  const {adb}=deps,authorize=createAuthorizer(deps)
  const ref=(c,id)=>adb.doc(prefix+'/'+c+'/'+id)
  return Object.freeze({
@@ -174,12 +175,29 @@ export function createDailyGroupService(deps){
     if(a?.testOnly!==true||a.id!==header.activityId||a.active!==true)fail('INVALID_PLANNING_MASTER')
     if(a.formType!==header.formType)fail('PLANNING_FORM_MISMATCH')
     // Every read and validation precedes any write.
+    const snapshots=[]
     for(const r of rows){
      const [daily,member,pad]=await Promise.all([tx.get(ref('daily_plans',r.id)),tx.get(ref('daily_group_members',r.id)),tx.get(ref('master_paddocks',r.pid))])
      if(daily.exists||member.exists)fail('PLAN_ALREADY_EXISTS')
      const p=pad.data()
      if(p?.testOnly!==true||p.pid!==r.pid||p.active!==true)fail('INVALID_PLANNING_MASTER')
      if(r.sourceType==='MONTHLY')verifyMonthlyParent(r,(await tx.get(ref('monthly_plans',r.monthlyPlanLineId))).data())
+     if(full){
+      if(!sid(p.companyCode))fail('INVALID_PLANNING_MASTER')
+      const company=(await tx.get(ref('master_companies',p.companyCode))).data()
+      const source=r.sourceType==='MONTHLY'?(await tx.get(ref('monthly_plan_snapshots',r.monthlyPlanLineId))).data():null
+      const snapshot=dailySnapshot(r,source,p,company,a)
+      for(const m of snapshot.materials){const material=(await tx.get(ref('master_materials',m.materialId))).data();if(material?.testOnly!==true||material.id!==m.materialId||material.active!==true||material.unit!==m.unit)fail('MATERIAL_UNIT_OR_STATUS')}
+      snapshots.push(snapshot)
+     }
+    }
+    let groupSnapshot
+    if(full){
+     const [foreman,shift]=await Promise.all([tx.get(ref('master_foremen',header.foreman)),tx.get(ref('master_shifts',header.shift))])
+     let unit=null
+     if(header.unitName){const units=await tx.get(adb.collection(prefix+'/master_units').where('name','==',header.unitName).limit(2));if(units.size!==1)fail('INVALID_MASTER_UNIT');unit=units.docs[0].data();if(unit.id!==units.docs[0].id)fail('INVALID_MASTER_UNIT')}
+     const resources=validateGroupResources(header,foreman.data(),shift.data(),unit)
+     groupSnapshot={testOnly:true,workGroupId:header.workGroupId,createdBy:uid,sourceGroupRevision:0,resources,totalMaterials:aggregateGroupMaterials(snapshots)}
     }
     tx.create(gref,header)
     tx.create(gaudit,{testOnly:true,scope:'group',id:header.workGroupId,action:'create',actorUid:uid,previousRevision:null,revision:0,before:null,after:header})
@@ -188,11 +206,17 @@ export function createDailyGroupService(deps){
      tx.create(ref('daily_group_members',r.id),{testOnly:true,dailyPlanId:r.id,workGroupId:header.workGroupId})
      tx.create(ref('planning_audit','daily:'+r.id+':0'),{testOnly:true,scope:'daily',id:r.id,action:'create',actorUid:uid,previousRevision:null,revision:0,before:null,after:r})
     }
+    if(full){
+     tx.create(ref('daily_group_snapshots',header.workGroupId),groupSnapshot)
+     for(const snapshot of snapshots)tx.create(ref('daily_plan_snapshots',snapshot.dailyPlanId),snapshot)
+     return {header,rows,groupSnapshot,snapshots}
+    }
     return {header,rows}
    })
   }
  })
 }
+export function createDailyGroupService(deps){return createDailyGroupInternal(deps,false)}
 
 // Separate lifecycle factory preserves the previously verified create-only public shape.
 export function createDailyGroupLifecycleService(deps){
@@ -223,6 +247,7 @@ export function createDailyGroupLifecycleService(deps){
    const q=groupMutationRequest(input)
    return authorize(raw,'daily','edit',async(tx,uid)=>{
     const {header,rows,members}=await state(tx,q.workGroupId)
+    if(q.action==='edit'&&(await tx.get(ref('daily_group_snapshots',q.workGroupId))).exists)fail('FULL_GROUP_EDIT_PENDING')
     const next=nextDailyGroup(q,header,rows,members,uid)
     // All member dependency and master checks precede writes.
     for(const r of rows){
@@ -268,5 +293,32 @@ export function createDailyGroupLifecycleService(deps){
     return next
    })
   }
+ })
+}
+
+// Full master-backed creation only; not mounted in production or HTTP.
+export function createPlanningMasterSnapshotService(deps){
+ const {adb}=deps,authorize=createAuthorizer(deps),groups=createDailyGroupInternal(deps,true)
+ const ref=(c,id)=>adb.doc(prefix+'/'+c+'/'+id)
+ const read=async(tx,c,id)=>(await tx.get(ref(c,id))).data()
+ return Object.freeze({
+  async createMonthly(raw,input){
+   return authorize(raw,'monthly','edit',async(tx,uid)=>{
+    const {row,selected}=monthlySnapshotRequest(input,uid)
+    const target=ref('monthly_plans',row.id)
+    const [existing,p,a]=await Promise.all([tx.get(target),read(tx,'master_paddocks',row.pid),read(tx,'master_activities',row.activityId)])
+    if(existing.exists)fail('PLAN_ALREADY_EXISTS')
+    if(!sid(p?.companyCode))fail('INVALID_PLANNING_MASTER')
+    const company=await read(tx,'master_companies',p.companyCode)
+    const components=activityComponents(a,row.activityId,a?.formType),materials=new Map()
+    for(const c of components)materials.set(c.materialId,await read(tx,'master_materials',c.materialId))
+    const snapshot=monthlySnapshot(row,p,company,a,materials,selected)
+    tx.create(target,row)
+    tx.create(ref('monthly_plan_snapshots',row.id),snapshot)
+    tx.create(ref('planning_audit','monthly:'+row.id+':0'),{testOnly:true,scope:'monthly',id:row.id,action:'create',actorUid:uid,previousRevision:null,revision:0,before:null,after:row})
+    return {row,snapshot,materials:materialTotals(snapshot.componentsSnapshot,row.targetArea100)}
+   })
+  },
+  createGroup:groups.create
  })
 }
