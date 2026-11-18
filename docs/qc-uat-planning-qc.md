@@ -1,0 +1,9 @@
+# 11D.4d.3a — Planning/QC lifecycle bridge (photo-free)
+
+Operator screenshots at 4065a63 confirm 121 offline checks (14 write, 26 expanded, 28 monthly, 15 daily, 38 QC), safety guards, typecheck and 19/19 Planning write emulator checks, exit 0. 11D.4d.2 verified within isolated scope.
+
+Separate trusted QC factory shares the existing Planning authorizer and exact current form edit permission, not MP/DP/Actual menu rights. It reads full revisioned DP and linked MP inside the same Firestore transaction; validates identity, open status, expected DP revision, parent linkage; projects only existing canonical lifecycle DP fields and reuses commitSyntheticQc and commitQcAndActual for atomic QC/Actual/audit. Requires linked DP (ADHOC/SUPPORT permitted with empty MP link). QC actor owns job, record, audit and Actual. Existing QC link immutable in this candidate. Exact replay rechecks current permissions and DP state; corrections keep Actual ID. MP period changes preserve historical DP; no target cap. Planning write dependent queries and QC DP read are in their respective transactions; race tests must confirm no cancelled or revised DP with stale QC. No independent production writers involved.
+
+Strict same date/shift/foreman as source DP for this gate; carry-over with different executor remains separate and must use explicit source/execution mapping later. No photos, offline queue, HTTP, browser, full material/multi-PID DTO, manual AP, real Supabase, live Rules or production data. Not production parity. Dedicated existing demo project and deny-all client Rules; only trusted lab writes. No hosted deployment.
+
+Run `node scripts/test-qc-uat-planning-qc-bridge.mjs` (11 offline checks) and existing Planning role emulator config with `node scripts/test-qc-uat-planning-qc.mjs --emulator` (22 planned checks). Execution pending operator Cloud Shell. Rerun previous read/write gates after shared authorizer change. Keep hosted UAT OFF.

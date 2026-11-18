@@ -3,6 +3,8 @@ import {keys,roles} from '../../src/qcUatRolePermissions.mjs'
 import {permissionsForIdentity} from '../../src/qcUatCustomRoles.mjs'
 import {operationalPermissions} from './uat-operational-permissions.mjs'
 import {planningRequest,nextPlanningRow,verifyMonthlyParent} from '../../src/qcUatPlanningWriteContract.mjs'
+import {planningQcInput,planningQcSnapshot} from '../../src/qcUatPlanningQcBridge.mjs'
+import {commitSyntheticQc} from '../../src/qcUatQcLifecycleContract.mjs'
 
 export const projectId='demo-qc-uat-planning-role',host='127.0.0.1',firestorePort=9085,authPort=9899
 const prefix='qc_uat_workspaces/cutover'
@@ -23,7 +25,7 @@ export function planningMode(permissions,scope,operation){
 function createAuthorizer({adb,authAdmin}){
  guard()
  if(authAdmin.app.options.projectId!==projectId||adb.projectId!==projectId)fail('WRONG_PROJECT')
- async function authorize(raw,scope,operation,read){
+ async function authorize(raw,scope,operation,read,internalQc=false){
   guard()
   if(typeof raw!=='string'||!raw||raw.length>16384)fail('INVALID_TOKEN')
   let token
@@ -40,7 +42,8 @@ function createAuthorizer({adb,authAdmin}){
     try{expected=permissionsForIdentity(m)}catch{fail('UAT_IDENTITY_DENIED')}
     if(Object.keys(p).length!==keys.length||keys.some(k=>!Object.hasOwn(p,k)||p[k]!==expected[k]))fail('UAT_IDENTITY_DENIED')
    }
-   const mode=planningMode(p,scope,operation)
+   const mode=internalQc ? p[scope==='spray'?'qc_spraying':'qc_fertilizer'] : planningMode(p,scope,operation)
+   if(internalQc&&(!['spray','fertilizer'].includes(scope)||operation!=='edit'||mode!=='edit'))fail('QC_PERMISSION_DENIED')
    return read?read(tx,token.uid):{scope,operation,mode}
   })
  }
@@ -101,6 +104,49 @@ export function createPlanningWriteService(deps){
     if(q.action==='create')tx.create(target,next);else tx.set(target,next)
     return next
    })
+  }
+ })
+}
+
+// Trusted photo-free integration lab only. No HTTP/portal route, no live Rules, no Supabase.
+export function createPlanningQcService(deps){
+ const {adb}=deps,authorize=createAuthorizer(deps)
+ const ref=(collection,id)=>adb.doc(prefix+'/'+collection+'/'+id)
+ return Object.freeze({
+  async commit(raw,input){
+   const q=planningQcInput(input),r=q.record
+   return authorize(raw,r.formType,'edit',async(tx,uid)=>{
+    if(q.uploaderUid!==uid||r.ownerUid!==uid||r.inputtedBy!==uid)fail('QC_OWNER_ONLY')
+    const read=async(c,id)=>(await tx.get(ref(c,id))).data()??null
+    const daily=await read('daily_plans',r.dailyPlanId)
+    // Do not build arbitrary paths from unvalidated stored data.
+    const parentId=daily?.monthlyPlanLineId
+    if(parentId!==undefined&&parentId!==''&&!sid(parentId))fail('INVALID_SYNTHETIC_PLAN')
+    const parent=parentId?await read('monthly_plans',parentId):null
+    const snapshot=planningQcSnapshot(q,daily,parent,uid)
+    const {expectedDailyRevision,...job}=q
+    return commitSyntheticQc(job,{
+     currentUid:async()=>uid,
+     transaction:fn=>fn({
+      readQc:async id=>{
+       const row=await read('qc_records',id)
+       if(row&&(row.ownerUid!==uid||row.inputtedBy!==uid))fail('QC_OWNER_ONLY')
+       if(row&&['dailyPlanId','monthlyPlanLineId','pid','date','shift','foreman'].some(k=>row[k]!==r[k]))fail('QC_PLANNING_LINK_IMMUTABLE')
+       return row
+      },
+      readActual:async id=>{
+       const row=await read('daily_reports',id)
+       if(row&&(row.ownerUid!==uid||row.dailyPlanId!==r.dailyPlanId||row.monthlyPlanLineId!==r.monthlyPlanLineId))fail('QC_ACTUAL_ID_CONFLICT')
+       return row
+      },
+      readAudit:id=>read('qc_operational_audit',id),
+      readDaily:async id=>{if(id!==snapshot.dailyPlanId)fail('UNEXPECTED_DAILY_PATH');return snapshot},
+      writeQc:(id,row)=>tx.set(ref('qc_records',id),row),
+      writeActual:(id,row)=>tx.set(ref('daily_reports',id),row),
+      writeAudit:(id,row)=>tx.create(ref('qc_operational_audit',id),row)
+     })
+    })
+   },true)
   }
  })
 }

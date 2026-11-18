@@ -6,3 +6,5 @@ Separate trusted write factory reuses exact current permission authorization in 
 
 Run offline: `node scripts/test-qc-uat-planning-write-contract.mjs`.
 Run emulator using same dedicated project/config as the read gate, but script `node scripts/test-qc-uat-planning-write.mjs --emulator`. 14 pure checks and 19 planned emulator checks; not yet executed. Keep hosted UAT OFF.
+
+Operator screenshots at 4065a63 confirm 121 offline regression checks, guards, typecheck and 19/19 Planning write emulator checks, exit 0. Next: [Planning/QC lifecycle bridge](qc-uat-planning-qc.md).
