@@ -7,6 +7,7 @@ import {planningQcInput,planningQcSnapshot,planningCarryoverSnapshot} from '../.
 import {commitSyntheticQc} from '../../src/qcUatQcLifecycleContract.mjs'
 import {dailyGroupCreate} from '../../src/qcUatDailyGroupContract.mjs'
 import {activityComponents,monthlySnapshotRequest,monthlySnapshot,dailySnapshot,validateGroupResources,aggregateGroupMaterials,materialTotals,readMonthlySnapshot,readGroupSnapshot,reviseDailySnapshot} from '../../src/qcUatPlanningMasterSnapshot.mjs'
+import {fertilizerCommitRequest,preparePlanningFertilizer,historicalFertilizerSource,verifyFertilizerPair} from '../../src/qcUatPlanningFertilizerCommit.mjs'
 import {sprayCommitRequest,preparePlanningSpray,historicalSpraySource,equalSprayValue} from '../../src/qcUatPlanningSprayCommit.mjs'
 import {qcSourceRequest,projectQcSource} from '../../src/qcUatPlanningQcSource.mjs'
 import {groupHeaderIds,validateGroupState,groupMutationRequest,nextDailyGroup,groupReorderRequest,nextGroupOrder} from '../../src/qcUatDailyGroupLifecycle.mjs'
@@ -137,6 +138,7 @@ function createPlanningQcCommitService(deps,carryover){
       readQc:async id=>{
        const row=await read('qc_records',id)
        if(await read('qc_spray_full',id)||(row&&sid(row.clientRevision)&&await read('qc_spray_full_audit',id+':'+row.clientRevision)))fail('FULL_SPRAY_COMMIT_REQUIRED')
+       if(row?.areaSemantics==='APPLICATION_HA_ONLY'||await read('qc_fertilizer_full',id)||(row&&sid(row.clientRevision)&&await read('qc_fertilizer_full_audit',id+':'+row.clientRevision)))fail('FULL_FERTILIZER_COMMIT_REQUIRED')
        if(row&&(row.ownerUid!==uid||row.inputtedBy!==uid))fail('QC_OWNER_ONLY')
        if(row&&['dailyPlanId','monthlyPlanLineId','pid','date','shift','foreman'].some(k=>row[k]!==r[k]))fail('QC_PLANNING_LINK_IMMUTABLE')
        return row
@@ -475,6 +477,55 @@ export function createPlanningSprayCommitService(deps){
     tx.set(ref('qc_spray_full',id),detail)
     tx.create(ref('qc_spray_full_audit',id+':'+r.clientRevision),detail)
     return {record:result,detail}
+   },true)
+  }
+ })
+}
+
+// Current form permission + authoritative source + trusted product mapping in one transaction.
+export function createPlanningFertilizerCommitService(deps){
+ const {adb}=deps,authorize=createAuthorizer(deps),source=createQcSourceReader(adb)
+ const ref=(c,id)=>adb.doc(prefix+'/'+c+'/'+id)
+ return Object.freeze({
+  async commit(raw,input){
+   const {id,sourceRequest:q}=fertilizerCommitRequest(input)
+   return authorize(raw,'fertilizer','edit',async(tx,uid)=>{
+    if(input.uploaderUid!==uid||input.record.ownerUid!==uid||input.record.inputtedBy!==uid)fail('QC_OWNER_ONLY')
+    const read=async(c,i)=>(await tx.get(ref(c,i))).data()??null
+    const projected=await source(tx,q)
+    const [current,old,actual,spray]=await Promise.all([read('qc_records',id),read('qc_fertilizer_full',id),read('daily_reports','qcactual_'+id),read('qc_spray_full',id)])
+    if(current&&(current.ownerUid!==uid||current.inputtedBy!==uid))fail('QC_OWNER_ONLY')
+    if(spray||Boolean(current)!==Boolean(old)||(!current&&actual)||current&&!sid(current.clientRevision))fail('FULL_FERTILIZER_PAIR_REQUIRES_REVIEW')
+    const trusted=old?historicalFertilizerSource(projected,old.source):projected
+    const rev=input.record.clientRevision
+    const [audit,fullAudit]=await Promise.all([read('qc_operational_audit',id+':'+rev),read('qc_fertilizer_full_audit',id+':'+rev)])
+    if(old){
+     const [priorAudit,priorFull]=current.clientRevision===rev?[audit,fullAudit]:await Promise.all([read('qc_operational_audit',id+':'+current.clientRevision),read('qc_fertilizer_full_audit',id+':'+current.clientRevision)])
+     verifyFertilizerPair(current,actual,old,priorAudit,priorFull,trusted,uid)
+     if(current.clientRevision===rev){
+      const next=preparePlanningFertilizer(input,trusted,old.products,uid)
+      if(!equalSprayValue(old,next.detail))fail('QC_REPLAY_PAYLOAD_MISMATCH')
+      return {record:current,actual,detail:old}
+     }
+     if(current.sessionId!==input.record.sessionId||old.form.createdAt!==input.record.createdAt)fail('QC_FERTILIZER_IDENTITY_IMMUTABLE')
+     if(current.operationalSaveId===input.jobId)fail('QC_JOB_REUSED')
+    }
+    if(current?input.baseRevision!==current.clientRevision:input.baseRevision!==null)fail('QC_REVISION_CONFLICT')
+    if(audit||fullAudit)fail('QC_REVISION_REUSED')
+    const products=[]
+    for(const material of trusted.materials){
+     const snap=await tx.get(adb.collection(prefix+'/master_fertilizer_products').where('componentId','==',material.materialId).limit(101))
+     for(const p of snap.docs){const value=p.data();if(value.productId!==p.id)fail('INVALID_FERTILIZER_PRODUCT');products.push(value)}
+     if(products.length>100)fail('INVALID_FERTILIZER_PRODUCTS')
+    }
+    const next=preparePlanningFertilizer(input,trusted,products,uid)
+    if(actual&&!next.actual)fail('QC_ACTUAL_REMOVAL_REQUIRES_REVIEW')
+    tx.set(ref('qc_records',id),next.record)
+    if(next.actual)tx.set(ref('daily_reports','qcactual_'+id),next.actual)
+    tx.set(ref('qc_fertilizer_full',id),next.detail)
+    tx.create(ref('qc_operational_audit',id+':'+rev),next.audit)
+    tx.create(ref('qc_fertilizer_full_audit',id+':'+rev),next.detail)
+    return {record:next.record,actual:next.actual,detail:next.detail}
    },true)
   }
  })
