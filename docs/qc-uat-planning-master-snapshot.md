@@ -9,3 +9,5 @@ Full MP and full DP group sidecars created atomically alongside canonical rows, 
 Run node scripts/test-qc-uat-planning-master-snapshot-contract.mjs (13 checks); dedicated existing Planning emulator config with node scripts/test-qc-uat-planning-master-snapshot.mjs --emulator (14 planned checks). Regress existing group lifecycle and create; all tests pending runtime. Hosted UAT OFF.
 
 Preflight follow-up: compare frozen variety detail fields by value, independent of Firestore map field ordering; add offline regression for reordered keys and tampered area. Runtime still pending.
+
+Operator Cloud Shell at 0a9d23c: 134 offline checks, TypeScript, 14/14 creation and 112/112 emulator regressions passed. Next: [snapshot read/edit lifecycle](qc-uat-planning-master-snapshot-lifecycle.md).

@@ -6,7 +6,7 @@ import {planningRequest,nextPlanningRow,verifyMonthlyParent} from '../../src/qcU
 import {planningQcInput,planningQcSnapshot,planningCarryoverSnapshot} from '../../src/qcUatPlanningQcBridge.mjs'
 import {commitSyntheticQc} from '../../src/qcUatQcLifecycleContract.mjs'
 import {dailyGroupCreate} from '../../src/qcUatDailyGroupContract.mjs'
-import {activityComponents,monthlySnapshotRequest,monthlySnapshot,dailySnapshot,validateGroupResources,aggregateGroupMaterials,materialTotals} from '../../src/qcUatPlanningMasterSnapshot.mjs'
+import {activityComponents,monthlySnapshotRequest,monthlySnapshot,dailySnapshot,validateGroupResources,aggregateGroupMaterials,materialTotals,readMonthlySnapshot,readGroupSnapshot,reviseDailySnapshot} from '../../src/qcUatPlanningMasterSnapshot.mjs'
 import {groupHeaderIds,validateGroupState,groupMutationRequest,nextDailyGroup,groupReorderRequest,nextGroupOrder} from '../../src/qcUatDailyGroupLifecycle.mjs'
 
 export const projectId='demo-qc-uat-planning-role',host='127.0.0.1',firestorePort=9085,authPort=9899
@@ -219,7 +219,7 @@ function createDailyGroupInternal(deps,full){
 export function createDailyGroupService(deps){return createDailyGroupInternal(deps,false)}
 
 // Separate lifecycle factory preserves the previously verified create-only public shape.
-export function createDailyGroupLifecycleService(deps){
+function createDailyGroupLifecycleInternal(deps,full){
  const {adb}=deps,authorize=createAuthorizer(deps)
  const ref=(c,id)=>adb.doc(prefix+'/'+c+'/'+id)
  const col=c=>adb.collection(prefix+'/'+c)
@@ -235,25 +235,42 @@ export function createDailyGroupLifecycleService(deps){
   validateGroupState(id,h,rows,members)
   return {header:h,rows,members}
  }
+ async function frozenState(tx,header,rows){
+  const groupSnapshot=await read(tx,'daily_group_snapshots',header.workGroupId)
+  const snapshots=await Promise.all(rows.map(r=>read(tx,'daily_plan_snapshots',r.id)))
+  const sources=await Promise.all(rows.map(async r=>{
+   if(r.sourceType!=='MONTHLY')return null
+   const [mp,s]=await Promise.all([read(tx,'monthly_plans',r.monthlyPlanLineId),read(tx,'monthly_plan_snapshots',r.monthlyPlanLineId)])
+   return readMonthlySnapshot(mp,s).snapshot
+  }))
+  readGroupSnapshot(header,rows,groupSnapshot,snapshots,sources)
+  return {groupSnapshot,snapshots,sources}
+ }
  function audit(tx,scope,id,action,uid,before,after){
   tx.create(ref('planning_audit',scope+':'+id+':'+after.revision),{testOnly:true,scope,id,action,actorUid:uid,previousRevision:before.revision,revision:after.revision,before,after})
  }
  return Object.freeze({
   async read(raw,id){
    if(!sid(id))fail('INVALID_SYNTHETIC_ID')
-   return authorize(raw,'daily','view',async tx=>{const {header,rows}=await state(tx,id);return {header,rows}})
+   return authorize(raw,'daily','view',async tx=>{const {header,rows}=await state(tx,id);if(!full)return {header,rows};const {groupSnapshot,snapshots}=await frozenState(tx,header,rows);return {header,rows,groupSnapshot,snapshots}})
   },
   async mutate(raw,input){
    const q=groupMutationRequest(input)
    return authorize(raw,'daily','edit',async(tx,uid)=>{
     const {header,rows,members}=await state(tx,q.workGroupId)
-    if(q.action==='edit'&&(await tx.get(ref('daily_group_snapshots',q.workGroupId))).exists)fail('FULL_GROUP_EDIT_PENDING')
+    if(full&&q.action!=='edit')fail('FULL_GROUP_EDIT_ONLY')
+    if(!full&&q.action==='edit'){
+     const existing=await Promise.all([tx.get(ref('daily_group_snapshots',q.workGroupId)),...rows.map(r=>tx.get(ref('daily_plan_snapshots',r.id)))])
+     if(existing.some(s=>s.exists))fail('FULL_GROUP_EDIT_PENDING')
+    }
+    const frozen=full?await frozenState(tx,header,rows):null
     const next=nextDailyGroup(q,header,rows,members,uid)
     // All member dependency and master checks precede writes.
     for(const r of rows){
      const [qc,actual]=await Promise.all([tx.get(col('qc_records').where('dailyPlanId','==',r.id).limit(1)),tx.get(col('daily_reports').where('dailyPlanId','==',r.id).limit(1))])
      if(!qc.empty||!actual.empty)fail('GROUP_HAS_DEPENDENTS')
     }
+    let nextSnapshots,nextGroupSnapshot
     if(q.action==='edit'){
      const a=await read(tx,'master_activities',next.header.activityId)
      if(a?.testOnly!==true||a.id!==next.header.activityId||a.active!==true)fail('INVALID_PLANNING_MASTER')
@@ -262,6 +279,23 @@ export function createDailyGroupLifecycleService(deps){
       const p=await read(tx,'master_paddocks',r.pid)
       if(p?.testOnly!==true||p.pid!==r.pid||p.active!==true)fail('INVALID_PLANNING_MASTER')
       if(r.sourceType==='MONTHLY')verifyMonthlyParent(r,await read(tx,'monthly_plans',r.monthlyPlanLineId))
+      if(full){
+       const s=frozen.snapshots.find(x=>x.dailyPlanId===r.id)
+       if(!sid(p.companyCode)||p.companyCode!==s.companyCode)fail('PADDOCK_COMPANY_CHANGED')
+       const company=await read(tx,'master_companies',p.companyCode)
+       if(company?.testOnly!==true||company.code!==p.companyCode||company.active!==true)fail('INVALID_PLANNING_MASTER')
+       if(a.companyScope!=='GLOBAL'&&a.companyScope!==p.companyCode)fail('ACTIVITY_COMPANY_MISMATCH')
+       for(const m of s.materials){const material=await read(tx,'master_materials',m.materialId);if(material?.testOnly!==true||material.id!==m.materialId||material.active!==true||material.unit!==m.unit)fail('MATERIAL_UNIT_OR_STATUS')}
+      }
+     }
+     if(full){
+      const h=next.header,[foreman,shift]=await Promise.all([read(tx,'master_foremen',h.foreman),read(tx,'master_shifts',h.shift)])
+      let unit=null
+      if(h.unitName){const units=await tx.get(col('master_units').where('name','==',h.unitName).limit(2));if(units.size!==1)fail('INVALID_MASTER_UNIT');unit=units.docs[0].data();if(unit.id!==units.docs[0].id)fail('INVALID_MASTER_UNIT')}
+      const resources=validateGroupResources(h,foreman,shift,unit)
+      nextSnapshots=next.rows.map((r,i)=>reviseDailySnapshot(rows[i],r,frozen.snapshots[i],frozen.sources[i]))
+      nextGroupSnapshot={...frozen.groupSnapshot,sourceGroupRevision:h.revision,resources,totalMaterials:aggregateGroupMaterials(nextSnapshots)}
+      readGroupSnapshot(h,next.rows,nextGroupSnapshot,nextSnapshots,frozen.sources)
      }
     }
     const action=q.action==='edit'?'update':'cancel'
@@ -270,6 +304,15 @@ export function createDailyGroupLifecycleService(deps){
     for(let i=0;i<rows.length;i++){
      audit(tx,'daily',rows[i].id,action,uid,rows[i],next.rows[i])
      tx.set(ref('daily_plans',rows[i].id),next.rows[i])
+    }
+    if(full){
+     tx.set(ref('daily_group_snapshots',header.workGroupId),nextGroupSnapshot)
+     tx.create(ref('planning_audit','group_snapshot:'+header.workGroupId+':'+next.header.revision),{testOnly:true,scope:'group_snapshot',id:header.workGroupId,action:'update',actorUid:uid,previousRevision:frozen.groupSnapshot.sourceGroupRevision,revision:next.header.revision,before:frozen.groupSnapshot,after:nextGroupSnapshot})
+     for(let i=0;i<rows.length;i++){
+      tx.set(ref('daily_plan_snapshots',rows[i].id),nextSnapshots[i])
+      tx.create(ref('planning_audit','daily_snapshot:'+rows[i].id+':'+next.rows[i].revision),{testOnly:true,scope:'daily_snapshot',id:rows[i].id,action:'update',actorUid:uid,previousRevision:frozen.snapshots[i].sourceDailyRevision,revision:next.rows[i].revision,before:frozen.snapshots[i],after:nextSnapshots[i]})
+     }
+     return {...next,groupSnapshot:nextGroupSnapshot,snapshots:nextSnapshots}
     }
     return next
    })
@@ -296,6 +339,8 @@ export function createDailyGroupLifecycleService(deps){
  })
 }
 
+export function createDailyGroupLifecycleService(deps){return createDailyGroupLifecycleInternal(deps,false)}
+
 // Full master-backed creation only; not mounted in production or HTTP.
 export function createPlanningMasterSnapshotService(deps){
  const {adb}=deps,authorize=createAuthorizer(deps),groups=createDailyGroupInternal(deps,true)
@@ -320,5 +365,24 @@ export function createPlanningMasterSnapshotService(deps){
    })
   },
   createGroup:groups.create
+ })
+}
+
+// Full snapshot read/edit gate. Legacy cancel/reorder remain separate.
+export function createPlanningMasterSnapshotLifecycleService(deps){
+ const {adb}=deps,authorize=createAuthorizer(deps),groups=createDailyGroupLifecycleInternal(deps,true)
+ const ref=(c,id)=>adb.doc(prefix+'/'+c+'/'+id)
+ return Object.freeze({
+  async readMonthly(raw,id){
+   if(!sid(id))fail('INVALID_SYNTHETIC_ID')
+   return authorize(raw,'monthly','view',async tx=>{
+    const [mp,s]=await Promise.all([tx.get(ref('monthly_plans',id)),tx.get(ref('monthly_plan_snapshots',id))])
+    const row=mp.data()
+    if(row?.id!==id)fail('MISSING_MONTHLY_SNAPSHOT')
+    return readMonthlySnapshot(row,s.data())
+   })
+  },
+  readGroup:groups.read,
+  editGroup:groups.mutate
  })
 }

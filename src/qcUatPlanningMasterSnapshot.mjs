@@ -98,3 +98,58 @@ export function aggregateGroupMaterials(rows){
  }
  return [...totals.values()]
 }
+
+ // Compare canonical maps without relying on Firestore field ordering.
+function same(a,b){
+ if(a===b)return true
+ if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false
+ const ks=Object.keys(a)
+ return ks.length===Object.keys(b).length&&ks.every(k=>Object.hasOwn(b,k)&&same(a[k],b[k]))
+}
+const padKeys=['companyCode','farm','stage','masterVariety','areaPaddock100','plantArea100','masterVarietyBreakdown','selectedVarieties','selectedVarietyDetails','selectedPlantArea100']
+function frozenPad(s,pid){
+ const p=paddockSnapshot({testOnly:true,pid,active:true,companyCode:s.companyCode,farm:s.farm,stage:s.stage,variety:s.masterVariety,areaPaddock100:s.areaPaddock100,plantArea100:s.plantArea100,varietyBreakdown:s.masterVarietyBreakdown},pid,{testOnly:true,code:s.companyCode,active:true},s.selectedVarieties)
+ need(padKeys.every(k=>same(p[k],s[k])),'INVALID_FROZEN_PADDOCK')
+ return p
+}
+export function readMonthlySnapshot(row,s){
+ need(row&&s,'MISSING_MONTHLY_SNAPSHOT')
+ currentPlanningRow('monthly',row.id,row)
+ exact(s,['testOnly','planLineId','pid','activityId','formType','activity','description','createdBy',...padKeys,'componentsSnapshot'])
+ need(s.testOnly===true&&s.planLineId===row.id&&s.pid===row.pid&&s.activityId===row.activityId&&s.createdBy===row.createdBy&&['spray','fertilizer'].includes(s.formType),'INVALID_MONTHLY_SNAPSHOT')
+ label(s.activity);label(s.description);frozenPad(s,row.pid)
+ return {row,snapshot:s,materials:materialTotals(s.componentsSnapshot,row.targetArea100)}
+}
+export function readDailySnapshot(row,s,source){
+ need(row&&s,'MISSING_DAILY_SNAPSHOT')
+ currentPlanningRow('daily',row.id,row)
+ exact(s,['testOnly','dailyPlanId','pid','monthlyPlanLineId','sourceType','activityId','formType','activity','description','area100','sourceDailyRevision','createdBy',...padKeys,'componentsSnapshot','materials'])
+ const expectedRevision=row.status==='cancelled'?row.revision-1:row.revision
+ need(s.testOnly===true&&s.dailyPlanId===row.id&&s.sourceDailyRevision===expectedRevision&&['pid','monthlyPlanLineId','sourceType','activityId','formType','area100','createdBy'].every(k=>s[k]===row[k]),'INVALID_DAILY_SNAPSHOT')
+ label(s.activity);label(s.description);frozenPad(s,row.pid)
+ need(same(s.materials,materialTotals(s.componentsSnapshot,row.area100)),'INVALID_DAILY_MATERIAL_TOTAL')
+ if(row.sourceType==='MONTHLY'){
+  need(source&&source.planLineId===row.monthlyPlanLineId&&source.pid===row.pid&&source.activityId===row.activityId&&source.formType===row.formType,'MISSING_MONTHLY_SNAPSHOT')
+  need([...padKeys,'activity','description','componentsSnapshot'].every(k=>same(s[k],source[k])),'FROZEN_SOURCE_MISMATCH')
+ }else need(source==null&&s.componentsSnapshot.length===0,'UNEXPECTED_MONTHLY_SNAPSHOT')
+ return s
+}
+export function readGroupSnapshot(header,rows,s,snapshots,sources){
+ need(s,'MISSING_GROUP_SNAPSHOT')
+ exact(s,['testOnly','workGroupId','createdBy','sourceGroupRevision','resources','totalMaterials'])
+ need(s.testOnly===true&&s.workGroupId===header.workGroupId&&s.createdBy===header.createdBy&&Number.isSafeInteger(s.sourceGroupRevision)&&s.sourceGroupRevision>=0&&s.sourceGroupRevision<=header.revision-(header.status==='cancelled'?1:0),'INVALID_GROUP_SNAPSHOT')
+ need(Array.isArray(snapshots)&&snapshots.length===rows.length&&Array.isArray(sources)&&sources.length===rows.length,'INVALID_GROUP_SNAPSHOT')
+ rows.forEach((r,i)=>{readDailySnapshot(r,snapshots[i],sources[i]);need(r.revision-(r.status==='cancelled'?1:0)<=s.sourceGroupRevision,'INVALID_GROUP_SNAPSHOT')})
+ const res=s.resources
+ exact(res,['foremanId','foremanName','shift','unitName','unitId','manpower','unitReady','unitStandby','unitBreakdown'])
+ need(res.foremanId===header.foreman&&['shift','unitName','manpower','unitReady','unitStandby','unitBreakdown'].every(k=>res[k]===header[k]),'INVALID_GROUP_RESOURCES')
+ label(res.foremanName);if(res.unitName)sid(res.unitId);else need(res.unitId==='','INVALID_GROUP_RESOURCES')
+ need(same(s.totalMaterials,aggregateGroupMaterials(snapshots)),'INVALID_GROUP_MATERIAL_TOTAL')
+ return {groupSnapshot:s,snapshots}
+}
+export function reviseDailySnapshot(before,next,s,source){
+ readDailySnapshot(before,s,source)
+ need(next.status==='open'&&before.status==='open'&&next.revision===before.revision+1&&['id','pid','monthlyPlanLineId','sourceType','activityId','formType','createdBy','date'].every(k=>before[k]===next[k]),'INVALID_SNAPSHOT_TRANSITION')
+ const revised={...s,area100:next.area100,sourceDailyRevision:next.revision,materials:materialTotals(s.componentsSnapshot,next.area100)}
+ return readDailySnapshot(next,revised,source)
+}
