@@ -9,6 +9,7 @@ import {dailyGroupCreate} from '../../src/qcUatDailyGroupContract.mjs'
 import {activityComponents,monthlySnapshotRequest,monthlySnapshot,dailySnapshot,validateGroupResources,aggregateGroupMaterials,materialTotals,readMonthlySnapshot,readGroupSnapshot,reviseDailySnapshot} from '../../src/qcUatPlanningMasterSnapshot.mjs'
 import {fertilizerCommitRequest,preparePlanningFertilizer,historicalFertilizerSource,verifyFertilizerPair} from '../../src/qcUatPlanningFertilizerCommit.mjs'
 import {sprayCommitRequest,preparePlanningSpray,historicalSpraySource,equalSprayValue} from '../../src/qcUatPlanningSprayCommit.mjs'
+import {manualActualId,manualRequest,nextManualActual,verifyManualActual,manualProjection} from '../../src/qcUatPlanningManualActual.mjs'
 import {planningWeek} from '../../src/qcUatPlanningProgressContract.mjs'
 import {summaryRequest,actualProjection,summarizeActualPlan} from '../../src/qcUatPlanningActualSummary.mjs'
 import {qcSourceRequest,projectQcSource} from '../../src/qcUatPlanningQcSource.mjs'
@@ -17,7 +18,7 @@ import {groupHeaderIds,validateGroupState,groupMutationRequest,nextDailyGroup,gr
 export const projectId='demo-qc-uat-planning-role',host='127.0.0.1',firestorePort=9085,authPort=9899
 const prefix='qc_uat_workspaces/cutover'
 const sid=v=>typeof v==='string'&&/^uat-[a-z0-9-]{1,60}$/.test(v)
-const scopes=Object.freeze({monthly:'data_plan_monthly',daily:'data_plan_daily',actual:'data_plan_actual',summary:'data_plan_summary'})
+const scopes=Object.freeze({monthly:'data_plan_monthly',daily:'data_plan_daily',actual:'data_plan_actual',summary:'data_plan_summary',reconciliation:'data_plan_reconciliation'})
 const collections=Object.freeze({monthly:'monthly_plans',daily:'daily_plans'})
 const fail=code=>{throw Error(code)}
 export function guard(e=process.env){
@@ -118,6 +119,16 @@ export function createPlanningWriteService(deps){
 }
 
 // Trusted photo-free integration lab only. No HTTP/portal route, no live Rules, no Supabase.
+// A fixed per-DP record serializes manual versus QC writes in the same transaction.
+async function assertNoActiveManual(tx,adb,id){
+ const doc=await tx.get(adb.doc(prefix+'/daily_reports/'+manualActualId(id)))
+ if(!doc.exists)return
+ const r=doc.data()
+ if(r?.testOnly!==true||r.sourceOrigin!=='MANUAL'||r.dailyPlanId!==id||r.actualReportId!==doc.id||r.status!=='cancelled'||!Number.isSafeInteger(r.revision)||r.revision<1)fail('MANUAL_ACTUAL_CONFLICT')
+ const audit=(await tx.get(adb.doc(prefix+'/manual_actual_audit/'+doc.id+':'+r.revision))).data()
+ if(audit?.action!=='cancel'||!equalSprayValue(audit.after,r))fail('MANUAL_ACTUAL_CONFLICT')
+}
+
 function createPlanningQcCommitService(deps,carryover){
  const {adb}=deps,authorize=createAuthorizer(deps)
  const ref=(collection,id)=>adb.doc(prefix+'/'+collection+'/'+id)
@@ -133,6 +144,7 @@ function createPlanningQcCommitService(deps,carryover){
     if(parentId!==undefined&&parentId!==''&&!sid(parentId))fail('INVALID_SYNTHETIC_PLAN')
     const parent=parentId?await read('monthly_plans',parentId):null
     const snapshot=(carryover?planningCarryoverSnapshot:planningQcSnapshot)(q,daily,parent,uid)
+    await assertNoActiveManual(tx,adb,r.dailyPlanId)
     const {expectedDailyRevision,...job}=q
     return commitSyntheticQc(job,{
      currentUid:async()=>uid,
@@ -441,6 +453,7 @@ export function createPlanningSprayCommitService(deps){
     if(input.uploaderUid!==uid||input.record.ownerUid!==uid||input.record.inputtedBy!==uid)fail('QC_OWNER_ONLY')
     const read=async(c,i)=>(await tx.get(ref(c,i))).data()??null
     const projected=await source(tx,q)
+    await assertNoActiveManual(tx,adb,q.dailyPlanId)
     const [current,old,oldActual]=await Promise.all([read('qc_records',id),read('qc_spray_full',id),read('daily_reports','qcactual_'+id)])
     if(current&&(current.ownerUid!==uid||current.inputtedBy!==uid))fail('QC_OWNER_ONLY')
     if(Boolean(current)!==Boolean(old))fail('FULL_SPRAY_PAIR_REQUIRES_REVIEW')
@@ -495,6 +508,7 @@ export function createPlanningFertilizerCommitService(deps){
     if(input.uploaderUid!==uid||input.record.ownerUid!==uid||input.record.inputtedBy!==uid)fail('QC_OWNER_ONLY')
     const read=async(c,i)=>(await tx.get(ref(c,i))).data()??null
     const projected=await source(tx,q)
+    await assertNoActiveManual(tx,adb,q.dailyPlanId)
     const [current,old,actual,spray]=await Promise.all([read('qc_records',id),read('qc_fertilizer_full',id),read('daily_reports','qcactual_'+id),read('qc_spray_full',id)])
     if(current&&(current.ownerUid!==uid||current.inputtedBy!==uid))fail('QC_OWNER_ONLY')
     if(spray||Boolean(current)!==Boolean(old)||(!current&&actual)||current&&!sid(current.clientRevision))fail('FULL_FERTILIZER_PAIR_REQUIRES_REVIEW')
@@ -534,7 +548,7 @@ export function createPlanningFertilizerCommitService(deps){
 }
 
 // Independent Actual and Summary read-only gates, enriched source only. No raw QC form exposure.
-export function createPlanningActualSummaryService(deps){
+function createPlanningActualSummaryInternal(deps,reconciliation){
  const {adb}=deps,authorize=createAuthorizer(deps),{state,frozenState}=createGroupStateReader(adb)
  const ref=(c,id)=>adb.doc(prefix+'/'+c+'/'+id),col=c=>adb.collection(prefix+'/'+c)
  const read=async(tx,c,id)=>(await tx.get(ref(c,id))).data()??null
@@ -557,6 +571,16 @@ export function createPlanningActualSummaryService(deps){
   const parent=d.monthlyPlanLineId?await read(tx,'monthly_plans',d.monthlyPlanLineId):null
   if(d.status==='cancelled'&&(qcs.length||actuals.length))fail('CANCELLED_PLAN_HAS_ACTUAL')
   const seenActual=new Set(),projected=[]
+  const manual=actuals.find(a=>a.id===manualActualId(id))
+  if(manual){
+   const r=manual.row
+   if(!r.source||!Number.isSafeInteger(r.revision)||r.revision<0||r.revision>=1000000)fail('MANUAL_RECONCILIATION_REQUIRED')
+   const current=projectQcSource({dailyPlanId:id,expectedDailyRevision:d.revision,formType:d.formType,date:d.date,shift:d.shift,foreman:d.foreman},d,snapshots[i],parent,sources[i],header,groupSnapshot,{testOnly:true,id:d.foreman,active:true,name:r.source.executionForemanName})
+   const audit=await read(tx,'manual_actual_audit',manual.id+':'+r.revision)
+   verifyManualActual(r,current,audit)
+   seenActual.add(manual.id)
+   if(r.status==='active'){if(qcs.length||actuals.length!==1)fail('MANUAL_ACTUAL_CONFLICT');projected.push(manualProjection(r))}
+  }
   for(const {id:qid,row:q} of qcs){
    if(!sid(qid)||q.id!==qid||q.testOnly!==true||q.formType!==d.formType||!sid(q.ownerUid)||!sid(q.clientRevision)||!sid(q.foreman))fail('INVALID_ACTUAL_PAIR')
    const isSpray=d.formType==='spray',fullCol=isSpray?'qc_spray_full':'qc_fertilizer_full',fullAuditCol=fullCol+'_audit'
@@ -585,12 +609,25 @@ export function createPlanningActualSummaryService(deps){
    if(stored)projected.push(actualProjection(stored,detail))
   }
   if(seenActual.size!==actuals.length)fail('ACTUAL_RECONCILIATION_REQUIRED')
-  return {d,snapshot:snapshots[i],actuals:projected,qcIds:qcs.map(x=>x.id),draftCount:qcs.filter(x=>x.row.saveType==='draft').length}
+  return {d,snapshot:snapshots[i],actuals:projected,actualIds:[...seenActual],qcIds:qcs.map(x=>x.id),draftCount:qcs.filter(x=>x.row.saveType==='draft').length}
  }
  function dailySummary(x){
   const {d,snapshot:s,actuals,draftCount}=x
   return {id:d.id,pid:d.pid,monthlyPlanLineId:d.monthlyPlanLineId,date:d.date,shift:d.shift,foreman:d.foreman,sourceType:d.sourceType,activity:s.activity,description:s.description,selectedVarieties:s.selectedVarieties,draftCount,...summarizeActualPlan({kind:d.formType,targetArea100:d.area100,cancelled:d.status==='cancelled',materials:s.materials,actuals})}
  }
+ if(reconciliation)return Object.freeze({
+  async inspectDaily(raw,id){
+   if(!sid(id))fail('INVALID_SUMMARY_REQUEST')
+   return authorize(raw,'reconciliation','view',async tx=>{
+    try{const x=await loadDaily(tx,id);return {dailyPlanId:id,status:'CLEAR',actualCount:x.actuals.length,draftCount:x.draftCount}}
+    catch(e){
+     const codes=['ACTUAL_RECONCILIATION_REQUIRED','MANUAL_RECONCILIATION_REQUIRED','MANUAL_ACTUAL_CONFLICT','MANUAL_SOURCE_CHANGED','INVALID_ACTUAL_PAIR','FULL_FERTILIZER_PAIR_REQUIRES_REVIEW','ENRICHED_SOURCE_REQUIRED','MISSING_DAILY_PLAN','CANCELLED_PLAN_HAS_ACTUAL']
+     if(!codes.includes(e.message))throw e
+     return {dailyPlanId:id,status:'REVIEW_REQUIRED',code:e.message}
+    }
+   })
+  }
+ })
  return Object.freeze({
   async readActuals(raw,id){
    if(!sid(id))fail('INVALID_SUMMARY_REQUEST')
@@ -613,13 +650,43 @@ export function createPlanningActualSummaryService(deps){
      if(row.pid!==mp.pid||row.activityId!==mp.activityId||row.formType!==s.formType||row.sourceType!=='MONTHLY')fail('MONTHLY_PARENT_MISMATCH')
      xs.push(await loadDaily(tx,id))
     }
-    const all=xs.flatMap(x=>x.actuals),qcIds=xs.flatMap(x=>x.qcIds)
-    if(qcIds.length>100||all.length>100)fail('SUMMARY_SCOPE_LIMIT')
+    const all=xs.flatMap(x=>x.actuals),actualIds=xs.flatMap(x=>x.actualIds),qcIds=xs.flatMap(x=>x.qcIds)
+    if(qcIds.length>100||actualIds.length>100)fail('SUMMARY_SCOPE_LIMIT')
     const [ap,qcs]=await Promise.all([query(tx,'daily_reports','monthlyPlanLineId',q.id),query(tx,'qc_records','monthlyPlanLineId',q.id)])
-    if(ap.length!==all.length||ap.some(a=>!all.some(x=>x.id===a.id))||qcs.length!==qcIds.length||qcs.some(x=>!qcIds.includes(x.id)))fail('ACTUAL_RECONCILIATION_REQUIRED')
+    if(ap.length!==actualIds.length||ap.some(a=>!actualIds.includes(a.id))||qcs.length!==qcIds.length||qcs.some(x=>!qcIds.includes(x.id)))fail('ACTUAL_RECONCILIATION_REQUIRED')
     const {startDate,endDate}=planningWeek(mp.monthKey,mp.week)
     const daily=xs.map(dailySummary)
     return {id:mp.id,pid:mp.pid,activity:s.activity,description:s.description,selectedVarieties:s.selectedVarieties,monthKey:mp.monthKey,week:mp.week,startDate,endDate,scheduledArea100:xs.filter(x=>x.d.status==='open').reduce((n,x)=>n+x.d.area100,0),outOfPeriodDailyIds:xs.filter(x=>x.d.date<startDate||x.d.date>endDate).map(x=>x.d.id),draftCount:xs.reduce((n,x)=>n+x.draftCount,0),daily,...summarizeActualPlan({kind:s.formType,targetArea100:mp.targetArea100,cancelled:mp.status==='cancelled',materials:parent.materials,actuals:all})}
+   })
+  }
+ })
+}
+
+export function createPlanningActualSummaryService(deps){return createPlanningActualSummaryInternal(deps,false)}
+export function createPlanningReconciliationService(deps){return createPlanningActualSummaryInternal(deps,true)}
+export function createPlanningManualActualService(deps){
+ const {adb}=deps,authorize=createAuthorizer(deps),source=createQcSourceReader(adb)
+ const ref=(c,id)=>adb.doc(prefix+'/'+c+'/'+id),col=c=>adb.collection(prefix+'/'+c)
+ return Object.freeze({
+  async mutate(raw,input){
+   const q=manualRequest(input),id=manualActualId(q.dailyPlanId)
+   return authorize(raw,'actual','edit',async(tx,uid)=>{
+    const [dp,prior,qcs,actuals]=await Promise.all([tx.get(ref('daily_plans',q.dailyPlanId)),tx.get(ref('daily_reports',id)),tx.get(col('qc_records').where('dailyPlanId','==',q.dailyPlanId).limit(1)),tx.get(col('daily_reports').where('dailyPlanId','==',q.dailyPlanId).limit(2))])
+    if(!dp.exists)fail('MISSING_DAILY_PLAN')
+    const d=dp.data()
+    currentPlanningRow('daily',q.dailyPlanId,d)
+    if(!qcs.empty||actuals.docs.some(x=>x.id!==id))fail('MANUAL_ACTUAL_CONFLICT')
+    const trusted=await source(tx,{dailyPlanId:d.id,expectedDailyRevision:q.expectedDailyRevision,formType:d.formType,date:d.date,shift:d.shift,foreman:d.foreman})
+    const before=prior.data()??null
+    if(before){
+     if(!Number.isSafeInteger(before.revision)||before.revision<0||before.revision>=1000000)fail('MANUAL_RECONCILIATION_REQUIRED')
+     const audit=(await tx.get(ref('manual_actual_audit',id+':'+before.revision))).data()
+     verifyManualActual(before,trusted,audit)
+    }
+    const next=nextManualActual(q,trusted,before,uid)
+    tx.set(ref('daily_reports',id),next)
+    tx.create(ref('manual_actual_audit',id+':'+next.revision),{testOnly:true,id,revision:next.revision,actorUid:uid,action:q.action,before,after:next})
+    return next
    })
   }
  })
