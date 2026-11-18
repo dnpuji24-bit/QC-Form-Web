@@ -5,6 +5,7 @@ import {operationalPermissions} from './uat-operational-permissions.mjs'
 import {planningRequest,nextPlanningRow,verifyMonthlyParent} from '../../src/qcUatPlanningWriteContract.mjs'
 import {planningQcInput,planningQcSnapshot,planningCarryoverSnapshot} from '../../src/qcUatPlanningQcBridge.mjs'
 import {commitSyntheticQc} from '../../src/qcUatQcLifecycleContract.mjs'
+import {dailyGroupCreate} from '../../src/qcUatDailyGroupContract.mjs'
 
 export const projectId='demo-qc-uat-planning-role',host='127.0.0.1',firestorePort=9085,authPort=9899
 const prefix='qc_uat_workspaces/cutover'
@@ -78,6 +79,7 @@ export function createPlanningWriteService(deps){
    const q=planningRequest(scope,input)
    return authorize(raw,scope,'edit',async(tx,uid)=>{
     const target=ref(collections[scope],q.id),snap=await tx.get(target),current=snap.data()
+    if(scope==='daily'&&(await tx.get(ref('daily_group_members',q.id))).exists)fail('GROUP_MUTATION_REQUIRED')
     const next=nextPlanningRow(scope,q,current,uid)
     // Never modify linked QC/Actual. Block all daily updates/cancellations once any dependent row exists, including drafts.
     // MP period/target edits preserve immutable identity and linked history; cancel conservatively blocks any child.
@@ -154,3 +156,39 @@ function createPlanningQcCommitService(deps,carryover){
 // Explicit separate entrypoints; strict own-session path remains unchanged.
 export function createPlanningQcService(deps){return createPlanningQcCommitService(deps,false)}
 export function createPlanningCarryoverService(deps){return createPlanningQcCommitService(deps,true)}
+
+// Atomic create only. Keep canonical DP rows unchanged for existing QC bridge.
+// Membership documents prevent old single-row mutation API from splitting a group.
+export function createDailyGroupService(deps){
+ const {adb}=deps,authorize=createAuthorizer(deps)
+ const ref=(c,id)=>adb.doc(prefix+'/'+c+'/'+id)
+ return Object.freeze({
+  async create(raw,input){
+   return authorize(raw,'daily','edit',async(tx,uid)=>{
+    const {header,rows}=dailyGroupCreate(input,uid)
+    const gref=ref('daily_work_groups',header.workGroupId),gaudit=ref('planning_audit','group:'+header.workGroupId+':0')
+    const [group,activity]=await Promise.all([tx.get(gref),tx.get(ref('master_activities',header.activityId))])
+    if(group.exists)fail('GROUP_ALREADY_EXISTS')
+    const a=activity.data()
+    if(a?.testOnly!==true||a.id!==header.activityId||a.active!==true)fail('INVALID_PLANNING_MASTER')
+    if(a.formType!==header.formType)fail('PLANNING_FORM_MISMATCH')
+    // Every read and validation precedes any write.
+    for(const r of rows){
+     const [daily,member,pad]=await Promise.all([tx.get(ref('daily_plans',r.id)),tx.get(ref('daily_group_members',r.id)),tx.get(ref('master_paddocks',r.pid))])
+     if(daily.exists||member.exists)fail('PLAN_ALREADY_EXISTS')
+     const p=pad.data()
+     if(p?.testOnly!==true||p.pid!==r.pid||p.active!==true)fail('INVALID_PLANNING_MASTER')
+     if(r.sourceType==='MONTHLY')verifyMonthlyParent(r,(await tx.get(ref('monthly_plans',r.monthlyPlanLineId))).data())
+    }
+    tx.create(gref,header)
+    tx.create(gaudit,{testOnly:true,scope:'group',id:header.workGroupId,action:'create',actorUid:uid,previousRevision:null,revision:0,before:null,after:header})
+    for(const r of rows){
+     tx.create(ref('daily_plans',r.id),r)
+     tx.create(ref('daily_group_members',r.id),{testOnly:true,dailyPlanId:r.id,workGroupId:header.workGroupId})
+     tx.create(ref('planning_audit','daily:'+r.id+':0'),{testOnly:true,scope:'daily',id:r.id,action:'create',actorUid:uid,previousRevision:null,revision:0,before:null,after:r})
+    }
+    return {header,rows}
+   })
+  }
+ })
+}
