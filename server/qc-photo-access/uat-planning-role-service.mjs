@@ -9,6 +9,7 @@ import {dailyGroupCreate} from '../../src/qcUatDailyGroupContract.mjs'
 import {activityComponents,monthlySnapshotRequest,monthlySnapshot,dailySnapshot,validateGroupResources,aggregateGroupMaterials,materialTotals,readMonthlySnapshot,readGroupSnapshot,reviseDailySnapshot} from '../../src/qcUatPlanningMasterSnapshot.mjs'
 import {fertilizerCommitRequest,preparePlanningFertilizer,historicalFertilizerSource,verifyFertilizerPair} from '../../src/qcUatPlanningFertilizerCommit.mjs'
 import {sprayCommitRequest,preparePlanningSpray,historicalSpraySource,equalSprayValue} from '../../src/qcUatPlanningSprayCommit.mjs'
+import {dashboardRequest,dashboardTotals,executionTotals} from '../../src/qcUatPlanningDashboard.mjs'
 import {legacyMappingRequest,validateLegacyLink,assessLegacyActual} from '../../src/qcUatPlanningLegacyMapping.mjs'
 import {correctionRequest,duplicateCandidate,appliedReview,correctionReceipt,verifyCorrectionReceipt} from '../../src/qcUatPlanningControlledCorrection.mjs'
 import {issueCodes,evidenceFingerprint,reviewRequest,verifyReview,nextReview} from '../../src/qcUatPlanningReconciliationReview.mjs'
@@ -619,6 +620,57 @@ function createPlanningActualSummaryInternal(deps,reconciliation){
   const {d,snapshot:s,actuals,draftCount}=x
   return {id:d.id,pid:d.pid,monthlyPlanLineId:d.monthlyPlanLineId,date:d.date,shift:d.shift,foreman:d.foreman,sourceType:d.sourceType,activity:s.activity,description:s.description,selectedVarieties:s.selectedVarieties,draftCount,...summarizeActualPlan({kind:d.formType,targetArea100:d.area100,cancelled:d.status==='cancelled',materials:s.materials,actuals})}
  }
+
+ async function monthlySummary(tx,id){
+    const [mp,s]=await Promise.all([read(tx,'monthly_plans',id),read(tx,'monthly_plan_snapshots',id)])
+    if(mp?.id!==id)fail('MISSING_MONTHLY_SNAPSHOT')
+    const parent=readMonthlySnapshot(mp,s)
+    const linked=await query(tx,'daily_plans','monthlyPlanLineId',id,20)
+    const xs=[]
+    for(const {id,row} of linked){
+     currentPlanningRow('daily',id,row)
+     if(row.pid!==mp.pid||row.activityId!==mp.activityId||row.formType!==s.formType||row.sourceType!=='MONTHLY')fail('MONTHLY_PARENT_MISMATCH')
+     xs.push(await loadDaily(tx,id))
+    }
+    const all=xs.flatMap(x=>x.actuals),actualIds=xs.flatMap(x=>x.actualIds),qcIds=xs.flatMap(x=>x.qcIds)
+    if(qcIds.length>100||actualIds.length>100)fail('SUMMARY_SCOPE_LIMIT')
+    const [ap,qcs]=await Promise.all([query(tx,'daily_reports','monthlyPlanLineId',id),query(tx,'qc_records','monthlyPlanLineId',id)])
+    if(ap.length!==actualIds.length||ap.some(a=>!actualIds.includes(a.id))||qcs.length!==qcIds.length||qcs.some(x=>!qcIds.includes(x.id)))fail('ACTUAL_RECONCILIATION_REQUIRED')
+    const {startDate,endDate}=planningWeek(mp.monthKey,mp.week)
+    const daily=xs.map(dailySummary)
+    return {id:mp.id,pid:mp.pid,activity:s.activity,description:s.description,selectedVarieties:s.selectedVarieties,monthKey:mp.monthKey,week:mp.week,startDate,endDate,scheduledArea100:xs.filter(x=>x.d.status==='open').reduce((n,x)=>n+x.d.area100,0),outOfPeriodDailyIds:xs.filter(x=>x.d.date<startDate||x.d.date>endDate).map(x=>x.d.id),draftCount:xs.reduce((n,x)=>n+x.draftCount,0),daily,...summarizeActualPlan({kind:s.formType,targetArea100:mp.targetArea100,cancelled:mp.status==='cancelled',materials:parent.materials,actuals:all})}
+ }
+ async function periodRows(tx,c,field,start,end,max){
+  const s=await tx.get(col(c).where(field,'>=',start).where(field,'<=',end).limit(max+1))
+  if(s.size>max)fail('DASHBOARD_SCOPE_LIMIT')
+  return s.docs.map(d=>({id:d.id,row:d.data()}))
+ }
+ if(reconciliation==='dashboard')return Object.freeze({
+  async readPeriod(raw,input){
+   const q=dashboardRequest(input)
+   return authorize(raw,'summary','view',async tx=>{
+    const ms=await query(tx,'monthly_plans','monthKey',q.monthKey,20)
+    const selected=ms.filter(({row})=>q.week==='ALL'||row.week===q.week)
+    // Validate every discovered Monthly row before filtering by its assigned week.
+    for(const {id,row} of ms)currentPlanningRow('monthly',id,row)
+    const [ds,aps,qcs]=await Promise.all([
+     periodRows(tx,'daily_plans','date',q.startDate,q.endDate,30),
+     periodRows(tx,'daily_reports','date',q.startDate,q.endDate,100),
+     periodRows(tx,'qc_records','date',q.startDate,q.endDate,100)
+    ])
+    const xs=[]
+    for(const {id,row} of ds){currentPlanningRow('daily',id,row);xs.push(await loadDaily(tx,id))}
+    const actualIds=xs.flatMap(x=>x.actualIds),qcIds=xs.flatMap(x=>x.qcIds),actuals=xs.flatMap(x=>x.actuals)
+    // No orphaned Actual or QC within selected execution dates; also catch linked rows with inconsistent dates.
+    if(actualIds.length!==aps.length||aps.some(a=>!actualIds.includes(a.id))||qcIds.length!==qcs.length||qcs.some(a=>!qcIds.includes(a.id)))fail('ACTUAL_RECONCILIATION_REQUIRED')
+    const monthly=[]
+    for(const {id} of selected)monthly.push(await monthlySummary(tx,id))
+    const daily=xs.map(dailySummary)
+    return {testOnly:true,...q,monthlyBasis:'ASSIGNED_MP_PERIOD_ALL_LINKED_ACTUAL',dailyBasis:'EXECUTION_DATE_SOURCE_DP',monthly:dashboardTotals(monthly),daily:dashboardTotals(daily),executionByForemanShift:executionTotals(actuals),outOfPeriodDailyCount:sumOutOfPeriod(monthly),readOnly:true}
+   })
+  }
+ })
+ function sumOutOfPeriod(rows){return rows.reduce((n,r)=>n+r.outOfPeriodDailyIds.length,0)}
  async function diagnostic(tx,id){
   try{const x=await loadDaily(tx,id);return {dailyPlanId:id,status:'CLEAR',actualCount:x.actuals.length,draftCount:x.draftCount}}
   catch(e){
@@ -746,29 +798,14 @@ function createPlanningActualSummaryInternal(deps,reconciliation){
    const q=summaryRequest(input)
    return authorize(raw,'summary','view',async tx=>{
     if(q.scope==='daily')return dailySummary(await loadDaily(tx,q.id))
-    const [mp,s]=await Promise.all([read(tx,'monthly_plans',q.id),read(tx,'monthly_plan_snapshots',q.id)])
-    if(mp?.id!==q.id)fail('MISSING_MONTHLY_SNAPSHOT')
-    const parent=readMonthlySnapshot(mp,s)
-    const linked=await query(tx,'daily_plans','monthlyPlanLineId',q.id,20)
-    const xs=[]
-    for(const {id,row} of linked){
-     currentPlanningRow('daily',id,row)
-     if(row.pid!==mp.pid||row.activityId!==mp.activityId||row.formType!==s.formType||row.sourceType!=='MONTHLY')fail('MONTHLY_PARENT_MISMATCH')
-     xs.push(await loadDaily(tx,id))
-    }
-    const all=xs.flatMap(x=>x.actuals),actualIds=xs.flatMap(x=>x.actualIds),qcIds=xs.flatMap(x=>x.qcIds)
-    if(qcIds.length>100||actualIds.length>100)fail('SUMMARY_SCOPE_LIMIT')
-    const [ap,qcs]=await Promise.all([query(tx,'daily_reports','monthlyPlanLineId',q.id),query(tx,'qc_records','monthlyPlanLineId',q.id)])
-    if(ap.length!==actualIds.length||ap.some(a=>!actualIds.includes(a.id))||qcs.length!==qcIds.length||qcs.some(x=>!qcIds.includes(x.id)))fail('ACTUAL_RECONCILIATION_REQUIRED')
-    const {startDate,endDate}=planningWeek(mp.monthKey,mp.week)
-    const daily=xs.map(dailySummary)
-    return {id:mp.id,pid:mp.pid,activity:s.activity,description:s.description,selectedVarieties:s.selectedVarieties,monthKey:mp.monthKey,week:mp.week,startDate,endDate,scheduledArea100:xs.filter(x=>x.d.status==='open').reduce((n,x)=>n+x.d.area100,0),outOfPeriodDailyIds:xs.filter(x=>x.d.date<startDate||x.d.date>endDate).map(x=>x.d.id),draftCount:xs.reduce((n,x)=>n+x.draftCount,0),daily,...summarizeActualPlan({kind:s.formType,targetArea100:mp.targetArea100,cancelled:mp.status==='cancelled',materials:parent.materials,actuals:all})}
+    return monthlySummary(tx,q.id)
    })
   }
  })
 }
 
 export function createPlanningActualSummaryService(deps){return createPlanningActualSummaryInternal(deps,false)}
+export function createPlanningDashboardService(deps){return createPlanningActualSummaryInternal(deps,'dashboard')}
 export function createPlanningReconciliationService(deps){return createPlanningActualSummaryInternal(deps,true)}
 export function createPlanningReconciliationReviewService(deps){return createPlanningActualSummaryInternal(deps,'review')}
 export function createPlanningControlledCorrectionService(deps){return createPlanningActualSummaryInternal(deps,'correction')}
