@@ -9,6 +9,7 @@ import {dailyGroupCreate} from '../../src/qcUatDailyGroupContract.mjs'
 import {activityComponents,monthlySnapshotRequest,monthlySnapshot,dailySnapshot,validateGroupResources,aggregateGroupMaterials,materialTotals,readMonthlySnapshot,readGroupSnapshot,reviseDailySnapshot} from '../../src/qcUatPlanningMasterSnapshot.mjs'
 import {fertilizerCommitRequest,preparePlanningFertilizer,historicalFertilizerSource,verifyFertilizerPair} from '../../src/qcUatPlanningFertilizerCommit.mjs'
 import {sprayCommitRequest,preparePlanningSpray,historicalSpraySource,equalSprayValue} from '../../src/qcUatPlanningSprayCommit.mjs'
+import {filteredDashboardRequest,filteredDashboardTotals} from '../../src/qcUatPlanningDashboardFilters.mjs'
 import {dashboardRequest,dashboardTotals,executionTotals} from '../../src/qcUatPlanningDashboard.mjs'
 import {legacyMappingRequest,validateLegacyLink,assessLegacyActual} from '../../src/qcUatPlanningLegacyMapping.mjs'
 import {correctionRequest,duplicateCandidate,appliedReview,correctionReceipt,verifyCorrectionReceipt} from '../../src/qcUatPlanningControlledCorrection.mjs'
@@ -621,7 +622,7 @@ function createPlanningActualSummaryInternal(deps,reconciliation){
   return {id:d.id,pid:d.pid,monthlyPlanLineId:d.monthlyPlanLineId,date:d.date,shift:d.shift,foreman:d.foreman,sourceType:d.sourceType,activity:s.activity,description:s.description,selectedVarieties:s.selectedVarieties,draftCount,...summarizeActualPlan({kind:d.formType,targetArea100:d.area100,cancelled:d.status==='cancelled',materials:s.materials,actuals})}
  }
 
- async function monthlySummary(tx,id){
+ async function monthlySummary(tx,id,includeOrg=false){
     const [mp,s]=await Promise.all([read(tx,'monthly_plans',id),read(tx,'monthly_plan_snapshots',id)])
     if(mp?.id!==id)fail('MISSING_MONTHLY_SNAPSHOT')
     const parent=readMonthlySnapshot(mp,s)
@@ -638,18 +639,15 @@ function createPlanningActualSummaryInternal(deps,reconciliation){
     if(ap.length!==actualIds.length||ap.some(a=>!actualIds.includes(a.id))||qcs.length!==qcIds.length||qcs.some(x=>!qcIds.includes(x.id)))fail('ACTUAL_RECONCILIATION_REQUIRED')
     const {startDate,endDate}=planningWeek(mp.monthKey,mp.week)
     const daily=xs.map(dailySummary)
-    return {id:mp.id,pid:mp.pid,activity:s.activity,description:s.description,selectedVarieties:s.selectedVarieties,monthKey:mp.monthKey,week:mp.week,startDate,endDate,scheduledArea100:xs.filter(x=>x.d.status==='open').reduce((n,x)=>n+x.d.area100,0),outOfPeriodDailyIds:xs.filter(x=>x.d.date<startDate||x.d.date>endDate).map(x=>x.d.id),draftCount:xs.reduce((n,x)=>n+x.draftCount,0),daily,...summarizeActualPlan({kind:s.formType,targetArea100:mp.targetArea100,cancelled:mp.status==='cancelled',materials:parent.materials,actuals:all})}
+    return {...(includeOrg?{companyCode:s.companyCode,farm:s.farm}:{}),id:mp.id,pid:mp.pid,activity:s.activity,description:s.description,selectedVarieties:s.selectedVarieties,monthKey:mp.monthKey,week:mp.week,startDate,endDate,scheduledArea100:xs.filter(x=>x.d.status==='open').reduce((n,x)=>n+x.d.area100,0),outOfPeriodDailyIds:xs.filter(x=>x.d.date<startDate||x.d.date>endDate).map(x=>x.d.id),draftCount:xs.reduce((n,x)=>n+x.draftCount,0),daily,...summarizeActualPlan({kind:s.formType,targetArea100:mp.targetArea100,cancelled:mp.status==='cancelled',materials:parent.materials,actuals:all})}
  }
  async function periodRows(tx,c,field,start,end,max){
   const s=await tx.get(col(c).where(field,'>=',start).where(field,'<=',end).limit(max+1))
   if(s.size>max)fail('DASHBOARD_SCOPE_LIMIT')
   return s.docs.map(d=>({id:d.id,row:d.data()}))
  }
- if(reconciliation==='dashboard')return Object.freeze({
-  async readPeriod(raw,input){
-   const q=dashboardRequest(input)
-   return authorize(raw,'summary','view',async tx=>{
-    const ms=await query(tx,'monthly_plans','monthKey',q.monthKey,20)
+ async function loadDashboardPeriod(tx,q){
+    const ms=q.annual?await periodRows(tx,'monthly_plans','monthKey',q.firstMonth,q.lastMonth,20):await query(tx,'monthly_plans','monthKey',q.monthKey??q.period,20)
     const selected=ms.filter(({row})=>q.week==='ALL'||row.week===q.week)
     // Validate every discovered Monthly row before filtering by its assigned week.
     for(const {id,row} of ms)currentPlanningRow('monthly',id,row)
@@ -664,9 +662,26 @@ function createPlanningActualSummaryInternal(deps,reconciliation){
     // No orphaned Actual or QC within selected execution dates; also catch linked rows with inconsistent dates.
     if(actualIds.length!==aps.length||aps.some(a=>!actualIds.includes(a.id))||qcIds.length!==qcs.length||qcs.some(a=>!qcIds.includes(a.id)))fail('ACTUAL_RECONCILIATION_REQUIRED')
     const monthly=[]
-    for(const {id} of selected)monthly.push(await monthlySummary(tx,id))
+    for(const {id} of selected)monthly.push(await monthlySummary(tx,id,true))
     const daily=xs.map(dailySummary)
+    return {monthly,daily,xs,actuals}
+ }
+ if(reconciliation==='dashboard')return Object.freeze({
+  async readPeriod(raw,input){
+   const q=dashboardRequest(input)
+   return authorize(raw,'summary','view',async tx=>{
+    const {monthly,daily,actuals}=await loadDashboardPeriod(tx,q)
     return {testOnly:true,...q,monthlyBasis:'ASSIGNED_MP_PERIOD_ALL_LINKED_ACTUAL',dailyBasis:'EXECUTION_DATE_SOURCE_DP',monthly:dashboardTotals(monthly),daily:dashboardTotals(daily),executionByForemanShift:executionTotals(actuals),outOfPeriodDailyCount:sumOutOfPeriod(monthly),readOnly:true}
+   })
+  }
+ })
+ if(reconciliation==='dashboardFilters')return Object.freeze({
+  async readPeriod(raw,input){
+   const q=filteredDashboardRequest(input)
+   return authorize(raw,'summary','view',async tx=>{
+    const {monthly,daily,xs}=await loadDashboardPeriod(tx,q)
+    const entries=daily.map((s,i)=>({summary:{...s,companyCode:xs[i].snapshot.companyCode,farm:xs[i].snapshot.farm},actuals:xs[i].actuals}))
+    return {testOnly:true,...q,monthlyBasis:'ASSIGNED_MP_PERIOD_ALL_LINKED_ACTUAL',dailyBasis:'EXECUTION_DATE_SOURCE_DP',...filteredDashboardTotals(q,monthly,entries),readOnly:true}
    })
   }
  })
@@ -806,6 +821,7 @@ function createPlanningActualSummaryInternal(deps,reconciliation){
 
 export function createPlanningActualSummaryService(deps){return createPlanningActualSummaryInternal(deps,false)}
 export function createPlanningDashboardService(deps){return createPlanningActualSummaryInternal(deps,'dashboard')}
+export function createPlanningFilteredDashboardService(deps){return createPlanningActualSummaryInternal(deps,'dashboardFilters')}
 export function createPlanningReconciliationService(deps){return createPlanningActualSummaryInternal(deps,true)}
 export function createPlanningReconciliationReviewService(deps){return createPlanningActualSummaryInternal(deps,'review')}
 export function createPlanningControlledCorrectionService(deps){return createPlanningActualSummaryInternal(deps,'correction')}
