@@ -134,8 +134,8 @@ if(process.argv[2]==='--browser'){
   })
   await check('edit confirmation requires nonempty diff and exact typed role ID',async()=>{
    assert.equal(await owner.getByRole('button',{name:'Tinjau edit role'}).isDisabled(),true)
-   await owner.getByRole('combobox',{name:'lifecycle-qc_records'}).selectOption('none')
-   await owner.getByRole('combobox',{name:'lifecycle-data_plan_summary'}).selectOption('view')
+   await owner.getByRole('combobox',{name:'lifecycle-qc_records',exact:true}).selectOption('none')
+   await owner.getByRole('combobox',{name:'lifecycle-data_plan_summary',exact:true}).selectOption('view')
    assert.equal(await owner.getByTestId('lifecycle-diff-count').innerText(),'Permission berubah: 2')
    await owner.getByRole('button',{name:'Tinjau edit role'}).click()
    assert.equal(await owner.getByRole('button',{name:'Konfirmasi edit role'}).isDisabled(),true)
@@ -164,7 +164,7 @@ if(process.argv[2]==='--browser'){
   await check('stale catalog revision rejects update and fails closed until refresh',async()=>{
    await refresh(owner);await choose(owner,unused.id)
    const old=(await catalog(unused.id).get()).data().definition
-   await owner.getByRole('combobox',{name:'lifecycle-data_plan_actual'}).selectOption('view')
+   await owner.getByRole('combobox',{name:'lifecycle-data_plan_actual',exact:true}).selectOption('view')
    const next={...old,revision:1,permissions:{...old.permissions,qc_spraying:'view'}}
    await catalog(unused.id).update({definition:next})
    await audit(unused.id,1).create({testOnly:true,workspace:'cutover',action:'trusted_fixture_update',before:old,after:next})
@@ -174,10 +174,10 @@ if(process.argv[2]==='--browser'){
    assert.equal(await owner.getByRole('combobox',{name:'Role yang dikelola'}).count(),0)
    await refresh(owner);await choose(owner,unused.id)
    assert.equal(await owner.getByTestId('lifecycle-revision').innerText(),'1')
-   assert.equal(await owner.getByRole('combobox',{name:'lifecycle-qc_spraying'}).inputValue(),'view')
+   assert.equal(await owner.getByRole('combobox',{name:'lifecycle-qc_spraying',exact:true}).inputValue(),'view')
   })
   await check('transport failure blocks retry and requires fresh preview',async()=>{
-   await owner.getByRole('combobox',{name:'lifecycle-data_plan_daily'}).selectOption('view')
+   await owner.getByRole('combobox',{name:'lifecycle-data_plan_daily',exact:true}).selectOption('view')
    const route=r=>r.abort()
    await owner.route(origin+paths.rolesUpdate,route)
    try{
