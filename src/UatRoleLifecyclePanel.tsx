@@ -41,6 +41,7 @@ export default function UatRoleLifecyclePanel({adapter}:{adapter:Adapter}){
  useEffect(()=>{alive.current=true;void load();return()=>{alive.current=false;epoch.current++}},[adapter])
  async function choose(id:string){
   if(locked.current||busy||blocked)return
+  if(id===''){clear();setMessage('Pilih custom role untuk menampilkan preview.');return}
   locked.current=true;const ticket=++epoch.current
   setBusy(true);clear();setSelected(id);setMessage('')
   try{
