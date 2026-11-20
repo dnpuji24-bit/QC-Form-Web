@@ -124,6 +124,30 @@ if(process.argv[2]==='--browser'){
    })
    assert.equal(test,401)
   })
+  await check('verified Owner inbox token returns only canonical rows, nonowner tokens are denied',async()=>{
+   const {initializeApp:clientInit,deleteApp:clientDelete}=await import('firebase/app')
+   const {initializeAuth,inMemoryPersistence,connectAuthEmulator,signInWithEmailAndPassword,signOut}=await import('firebase/auth')
+   async function tokenFor(uid){
+    const app=clientInit({projectId,apiKey:'demo-only-not-a-real-key'},'inbox-browser-test-'+uid)
+    const auth=initializeAuth(app,{persistence:inMemoryPersistence})
+    try{
+     connectAuthEmulator(auth,'http://'+host+':'+authPort,{disableWarnings:true})
+     const {user}=await signInWithEmailAndPassword(auth,uid+'@registration-ui.example.test','Synthetic-2026-'+uid)
+     return await user.getIdToken()
+    }finally{try{await signOut(auth)}finally{await clientDelete(app)}}
+   }
+   async function inbox(uid){
+    const token=await tokenFor(uid)
+    const r=await fetch(origin+paths.registrationInbox,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:'{}'})
+    return {status:r.status,body:await r.json()}
+   }
+   const ownerList=await inbox('uat-owner')
+   assert.equal(ownerList.status,200)
+   assert.deepEqual(ownerList.body.rows.map(x=>x.uid),['uat-applicant'])
+   assert.deepEqual(Object.keys(ownerList.body.rows[0]).sort(),['testOnly','workspace','uid','status','revision','requestedRoleId','approvedRoleId','reviewedBy'].sort())
+   assert.equal((await inbox('uat-applicant')).status,403)
+   assert.equal((await inbox('uat-viewer')).status,403)
+  })
   await check('Owner explicitly approves different role; activation still pending',async()=>{
    await owner.getByRole('combobox',{name:'Role disetujui oleh Owner'}).selectOption(roleB)
    await owner.getByRole('button',{name:'Setujui registrasi'}).click()
