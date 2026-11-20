@@ -6,8 +6,9 @@ const sid=x=>typeof x==='string'&&/^uat-[a-z0-9-]{1,60}$/.test(x)
 export function createRoleLifecycleService({adb,tokenFor,ownerAllowed,row,definitionFor,fail,mark,profile,catalog,roleAudit,registration,prefix}){
  const retired=adb.collection(prefix+'/role_tombstones')
  async function authorized(tx,token,id){
-  const [actor,prod,definition]=await Promise.all([tx.get(mark(token.uid)),tx.get(profile(token.uid)),definitionFor(tx,id)])
+  const [actor,prod]=await Promise.all([tx.get(mark(token.uid)),tx.get(profile(token.uid))])
   if(!ownerAllowed(token,actor.data(),prod.exists))fail(403,'OWNER_REQUIRED')
+  const definition=await definitionFor(tx,id)
   if(!definition)fail(409,'ROLE_NOT_FOUND')
   return definition
  }
