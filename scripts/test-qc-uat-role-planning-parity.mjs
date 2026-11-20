@@ -112,8 +112,8 @@ if(process.argv[2]==='--emulator'){
    assert.equal(x.permissions.data_plan_monthly_import,'none')
   })
   await check('manual user override remains independent of assigned custom role defaults',async()=>{
-   assert.equal((await http(paths.patch,ot,{targetUid:'uat-field-b',expectedRevision:0,patch:{data_plan_daily:'none'}})).status,200)
-   assert.equal((await http(paths.rolesAssign,ot,{targetUid:'uat-field-b',expectedRevision:1,roleId})).status,200)
+   assert.equal((await http(paths.rolesAssign,ot,{targetUid:'uat-field-b',expectedRevision:0,roleId})).status,200)
+   assert.equal((await http(paths.patch,ot,{targetUid:'uat-field-b',expectedRevision:1,patch:{data_plan_daily:'none'}})).status,200)
    const x=await effective(bt)
    denyPlan(x.permissions,'daily','view')
    assertPlan(x.permissions,'monthly','edit')
