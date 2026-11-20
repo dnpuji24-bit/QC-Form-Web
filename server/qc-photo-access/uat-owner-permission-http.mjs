@@ -1,10 +1,11 @@
 // Dedicated demo only. Never mount in production HTTP service.
 import {createServer} from 'node:http'
 import {ownerPermissionChange} from '../../src/qcUatOwnerPermissionContract.mjs'
+import {registrationSubmit,registrationReview,registrationActivate,registrationPending,registrationDecide,registrationComplete,verifyRegistrationRow} from '../../src/qcUatCustomRoleRegistration.mjs'
 import {roleDefinition,builtinRoles,validateCustomRole,isRoleId,isCustomRoleId,permissionsForIdentity,assignIdentityRole} from '../../src/qcUatCustomRoles.mjs'
 export const projectId='demo-qc-uat-owner-http',host='127.0.0.1',firestorePort=9485,authPort=10299,httpPort=4497
 export const origin='http://'+host+':'+httpPort
-export const paths=Object.freeze({list:'/uat/owner/permissions/list',patch:'/uat/owner/permissions/patch',session:'/uat/session/permissions',rolesList:'/uat/owner/permissions/roles-list',rolesCreate:'/uat/owner/permissions/roles-create',rolesAssign:'/uat/owner/permissions/roles-assign'})
+export const paths=Object.freeze({list:'/uat/owner/permissions/list',patch:'/uat/owner/permissions/patch',session:'/uat/session/permissions',rolesList:'/uat/owner/permissions/roles-list',rolesCreate:'/uat/owner/permissions/roles-create',rolesAssign:'/uat/owner/permissions/roles-assign',registrationRoles:'/uat/registration/custom-roles',registrationSubmit:'/uat/registration/submit',registrationStatus:'/uat/registration/status',registrationReview:'/uat/owner/registration/review',registrationActivate:'/uat/registration/activate'})
 const prefix='qc_uat_workspaces/cutover'
 const sid=v=>typeof v==='string'&&/^uat-[a-z0-9-]{1,60}$/.test(v)
 const exact=(v,keys)=>v&&Object.getPrototypeOf(v)===Object.prototype&&Object.keys(v).length===keys.length&&keys.every(k=>Object.hasOwn(v,k))
@@ -32,6 +33,7 @@ export function createOwnerService({adb,authAdmin}){
   return token
  }
  const catalog=adb.collection(prefix+'/role_catalog'),roleAudit=adb.collection(prefix+'/role_catalog_audit')
+ const registration=adb.collection(prefix+'/registration_requests'),registrationAudit=adb.collection(prefix+'/registration_audit')
  async function definitionFor(tx,id){
   if(!isCustomRoleId(id))return undefined
   const snapshot=await tx.get(catalog.doc(id)),r=snapshot.data()
@@ -39,6 +41,84 @@ export function createOwnerService({adb,authAdmin}){
   try{return validateCustomRole(r.definition)}catch{fail(409,'INVALID_ROLE_RECORD')}
  }
  return {
+  async availableCustomRoles(raw){
+   const token=await tokenFor(raw)
+   return adb.runTransaction(async tx=>{
+    const [m,prod]=await Promise.all([tx.get(mark(token.uid)),tx.get(profile(token.uid))])
+    if(prod.exists||m.exists)fail(403,'REGISTRATION_NOT_ELIGIBLE')
+    const s=await tx.get(catalog.limit(101))
+    if(s.size>100)fail(409,'ROLE_LIST_LIMIT')
+    return s.docs.map(d=>{
+     const r=d.data()
+     if(r.testOnly!==true||r.workspace!=='cutover'||d.id!==r.definition?.id)fail(409,'INVALID_ROLE_RECORD')
+     let def;try{def=validateCustomRole(r.definition)}catch{fail(409,'INVALID_ROLE_RECORD')}
+     return {id:def.id,name:def.name}
+    })
+   })
+  },
+  async submitRegistration(raw,input){
+   const token=await tokenFor(raw)
+   if(token.email_verified!==true)fail(403,'EMAIL_VERIFICATION_REQUIRED')
+   let q;try{q=registrationSubmit(input)}catch(e){fail(400,e.message)}
+   return adb.runTransaction(async tx=>{
+    const [identity,prod,request]=await Promise.all([tx.get(mark(token.uid)),tx.get(profile(token.uid)),tx.get(registration.doc(token.uid))])
+    if(identity.exists||prod.exists)fail(403,'REGISTRATION_NOT_ELIGIBLE')
+    if(request.exists)fail(409,'REGISTRATION_ALREADY_SUBMITTED')
+    await definitionFor(tx,q.requestedRoleId)
+    const row=registrationPending(token.uid,q)
+    tx.create(registration.doc(token.uid),row)
+    tx.create(registrationAudit.doc(token.uid+':0'),{testOnly:true,workspace:'cutover',uid:token.uid,action:'submit',revision:0,before:null,after:row})
+    return row
+   })
+  },
+  async registrationStatus(raw){
+   const token=await tokenFor(raw)
+   return adb.runTransaction(async tx=>{
+    const [request,prod]=await Promise.all([tx.get(registration.doc(token.uid)),tx.get(profile(token.uid))])
+    if(prod.exists)fail(403,'REGISTRATION_NOT_ELIGIBLE')
+    return request.exists?verifyRegistrationRow(request.data(),token.uid):null
+   })
+  },
+  async reviewRegistration(raw,input){
+   const token=await tokenFor(raw)
+   let q;try{q=registrationReview(input)}catch(e){fail(400,e.message)}
+   return adb.runTransaction(async tx=>{
+    const [actor,actorProd,target,targetProd,request]=await Promise.all([
+     tx.get(mark(token.uid)),tx.get(profile(token.uid)),tx.get(mark(q.targetUid)),
+     tx.get(profile(q.targetUid)),tx.get(registration.doc(q.targetUid))
+    ])
+    if(!ownerAllowed(token,actor.data(),actorProd.exists))fail(403,'OWNER_REQUIRED')
+    if(token.uid===q.targetUid||target.exists||targetProd.exists)fail(403,'REGISTRATION_NOT_ELIGIBLE')
+    if(!request.exists)fail(409,'REGISTRATION_NOT_FOUND')
+    const before=verifyRegistrationRow(request.data(),q.targetUid)
+    if(before.revision!==q.expectedRevision)fail(409,'REGISTRATION_REVISION_CONFLICT')
+    if(q.decision==='approve')await definitionFor(tx,q.approvedRoleId)
+    let after;try{after=registrationDecide(before,q,token.uid)}catch(e){fail(409,e.message)}
+    tx.update(registration.doc(q.targetUid),after)
+    tx.create(registrationAudit.doc(q.targetUid+':1'),{testOnly:true,workspace:'cutover',uid:q.targetUid,actorUid:token.uid,action:q.decision,revision:1,before,after})
+    return after
+   })
+  },
+  async activateRegistration(raw,input){
+   const token=await tokenFor(raw)
+   if(token.email_verified!==true)fail(403,'EMAIL_VERIFICATION_REQUIRED')
+   let q;try{q=registrationActivate(input)}catch(e){fail(400,e.message)}
+   return adb.runTransaction(async tx=>{
+    const [identity,prod,request]=await Promise.all([tx.get(mark(token.uid)),tx.get(profile(token.uid)),tx.get(registration.doc(token.uid))])
+    if(identity.exists||prod.exists)fail(403,'REGISTRATION_NOT_ELIGIBLE')
+    if(!request.exists)fail(409,'REGISTRATION_NOT_FOUND')
+    const before=verifyRegistrationRow(request.data(),token.uid)
+    if(before.revision!==q.expectedRevision)fail(409,'REGISTRATION_REVISION_CONFLICT')
+    let after;try{after=registrationComplete(before,q,token.uid)}catch(e){fail(409,e.message)}
+    const definition=await definitionFor(tx,before.approvedRoleId)
+    const next={testOnly:true,workspace:'cutover',enabled:true,role:definition.id,roleOverrides:{},manualOverrides:{},permissions:permissionsForIdentity({role:definition.id,roleOverrides:{},manualOverrides:{}},definition),policyRevision:0}
+    row(token.uid,next,false,definition)
+    tx.create(mark(token.uid),next)
+    tx.update(registration.doc(token.uid),after)
+    tx.create(registrationAudit.doc(token.uid+':2'),{testOnly:true,workspace:'cutover',uid:token.uid,actorUid:token.uid,action:'activate',revision:2,before,after,roleId:definition.id})
+    return {uid:token.uid,role:definition.id,policyRevision:0,permissions:next.permissions}
+   })
+  },
   async assignRole(raw,input){
    const token=await tokenFor(raw)
    if(!exact(input,['targetUid','expectedRevision','roleId'])||!sid(input.targetUid)||!isRoleId(input.roleId)||input.roleId==='owner'||!Number.isSafeInteger(input.expectedRevision)||input.expectedRevision<0)fail(400,'INVALID_REQUEST')
@@ -156,6 +236,11 @@ export function createOwnerHttp(service,labAssets=null){
    if(!auth)fail(401,'AUTH_REQUIRED')
    const input=await json(req)
    if(req.url===paths.rolesList){if(!exact(input,[]))fail(400,'INVALID_REQUEST');return send(200,{roles:await service.listRoles(auth[1])})}
+   if(req.url===paths.registrationRoles){if(!exact(input,[]))fail(400,'INVALID_REQUEST');return send(200,{roles:await service.availableCustomRoles(auth[1])})}
+   if(req.url===paths.registrationSubmit)return send(200,{registration:await service.submitRegistration(auth[1],input)})
+   if(req.url===paths.registrationStatus){if(!exact(input,[]))fail(400,'INVALID_REQUEST');return send(200,{registration:await service.registrationStatus(auth[1])})}
+   if(req.url===paths.registrationReview)return send(200,{registration:await service.reviewRegistration(auth[1],input)})
+   if(req.url===paths.registrationActivate)return send(200,{session:await service.activateRegistration(auth[1],input)})
    if(req.url===paths.rolesAssign)return send(200,{row:await service.assignRole(auth[1],input)})
    if(req.url===paths.rolesCreate)return send(200,{role:await service.createRole(auth[1],input)})
    if(req.url===paths.session){if(!exact(input,[]))fail(400,'INVALID_REQUEST');return send(200,{session:await service.session(auth[1])})}
