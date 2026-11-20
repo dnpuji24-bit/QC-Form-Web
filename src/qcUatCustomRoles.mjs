@@ -24,8 +24,8 @@ export function builtinRoles(){return roles.map(id=>({id,name:id,kind:'builtin',
 export function validateCustomRole(value){
  need(exact(value,['id','name','permissions','kind','revision']),'INVALID_ROLE_RECORD')
  const expected=roleDefinition({name:value.name,permissions:value.permissions})
- need(value.id===expected.id&&value.name===expected.name&&value.kind==='custom'&&value.revision===0&&Object.keys(value.permissions).length===keys.length,'INVALID_ROLE_RECORD')
- return expected
+ need(value.id===expected.id&&value.name===expected.name&&value.kind==='custom'&&Number.isSafeInteger(value.revision)&&value.revision>=0&&value.revision<1000000&&Object.keys(value.permissions).length===keys.length,'INVALID_ROLE_RECORD')
+ return {...expected,revision:value.revision}
 }
 
 export const isCustomRoleId=id=>typeof id==='string'&&/^custom-[a-z][a-z0-9-]{0,49}$/.test(id)
