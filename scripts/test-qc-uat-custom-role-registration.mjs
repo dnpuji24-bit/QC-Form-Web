@@ -72,7 +72,7 @@ if(process.argv[2]==='--emulator'){
   await check('new user sees only names and IDs of custom roles, not permission grants',async()=>{
    const x=await call(paths.registrationRoles,at)
    assert.equal(x.status,200)
-   assert.deepEqual(x.data.roles.map(r=>r.id).sort(),[roleId1,roleId2])
+   assert.deepEqual(x.data.roles.map(r=>r.id).sort(),[roleId1,roleId2].sort())
    assert.deepEqual(Object.keys(x.data.roles[0]).sort(),['id','name'])
    assert.equal((await call(paths.registrationStatus,at)).data.registration,null)
   })
