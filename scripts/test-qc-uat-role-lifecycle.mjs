@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict'
+import {readFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import {marker} from '../src/qcUatRolePermissions.mjs'
 import {projectId,host,httpPort,origin,paths,guard,createOwnerHttp,createOwnerService} from '../server/qc-photo-access/uat-owner-permission-http.mjs'
 const environment={GCLOUD_PROJECT:projectId,FIRESTORE_EMULATOR_HOST:'127.0.0.1:9485',FIREBASE_AUTH_EMULATOR_HOST:'127.0.0.1:10299'}
 guard(environment)
+const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8')
+for(const p of ['src/App.tsx','src/main.tsx','src/NativeUsersAccess.tsx','server/qc-photo-access/index.mjs','server/qc-photo-access/nativeAdminHttp.mjs'])assert.doesNotMatch(read(p),/uat-role-lifecycle-service|qcUatRoleLifecycle|roles-preview|roles-update|roles-delete/)
 for(const env of [{},{...environment,GCLOUD_PROJECT:'form-qc-unm'},{...environment,FIRESTORE_EMULATOR_HOST:'remote:9485'}])assert.throws(()=>guard(env))
 assert.ok(process.argv.length===3&&['--self-test','--emulator'].includes(process.argv[2]))
 console.log('SUCCESS: Custom role lifecycle isolated emulator guards passed (offline)')
