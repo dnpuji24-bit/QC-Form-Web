@@ -1,11 +1,12 @@
 // Dedicated demo only. Never mount in production HTTP service.
 import {createServer} from 'node:http'
+import {createRoleLifecycleService} from './uat-role-lifecycle-service.mjs'
 import {ownerPermissionChange} from '../../src/qcUatOwnerPermissionContract.mjs'
 import {registrationSubmit,registrationReview,registrationActivate,registrationPending,registrationDecide,registrationComplete,verifyRegistrationRow} from '../../src/qcUatCustomRoleRegistration.mjs'
 import {roleDefinition,builtinRoles,validateCustomRole,isRoleId,isCustomRoleId,permissionsForIdentity,assignIdentityRole} from '../../src/qcUatCustomRoles.mjs'
 export const projectId='demo-qc-uat-owner-http',host='127.0.0.1',firestorePort=9485,authPort=10299,httpPort=4497
 export const origin='http://'+host+':'+httpPort
-export const paths=Object.freeze({list:'/uat/owner/permissions/list',patch:'/uat/owner/permissions/patch',session:'/uat/session/permissions',rolesList:'/uat/owner/permissions/roles-list',rolesCreate:'/uat/owner/permissions/roles-create',rolesAssign:'/uat/owner/permissions/roles-assign',registrationRoles:'/uat/registration/custom-roles',registrationSubmit:'/uat/registration/submit',registrationStatus:'/uat/registration/status',registrationReview:'/uat/owner/registration/review',registrationActivate:'/uat/registration/activate',registrationInbox:'/uat/owner/registration/inbox'})
+export const paths=Object.freeze({list:'/uat/owner/permissions/list',patch:'/uat/owner/permissions/patch',session:'/uat/session/permissions',rolesList:'/uat/owner/permissions/roles-list',rolesCreate:'/uat/owner/permissions/roles-create',rolesAssign:'/uat/owner/permissions/roles-assign',registrationRoles:'/uat/registration/custom-roles',registrationSubmit:'/uat/registration/submit',registrationStatus:'/uat/registration/status',registrationReview:'/uat/owner/registration/review',registrationActivate:'/uat/registration/activate',registrationInbox:'/uat/owner/registration/inbox',rolesPreview:'/uat/owner/permissions/roles-preview',rolesUpdate:'/uat/owner/permissions/roles-update',rolesDelete:'/uat/owner/permissions/roles-delete'})
 const prefix='qc_uat_workspaces/cutover'
 const sid=v=>typeof v==='string'&&/^uat-[a-z0-9-]{1,60}$/.test(v)
 const exact=(v,keys)=>v&&Object.getPrototypeOf(v)===Object.prototype&&Object.keys(v).length===keys.length&&keys.every(k=>Object.hasOwn(v,k))
@@ -32,7 +33,7 @@ export function createOwnerService({adb,authAdmin}){
   if(!sid(token.uid)||token.qcUat!==true)fail(403,'OWNER_REQUIRED')
   return token
  }
- const catalog=adb.collection(prefix+'/role_catalog'),roleAudit=adb.collection(prefix+'/role_catalog_audit')
+ const catalog=adb.collection(prefix+'/role_catalog'),roleAudit=adb.collection(prefix+'/role_catalog_audit'),retired=adb.collection(prefix+'/role_tombstones')
  const registration=adb.collection(prefix+'/registration_requests'),registrationAudit=adb.collection(prefix+'/registration_audit')
  async function definitionFor(tx,id){
   if(!isCustomRoleId(id))return undefined
@@ -41,6 +42,7 @@ export function createOwnerService({adb,authAdmin}){
   try{return validateCustomRole(r.definition)}catch{fail(409,'INVALID_ROLE_RECORD')}
  }
  return {
+  ...createRoleLifecycleService({adb,tokenFor,ownerAllowed,row,definitionFor,fail,mark,profile,catalog,roleAudit,registration,prefix}),
   async registrationInbox(raw){
    const token=await tokenFor(raw)
    return adb.runTransaction(async tx=>{
@@ -169,9 +171,10 @@ export function createOwnerService({adb,authAdmin}){
    let definition
    try{definition=roleDefinition(input)}catch(e){fail(400,e.message)}
    return adb.runTransaction(async tx=>{
-    const [actor,prod,existing,count]=await Promise.all([tx.get(mark(token.uid)),tx.get(profile(token.uid)),tx.get(catalog.doc(definition.id)),tx.get(catalog.limit(100))])
+    const [actor,prod,existing,tombstone,count]=await Promise.all([tx.get(mark(token.uid)),tx.get(profile(token.uid)),tx.get(catalog.doc(definition.id)),tx.get(retired.doc(definition.id)),tx.get(catalog.limit(100))])
     if(!ownerAllowed(token,actor.data(),prod.exists))fail(403,'OWNER_REQUIRED')
     if(existing.exists)fail(409,'ROLE_EXISTS')
+    if(tombstone.exists)fail(409,'ROLE_RETIRED')
     if(count.size>=100)fail(409,'ROLE_LIST_LIMIT')
     tx.create(catalog.doc(definition.id),{testOnly:true,workspace:'cutover',definition})
     tx.create(roleAudit.doc(definition.id),{testOnly:true,workspace:'cutover',actorUid:token.uid,action:'create_role',definition})
@@ -252,6 +255,9 @@ export function createOwnerHttp(service,labAssets=null){
    if(req.url===paths.registrationInbox){if(!exact(input,[]))fail(400,'INVALID_REQUEST');return send(200,{rows:await service.registrationInbox(auth[1])})}
    if(req.url===paths.registrationReview)return send(200,{registration:await service.reviewRegistration(auth[1],input)})
    if(req.url===paths.registrationActivate)return send(200,{session:await service.activateRegistration(auth[1],input)})
+   if(req.url===paths.rolesPreview)return send(200,{preview:await service.previewRoleLifecycle(auth[1],input)})
+   if(req.url===paths.rolesUpdate)return send(200,{update:await service.updateRoleLifecycle(auth[1],input)})
+   if(req.url===paths.rolesDelete)return send(200,{deleted:await service.deleteRoleLifecycle(auth[1],input)})
    if(req.url===paths.rolesAssign)return send(200,{row:await service.assignRole(auth[1],input)})
    if(req.url===paths.rolesCreate)return send(200,{role:await service.createRole(auth[1],input)})
    if(req.url===paths.session){if(!exact(input,[]))fail(400,'INVALID_REQUEST');return send(200,{session:await service.session(auth[1])})}
