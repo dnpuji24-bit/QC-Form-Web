@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict'
+import {roleDefinition,validateCustomRole,permissionsForIdentity} from '../src/qcUatCustomRoles.mjs'
+import {keys} from '../src/qcUatRolePermissions.mjs'
+import {roleLifecyclePreview,roleLifecycleUpdate,roleLifecycleDelete,roleLifecycleNext,roleLifecycleMembers,roleLifecycleTombstone} from '../src/qcUatRoleLifecycle.mjs'
+let n=0
+const check=(name,fn)=>{fn();console.log('PASS: '+name);n++}
+const deny=(fn,msg)=>assert.throws(fn,{message:msg})
+const before=roleDefinition({name:'QC Inspector',permissions:{qc_records:'view'}})
+const members=[{uid:'uat-a',policyRevision:0},{uid:'uat-b',policyRevision:5}]
+const input={roleId:before.id,expectedRevision:0,permissions:{...before.permissions,qc_records:'none',data_plan_summary:'view'},expectedMembers:members}
+check('preview accepts only exact custom role ID',()=>{assert.deepEqual(roleLifecyclePreview({roleId:before.id}),{roleId:before.id});deny(()=>roleLifecyclePreview({roleId:'owner'}),'INVALID_ROLE_PREVIEW');deny(()=>roleLifecyclePreview({roleId:before.id,uid:'uat-a'}),'INVALID_ROLE_PREVIEW')})
+check('full permission update never infers omitted or extra permissions',()=>{assert.deepEqual(roleLifecycleUpdate(input),input);deny(()=>roleLifecycleUpdate({...input,permissions:{qc_records:'edit'}}),'INVALID_ROLE_PERMISSIONS');deny(()=>roleLifecycleUpdate({...input,permissions:{...input.permissions,owner:'edit'}}),'INVALID_ROLE_PERMISSIONS')})
+check('edit retains role ID and name while incrementing catalog revision',()=>{const x=roleLifecycleNext(before,input);assert.equal(x.id,before.id);assert.equal(x.name,before.name);assert.equal(x.revision,1);assert.equal(x.permissions.data_plan_summary,'view');assert.equal(x.permissions.qc_records,'none');assert.deepEqual(validateCustomRole(x),x)})
+check('no-op edit, stale revision and forged role identity denied',()=>{deny(()=>roleLifecycleNext(before,{...input,permissions:before.permissions}),'ROLE_NO_CHANGE');deny(()=>roleLifecycleNext(before,{...input,expectedRevision:1}),'ROLE_REVISION_CONFLICT');deny(()=>roleLifecycleNext(before,{...input,roleId:'custom-other'}),'ROLE_REVISION_CONFLICT')})
+check('role revision accepts zero and valid updates only',()=>{assert.deepEqual(validateCustomRole(before),before);deny(()=>validateCustomRole({...before,revision:-1}),'INVALID_ROLE_RECORD');deny(()=>validateCustomRole({...before,revision:1000000}),'INVALID_ROLE_RECORD');deny(()=>validateCustomRole({...before,id:'owner'}),'INVALID_ROLE_RECORD')})
+check('member preview must match every policy revision in sorted order',()=>{assert.deepEqual(roleLifecycleMembers([...members].reverse(),members),members);deny(()=>roleLifecycleMembers([members[0]],members),'ROLE_MEMBERS_CONFLICT');deny(()=>roleLifecycleMembers([{...members[0],policyRevision:1},members[1]],members),'ROLE_MEMBERS_CONFLICT')})
+check('duplicate, unsorted and arbitrary member request fail closed',()=>{for(const expectedMembers of [[members[0],members[0]],[members[1],members[0]],[{uid:'../a',policyRevision:0}]])deny(()=>roleLifecycleUpdate({...input,expectedMembers}),'INVALID_ROLE_UPDATE')})
+check('over-limit expected list fails closed',()=>{const huge=Array.from({length:76},(_,i)=>({uid:'uat-'+String(i).padStart(3,'0'),policyRevision:0}));deny(()=>roleLifecycleUpdate({...input,expectedMembers:huge}),'INVALID_ROLE_UPDATE')})
+check('delete requires explicit zero members and current revision',()=>{assert.deepEqual(roleLifecycleDelete({roleId:before.id,expectedRevision:0,expectedMembers:[]}),{roleId:before.id,expectedRevision:0,expectedMembers:[]});deny(()=>roleLifecycleDelete({...input}),'INVALID_ROLE_DELETE');deny(()=>roleLifecycleDelete({roleId:'owner',expectedRevision:0,expectedMembers:[] }),'INVALID_ROLE_DELETE')})
+check('tombstone retains complete last definition and actor',()=>{const x=roleLifecycleTombstone(roleLifecycleNext(before,input),'uat-owner');assert.equal(x.lastRevision,1);assert.equal(x.deletedBy,'uat-owner');assert.equal(x.definition.id,before.id);deny(()=>roleLifecycleTombstone(before,'../owner'),'INVALID_ROLE_ACTOR')})
+check('new custom role defaults respected without builtin fallback',()=>{const x=roleLifecycleNext(before,input);const perms=permissionsForIdentity({role:x.id,roleOverrides:{},manualOverrides:{}},x);assert.equal(perms.qc_records,'none');assert.equal(perms.data_plan_summary,'view');assert.deepEqual(Object.keys(perms),keys)})
+console.log('SUCCESS: '+n+' custom role lifecycle contract checks (offline)')
