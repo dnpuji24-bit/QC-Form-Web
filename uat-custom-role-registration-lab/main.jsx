@@ -57,10 +57,8 @@ function App(){
   }
   refreshRef.current=()=>void refresh(current.current)
   const unsub=onAuthStateChanged(auth,u=>{current.current=u;setUser(u);void refresh(u)})
-  const focus=()=>void refresh(current.current)
-  const visible=()=>{if(document.visibilityState==='visible')void refresh(current.current)}
-  window.addEventListener('focus',focus);document.addEventListener('visibilitychange',visible)
-  return()=>{live=false;serial.current++;unsub();window.removeEventListener('focus',focus);document.removeEventListener('visibilitychange',visible)}
+  // Do not unmount a pending approval on unrelated tab focus; manual refresh is explicit.
+  return()=>{live=false;serial.current++;unsub()}
  },[])
  const adapters=useMemo(()=>user?adapterFor(user):null,[user])
  async function login(uid){
