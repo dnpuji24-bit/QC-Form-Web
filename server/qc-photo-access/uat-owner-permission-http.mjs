@@ -5,7 +5,7 @@ import {registrationSubmit,registrationReview,registrationActivate,registrationP
 import {roleDefinition,builtinRoles,validateCustomRole,isRoleId,isCustomRoleId,permissionsForIdentity,assignIdentityRole} from '../../src/qcUatCustomRoles.mjs'
 export const projectId='demo-qc-uat-owner-http',host='127.0.0.1',firestorePort=9485,authPort=10299,httpPort=4497
 export const origin='http://'+host+':'+httpPort
-export const paths=Object.freeze({list:'/uat/owner/permissions/list',patch:'/uat/owner/permissions/patch',session:'/uat/session/permissions',rolesList:'/uat/owner/permissions/roles-list',rolesCreate:'/uat/owner/permissions/roles-create',rolesAssign:'/uat/owner/permissions/roles-assign',registrationRoles:'/uat/registration/custom-roles',registrationSubmit:'/uat/registration/submit',registrationStatus:'/uat/registration/status',registrationReview:'/uat/owner/registration/review',registrationActivate:'/uat/registration/activate'})
+export const paths=Object.freeze({list:'/uat/owner/permissions/list',patch:'/uat/owner/permissions/patch',session:'/uat/session/permissions',rolesList:'/uat/owner/permissions/roles-list',rolesCreate:'/uat/owner/permissions/roles-create',rolesAssign:'/uat/owner/permissions/roles-assign',registrationRoles:'/uat/registration/custom-roles',registrationSubmit:'/uat/registration/submit',registrationStatus:'/uat/registration/status',registrationReview:'/uat/owner/registration/review',registrationActivate:'/uat/registration/activate',registrationInbox:'/uat/owner/registration/inbox'})
 const prefix='qc_uat_workspaces/cutover'
 const sid=v=>typeof v==='string'&&/^uat-[a-z0-9-]{1,60}$/.test(v)
 const exact=(v,keys)=>v&&Object.getPrototypeOf(v)===Object.prototype&&Object.keys(v).length===keys.length&&keys.every(k=>Object.hasOwn(v,k))
@@ -41,6 +41,16 @@ export function createOwnerService({adb,authAdmin}){
   try{return validateCustomRole(r.definition)}catch{fail(409,'INVALID_ROLE_RECORD')}
  }
  return {
+  async registrationInbox(raw){
+   const token=await tokenFor(raw)
+   return adb.runTransaction(async tx=>{
+    const [actor,prod]=await Promise.all([tx.get(mark(token.uid)),tx.get(profile(token.uid))])
+    if(!ownerAllowed(token,actor.data(),prod.exists))fail(403,'OWNER_REQUIRED')
+    const list=await tx.get(registration.limit(101))
+    if(list.size>100)fail(409,'REGISTRATION_LIST_LIMIT')
+    return list.docs.map(d=>verifyRegistrationRow(d.data(),d.id))
+   })
+  },
   async availableCustomRoles(raw){
    const token=await tokenFor(raw)
    return adb.runTransaction(async tx=>{
@@ -239,6 +249,7 @@ export function createOwnerHttp(service,labAssets=null){
    if(req.url===paths.registrationRoles){if(!exact(input,[]))fail(400,'INVALID_REQUEST');return send(200,{roles:await service.availableCustomRoles(auth[1])})}
    if(req.url===paths.registrationSubmit)return send(200,{registration:await service.submitRegistration(auth[1],input)})
    if(req.url===paths.registrationStatus){if(!exact(input,[]))fail(400,'INVALID_REQUEST');return send(200,{registration:await service.registrationStatus(auth[1])})}
+   if(req.url===paths.registrationInbox){if(!exact(input,[]))fail(400,'INVALID_REQUEST');return send(200,{rows:await service.registrationInbox(auth[1])})}
    if(req.url===paths.registrationReview)return send(200,{registration:await service.reviewRegistration(auth[1],input)})
    if(req.url===paths.registrationActivate)return send(200,{session:await service.activateRegistration(auth[1],input)})
    if(req.url===paths.rolesAssign)return send(200,{row:await service.assignRole(auth[1],input)})
