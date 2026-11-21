@@ -18,17 +18,36 @@ export function operationalRecordsRequest(input){
  return Object.freeze({monthKey:input.monthKey,kind:input.kind,
   startDate:input.monthKey+'-01',endDate:new Date(Date.UTC(year,month,0)).toISOString().slice(0,10)})
 }
+// The browser may request a bounded recent list or exact ID lookup across ALL dates.
+// This is an exact synthetic identifier search, not a substring/fuzzy search engine.
+export function operationalRecordsBrowseRequest(input){
+ need(plain(input)&&
+  ((Reflect.ownKeys(input).length===2&&input.mode==='recent')||
+   (Reflect.ownKeys(input).length===3&&input.mode==='exact'))&&
+  Object.hasOwn(input,'kind')&&['all','spray','fertilizer'].includes(input.kind),
+  'INVALID_RECORDS_BROWSE_REQUEST')
+ if(input.mode==='recent'){
+  need(!Object.hasOwn(input,'term'),'INVALID_RECORDS_BROWSE_REQUEST')
+  return Object.freeze({mode:'recent',kind:input.kind})
+ }
+ need(Object.hasOwn(input,'term')&&sid(input.term),
+  'INVALID_RECORDS_BROWSE_REQUEST')
+ return Object.freeze({mode:'exact',kind:input.kind,term:input.term})
+}
 export function operationalRecordsProjection(request,pairs){
- const q=operationalRecordsRequest({monthKey:request.monthKey,kind:request.kind})
- need(Array.isArray(pairs)&&pairs.length<=50,'RECORDS_SCOPE_LIMIT')
+ const browse=plain(request)&&Object.hasOwn(request,'mode')
+ const q=browse?operationalRecordsBrowseRequest(request):operationalRecordsRequest({monthKey:request.monthKey,kind:request.kind})
+ need(Array.isArray(pairs)&&pairs.length<=(browse?100:50),'RECORDS_SCOPE_LIMIT')
  const ids=new Set(),records=[]
  for(const {id,qc,detail,fullAudit,audit,actual} of pairs){
   need(sid(id)&&!ids.has(id)&&plain(qc)&&qc.testOnly===true&&qc.id===id&&
    ['spray','fertilizer'].includes(qc.formType)&&sid(qc.ownerUid)&&sid(qc.clientRevision)&&
    sid(qc.dailyPlanId)&&sid(qc.pid)&&sid(qc.foreman)&&
-   ['1','2'].includes(qc.shift)&&iso(qc.date)&&qc.date>=q.startDate&&qc.date<=q.endDate&&
+   ['1','2'].includes(qc.shift)&&iso(qc.date)&&
+   (browse||qc.date>=q.startDate&&qc.date<=q.endDate)&&
    ['draft','ready','uploaded'].includes(qc.saveType),'INVALID_RECORDS_QC')
   ids.add(id)
+  if(browse&&q.mode==='exact')need([id,qc.pid,qc.dailyPlanId,qc.foreman].includes(q.term),'RECORDS_SEARCH_MISMATCH')
   if(q.kind!=='all'&&q.kind!==qc.formType)continue
   const revision=qc.clientRevision
   need(plain(detail)&&detail.testOnly===true&&detail.canonicalQcId===id&&
@@ -70,6 +89,8 @@ export function operationalRecordsProjection(request,pairs){
    clientRevision:revision,actual:ap})
  }
  records.sort((a,b)=>b.date.localeCompare(a.date)||a.id.localeCompare(b.id))
- return Object.freeze({testOnly:true,readOnly:true,monthKey:q.monthKey,kind:q.kind,
+ return Object.freeze(browse?{testOnly:true,readOnly:true,mode:q.mode,kind:q.kind,
+  ...(q.mode==='exact'?{term:q.term}:{}),recordCount:records.length,records}:
+  {testOnly:true,readOnly:true,monthKey:q.monthKey,kind:q.kind,
   recordCount:records.length,records})
 }
