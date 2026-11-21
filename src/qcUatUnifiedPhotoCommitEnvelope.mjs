@@ -1,7 +1,6 @@
 // 11D.5c.3b.2e.1: browser-only, lossless photo-inclusive QC envelope.
 // No Storage SDK, no secret, and no network calls. The server must revalidate
 // the entire full DTO, fresh Planning source, identity, photo bytes and SHA256.
-import {qcSourceRequest} from './qcUatPlanningQcSource.mjs'
 import {uatPhotoSlot} from './qcUatUnifiedPhotoPreflight.mjs'
 
 const need=(ok,code)=>{if(!ok)throw Error(code)}
@@ -20,10 +19,16 @@ export function buildUnifiedPhotoCommitEnvelope(request,stagedPhotos){
   Array.isArray(r.holdIntervals),'PHOTO_FULL_REQUEST_INVALID')
  need(Array.isArray(stagedPhotos)&&stagedPhotos.length>=1&&stagedPhotos.length<=4,
   'PHOTO_STAGE_COUNT_INVALID')
- const sourceRequest=qcSourceRequest({
+ need(typeof r.dailyPlanId==='string'&&/^uat-[a-z0-9-]{1,60}$/.test(r.dailyPlanId)&&
+  Number.isSafeInteger(request.expectedDailyRevision)&&request.expectedDailyRevision>=0&&
+  request.expectedDailyRevision<1000000&&typeof r.date==='string'&&
+  /^\\d{4}-\\d{2}-\\d{2}$/.test(r.date)&&
+  ['1','2'].includes(r.shift)&&typeof request.foremanId==='string'&&
+  /^uat-[a-z0-9-]{1,60}$/.test(request.foremanId),'PHOTO_SOURCE_INVALID')
+ const sourceRequest={
   dailyPlanId:r.dailyPlanId,expectedDailyRevision:request.expectedDailyRevision,
   formType:r.formType,date:r.date,shift:r.shift,foreman:request.foremanId
- })
+ }
  const slots=new Set(),holds=new Set(r.holdIntervals.map(h=>h.holdId)),photos=[]
  let totalBytes=0
  for(const p of stagedPhotos){
