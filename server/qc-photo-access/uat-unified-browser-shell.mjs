@@ -52,7 +52,7 @@ export function createUnifiedBrowserShell(assets){
    if(!mapped)problem(404,'ROUTE_DENIED')
    if(req.method!=='POST')problem(405,'METHOD_DENIED')
    if(req.headers['content-type']!=='application/json')problem(415,'JSON_REQUIRED')
-   const token=/^Bearer ([^\\s]+)$/.exec(req.headers.authorization??'')
+   const token=/^Bearer ([^\s]+)$/.exec(req.headers.authorization??'')
    if(!token||token[1].length>16384)problem(401,'AUTH_REQUIRED')
    const body=await bytes(req)
    if(unifiedGuard()!==project)problem(503,'WRONG_PROJECT')
