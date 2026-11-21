@@ -71,7 +71,7 @@ if(['--browser','--browser-photo','--browser-photo-real'].includes(process.argv[
  const base='qc_uat_workspaces/cutover',ref=(c,id)=>adb.doc(base+'/'+c+'/'+id)
  const mark=uid=>adb.doc('qc_uat_identities/'+uid),uid='uat-field'
  const servers=[ownerHttp,planningHttp,shell],errors=[],contexts=[]
- let setupApp,setupAuth,browser,n=0
+ let setupApp,setupAuth,browser,n=0,runCleaned=false
  const check=async(label,fn)=>{try{await fn()}catch(cause){throw Error('FAIL: '+label,{cause})}n++;console.log('PASS: '+label)}
  const expected=async(locator,pattern)=>locator.filter({hasText:pattern}).waitFor({timeout:20000})
  const listen=(server,port)=>new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,unifiedHost,resolve)})
@@ -220,6 +220,7 @@ if(['--browser','--browser-photo','--browser-photo-real'].includes(process.argv[
    })
    if(realPhotoMode){
     await cleanupVerifiedBrowserPhotoRun({adb,store:photoStore,runId,actorUid:uid})
+    runCleaned=true
     console.log('SUCCESS: '+n+' isolated real private Supabase UAT photo browser + atomic QC/Actual checks and exact cleanup passed')
    }else console.log('SUCCESS: '+n+' isolated photo React -> trusted HTTP -> MOCK bytes + atomic QC/Actual emulator checks passed (NO Supabase upload)')
   }else{
@@ -516,6 +517,7 @@ if(['--browser','--browser-photo','--browser-photo-real'].includes(process.argv[
   console.log('SUCCESS: '+n+' focused full QC React browser -> trusted Planning HTTP -> actual/audit emulator checks passed')
   }
  }finally{
+  if(realPhotoMode&&!runCleaned)console.error('NOTICE: manual reconciliation required for synthetic UAT run '+runId+'; no automatic cleanup on failure')
   for(const c of contexts)await c.close()
   if(browser)await browser.close()
   for(const s of servers)if(s.listening)await new Promise(resolve=>s.close(resolve))
