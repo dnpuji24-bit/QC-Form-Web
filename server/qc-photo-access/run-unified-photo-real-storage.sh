@@ -21,11 +21,10 @@ node scripts/test-qc-uat-unified-private-photo-store.mjs
 npm run typecheck
 
 if [[ ! -d server/qc-photo-access/node_modules/@supabase/supabase-js ]]; then
-  test -f server/qc-photo-access/package-lock.json || {
-    echo "Missing server lockfile; stop instead of unpinned installation." >&2
-    exit 2
-  }
-  npm ci --prefix server/qc-photo-access --ignore-scripts --no-audit --no-fund
+  echo "Safety stop: server SDK is not installed." >&2
+  echo "Install the versions pinned in server/qc-photo-access/package.json in your Cloud Shell," >&2
+  echo "review the generated local package-lock.json, and rerun this gate." >&2
+  exit 2
 fi
 
 echo "The next gate writes 4 tiny SYNTHETIC photos ONLY to Supabase qc-form-uat / private qc-photos-uat."
