@@ -12,11 +12,13 @@ import {planningFertilizerFixture} from './qc-uat-planning-fertilizer-fixture.mj
 import {unifiedGuard,unifiedProjectId,unifiedHost,unifiedAuthPort,unifiedFirestorePort} from '../server/qc-photo-access/uat-unified-identity-guard.mjs'
 import {createPlanningMasterSnapshotService,createPlanningPhotoCommitService} from '../server/qc-photo-access/uat-planning-role-service.mjs'
 import {createUnifiedPrivatePhotoStore,guardUnifiedPhotoStorage,unifiedPhotoOrigin,unifiedPhotoBucket,createUnifiedPhotoSafeFetch} from '../server/qc-photo-access/uat-unified-private-photo-store.mjs'
+import {createPlanningPhotoReadService,createUnifiedUatPhotoSigner} from '../server/qc-photo-access/uat-unified-private-photo-read.mjs'
 import {createUnifiedPlanningHttp,unifiedPaths,unifiedPlanningOrigin,unifiedPlanningPort,classifyUnifiedPlanningError} from '../server/qc-photo-access/uat-unified-planning-http.mjs'
 import {shellRoute,planningPrefix} from '../server/qc-photo-access/uat-unified-browser-shell.mjs'
 
 assert.equal(process.argv.length,3,'EXPLICIT_UAT_REAL_MODE_REQUIRED')
-assert.equal(process.argv[2],'--uat-real-emulator','EXPLICIT_UAT_REAL_MODE_REQUIRED')
+assert.ok(['--uat-real-emulator','--uat-real-read'].includes(process.argv[2]),'EXPLICIT_UAT_REAL_MODE_REQUIRED')
+const readMode=process.argv[2]==='--uat-real-read'
 guardUnifiedPhotoStorage()
 
 const runId=randomBytes(16).toString('hex')
@@ -155,6 +157,7 @@ console.log('SUCCESS: full DTO unified UAT exact routes, photo and source isolat
   await mark(uid).set(revised)
 
    const store=await createUnifiedPrivatePhotoStore({runId,actorUid:uid}),service=createPlanningPhotoCommitService({adb,authAdmin,photoStore:store})
+   const privateReader=readMode?createPlanningPhotoReadService({adb,authAdmin,signer:await createUnifiedUatPhotoSigner()}):null
    const ss=(await readSource(operator.token,'uat-ds','spray')).body.source
    const fs=(await readSource(operator.token,'uat-df','fertilizer')).body.source
    const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGM0atryn4GBgYGJAQoAJCYCa4s7a6wAAAAASUVORK5CYII='
@@ -200,6 +203,43 @@ console.log('SUCCESS: full DTO unified UAT exact routes, photo and source isolat
     assert.equal((await post(operator.token,unifiedPaths.fullFertilizerCommit,{request:fr})).status,409)
     assert.equal((await adb.collection(base+'/qc_photo_manifest_audit').get()).size,2)
    })
+   if(readMode){
+    const sprayRef=(await get('qc_photo_manifests',canonical('s'))).data().manifest.main
+    const fertRef=(await get('qc_photo_manifests',canonical('f'))).data().manifest.scan
+    const readSpray={recordId:recordId('s'),photoId:sprayRef.photoId}
+    const readFertilizerScan={recordId:recordId('f'),photoId:fertRef.photoId}
+    const expectedPng=Buffer.from(png.split(',')[1],'base64')
+    const downloadSigned=async receipt=>{
+     assert.equal(receipt.expiresIn,60)
+     const response=await createUnifiedPhotoSafeFetch()(receipt.signedUrl,{method:'GET',cache:'no-store'})
+     assert.equal(response.status,200,'SIGNED_PRIVATE_DOWNLOAD_DENIED')
+     assert.deepEqual(Buffer.from(await response.arrayBuffer()),expectedPng)
+    }
+    await check('owner QC edit -> 60-second private Spray URL and real-byte download',async()=>{
+     const signed=await privateReader.sign(operator.token,readSpray)
+     assert.equal(signed.contentType,'image/png')
+     await downloadSigned(signed)
+    })
+    await check('separate viewer QC Records view -> private Fertilizer scan download',async()=>{
+     const signed=await privateReader.sign(visitor.token,readFertilizerScan)
+     assert.equal(signed.contentType,'image/png')
+     await downloadSigned(signed)
+    })
+    await check('role revocation denies same visitor token and never signs',async()=>{
+     await mark('uat-visitor').set({...baseMarker('pengunjung',{qc_records:'none'}),policyRevision:1})
+     await assert.rejects(()=>privateReader.sign(visitor.token,readSpray),{message:'PHOTO_READ_ACCESS_DENIED'})
+     await mark('uat-visitor').set({...baseMarker('pengunjung'),policyRevision:2})
+    })
+    await check('nonexistent photo ID or tampered immutable audit denies private signing',async()=>{
+     await assert.rejects(()=>privateReader.sign(visitor.token,{...readSpray,photoId:'0'.repeat(24)+'_'+'f'.repeat(64)}),
+       {message:'PHOTO_READ_NOT_IN_MANIFEST'})
+     const ar=root('qc_photo_manifest_audit',canonical('s')+':uat-r1'),before=(await ar.get()).data()
+     await ar.set({...before,jobId:'uat-forged'})
+     try{
+      await assert.rejects(()=>privateReader.sign(visitor.token,readSpray),{message:'PHOTO_READ_LEDGER_INVALID'})
+     }finally{await ar.set(before)}
+    })
+   }
    await check('changing record revision remains blocked until photo correction is tested',async()=>{
     const newer={...spray,clientRevision:'uat-r2'}
     const r={...sr,record:newer,baseRevision:'uat-r1',jobId:'uat-job-photo-v2'}
@@ -217,6 +257,11 @@ console.log('SUCCESS: full DTO unified UAT exact routes, photo and source isolat
     assert.equal(store.stats.puts,4,'real synthetic object remains staged until explicit scoped cleanup')
     assert.ok(store.inspectTouched().some(p=>p.includes('/'+recordId('failed')+'/')))
    })
+   if(readMode)await check('uncommitted orphan photo never gets a signed URL',async()=>{
+    await assert.rejects(()=>privateReader.sign(visitor.token,{recordId:recordId('failed'),
+     photoId:(await get('qc_photo_manifests',canonical('s'))).data().manifest.main.photoId}),
+     {message:'PHOTO_READ_NOT_COMMITTED'})
+   })
    await check('foreign/forged identity blocked before photo upload',async()=>{
     const before=store.stats.puts
     await assert.rejects(()=>service.commit(visitor.token,si))
@@ -230,16 +275,22 @@ console.log('SUCCESS: full DTO unified UAT exact routes, photo and source isolat
     await assert.rejects(()=>service.commit(operator.token,fi))
     assert.equal(store.stats.puts,before)
    })
+   if(readMode)await check('owner with all QC and Records grants revoked cannot mint private URL',async()=>{
+    await mark(uid).set({...baseMarker('asisten',{qc_spraying:'none',qc_fertilizer:'none',qc_records:'none'}),policyRevision:3})
+    await assert.rejects(()=>privateReader.sign(operator.token,{recordId:recordId('s'),
+     photoId:(await get('qc_photo_manifests',canonical('s'))).data().manifest.main.photoId}),
+     {message:'PHOTO_READ_ACCESS_DENIED'})
+   })
    await check('direct browser writes remain denied, no production or root mutation',async()=>{
     await assert.rejects(setDoc(doc(operator.db,base+'/qc_photo_manifests/uat-forged'),{testOnly:true}),{code:'permission-denied'})
     assert.deepEqual((await adb.doc('users/root-sentinel').get()).data(),{protected:true})
     assert.equal((await adb.collection(base+'/qc_photo_manifests').get()).size,2)
     assert.equal((await adb.collection(base+'/daily_reports').get()).size,2)
    })
-   console.log('PASS: '+n+' isolated Firebase emulator atomic photo/QC/Actual checks used REAL private Supabase UAT bytes')
+   console.log('PASS: '+n+' isolated Firebase emulator atomic photo/QC/Actual'+(readMode?' + private signing':'')+' checks used REAL private Supabase UAT bytes')
    await cleanupAcknowledgedRun(store)
    cleaned=true
-   console.log('SUCCESS: REAL Supabase UAT + emulator QC/Actual/manifest integration and scoped cleanup passed')
+   console.log(readMode?'SUCCESS: REAL private UAT signed photo read, role revocation, audit binding and scoped cleanup passed':'SUCCESS: REAL Supabase UAT + emulator QC/Actual/manifest integration and scoped cleanup passed')
 
  }finally{
   if(!cleaned)console.error('NOTICE: inspect ONLY synthetic UAT run '+runId+' for possible uncommitted objects; no automatic deletion on failed run')
