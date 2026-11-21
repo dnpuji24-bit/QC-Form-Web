@@ -61,7 +61,7 @@ export function createUnifiedBrowserShell(assets){
    const upstream=await fetch(mapped.target,{
     method:'POST',
     headers:{'Content-Type':'application/json',Authorization:'Bearer '+token[1]},
-    body,redirect:'error',signal:AbortSignal.timeout(5000)
+    body,redirect:'error',signal:AbortSignal.timeout(photoUpload?45000:5000)
    })
    const data=await upstream.text()
    if(data.length>(extended||photoUpload?196608:65536))problem(502,'UPSTREAM_TOO_LARGE')
