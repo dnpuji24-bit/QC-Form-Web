@@ -36,7 +36,6 @@ export function createUnifiedPlanningHttp({adb,authAdmin}){
   res.setHeader('Content-Type','application/json; charset=utf-8')
   res.setHeader('Cache-Control','no-store')
   res.setHeader('X-Content-Type-Options','nosniff')
-  res.setHeader('Access-Control-Allow-Origin','null')
   const send=(status,data)=>{res.writeHead(status);res.end(JSON.stringify(data))}
   try{
    if(unifiedGuard()!==boundProject)error(503,'WRONG_PROJECT')
