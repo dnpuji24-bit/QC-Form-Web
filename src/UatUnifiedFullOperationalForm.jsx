@@ -1,6 +1,7 @@
 // Separate photo-free UAT full QC form. Not production SprayForm/FertilizerForm and not using their queue.
 import React,{useEffect,useRef,useState} from 'react'
 import {buildUnifiedFullQc} from './qcUatUnifiedFullQcFormBuilder.mjs'
+import {stageUatPhoto} from './qcUatUnifiedPhotoPreflight.mjs'
 const fresh=()=>({
  unit:'',noUnit:'',assistant:'',startTime:'',endTime:'',notes:'',holds:[],
  areaHa:'',dropper:'',nozzle:'',waterQuality:'',weatherCondition:'',windSpeed:'',
@@ -11,6 +12,7 @@ const nonce=()=>crypto.randomUUID().replace(/-/g,'').slice(0,20)
 export default function UatUnifiedFullOperationalForm({user,kind,api}){
  const [dailyId,setDailyId]=useState(''),[source,setSource]=useState(null),[form,setForm]=useState(fresh)
  const [carryover,setCarryover]=useState(false),[actualForemanId,setActualForemanId]=useState('')
+ const [photoSlot,setPhotoSlot]=useState('main'),[stagedPhotos,setStagedPhotos]=useState([])
  const [busy,setBusy]=useState(false),[pending,setPending]=useState(null),[status,setStatus]=useState('belum memilih sumber')
  const ticket=useRef(0),locked=useRef(false)
  useEffect(()=>()=>{ticket.current++},[])
@@ -18,11 +20,12 @@ export default function UatUnifiedFullOperationalForm({user,kind,api}){
  const put=(key,value)=>setForm(v=>({...v,[key]:value}))
  const putMeasured=(i,value)=>setForm(v=>({...v,measuredUsage:v.measuredUsage.map((x,j)=>i===j?value:x)}))
  const putFill=(i,key,value)=>setForm(v=>({...v,fillings:v.fillings.map((f,j)=>i===j?{...f,[key]:value}:f)}))
- const putHold=(i,key,value)=>setForm(v=>({...v,holds:v.holds.map((h,j)=>i===j?{...h,[key]:value}:h)}))
+ const clearHoldPhotos=()=>setStagedPhotos(v=>v.filter(p=>p.kind!=='hold'))
+ const putHold=(i,key,value)=>{clearHoldPhotos();setForm(v=>({...v,holds:v.holds.map((h,j)=>i===j?{...h,[key]:value}:h)}))}
  async function load(){
   if(locked.current||!active()||pending)return
   locked.current=true;setBusy(true);const current=++ticket.current
-  setSource(null);setForm(fresh());setStatus('memeriksa sumber dan master di server')
+  setSource(null);setForm(fresh());setPhotoSlot('main');setStagedPhotos([]);setStatus('memeriksa sumber dan master di server')
   try{
    const result=await api.fullQcSource(kind,dailyId,{carryover,actualForemanId})
    if(current!==ticket.current||!active())return
@@ -36,6 +39,7 @@ export default function UatUnifiedFullOperationalForm({user,kind,api}){
  }
  async function submit(saveType){
   if(locked.current||!source||pending||!active())return
+  if(stagedPhotos.length){setStatus('foto hanya staging lokal; hapus lampiran atau tunggu integrasi upload terverifikasi sebelum menyimpan');return}
   let request
   try{
    request=buildUnifiedFullQc(source,form,{uid:user.uid,nonce:nonce(),saveType,createdAt:new Date().toISOString()})
@@ -58,6 +62,21 @@ export default function UatUnifiedFullOperationalForm({user,kind,api}){
    if(current===ticket.current&&active())setStatus('hasil belum terkonfirmasi; ulangi request yang SAMA untuk mencegah duplikasi')
   }finally{locked.current=false;if(current===ticket.current&&active())setBusy(false)}
  }
+ async function stagePhoto(file){
+  if(locked.current||!source||pending||!active()||!file)return
+  locked.current=true;setBusy(true);const current=++ticket.current
+  const slot=photoSlot,holdId=slot.startsWith('hold_')?slot.slice(5):''
+  const photoKind=holdId?'hold':slot
+  try{
+   if(photoKind==='hold'&&!form.holds.some((_,i)=>holdId==='uat-h'+(i+1)))throw Error('PHOTO_HOLD_SOURCE_REQUIRED')
+   const photo=await stageUatPhoto({file,uploaderUid:user.uid,formType:kind,kind:photoKind,holdId})
+   if(current!==ticket.current||!active())return
+   setStagedPhotos(v=>[...v.filter(p=>p.slot!==photo.slot),photo])
+   setStatus('foto diverifikasi secara lokal, belum diunggah; penyimpanan QC diblokir selama foto staging tersedia')
+  }catch(e){
+   if(current===ticket.current&&active())setStatus('foto ditolak: '+String(e?.message||'INVALID_PHOTO'))
+  }finally{locked.current=false;if(current===ticket.current&&active())setBusy(false)}
+ }
  const input=(name,key,type='text')=><label key={key}>{name}
   <input type={type} aria-label={'Full '+kind+' '+name} value={form[key]} disabled={busy||!!pending}
    onChange={e=>put(key,e.target.value)}/></label>
@@ -66,15 +85,15 @@ export default function UatUnifiedFullOperationalForm({user,kind,api}){
   <p>Editor sintetis untuk validasi DTO penuh; bukan formulir produksi dan tidak mengunggah foto.</p>
   <label>ID Daily Plan
    <input aria-label={'Full '+kind+' Daily Plan ID'} value={dailyId} disabled={busy||!!pending}
-    onChange={e=>{setDailyId(e.target.value);setSource(null);setForm(fresh());setCarryover(false);setActualForemanId('');setStatus('belum memilih sumber')}}/>
+    onChange={e=>{setDailyId(e.target.value);setSource(null);setForm(fresh());setCarryover(false);setActualForemanId('');setStagedPhotos([]);setPhotoSlot('main');setStatus('belum memilih sumber')}}/>
   </label>
   <label>Melanjutkan sumber Shift 1 ke Shift 2 pada tanggal yang sama
    <input type="checkbox" aria-label={'Full '+kind+' lanjutkan Shift 1 ke Shift 2'} checked={carryover}
-    disabled={busy||!!pending} onChange={e=>{setCarryover(e.target.checked);setActualForemanId('');setSource(null);setForm(fresh());setStatus('pilih ulang sumber dan pelaksana')}}/>
+    disabled={busy||!!pending} onChange={e=>{setCarryover(e.target.checked);setActualForemanId('');setSource(null);setForm(fresh());setStagedPhotos([]);setPhotoSlot('main');setStatus('pilih ulang sumber dan pelaksana')}}/>
   </label>
   {carryover&&<label>ID mandor pelaksana Shift 2 (wajib dari master aktif)
    <input aria-label={'Full '+kind+' ID mandor Shift 2'} value={actualForemanId} disabled={busy||!!pending}
-    onChange={e=>{setActualForemanId(e.target.value);setSource(null);setForm(fresh());setStatus('pilih ulang sumber dan pelaksana')}}/>
+    onChange={e=>{setActualForemanId(e.target.value);setSource(null);setForm(fresh());setStagedPhotos([]);setPhotoSlot('main');setStatus('pilih ulang sumber dan pelaksana')}}/>
   </label>}
   <button disabled={!dailyId||busy||!!pending||(carryover&&!actualForemanId)} onClick={()=>void load()}>Full {kind} periksa sumber</button>
   <p data-testid={'uat-full-'+kind+'-status'}>{status}</p>
@@ -126,12 +145,33 @@ export default function UatUnifiedFullOperationalForm({user,kind,api}){
      {['start','end','reason','note'].map(k=><label key={k}>{k}
       <input type={['start','end'].includes(k)?'time':'text'} aria-label={'Full '+kind+' hold '+k+' '+(i+1)} value={h[k]} disabled={busy||!!pending}
        onChange={e=>putHold(i,k,e.target.value)}/></label>)}
-     <button disabled={busy||!!pending} onClick={()=>put('holds',form.holds.filter((_,j)=>j!==i))}>Hapus hold {i+1}</button>
+     <button disabled={busy||!!pending} onClick={()=>{clearHoldPhotos();setPhotoSlot('main');put('holds',form.holds.filter((_,j)=>j!==i))}}>Hapus hold {i+1}</button>
     </fieldset>)}
-    <button disabled={busy||!!pending||form.holds.length>=20} onClick={()=>put('holds',[...form.holds,{start:'',end:'',reason:'',note:''}])}>Tambah hold</button>
+    <button disabled={busy||!!pending||form.holds.length>=20} onClick={()=>{clearHoldPhotos();setPhotoSlot('main');put('holds',[...form.holds,{start:'',end:'',reason:'',note:''}])}}>Tambah hold</button>
    </div>
-   <button disabled={busy||!!pending} onClick={()=>void submit('draft')}>Full {kind} simpan draft</button>
-   <button disabled={busy||!!pending} onClick={()=>void submit('ready')}>Full {kind} simpan ready</button>
+   <div data-testid={'uat-full-'+kind+'-photo-staging'}>
+    <h4>Foto QC (hanya staging lokal, tanpa upload)</h4>
+    <p>PNG/JPEG/WebP maksimal 2 MB. Jika ada foto staging, simpan QC dinonaktifkan sampai ada penyimpanan foto terverifikasi.</p>
+    <label>Slot foto
+     <select aria-label={'Full '+kind+' slot foto'} value={photoSlot} disabled={busy||!!pending} onChange={e=>setPhotoSlot(e.target.value)}>
+      <option value="main">Foto utama</option>
+      {kind==='fertilizer'&&<option value="scan">Dokumen scan</option>}
+      {form.holds.map((_,i)=><option key={i} value={'hold_uat-h'+(i+1)}>{'Foto hold '+(i+1)}</option>)}
+     </select>
+    </label>
+    <label>Pilih file foto
+     <input type="file" accept="image/jpeg,image/png,image/webp" aria-label={'Full '+kind+' file foto'} disabled={busy||!!pending}
+      onChange={e=>{const selected=e.target.files?.[0];e.target.value='';if(selected)void stagePhoto(selected)}}/>
+    </label>
+    <p data-testid={'uat-full-'+kind+'-photo-status'}>{stagedPhotos.length} foto diverifikasi lokal · 0 diunggah</p>
+    {stagedPhotos.map(p=><div key={p.slot} data-testid={'uat-full-'+kind+'-photo-'+p.slot}>
+     <img alt={'Pratinjau lokal '+p.slot} src={p.dataUrl} width="100" height="100"/>
+     <span>{p.slot} · {p.fileName} · SHA256 {p.sha256.slice(0,12)} · {p.size} byte</span>
+     <button disabled={busy||!!pending} onClick={()=>setStagedPhotos(v=>v.filter(x=>x.slot!==p.slot))}>Hapus foto lokal {p.slot}</button>
+    </div>)}
+   </div>
+   <button disabled={busy||!!pending||stagedPhotos.length>0} onClick={()=>void submit('draft')}>Full {kind} simpan draft</button>
+   <button disabled={busy||!!pending||stagedPhotos.length>0} onClick={()=>void submit('ready')}>Full {kind} simpan ready</button>
    {pending&&<button disabled={busy} onClick={()=>void send(pending)}>Full {kind} ulang request identik</button>}
   </div>}
  </section>

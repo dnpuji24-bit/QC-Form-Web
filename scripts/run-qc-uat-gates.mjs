@@ -43,6 +43,9 @@ function quick(){
   'src/qcUatUnifiedFullQcTransport.mjs',
   'src/qcUatUnifiedFullQcFormBuilder.mjs',
   'src/qcUatUnifiedCarryoverSelection.mjs',
+  'src/qcUatUnifiedPhotoPreflight.mjs',
+  'src/qcOperationalPhotoManifest.mjs',
+  'scripts/test-qc-uat-unified-photo-preflight.mjs',
   'scripts/test-qc-uat-unified-carryover-contract.mjs',
   'src/qcUatFertilizerFullDto.mjs',
   'scripts/test-qc-uat-unified-full-qc-form.mjs',
@@ -54,6 +57,7 @@ function quick(){
  node('form contract (10 cases)','scripts/test-qc-uat-unified-operational-form-contract.mjs')
  node('full operational editor DTO contract (10 cases)','scripts/test-qc-uat-unified-full-qc-form.mjs')
  node('explicit Shift 1 -> Shift 2 carryover contract (10 cases)','scripts/test-qc-uat-unified-carryover-contract.mjs')
+ node('photo staging preflight contract (10 cases)','scripts/test-qc-uat-unified-photo-preflight.mjs')
  node('full form HTTP route and data loss guard','scripts/test-qc-uat-unified-full-qc-http.mjs','--self-test')
  node('unified source guard','scripts/test-qc-uat-unified-role-planning.mjs','--self-test')
  node('browser source guard','scripts/test-qc-uat-unified-portal-ui.mjs','--self-test')

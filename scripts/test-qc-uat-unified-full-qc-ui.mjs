@@ -28,7 +28,7 @@ if(process.argv[2]==='--browser'){
  assert.ok(pw?.startsWith('/'),'QC_UAT_PLAYWRIGHT_DIR_REQUIRED')
  const {chromium}=createRequire(pw+'/package.json')('playwright')
  const {build}=await import('vite')
- const allow=['UatRoleLifecyclePanel.tsx','accessControl.ts','qcUatSessionPermissions.mjs','qcUatRolePermissions.mjs','qcUatCustomRoles.mjs','UatUnifiedOperationalForm.jsx','qcUatUnifiedOperationalForm.mjs','UatUnifiedFullOperationalForm.jsx','qcUatUnifiedFullQcFormBuilder.mjs','qcUatSprayFullDto.mjs', 'qcUatFertilizerFullDto.mjs','qcUatUnifiedCarryoverSelection.mjs']
+ const allow=['UatRoleLifecyclePanel.tsx','accessControl.ts','qcUatSessionPermissions.mjs','qcUatRolePermissions.mjs','qcUatCustomRoles.mjs','UatUnifiedOperationalForm.jsx','qcUatUnifiedOperationalForm.mjs','UatUnifiedFullOperationalForm.jsx','qcUatUnifiedFullQcFormBuilder.mjs','qcUatSprayFullDto.mjs', 'qcUatFertilizerFullDto.mjs','qcUatUnifiedCarryoverSelection.mjs','qcUatUnifiedPhotoPreflight.mjs','qcOperationalPhotoManifest.mjs']
  const plugin={name:'full-qc-browser-exact-src-allowlist',enforce:'pre',generateBundle(_opts,bundle){
   const ids=Object.values(bundle).filter(x=>x.type==='chunk').flatMap(x=>Object.keys(x.modules))
   const paths=ids.filter(x=>x.startsWith(root+'src/')).map(x=>x.slice((root+'src/').length))
