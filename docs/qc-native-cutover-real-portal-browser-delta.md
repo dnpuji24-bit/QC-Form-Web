@@ -11,6 +11,12 @@ Cloud Shell sebelumnya menyatakan **3/3 PASS** pada `test:cutover:native-boundar
 - Setelah akun sintetis ditandai nonaktif di Firestore Emulator, proses verifikasi harus menutup portal tanpa fallback token Apps Script. Semua koneksi browser yang keluar dari localhost Vite, Auth emulator, Firestore emulator atau `data:` ditolak dan dicatat sebagai kegagalan.
 - Tidak ada credential nyata, backend Supabase, Cloud Billing, Hosting, live Firestore, migrasi data maupun penyalinan foto.
 
+## Perbaikan konfigurasi emulator (22 November 2026)
+- Error `../firestore.rules is outside of project directory` berasal dari konfigurasi Firebase Emulator yang sebelumnya disimpan di folder `scripts/`. **Tidak berkaitan dengan kesalahan Firestore/Auth produksi.**
+- Konfigurasi emulator sekarang ditempatkan di root repository pada `firebase.native-cutover-browser-emulator.json`, dengan `firestore.rules` relatif terhadap root. Konfigurasi lama dihapus agar tidak dipakai kembali.
+- Skrip npm menunjuk file root tersebut. Self-test juga memeriksa jalur Rules dan port emulator sehingga kesalahan konfigurasi serupa terdeteksi sebelum browser berjalan.
+- Perubahan ini **belum membuktikan** 4 skenario browser lulus; jalankan kembali satu command di bawah.
+
 ## Satu command ringkas Cloud Shell
 ```bash
 cd ~/QC-Form-Web
