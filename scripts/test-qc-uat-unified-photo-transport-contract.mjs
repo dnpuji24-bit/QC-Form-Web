@@ -57,6 +57,8 @@ check('foreign identity and invalid source references denied',()=>{
  reject(()=>same({...request,uploaderUid:'uat-other'}),'PHOTO_FULL_REQUEST_INVALID')
  reject(()=>same({...request,record:{...record,saveType:'uploaded'}}),'PHOTO_FULL_REQUEST_INVALID')
  reject(()=>same({...request,record:{...record,shift:'3'}}),'PHOTO_SOURCE_INVALID')
+ reject(()=>same({...request,record:{...record,date:'2026/11/21'}}),'PHOTO_SOURCE_INVALID')
+ reject(()=>same({...request,record:{...record,date:'21-11-2026'}}),'PHOTO_SOURCE_INVALID')
 })
 check('HTTP photo endpoint fixed to exact loopback, no alternate owner/query route',()=>{
  const route=planningPrefix+unifiedPaths.fullPhotoCommit
