@@ -20,7 +20,7 @@ git pull --ff-only origin feature/firebase-auth-claims-supabase
 bash server/qc-photo-access/run-unified-photo-real-storage.sh
 ```
 
-The runner first checks 11 ledger contracts, 10 fake-SDK private storage adapter guards, and TypeScript without network writes. If those pass, it asks for `QC-UAT-ATOMIC` and a **hidden** `sb_secret_` key belonging to **Supabase UAT project qc-form-uat only**.
+The runner first checks 11 ledger contracts, 12 fake-SDK private storage adapter guards, and TypeScript without network writes. If those pass, it asks for `QC-UAT-ATOMIC` and a **hidden** `sb_secret_` key belonging to **Supabase UAT project qc-form-uat only**.
 
 Never paste secret, Firebase tokens, signed URLs or photo paths into chat, screenshots, GitHub or source files. Use a fresh terminal without exported secrets. The script will stop if the server dependencies are unavailable, rather than using an unpinned installation. The existing server `package.json` specifies pinned versions for the Supabase SDK and Firebase Admin.
 
@@ -35,3 +35,11 @@ Any assertion, credential or cleanup failure is a blocker; do not deploy. If a r
 
 ## Not yet delivered
 No production upload, authenticated short-lived private photo viewer in the unified UI, live hosted UAT portal, photo-aware corrections after first commit, orphan reconciliation service, JPEG/WebP **atomic** live receipts, or full end-user photo submission. Supabase and Firestore are not a distributed transaction. Subsequent gates must test these separately, then authorize operational pilot; production `form-qc-unm` remains unchanged.
+
+## First live gate failure and conservative correction (21 Nov 2026)
+
+The operator ran the new gate; 11 ledger checks, 10 then-current fake-SDK adapter checks and TypeScript succeeded. The first real Spray test stopped at `PHOTO_UAT_DOWNLOAD_FAILED` before any upload. Correlated Supabase gateway logs recorded a GET with HTTP **400** for a missing synthetic run-scoped object; read-only SQL confirmed **zero** objects with failed run ID `89d8c99f2317ee21be97047edebb3875`. No production data was changed and no cleanup was required.
+
+Fix in `uat-unified-private-photo-store.mjs`: for each immutable path, attempt `upload(..., { upsert:false })` **first**; then download and verify exact bytes and SHA. On an expected duplicate or uncertain 5xx timeout, read back and accept only if bytes match. Fail closed for HTTP 401/403 and unrelated 400s; never change bucket policies or use a public URL. This avoids relying on inconsistent 400-versus-404 missing-object download responses. Since retries may issue another no-upsert upload request, the fake SDK regression now verifies **one stored object / no overwrite**, rather than one network upload attempt. Added cases cover missing GET 400 and denied/invalid uploads; 12 offline adapter checks are now expected. These changes are **not yet confirmed by another operator live run**.
+
+Rerun the same command above on the feature branch. If any real test fails, report the error and the synthetic run ID **without** secrets or full object paths. Do not automatically delete run-scoped objects or deploy hosted UAT.
