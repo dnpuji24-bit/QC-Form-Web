@@ -14,7 +14,8 @@ import {createMemoryPhotoObjectStore} from '../server/qc-photo-access/uat-unifie
 import {createUnifiedPlanningHttp,unifiedPaths,unifiedPlanningOrigin,unifiedPlanningPort,classifyUnifiedPlanningError} from '../server/qc-photo-access/uat-unified-planning-http.mjs'
 import {shellRoute,planningPrefix} from '../server/qc-photo-access/uat-unified-browser-shell.mjs'
 
-assert.ok(['--self-test','--emulator'].includes(process.argv[2])&&process.argv.length===3)
+assert.ok(['--self-test','--emulator','--photo-correction'].includes(process.argv[2])&&process.argv.length===3)
+const correctionMode=process.argv[2]==='--photo-correction'
 const src=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8')
 const fullRoutes=[unifiedPaths.fullSource,unifiedPaths.fullSprayCommit,unifiedPaths.fullFertilizerCommit]
 for(const route of fullRoutes){
@@ -34,7 +35,7 @@ const fakeSource={testOnly:true,kind:'spray',dailyPlanId:'uat-d',date:'2026-11-0
 assert.throws(()=>prepareUnifiedFullQc({source:fakeSource}),{message:'INVALID_FULL_QC_ENVELOPE'})
 assert.throws(()=>prepareUnifiedFullQc({source:fakeSource,record:{formType:'spray',ownerUid:'uat-a',inputtedBy:'uat-a',photoBase64:'secret',saveType:'ready'},baseRevision:null,jobId:'uat-j',uploaderUid:'uat-a',expectedDailyRevision:0,foremanId:'uat-f'}),{message:'PHOTO_GATE_PENDING'})
 console.log('SUCCESS: full DTO unified UAT exact routes, photo and source isolation guards passed (offline)')
-if(process.argv[2]==='--emulator'){
+if(process.argv[2]!=='--self-test'){
  unifiedGuard()
  const require=createRequire(new URL('../server/qc-photo-access/package.json',import.meta.url))
  const {initializeApp:adminInit,deleteApp:adminDelete}=require('firebase-admin/app')
@@ -124,6 +125,65 @@ if(process.argv[2]==='--emulator'){
    const si={sourceRequest:sourceRequest('uat-ds','spray'),request:sr,photos:[photo]}
    const fi={sourceRequest:sourceRequest('uat-df','fertilizer'),request:fr,photos:[photo,{action:'replace',kind:'scan',dataUrl:png}]}
    const get=(c,id)=>root(c,id).get()
+   if(correctionMode){
+    await service.commit(operator.token,si)
+    await service.commit(operator.token,fi)
+    const oldSprayAudit=(await get('qc_photo_manifest_audit','uat-photo-s:uat-r1')).data()
+    const oldFertAudit=(await get('qc_photo_manifest_audit','uat-photo-f:uat-r1')).data()
+    const altPng='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGNUXnCdgYGBiYGBgYGBAQASrgGesfy8twAAAABJRU5ErkJggg=='
+    const rSpray={...sr,record:{...spray,clientRevision:'uat-r2'},baseRevision:'uat-r1',jobId:'uat-job-s-photo-r2'}
+    const rFert={...fr,record:{...fert,clientRevision:'uat-r2'},baseRevision:'uat-r1',jobId:'uat-job-f-photo-r2'}
+    const fixingSpray={...si,request:rSpray,photos:[{...photo,dataUrl:altPng}]}
+    const fixingFert={...fi,request:rFert,photos:[photo,{action:'replace',kind:'scan',dataUrl:altPng}]}
+    await check('Spray/Fertilizer photo-only correction preserves historical audits and QC+Actual',async()=>{
+     const origActual=(await get('daily_reports','qcactual_uat-photo-s')).data()
+     await service.commit(operator.token,fixingSpray)
+     await service.commit(operator.token,fixingFert)
+     for(const [suffix,prior] of [['s',oldSprayAudit],['f',oldFertAudit]]){
+      const name='uat-photo-'+suffix,updated=(await get('qc_photo_manifests',name)).data()
+      assert.equal(updated.clientRevision,'uat-r2')
+      assert.deepEqual((await get('qc_photo_manifest_audit',name+':uat-r1')).data(),prior)
+      assert.deepEqual((await get('qc_photo_manifest_audit',name+':uat-r2')).data(),updated)
+      assert.equal((await get('qc_records',name)).data().clientRevision,'uat-r2')
+     }
+     assert.deepEqual((await get('qc_spray_full_audit','uat-photo-s:uat-r1')).data().form,spray)
+     assert.deepEqual((await get('qc_fertilizer_full_audit','uat-photo-f:uat-r1')).data().form,fert)
+     assert.deepEqual((await get('qc_spray_full','uat-photo-s')).data().form,rSpray.record)
+     assert.deepEqual((await get('qc_fertilizer_full','uat-photo-f')).data().form,rFert.record)
+     assert.equal((await get('daily_reports','qcactual_uat-photo-s')).data().actualArea100,origActual.actualArea100)
+     const fertActual=(await get('daily_reports','qcactual_uat-photo-f')).data()
+     assert.deepEqual(fertActual.fertilizerComponents.map(x=>x.actualArea100),[800,500])
+     assert.equal(fertActual.applicationArea100,1300)
+     assert.equal(store.stats.puts,5,'only two changed immutable objects')
+    })
+    await check('stale revision, changed QC fields and tampered audit rejected',async()=>{
+     const stale={...fixingSpray,request:{...rSpray,record:{...rSpray.record,clientRevision:'uat-r3'},
+      baseRevision:'uat-r1',jobId:'uat-job-s-photo-stale'},photos:[photo]}
+     await assert.rejects(()=>service.commit(operator.token,stale),{message:'PHOTO_CORRECTION_REVISION_CONFLICT'})
+     const altered={...stale,request:{...stale.request,baseRevision:'uat-r2',
+      record:{...stale.request.record,actualAreaHa:18}}}
+     await assert.rejects(()=>service.commit(operator.token,altered),{message:'PHOTO_CORRECTION_OPERATIONAL_FIELDS_CHANGED'})
+     const refAudit=root('qc_photo_manifest_audit','uat-photo-s:uat-r2')
+     const before=(await refAudit.get()).data()
+     await refAudit.set({...before,jobId:'uat-forged'})
+     try{
+      await assert.rejects(()=>service.commit(operator.token,{...stale,request:{...stale.request,baseRevision:'uat-r2'}}),
+       {message:'PHOTO_CORRECTION_HISTORY_INVALID'})
+     }finally{await refAudit.set(before)}
+     assert.equal((await get('qc_photo_manifest_audit','uat-photo-s:uat-r3')).exists,false)
+     assert.equal((await get('qc_records','uat-photo-s')).data().clientRevision,'uat-r2')
+    })
+    await check('identical correction replay produces no duplicate records, audit or objects',async()=>{
+     const before=store.stats.puts
+     await service.commit(operator.token,fixingSpray)
+     await service.commit(operator.token,fixingFert)
+     assert.equal(store.stats.puts,before)
+     assert.equal((await adb.collection(base+'/qc_photo_manifest_audit').get()).size,4)
+     assert.equal((await adb.collection(base+'/qc_records').get()).size,2)
+     assert.equal((await adb.collection(base+'/daily_reports').get()).size,2)
+    })
+    console.log('SUCCESS: 3 focused photo correction delta checks passed (MOCK storage, NO Supabase upload)')
+   }else{
    await check('Spray full QC + Actual + verified photo manifest and immutable audit are atomic',async()=>{
     const out=await service.commit(operator.token,si)
     assert.equal(out.photo.status,'committed');assert.equal(out.photo.count,1)
@@ -167,10 +227,10 @@ if(process.argv[2]==='--emulator'){
     assert.equal((await post(operator.token,unifiedPaths.fullFertilizerCommit,{request:fr})).status,409)
     assert.equal((await adb.collection(base+'/qc_photo_manifest_audit').get()).size,2)
    })
-   await check('changing record revision remains blocked until photo correction is tested',async()=>{
+   await check('new revision with no changed photo is denied',async()=>{
     const newer={...spray,clientRevision:'uat-r2'}
     const r={...sr,record:newer,baseRevision:'uat-r1',jobId:'uat-job-photo-v2'}
-    await assert.rejects(()=>service.commit(operator.token,{...si,request:r}),{message:'PHOTO_CORRECTION_NOT_ENABLED'})
+    await assert.rejects(()=>service.commit(operator.token,{...si,request:r}),{message:'PHOTO_CORRECTION_NO_PHOTO_CHANGED'})
     assert.equal((await get('qc_photo_manifest_audit','uat-photo-s:uat-r2')).exists,false)
     assert.equal((await get('qc_records','uat-photo-s')).data().clientRevision,'uat-r1')
    })
@@ -204,6 +264,7 @@ if(process.argv[2]==='--emulator'){
     assert.equal((await adb.collection(base+'/daily_reports').get()).size,2)
    })
    console.log('SUCCESS: '+n+' isolated atomic photo/QC/Actual emulator checks passed (MOCK photos, NO Supabase upload)')
+   }
 
  }finally{
   if(server.listening)await new Promise(resolve=>server.close(resolve))
