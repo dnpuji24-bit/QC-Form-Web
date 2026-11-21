@@ -9,7 +9,7 @@ import {roleDefinition,assignIdentityRole} from '../src/qcUatCustomRoles.mjs'
 import {nextPlanningRow} from '../src/qcUatPlanningWriteContract.mjs'
 import {unifiedGuard,unifiedProjectId,unifiedHost,unifiedAuthPort} from '../server/qc-photo-access/uat-unified-identity-guard.mjs'
 import {createOwnerHttp,createOwnerService,paths as ownerPaths} from '../server/qc-photo-access/uat-owner-permission-http.mjs'
-import {createUnifiedPlanningHttp} from '../server/qc-photo-access/uat-unified-planning-http.mjs'
+import {createUnifiedPlanningHttp,unifiedPlanningOrigin,unifiedPaths} from '../server/qc-photo-access/uat-unified-planning-http.mjs'
 import {createUnifiedBrowserShell,shellPort,shellOrigin,shellRoute,ownerPrefix,planningPrefix} from '../server/qc-photo-access/uat-unified-browser-shell.mjs'
 const root=fileURLToPath(new URL('../',import.meta.url)),read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8')
 const e={QC_UAT_MODE:'unified-lab',GCLOUD_PROJECT:unifiedProjectId,FIRESTORE_EMULATOR_HOST:'127.0.0.1:9285',FIREBASE_AUTH_EMULATOR_HOST:'127.0.0.1:10099'}
@@ -172,6 +172,26 @@ if(['--browser','--browser-portal','--browser-modules'].includes(process.argv[2]
     await owner.getByRole('button',{name:'Muat Calendar UAT'}).click()
     await expected(owner.getByTestId('uat-operational-calendar-state'),'ready')
     assert.match(await owner.getByTestId('uat-operational-calendar-result').innerText(),/0 record \(Actual Plan\)/)
+    // UI visibility is not authorization: an authenticated QC viewer must also
+    // be denied by the trusted backend for both newly added read-only routes.
+    const signIn=await fetch('http://'+unifiedHost+':'+unifiedAuthPort+
+     '/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-only-not-a-real-key',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email:'uat-viewer@unified-ui.example.test',
+       password:'Synthetic-2026-uat-viewer',returnSecureToken:true})
+     })
+    assert.equal(signIn.status,200,'AUTH_EMULATOR_SIGNIN_FAILED')
+    const {idToken}=await signIn.json()
+    assert.ok(typeof idToken==='string'&&idToken.length>20)
+    for(const [path,request] of [
+     [unifiedPaths.portalSummary,{period:'2027-01',week:'ALL',companyCode:null,farm:null,shift:null,foreman:null}],
+     [unifiedPaths.portalCalendar,{monthKey:'2026-11',source:'daily'}]
+    ]){
+     const denied=await fetch(unifiedPlanningOrigin+path,{
+      method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+idToken},
+      body:JSON.stringify({request})})
+     assert.equal(denied.status,403,'UNAUTHORIZED_PORTAL_READ_MUST_BE_DENIED')
+    }
     assert.deepEqual(errors,[])
     assert.deepEqual((await adb.doc('users/root-sentinel').get()).data(),{protected:true})
     assert.deepEqual((await adb.doc('monthly_plans/root-sentinel').get()).data(),{protected:true})
