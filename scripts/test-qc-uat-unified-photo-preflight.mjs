@@ -1,8 +1,10 @@
+// Valid PNG with CRC-verified IHDR/IDAT/IEND chunks; the previous tiny fixture
+// had a corrupt IDAT CRC. Chromium correctly refuses to decode the old fixture.
 import assert from 'node:assert/strict'
 import {stageUatPhoto,uatPhotoSlot} from '../src/qcUatUnifiedPhotoPreflight.mjs'
 let n=0
 const check=async(label,fn)=>{await fn();n++;console.log('PASS: '+label)}
-const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4//8/AwAI/AL+PcCaAAAAAElFTkSuQmCC','base64'))
+const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGM0atryn4GBgYGJAQoAJCYCa4s7a6wAAAAASUVORK5CYII=','base64'))
 const file=(bytes=png,type='image/png',name='uji.png')=>({name,type,size:bytes.length,arrayBuffer:async()=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength)})
 const args={uploaderUid:'uat-field',formType:'spray',kind:'main'}
 await check('main photo manifest uses existing stable SHA256 slot ID and no remote requests',async()=>{

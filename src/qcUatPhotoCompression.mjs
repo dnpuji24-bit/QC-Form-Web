@@ -36,26 +36,31 @@ function blobAsJpeg(canvas,quality){
   },'image/jpeg',quality)}catch{reject(Error('PHOTO_ENCODING_UNAVAILABLE'))}
  })
 }
+function byteDataUrl(bytes,mime){
+ let binary=''
+ for(let i=0;i<bytes.length;i+=8190)binary+=String.fromCharCode(...bytes.subarray(i,i+8190))
+ return 'data:'+mime+';base64,'+btoa(binary)
+}
 function asFile(blob,originalName){
  const stem=originalName.replace(/\.[^.]*$/,'').slice(0,155)||'foto'
  return new File([blob],stem+'.jpg',{type:'image/jpeg'})
 }
 export async function compressUatPhoto(file){
  const original=await validateUatOriginalPhoto(file)
- let bitmap=null,image=null,objectUrl=''
+ let bitmap=null,image=null
  try{
   if(typeof createImageBitmap==='function'){
    try{bitmap=await createImageBitmap(file)}catch{bitmap=null}
   }
   if(!bitmap){
-   requirePhoto(typeof Image==='function'&&typeof URL!=='undefined'&&
-    typeof URL.createObjectURL==='function','PHOTO_DECODER_UNAVAILABLE')
-   objectUrl=URL.createObjectURL(file)
+   // The unified portal intentionally permits img-src data: only, NOT blob:.
+   // Decode the previously checked bytes without a blob URL or a network request.
+   requirePhoto(typeof Image==='function'&&typeof btoa==='function','PHOTO_DECODER_UNAVAILABLE')
    image=await new Promise((resolve,reject)=>{
     const img=new Image()
     img.onload=()=>resolve(img)
     img.onerror=()=>reject(Error('PHOTO_DECODE_FAILED'))
-    img.src=objectUrl
+    img.src=byteDataUrl(original.bytes,file.type)
    })
   }
   const width=bitmap?.width??image?.naturalWidth,height=bitmap?.height??image?.naturalHeight
@@ -101,6 +106,5 @@ export async function compressUatPhoto(file){
   throw Error('PHOTO_COMPRESSION_FAILED')
  }finally{
   bitmap?.close?.()
-  if(objectUrl)URL.revokeObjectURL(objectUrl)
  }
 }

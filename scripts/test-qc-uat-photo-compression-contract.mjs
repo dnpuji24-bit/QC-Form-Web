@@ -1,6 +1,8 @@
+// Valid PNG with CRC-verified IHDR/IDAT/IEND chunks; the previous tiny fixture
+// had a corrupt IDAT CRC. Chromium correctly refuses to decode the old fixture.
 import assert from 'node:assert/strict'
 import {UAT_PHOTO_COMPRESSION,uatCompressedDimensions,validateUatOriginalPhoto} from '../src/qcUatPhotoCompression.mjs'
-const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4//8/AwAI/AL+PcCaAAAAAElFTkSuQmCC','base64'))
+const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGM0atryn4GBgYGJAQoAJCYCa4s7a6wAAAAASUVORK5CYII=','base64'))
 const f=(bytes=png,type='image/png',name='paddock.png')=>({size:bytes.length,type,name,arrayBuffer:async()=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.length)})
 let n=0
 const check=async(name,fn)=>{await fn();n++;console.log('PASS: '+name)}

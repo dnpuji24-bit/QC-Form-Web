@@ -1,3 +1,5 @@
+// Valid PNG with CRC-verified IHDR/IDAT/IEND chunks; the previous tiny fixture
+// had a corrupt IDAT CRC. Chromium correctly refuses to decode the old fixture.
 // 11D.5c.2b.3 — focused actual React full-form browser -> trusted HTTP -> Firestore emulator.
 // No production, no photos, no Supabase, no storage, no invented real-world field records.
 import assert from 'node:assert/strict'
@@ -264,9 +266,14 @@ if(process.argv[2]==='--browser'){
    assert.equal((await ref('qc_operational_audit',id+':'+full.clientRevision).get()).exists,true)
   })
   await check('React Spray local photo preflight verifies immutable bytes and blocks QC commit until attachment is removed',async()=>{
-   const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4//8/AwAI/AL+PcCaAAAAAElFTkSuQmCC','base64')
+   const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGM0atryn4GBgYGJAQoAJCYCa4s7a6wAAAAASUVORK5CYII=','base64')
    await spray.getByLabel('Full spray file foto',{exact:true}).setInputFiles({name:'field.png',mimeType:'image/png',buffer:png})
-   await expected(spray.getByTestId('uat-full-spray-photo-status'),/1 foto diverifikasi lokal · 0 diunggah/)
+   try{
+    await expected(spray.getByTestId('uat-full-spray-photo-status'),/1 foto diverifikasi lokal · 0 diunggah/)
+   }catch(e){
+    const status=await spray.getByTestId('uat-full-spray-status').innerText()
+    throw Error('PNG_PHOTO_STAGE_STATUS: '+status+'; '+String(e?.message||e))
+   }
    assert.equal(await spray.getByRole('button',{name:'Full spray simpan ready'}).isDisabled(),true)
    assert.equal(await spray.getByRole('button',{name:'Full spray simpan draft'}).isDisabled(),true)
    assert.equal(await spray.getByRole('img',{name:'Pratinjau lokal main'}).count(),1)
@@ -279,6 +286,10 @@ if(process.argv[2]==='--browser'){
    assert.equal(await spray.getByRole('button',{name:'Full spray simpan ready'}).isDisabled(),false)
    await spray.getByLabel('Full spray file foto',{exact:true}).setInputFiles({name:'fake.jpg',mimeType:'image/jpeg',buffer:png})
    await expected(spray.getByTestId('uat-full-spray-status'),/foto ditolak: PHOTO_SIGNATURE_INVALID/)
+   assert.equal((await adb.collection(base+'/qc_records').get()).size,4)
+   const corruptPng=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4//8/AwAI/AL+PcCaAAAAAElFTkSuQmCC','base64')
+   await spray.getByLabel('Full spray file foto',{exact:true}).setInputFiles({name:'corrupt.png',mimeType:'image/png',buffer:corruptPng})
+   await expected(spray.getByTestId('uat-full-spray-status'),/foto ditolak: PHOTO_DECODE_FAILED/)
    assert.equal((await adb.collection(base+'/qc_records').get()).size,4)
   })
   await check('React large camera photo compresses before hash and retains zero QC writes until removal',async()=>{
@@ -325,7 +336,7 @@ if(process.argv[2]==='--browser'){
    await expected(spray.getByTestId('uat-full-spray-photo-status'),/0 foto diverifikasi lokal/)
   })
   await check('React Fertilizer stages distinct scanner and hold locally; removing hold and changing Daily source discards stale photo',async()=>{
-   const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4//8/AwAI/AL+PcCaAAAAAElFTkSuQmCC','base64')
+   const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGM0atryn4GBgYGJAQoAJCYCa4s7a6wAAAAASUVORK5CYII=','base64')
    await fert.getByRole('combobox',{name:'Full fertilizer slot foto'}).selectOption('scan')
    await fert.getByLabel('Full fertilizer file foto',{exact:true}).setInputFiles({name:'scan.png',mimeType:'image/png',buffer:png})
    await expected(fert.getByTestId('uat-full-fertilizer-photo-status'),/1 foto diverifikasi lokal/)

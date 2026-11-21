@@ -1,3 +1,5 @@
+// Valid PNG with CRC-verified IHDR/IDAT/IEND chunks; the previous tiny fixture
+// had a corrupt IDAT CRC. Chromium correctly refuses to decode the old fixture.
 import assert from 'node:assert/strict'
 import {buildUnifiedFullQc} from '../src/qcUatUnifiedFullQcFormBuilder.mjs'
 import {createMemoryPhotoObjectStore,createTrustedPhotoStage,mockBucket} from '../server/qc-photo-access/uat-unified-photo-trusted-stage.mjs'
@@ -6,7 +8,7 @@ const defaults=()=>({unit:'Boom',noUnit:'BS001',assistant:'Asisten',startTime:'0
 const actor={uid:'uat-field',nonce:'photostage',saveType:'ready',createdAt:'2026-11-03T08:00:00Z'}
 const q=buildUnifiedFullQc(source,defaults(),actor)
 const sourceRequest={dailyPlanId:'uat-ds',expectedDailyRevision:0,formType:'spray',date:'2026-11-03',shift:'1',foreman:'uat-f1'}
-const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4//8/AwAI/AL+PcCaAAAAAElFTkSuQmCC'
+const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGM0atryn4GBgYGJAQoAJCYCa4s7a6wAAAAASUVORK5CYII='
 const change={action:'replace',kind:'main',dataUrl:png}
 const mk=(delta={})=>({sourceRequest,request:q,photos:[change],...delta})
 const create=(over={})=>{
