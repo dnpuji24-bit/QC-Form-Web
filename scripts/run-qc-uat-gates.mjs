@@ -4,8 +4,8 @@ import {fileURLToPath} from 'node:url'
 import path from 'node:path'
 const root=fileURLToPath(new URL('../',import.meta.url))
 const mode=process.argv[2]
-if(!['quick','smoke','ui','full'].includes(mode)||process.argv.length!==3){
- console.error('Usage: node scripts/run-qc-uat-gates.mjs quick|smoke|ui|full')
+if(!['quick','smoke','ui','full-ui','full'].includes(mode)||process.argv.length!==3){
+ console.error('Usage: node scripts/run-qc-uat-gates.mjs quick|smoke|ui|full-ui|full')
  process.exit(2)
 }
 const env={...process.env}
@@ -44,6 +44,7 @@ function quick(){
   'src/qcUatUnifiedFullQcFormBuilder.mjs',
   'src/qcUatFertilizerFullDto.mjs',
   'scripts/test-qc-uat-unified-full-qc-form.mjs',
+  'scripts/test-qc-uat-unified-full-qc-ui.mjs',
   'scripts/test-qc-uat-unified-full-qc-http.mjs',
   'scripts/test-qc-uat-unified-operational-form-contract.mjs',
   'scripts/test-qc-uat-unified-operational-form-smoke.mjs'
@@ -68,6 +69,11 @@ function ui(){
   'firebase.uat-unified-role-planning-emulator.json',9285,10099,
   'scripts/test-qc-uat-unified-portal-ui.mjs','--browser',true)
 }
+function fullUi(){
+ emu('focused complete Spray/Fertilizer React browser commit and retry (5 cases)','demo-qc-uat-unified-role-planning',
+  'firebase.uat-unified-role-planning-emulator.json',9285,10099,
+  'scripts/test-qc-uat-unified-full-qc-ui.mjs','--browser',true)
+}
 function full(){
  quick()
  smoke()
@@ -75,6 +81,7 @@ function full(){
   'firebase.uat-unified-role-planning-emulator.json',9285,10099,
   'scripts/test-qc-uat-unified-role-planning.mjs','--emulator',true)
  ui()
+ fullUi()
  emu('Owner role lifecycle regression (16)','demo-qc-uat-owner-http',
   'firebase.uat-owner-permission-http.json',9485,10299,
   'scripts/test-qc-uat-role-lifecycle.mjs','--emulator')
@@ -88,4 +95,5 @@ function full(){
 if(mode==='quick'){quick();console.log('\nSUCCESS: Quick Test contract and typecheck passed (no emulator)')}
 if(mode==='smoke'){smoke();console.log('\nSUCCESS: targeted 16-case Spray/Fertilizer emulator smoke passed')}
 if(mode==='ui'){ui();console.log('\nSUCCESS: 17-case unified UAT browser permission and UI gate passed')}
+if(mode==='full-ui'){fullUi();console.log('\nSUCCESS: focused 5-case complete full QC React browser operational commit passed')}
 if(mode==='full')full()
