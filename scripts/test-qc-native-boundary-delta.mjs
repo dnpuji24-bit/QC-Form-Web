@@ -37,6 +37,9 @@ check('native entrypoint and historical Drive report remain separate from legacy
  const main=src('src/main.tsx'),native=src('src/NativePortalSession.tsx')
  const app=src('src/App.tsx'),cutover=src('src/qcCutover.ts')
  assert.match(main,/nativePortalEnabled\s*\?\s*<NativePortalSession>/)
+ for(const pilot of ['showNativeRegistrationPilot','showFirebaseAuthPilot','showOperationalPilot','showPhotoUploadTest']){
+  assert.match(main,new RegExp('const '+pilot+' = !nativePortalEnabled && '))
+ }
  assert.match(native,/signInWithEmailAndPassword/)
  assert.match(native,/readApprovedFirebaseSession/)
  assert.match(cutover,/VITE_QC_FIRESTORE_ONLY/)
