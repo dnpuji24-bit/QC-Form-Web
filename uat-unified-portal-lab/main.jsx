@@ -5,6 +5,7 @@ import {createRoot} from 'react-dom/client'
 import {initializeApp} from 'firebase/app'
 import {initializeAuth,inMemoryPersistence,connectAuthEmulator,onAuthStateChanged,signInWithEmailAndPassword,signOut} from 'firebase/auth'
 import RoleLifecycle from '../src/UatRoleLifecyclePanel'
+import UatUnifiedOperationalForm from '../src/UatUnifiedOperationalForm.jsx'
 import {validateCustomRole} from '../src/qcUatCustomRoles.mjs'
 import {validateSession} from '../src/qcUatSessionPermissions.mjs'
 if(location.origin!=='http://127.0.0.1:4797')throw Error('UNIFIED_BROWSER_ORIGIN')
@@ -31,6 +32,9 @@ function adapterFor(user){
  const owner=(path,body)=>call('owner',path,body)
  const planning=(path,body)=>call('planning',path,body)
  return {
+  isCurrent:u=>auth.currentUser===u,
+  qcSource:async(formType,dailyPlanId)=>(await planning('/uat/unified/qc/source',{request:{formType,dailyPlanId}})).source,
+  qcCommit:async(request)=>(await planning('/uat/unified/qc/commit',{request})).qc,
   session:async()=>validateSession((await owner('/uat/session/permissions',{})).session,user.uid),
   read:async(scope,id)=>(await planning('/uat/unified/planning/read',{scope,id})).plan,
   lifecycle:{
@@ -100,7 +104,7 @@ function App(){
  const owner=!!session&&session.role==='owner'&&session.uid===user?.uid
  return <main>
   <h1>Unified QC & Planning Portal Shell — Demo UAT</h1>
-  <p>Emulator only. No production hosting, QC records or external photos.</p>
+  <p>Emulator only. QC source and receipt tests use synthetic records, without external photos or production hosting.</p>
   <p data-testid="actor">{user?.uid??'signed-out'}</p>
   <p data-testid="session-state">{state}</p>
   <p data-testid="role">{session?.role??'-'}</p>
@@ -123,6 +127,8 @@ function App(){
    {visible('qc_fertilizer')&&<span data-testid="menu-fertilizer">QC Fertilizer · {mode('qc_fertilizer')}</span>}
   </nav>
   <p data-testid="read-result">{result}</p>
+  {user&&api&&mode('qc_spraying')==='edit'&&<UatUnifiedOperationalForm key={'spray-'+user.uid+'-'+session.policyRevision} user={user} kind="spray" api={api}/>}
+  {user&&api&&mode('qc_fertilizer')==='edit'&&<UatUnifiedOperationalForm key={'fertilizer-'+user.uid+'-'+session.policyRevision} user={user} kind="fertilizer" api={api}/>} 
   {owner&&api&&<RoleLifecycle key={'owner-'+user.uid} adapter={api.lifecycle}/>}
  </main>
 }
