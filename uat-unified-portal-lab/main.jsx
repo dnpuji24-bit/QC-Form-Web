@@ -89,7 +89,7 @@ function App(){
  const [summaryPeriod,setSummaryPeriod]=useState('2027-01')
  const [summaryWeek,setSummaryWeek]=useState('ALL')
  const [summaryResult,setSummaryResult]=useState(null),[summaryState,setSummaryState]=useState('idle')
- const [calendarMonth,setCalendarMonth]=useState('2026-11')
+ const [calendarMonth,setCalendarMonth]=useState('2026-11'),[calendarSource,setCalendarSource]=useState('daily')
  const [calendarResult,setCalendarResult]=useState(null),[calendarState,setCalendarState]=useState('idle')
  const seq=useRef(0),identity=useRef(null),refreshRef=useRef(()=>{})
  useEffect(()=>{
@@ -153,8 +153,9 @@ function App(){
  }
  async function loadCalendar(){
   if(!user||!session||!api)return
-  const source=['view','edit'].includes(session.permissions.data_plan_daily??'none')?'daily':
-   ['view','edit'].includes(session.permissions.data_plan_actual??'none')?'actual':null
+  const canReadCalendar=calendarSource==='daily'?['view','edit'].includes(session.permissions.data_plan_daily??'none'):
+   ['view','edit'].includes(session.permissions.data_plan_actual??'none')
+  const source=canReadCalendar?calendarSource:null
   if(!source)return
   const current=user,ticket=seq.current
   setCalendarResult(null);setCalendarState('loading')
@@ -168,7 +169,7 @@ function App(){
   }catch{if(ticket===seq.current&&auth.currentUser===current){setCalendarResult(null);setCalendarState('denied')}}
  }
  const mode=key=>session?.permissions[key]??'none'
- useEffect(()=>{if(operationalPortalPilot){setPortalArea('home');setSummaryResult(null);setSummaryState('idle');setCalendarResult(null);setCalendarState('idle')}},[user?.uid,session?.policyRevision])
+ useEffect(()=>{if(operationalPortalPilot){setPortalArea('home');setSummaryResult(null);setSummaryState('idle');setCalendarResult(null);setCalendarState('idle');setCalendarSource('daily')}},[user?.uid,session?.policyRevision])
  const areas=operationalPortalPilot?allowedUatOperationalAreas(session):[]
  const area=operationalPortalPilot?resolveUatOperationalArea(session,portalArea):'home'
  const showData=!operationalPortalPilot||area==='data-unm'
@@ -217,7 +218,13 @@ function App(){
     <h3>Calendar Rekap — sumber DP/Actual sintetis</h3>
     <label>Bulan <input aria-label="Bulan Calendar" type="month" value={calendarMonth}
      onChange={e=>{setCalendarMonth(e.target.value);setCalendarResult(null);setCalendarState('idle')}}/></label>
-    <button type="button" onClick={()=>void loadCalendar()}>Muat Calendar UAT</button>
+    <label>Sumber <select aria-label="Sumber Calendar" value={calendarSource}
+     onChange={e=>{setCalendarSource(e.target.value);setCalendarResult(null);setCalendarState('idle')}}>
+     {['view','edit'].includes(mode('data_plan_daily'))&&<option value="daily">Daily Plan</option>}
+     {['view','edit'].includes(mode('data_plan_actual'))&&<option value="actual">Actual Plan</option>}
+    </select></label>
+    <button type="button" disabled={!['view','edit'].includes(mode(calendarSource==='daily'?'data_plan_daily':'data_plan_actual'))}
+      onClick={()=>void loadCalendar()}>Muat Calendar UAT</button>
     <p data-testid="uat-operational-calendar-state">{calendarState}</p>
     {calendarResult&&<div data-testid="uat-operational-calendar-result">
      <p>{calendarResult.eventCount} record ({calendarResult.source==='daily'?'Daily Plan':'Actual Plan'})</p>
