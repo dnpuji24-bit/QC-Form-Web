@@ -3,7 +3,7 @@
 import {createServer} from 'node:http'
 import {createPlanningPhotoReadService} from './uat-unified-private-photo-read.mjs'
 import {unifiedGuard,unifiedHost} from './uat-unified-identity-guard.mjs'
-import {createPlanningService,createPlanningWriteService,createPlanningQcService,createPlanningQcSelectionService,createPlanningQcSourceService,createPlanningSprayCommitService,createPlanningFertilizerCommitService,createPlanningPhotoCommitService,createPlanningFilteredDashboardService,createPlanningCalendarService} from './uat-planning-role-service.mjs'
+import {createPlanningService,createPlanningWriteService,createPlanningQcService,createPlanningQcSelectionService,createPlanningQcSourceService,createPlanningSprayCommitService,createPlanningFertilizerCommitService,createPlanningPhotoCommitService,createPlanningFilteredDashboardService,createPlanningCalendarService,createPlanningOperationalRecordsService} from './uat-planning-role-service.mjs'
 export const unifiedPlanningPort=4697
 export const unifiedPlanningOrigin='http://'+unifiedHost+':'+unifiedPlanningPort
 export const unifiedPaths=Object.freeze({
@@ -21,7 +21,8 @@ export const unifiedPaths=Object.freeze({
  photoSign:'/uat/unified/qc/photo/sign',
  // Read-only, isolated operational UAT Summary and Calendar.
  portalSummary:'/uat/unified/portal/summary',
- portalCalendar:'/uat/unified/portal/calendar'
+ portalCalendar:'/uat/unified/portal/calendar',
+ portalRecords:'/uat/unified/portal/qc-records'
 })
 const exact=(v,ks)=>v&&Object.getPrototypeOf(v)===Object.prototype&&Reflect.ownKeys(v).length===ks.length&&ks.every(k=>Object.hasOwn(v,k))
 function error(status,code){throw Object.assign(Error(code),{status})}
@@ -38,7 +39,7 @@ export function classifyUnifiedPlanningError(e){
  if(code==='INVALID_TOKEN')return [401,'AUTH_REQUIRED']
  if(['UAT_IDENTITY_DENIED','PLANNING_PERMISSION_DENIED','QC_PERMISSION_DENIED','QC_OWNER_ONLY'].includes(code))return [403,'ACCESS_DENIED']
  if(code==='WRONG_PROJECT'||code==='UNIFIED_DEMO_EMULATORS_REQUIRED')return [503,'EMULATOR_GUARD_DENIED']
- if(typeof code==='string'&&/^(?:INVALID_|MISSING_|PLAN_|PLANNING_|MONTHLY_|DAILY_|QC_|GROUP_|FULL_|SPRAY_|FERTILIZER_|SOURCE_|MATERIAL_|PHOTO_|PRODUCT_|UNMAPPED_|CALENDAR_|DASHBOARD_|SUMMARY_)/.test(code))return [409,'CONTRACT_REJECTED']
+ if(typeof code==='string'&&/^(?:INVALID_|MISSING_|PLAN_|PLANNING_|MONTHLY_|DAILY_|QC_|GROUP_|FULL_|SPRAY_|FERTILIZER_|SOURCE_|MATERIAL_|PHOTO_|PRODUCT_|UNMAPPED_|CALENDAR_|DASHBOARD_|SUMMARY_|RECORDS_)/.test(code))return [409,'CONTRACT_REJECTED']
  return [500,'SERVICE_UNAVAILABLE']
 }
 export function createUnifiedPlanningHttp({adb,authAdmin,photoStore=null,photoSigner=null}){
@@ -47,6 +48,7 @@ export function createUnifiedPlanningHttp({adb,authAdmin,photoStore=null,photoSi
  const planner=createPlanningService({adb,authAdmin}),writer=createPlanningWriteService({adb,authAdmin}),qc=createPlanningQcService({adb,authAdmin}),selector=createPlanningQcSelectionService({adb,authAdmin}),fullSource=createPlanningQcSourceService({adb,authAdmin}),fullSpray=createPlanningSprayCommitService({adb,authAdmin}),fullFertilizer=createPlanningFertilizerCommitService({adb,authAdmin})
  const portalSummary=createPlanningFilteredDashboardService({adb,authAdmin})
  const portalCalendar=createPlanningCalendarService({adb,authAdmin})
+ const portalRecords=createPlanningOperationalRecordsService({adb,authAdmin})
  const photos=photoStore?createPlanningPhotoCommitService({adb,authAdmin,photoStore}):null
  if(photoSigner&&photoStore?.mode!=='supabase-private-uat')error(503,'PHOTO_SIGNER_REQUIRES_REAL_UAT_STORE')
  const reader=photoSigner?createPlanningPhotoReadService({adb,authAdmin,signer:photoSigner}):null
@@ -75,6 +77,10 @@ export function createUnifiedPlanningHttp({adb,authAdmin,photoStore=null,photoSi
    if(req.url===unifiedPaths.portalSummary){
     if(!exact(input,['request']))error(400,'INVALID_REQUEST')
     return send(200,{summary:await portalSummary.readPeriod(auth[1],input.request)})
+   }
+   if(req.url===unifiedPaths.portalRecords){
+    if(!exact(input,['request']))error(400,'INVALID_REQUEST')
+    return send(200,{records:await portalRecords.listPeriod(auth[1],input.request)})
    }
    if(req.url===unifiedPaths.portalCalendar){
     if(!exact(input,['request']))error(400,'INVALID_REQUEST')
