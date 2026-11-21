@@ -4,8 +4,8 @@ import {fileURLToPath} from 'node:url'
 import path from 'node:path'
 const root=fileURLToPath(new URL('../',import.meta.url))
 const mode=process.argv[2]
-if(!['quick','smoke','ui','full-ui','carryover','full'].includes(mode)||process.argv.length!==3){
- console.error('Usage: node scripts/run-qc-uat-gates.mjs quick|smoke|ui|full-ui|carryover|full')
+if(!['quick','smoke','ui','full-ui','carryover','photo-stage','full'].includes(mode)||process.argv.length!==3){
+ console.error('Usage: node scripts/run-qc-uat-gates.mjs quick|smoke|ui|full-ui|carryover|photo-stage|full')
  process.exit(2)
 }
 const env={...process.env}
@@ -77,7 +77,7 @@ function ui(){
   'scripts/test-qc-uat-unified-portal-ui.mjs','--browser',true)
 }
 function fullUi(){
- emu('focused complete Spray/Fertilizer React browser commit, retry and carryover (7 cases)','demo-qc-uat-unified-role-planning',
+ emu('focused Spray/Fertilizer QC browser, carryover and photo preflight staging (9 cases)','demo-qc-uat-unified-role-planning',
   'firebase.uat-unified-role-planning-emulator.json',9285,10099,
   'scripts/test-qc-uat-unified-full-qc-ui.mjs','--browser',true)
 }
@@ -97,11 +97,12 @@ function full(){
    'firebase.uat-planning-role-emulator.json',9085,9899,
    'scripts/test-qc-uat-'+s+'.mjs','--emulator')
  }
- console.log('\nSUCCESS: release-gate baseline 137 emulator/browser checks plus quick contract and TypeScript. This is NOT all repository tests.')
+ console.log('\nSUCCESS: release-gate baseline 139 emulator/browser checks plus quick contract and TypeScript. This is NOT all repository tests.')
 }
 if(mode==='quick'){quick();console.log('\nSUCCESS: Quick Test contract and typecheck passed (no emulator)')}
 if(mode==='smoke'){smoke();console.log('\nSUCCESS: targeted 16-case Spray/Fertilizer emulator smoke passed')}
 if(mode==='ui'){ui();console.log('\nSUCCESS: 17-case unified UAT browser permission and UI gate passed')}
-if(mode==='full-ui'){fullUi();console.log('\nSUCCESS: focused 7-case full QC React browser commit, retry and Shift 2 carryover passed')}
+if(mode==='full-ui'){fullUi();console.log('\nSUCCESS: focused 9-case full QC React browser, retry, carryover and photo preflight passed')}
 if(mode==='carryover'){quick();fullUi();console.log('\nSUCCESS: 10 explicit carryover contract checks, TypeScript and 7 focused full QC browser checks passed')}
+if(mode==='photo-stage'){quick();fullUi();console.log('\nSUCCESS: 10 photo preflight contracts, TypeScript and 9 focused QC React browser checks passed (no photo upload)')}
 if(mode==='full')full()

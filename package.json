@@ -13,7 +13,8 @@
     "test:uat:full": "node scripts/run-qc-uat-gates.mjs full",
     "test:uat:ui": "node scripts/run-qc-uat-gates.mjs ui",
     "test:uat:full-ui": "node scripts/run-qc-uat-gates.mjs full-ui",
-    "test:uat:carryover": "node scripts/run-qc-uat-gates.mjs carryover"
+    "test:uat:carryover": "node scripts/run-qc-uat-gates.mjs carryover",
+    "test:uat:photo-stage": "node scripts/run-qc-uat-gates.mjs photo-stage"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
