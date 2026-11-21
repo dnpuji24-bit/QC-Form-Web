@@ -22,7 +22,9 @@ const entry='uat-unified-portal-lab/main.jsx'
 assert.match(read(entry),/inMemoryPersistence/)
 assert.match(read(entry),/http:\/\/127\.0\.0\.1:10099/)
 assert.doesNotMatch(read(entry),/firebase\/firestore|localStorage|sessionStorage|supabase|fetch\(['"]https?:/)
-assert.doesNotMatch(read('server/qc-photo-access/uat-unified-browser-shell.mjs'),/Access-Control-Allow-Origin|https:\/\/|supabase/)
+const shellSource=read('server/qc-photo-access/uat-unified-browser-shell.mjs')
+assert.doesNotMatch(shellSource.replaceAll('https://tcmtqgbpafwciaflgsaa.supabase.co',''),/Access-Control-Allow-Origin|https:\/\//)
+assert.match(shellSource,/privatePhotoPreview\?' https:\/\/tcmtqgbpafwciaflgsaa\.supabase\.co'/)
 assert.ok(process.argv.length===3&&['--self-test','--browser','--browser-portal'].includes(process.argv[2]))
 const portalMode=process.argv[2]==='--browser-portal'
 console.log('SUCCESS: Unified portal-shell UI source, exact proxy routing and production isolation guards passed (offline)')
