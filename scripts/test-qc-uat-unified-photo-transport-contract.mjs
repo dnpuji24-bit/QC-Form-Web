@@ -56,7 +56,7 @@ check('lossless photo payload enforces strict MIME, bytes and canonical base64',
 check('foreign identity and invalid source references denied',()=>{
  reject(()=>same({...request,uploaderUid:'uat-other'}),'PHOTO_FULL_REQUEST_INVALID')
  reject(()=>same({...request,record:{...record,saveType:'uploaded'}}),'PHOTO_FULL_REQUEST_INVALID')
- reject(()=>same({...request,record:{...record,shift:'3'}}),'INVALID_QC_SOURCE_FORM')
+ reject(()=>same({...request,record:{...record,shift:'3'}}),'PHOTO_SOURCE_INVALID')
 })
 check('HTTP photo endpoint fixed to exact loopback, no alternate owner/query route',()=>{
  const route=planningPrefix+unifiedPaths.fullPhotoCommit
