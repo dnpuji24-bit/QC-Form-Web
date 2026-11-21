@@ -161,7 +161,7 @@ if(process.argv[2]!=='--self-test'){
       baseRevision:'uat-r1',jobId:'uat-job-s-photo-stale'},photos:[photo]}
      await assert.rejects(()=>service.commit(operator.token,stale),{message:'PHOTO_CORRECTION_REVISION_CONFLICT'})
      const altered={...stale,request:{...stale.request,baseRevision:'uat-r2',
-      record:{...stale.request.record,actualAreaHa:18}}}
+      record:{...stale.request.record,noted:'Tampered operator note'}}}
      await assert.rejects(()=>service.commit(operator.token,altered),{message:'PHOTO_CORRECTION_OPERATIONAL_FIELDS_CHANGED'})
      const refAudit=root('qc_photo_manifest_audit','uat-photo-s:uat-r2')
      const before=(await refAudit.get()).data()
