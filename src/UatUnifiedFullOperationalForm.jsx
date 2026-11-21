@@ -21,12 +21,15 @@ export default function UatUnifiedFullOperationalForm({user,kind,api}){
  const [dailyId,setDailyId]=useState(''),[source,setSource]=useState(null),[form,setForm]=useState(fresh)
  const [carryover,setCarryover]=useState(false),[actualForemanId,setActualForemanId]=useState('')
  const [photoSlot,setPhotoSlot]=useState('main'),[stagedPhotos,setStagedPhotos]=useState([])
+ const [committedPhotos,setCommittedPhotos]=useState([]),[privatePreview,setPrivatePreview]=useState(null)
+ const [previewStatus,setPreviewStatus]=useState('')
  const [busy,setBusy]=useState(false),[pending,setPending]=useState(null),[status,setStatus]=useState('belum memilih sumber')
  const ticket=useRef(0),locked=useRef(false)
  useEffect(()=>()=>{ticket.current++},[])
  const active=()=>api.isCurrent(user)
  // Remains DISABLED in the default UAT portal until a separate emulator browser pilot.
  const photoEnabled=api.photoCommitEnabled===true&&typeof api.fullQcPhotoCommit==='function'
+ const previewEnabled=api.photoPreviewEnabled===true&&typeof api.fullQcPhotoPreview==='function'
  const put=(key,value)=>setForm(v=>({...v,[key]:value}))
  const putMeasured=(i,value)=>setForm(v=>({...v,measuredUsage:v.measuredUsage.map((x,j)=>i===j?value:x)}))
  const putFill=(i,key,value)=>setForm(v=>({...v,fillings:v.fillings.map((f,j)=>i===j?{...f,[key]:value}:f)}))
@@ -35,7 +38,7 @@ export default function UatUnifiedFullOperationalForm({user,kind,api}){
  async function load(){
   if(locked.current||!active()||pending)return
   locked.current=true;setBusy(true);const current=++ticket.current
-  setSource(null);setForm(fresh());setPhotoSlot('main');setStagedPhotos([]);setStatus('memeriksa sumber dan master di server')
+  setSource(null);setForm(fresh());setPhotoSlot('main');setStagedPhotos([]);setCommittedPhotos([]);setPrivatePreview(null);setPreviewStatus('');setStatus('memeriksa sumber dan master di server')
   try{
    const result=await api.fullQcSource(kind,dailyId,{carryover,actualForemanId})
    if(current!==ticket.current||!active())return
@@ -78,10 +81,31 @@ export default function UatUnifiedFullOperationalForm({user,kind,api}){
    setStatus('QC lengkap '+request.record.saveType+' tersimpan: '+expectedId+
      (photoSubmit?' ('+result.photo.count+' foto tercatat pada manifest)':' (tanpa foto)'))
    setPending(null)
-   if(photoSubmit)setStagedPhotos([])
+   if(photoSubmit){
+    setCommittedPhotos(envelope.photos.map((p,i)=>({slot:p.kind==='hold'?'hold_'+p.holdId:p.kind,
+     recordId:request.record.id,photoId:stagedPhotos[i]?.photoId})).filter(p=>/^[a-f0-9]{24}_[a-f0-9]{64}$/.test(p.photoId??'')))
+    setPrivatePreview(null);setPreviewStatus('');setStagedPhotos([])
+   }
   }catch{
    if(current===ticket.current&&active())setStatus('hasil belum terkonfirmasi; ulangi request yang SAMA untuk mencegah duplikasi')
   }finally{locked.current=false;if(current===ticket.current&&active())setBusy(false)}
+ }
+ async function showPrivatePhoto(item){
+  if(!previewEnabled||!active()||busy||pending)return
+  setPrivatePreview(null);setPreviewStatus('memeriksa akses foto di server...')
+  try{
+   const result=await api.fullQcPhotoPreview({recordId:item.recordId,photoId:item.photoId})
+   if(!active())return
+   const url=new URL(result?.signedUrl??'')
+   if(result?.expiresIn!==60||!['image/png','image/jpeg','image/webp'].includes(result?.contentType)||
+      url.origin!=='https://tcmtqgbpafwciaflgsaa.supabase.co'||
+      !url.pathname.startsWith('/storage/v1/object/sign/qc-photos-uat/')||
+      !url.searchParams.get('token'))throw Error('PHOTO_PREVIEW_RECEIPT_INVALID')
+   setPrivatePreview({slot:item.slot,url:url.href})
+   setPreviewStatus('tautan privat berlaku 60 detik; pemeriksaan izin dilakukan sebelum URL diterbitkan')
+  }catch{
+   if(active())setPreviewStatus('akses foto ditolak atau link tidak tersedia; silakan periksa izin terbaru')
+  }
  }
  async function stagePhoto(file){
   if(locked.current||!source||pending||!active()||!file)return
@@ -108,11 +132,11 @@ export default function UatUnifiedFullOperationalForm({user,kind,api}){
   <p>Editor sintetis untuk validasi DTO penuh; bukan formulir produksi. Upload foto hanya tersedia jika pilot emulator tepercaya diaktifkan.</p>
   <label>ID Daily Plan
    <input aria-label={'Full '+kind+' Daily Plan ID'} value={dailyId} disabled={busy||!!pending}
-    onChange={e=>{setDailyId(e.target.value);setSource(null);setForm(fresh());setCarryover(false);setActualForemanId('');setStagedPhotos([]);setPhotoSlot('main');setStatus('belum memilih sumber')}}/>
+    onChange={e=>{setDailyId(e.target.value);setSource(null);setForm(fresh());setCarryover(false);setActualForemanId('');setStagedPhotos([]);setCommittedPhotos([]);setPrivatePreview(null);setPreviewStatus('');setPhotoSlot('main');setStatus('belum memilih sumber')}}/>
   </label>
   <label>Melanjutkan sumber Shift 1 ke Shift 2 pada tanggal yang sama
    <input type="checkbox" aria-label={'Full '+kind+' lanjutkan Shift 1 ke Shift 2'} checked={carryover}
-    disabled={busy||!!pending} onChange={e=>{setCarryover(e.target.checked);setActualForemanId('');setSource(null);setForm(fresh());setStagedPhotos([]);setPhotoSlot('main');setStatus('pilih ulang sumber dan pelaksana')}}/>
+    disabled={busy||!!pending} onChange={e=>{setCarryover(e.target.checked);setActualForemanId('');setSource(null);setForm(fresh());setStagedPhotos([]);setCommittedPhotos([]);setPrivatePreview(null);setPreviewStatus('');setPhotoSlot('main');setStatus('pilih ulang sumber dan pelaksana')}}/>
   </label>
   {carryover&&<label>ID mandor pelaksana Shift 2 (wajib dari master aktif)
    <input aria-label={'Full '+kind+' ID mandor Shift 2'} value={actualForemanId} disabled={busy||!!pending}
@@ -193,6 +217,14 @@ export default function UatUnifiedFullOperationalForm({user,kind,api}){
      <button disabled={busy||!!pending} onClick={()=>setStagedPhotos(v=>v.filter(x=>x.slot!==p.slot))}>Hapus foto lokal {p.slot}</button>
     </div>)}
    </div>
+   {previewEnabled&&committedPhotos.length>0&&<div data-testid={'uat-full-'+kind+'-private-previews'}>
+    <p>Foto yang tercatat pada manifest QC. Tautan privat dibuat saat dibuka, setelah pemeriksaan akses terkini.</p>
+    {committedPhotos.map(item=><button key={item.slot} disabled={busy||!!pending}
+      onClick={()=>void showPrivatePhoto(item)}>Pratinjau tersimpan {item.slot}</button>)}
+    <p data-testid={'uat-full-'+kind+'-private-status'}>{previewStatus}</p>
+    {privatePreview&&<img data-testid={'uat-full-'+kind+'-private-image'} alt={'Foto QC tersimpan '+privatePreview.slot}
+      referrerPolicy="no-referrer" src={privatePreview.url} width="120" height="120"/>}
+   </div>}
    <button disabled={busy||!!pending||(stagedPhotos.length>0&&!photoEnabled)} onClick={()=>void submit('draft')}>Full {kind} simpan draft</button>
    <button disabled={busy||!!pending||(stagedPhotos.length>0&&!photoEnabled)} onClick={()=>void submit('ready')}>Full {kind} simpan ready</button>
    {pending&&<button disabled={busy} onClick={()=>void send(pending)}>Full {kind} ulang request identik</button>}
