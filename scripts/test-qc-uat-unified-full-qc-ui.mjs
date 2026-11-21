@@ -15,7 +15,7 @@ import {createPlanningMasterSnapshotService} from '../server/qc-photo-access/uat
 import {createMemoryPhotoObjectStore} from '../server/qc-photo-access/uat-unified-photo-trusted-stage.mjs'
 import {createUnifiedPrivatePhotoStore,guardUnifiedPhotoStorage} from '../server/qc-photo-access/uat-unified-private-photo-store.mjs'
 import {createUnifiedUatPhotoSigner} from '../server/qc-photo-access/uat-unified-private-photo-read.mjs'
-import {cleanupVerifiedBrowserPhotoRun} from '../server/qc-photo-access/uat-unified-browser-photo-cleanup.mjs'
+import {cleanupVerifiedBrowserPhotoRun,inspectFailedBrowserPhotoRun} from '../server/qc-photo-access/uat-unified-browser-photo-cleanup.mjs'
 import {createUnifiedPlanningHttp} from '../server/qc-photo-access/uat-unified-planning-http.mjs'
 import {createUnifiedBrowserShell,shellPort,shellOrigin,shellRoute} from '../server/qc-photo-access/uat-unified-browser-shell.mjs'
 const root=fileURLToPath(new URL('../',import.meta.url)),read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8')
@@ -560,7 +560,16 @@ if(['--browser','--browser-photo','--browser-photo-real'].includes(process.argv[
   console.log('SUCCESS: '+n+' focused full QC React browser -> trusted Planning HTTP -> actual/audit emulator checks passed')
   }
  }finally{
-  if(realPhotoMode&&!runCleaned)console.error('NOTICE: manual reconciliation required for synthetic UAT run '+runId+'; no automatic cleanup on failure')
+  if(realPhotoMode&&!runCleaned){
+   console.error('NOTICE: manual reconciliation required for synthetic UAT run '+runId+'; no automatic cleanup on failure')
+   try{
+    const diagnosis=await inspectFailedBrowserPhotoRun({adb,store:photoStore,runId,actorUid:uid})
+    // Counts only, no object paths, tokens, signed URLs, or Storage mutations.
+    console.error('READ_ONLY_UAT_PHOTO_DIAGNOSIS '+JSON.stringify(diagnosis))
+   }catch{
+    console.error('READ_ONLY_UAT_PHOTO_DIAGNOSIS_UNAVAILABLE; reconcile this run manually')
+   }
+  }
   for(const c of contexts)await c.close()
   if(browser)await browser.close()
   for(const s of servers)if(s.listening)await new Promise(resolve=>s.close(resolve))
