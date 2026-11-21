@@ -36,7 +36,9 @@ function adapterFor(user){
  return {
   isCurrent:u=>auth.currentUser===u,
   // Default OFF. A separate emulator-backed browser gate must explicitly enable this.
-  photoCommitEnabled:false,
+  // The browser pilot flag is injected ONLY by the dedicated emulator test bundle.
+  // Ordinary builds have no flag, and their trusted HTTP route is disabled.
+  photoCommitEnabled:typeof __QC_UAT_BROWSER_PHOTO_PILOT__!=='undefined'&&__QC_UAT_BROWSER_PHOTO_PILOT__===true,
   qcSource:async(formType,dailyPlanId)=>(await planning('/uat/unified/qc/source',{request:{formType,dailyPlanId}})).source,
   qcCommit:async(request)=>(await planning('/uat/unified/qc/commit',{request})).qc,
   fullQcSource:async(formType,dailyPlanId,selection={carryover:false,actualForemanId:''})=>{
