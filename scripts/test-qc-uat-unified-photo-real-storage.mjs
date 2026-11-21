@@ -258,8 +258,8 @@ console.log('SUCCESS: full DTO unified UAT exact routes, photo and source isolat
     assert.ok(store.inspectTouched().some(p=>p.includes('/'+recordId('failed')+'/')))
    })
    if(readMode)await check('uncommitted orphan photo never gets a signed URL',async()=>{
-    await assert.rejects(()=>privateReader.sign(visitor.token,{recordId:recordId('failed'),
-     photoId:(await get('qc_photo_manifests',canonical('s'))).data().manifest.main.photoId}),
+    const photoId=(await get('qc_photo_manifests',canonical('s'))).data().manifest.main.photoId
+    await assert.rejects(()=>privateReader.sign(visitor.token,{recordId:recordId('failed'),photoId}),
      {message:'PHOTO_READ_NOT_COMMITTED'})
    })
    await check('foreign/forged identity blocked before photo upload',async()=>{
@@ -277,8 +277,8 @@ console.log('SUCCESS: full DTO unified UAT exact routes, photo and source isolat
    })
    if(readMode)await check('owner with all QC and Records grants revoked cannot mint private URL',async()=>{
     await mark(uid).set({...baseMarker('asisten',{qc_spraying:'none',qc_fertilizer:'none',qc_records:'none'}),policyRevision:3})
-    await assert.rejects(()=>privateReader.sign(operator.token,{recordId:recordId('s'),
-     photoId:(await get('qc_photo_manifests',canonical('s'))).data().manifest.main.photoId}),
+    const photoId=(await get('qc_photo_manifests',canonical('s'))).data().manifest.main.photoId
+    await assert.rejects(()=>privateReader.sign(operator.token,{recordId:recordId('s'),photoId}),
      {message:'PHOTO_READ_ACCESS_DENIED'})
    })
    await check('direct browser writes remain denied, no production or root mutation',async()=>{
