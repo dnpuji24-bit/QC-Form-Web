@@ -6,6 +6,8 @@ import {operationalPermissions} from './uat-operational-permissions.mjs'
 import {planningRequest,nextPlanningRow,verifyMonthlyParent,currentPlanningRow} from '../../src/qcUatPlanningWriteContract.mjs'
 import {planningQcInput,planningQcSnapshot,planningCarryoverSnapshot} from '../../src/qcUatPlanningQcBridge.mjs'
 import {commitSyntheticQc} from '../../src/qcUatQcLifecycleContract.mjs'
+import {verifiedPhotoLedger,verifyPhotoLedgerPair} from '../../src/qcUatVerifiedPhotoLedger.mjs'
+import {createTrustedPhotoStage,mockBucket,privateUatBucket} from './uat-unified-photo-trusted-stage.mjs'
 import {dailyGroupCreate} from '../../src/qcUatDailyGroupContract.mjs'
 import {activityComponents,monthlySnapshotRequest,monthlySnapshot,dailySnapshot,validateGroupResources,aggregateGroupMaterials,materialTotals,readMonthlySnapshot,readGroupSnapshot,reviseDailySnapshot} from '../../src/qcUatPlanningMasterSnapshot.mjs'
 import {fertilizerCommitRequest,preparePlanningFertilizer,historicalFertilizerSource,verifyFertilizerPair} from '../../src/qcUatPlanningFertilizerCommit.mjs'
@@ -159,6 +161,7 @@ function createPlanningQcCommitService(deps,carryover){
      transaction:fn=>fn({
       readQc:async id=>{
        const row=await read('qc_records',id)
+       if(await read('qc_photo_manifests',id))fail('PHOTO_AWARE_COMMIT_REQUIRED')
        if(await read('qc_spray_full',id)||(row&&sid(row.clientRevision)&&await read('qc_spray_full_audit',id+':'+row.clientRevision)))fail('FULL_SPRAY_COMMIT_REQUIRED')
        if(row?.areaSemantics==='APPLICATION_HA_ONLY'||await read('qc_fertilizer_full',id)||(row&&sid(row.clientRevision)&&await read('qc_fertilizer_full_audit',id+':'+row.clientRevision)))fail('FULL_FERTILIZER_COMMIT_REQUIRED')
        if(row&&(row.ownerUid!==uid||row.inputtedBy!==uid))fail('QC_OWNER_ONLY')
@@ -451,18 +454,29 @@ export function createPlanningQcSourceService(deps){
 }
 // Full DTO details are committed atomically with the verified canonical scalar pair.
 // No photos, production transport, or component Fertilizer writes.
-export function createPlanningSprayCommitService(deps){
+function createPlanningSprayCommitInternal(deps){
  const {adb}=deps,authorize=createAuthorizer(deps),source=createQcSourceReader(adb)
  const ref=(c,id)=>adb.doc(prefix+'/'+c+'/'+id)
  return Object.freeze({
-  async commit(raw,input){
+  async commit(raw,input,proof=null){
    const {id,sourceRequest:q}=sprayCommitRequest(input)
+   const ledger=proof?verifiedPhotoLedger(input,proof,deps.photoStore?.bucket,deps.photoStore?.bucket===mockBucket?'in-memory-mock':'supabase-private-uat'):null
    return authorize(raw,'spray','edit',async(tx,uid)=>{
     if(input.uploaderUid!==uid||input.record.ownerUid!==uid||input.record.inputtedBy!==uid)fail('QC_OWNER_ONLY')
     const read=async(c,i)=>(await tx.get(ref(c,i))).data()??null
     const projected=await source(tx,q)
     await assertNoActiveManual(tx,adb,q.dailyPlanId)
-    const [current,old,oldActual]=await Promise.all([read('qc_records',id),read('qc_spray_full',id),read('daily_reports','qcactual_'+id)])
+    const [current,old,oldActual,photoRow,photoAudit]=await Promise.all([
+     read('qc_records',id),read('qc_spray_full',id),read('daily_reports','qcactual_'+id),
+     read('qc_photo_manifests',id),read('qc_photo_manifest_audit',id+':'+input.record.clientRevision)
+    ])
+    if(!ledger&&(photoRow||photoAudit))fail('PHOTO_AWARE_COMMIT_REQUIRED')
+    if(ledger){
+     if(old){
+      if(current?.clientRevision!==input.record.clientRevision)fail('PHOTO_CORRECTION_NOT_ENABLED')
+      verifyPhotoLedgerPair(photoRow,photoAudit,ledger)
+     }else if(photoRow||photoAudit)fail('PHOTO_LEDGER_ORPHAN')
+    }
     if(current&&(current.ownerUid!==uid||current.inputtedBy!==uid))fail('QC_OWNER_ONLY')
     if(Boolean(current)!==Boolean(old))fail('FULL_SPRAY_PAIR_REQUIRES_REVIEW')
     if(current&&!sid(current.clientRevision))fail('FULL_SPRAY_PAIR_REQUIRES_REVIEW')
@@ -499,25 +513,47 @@ export function createPlanningSprayCommitService(deps){
     const result=await run(prepared.job,audit)
     tx.set(ref('qc_spray_full',id),detail)
     tx.create(ref('qc_spray_full_audit',id+':'+r.clientRevision),detail)
+    if(ledger){
+     tx.set(ref('qc_photo_manifests',id),ledger)
+     tx.create(ref('qc_photo_manifest_audit',id+':'+r.clientRevision),ledger)
+    }
     return {record:result,detail}
    },true)
   }
  })
 }
 
+// Public HTTP photo-free service cannot accept arbitrary photo receipts.
+export function createPlanningSprayCommitService(deps){
+ const svc=createPlanningSprayCommitInternal(deps)
+ return Object.freeze({commit:(raw,input)=>svc.commit(raw,input)})
+}
+
 // Current form permission + authoritative source + trusted product mapping in one transaction.
-export function createPlanningFertilizerCommitService(deps){
+function createPlanningFertilizerCommitInternal(deps){
  const {adb}=deps,authorize=createAuthorizer(deps),source=createQcSourceReader(adb)
  const ref=(c,id)=>adb.doc(prefix+'/'+c+'/'+id)
  return Object.freeze({
-  async commit(raw,input){
+  async commit(raw,input,proof=null){
    const {id,sourceRequest:q}=fertilizerCommitRequest(input)
+   const ledger=proof?verifiedPhotoLedger(input,proof,deps.photoStore?.bucket,deps.photoStore?.bucket===mockBucket?'in-memory-mock':'supabase-private-uat'):null
    return authorize(raw,'fertilizer','edit',async(tx,uid)=>{
     if(input.uploaderUid!==uid||input.record.ownerUid!==uid||input.record.inputtedBy!==uid)fail('QC_OWNER_ONLY')
     const read=async(c,i)=>(await tx.get(ref(c,i))).data()??null
     const projected=await source(tx,q)
     await assertNoActiveManual(tx,adb,q.dailyPlanId)
-    const [current,old,actual,spray]=await Promise.all([read('qc_records',id),read('qc_fertilizer_full',id),read('daily_reports','qcactual_'+id),read('qc_spray_full',id)])
+    const [current,old,actual,spray,photoRow,photoAudit]=await Promise.all([
+     read('qc_records',id),read('qc_fertilizer_full',id),read('daily_reports','qcactual_'+id),
+     read('qc_spray_full',id),read('qc_photo_manifests',id),
+     read('qc_photo_manifest_audit',id+':'+input.record.clientRevision)
+    ])
+    if(!ledger&&(photoRow||photoAudit))fail('PHOTO_AWARE_COMMIT_REQUIRED')
+    if(ledger){
+     if(old){
+      if(current?.clientRevision!==input.record.clientRevision)fail('PHOTO_CORRECTION_NOT_ENABLED')
+      verifyPhotoLedgerPair(photoRow,photoAudit,ledger)
+     }else if(photoRow||photoAudit)fail('PHOTO_LEDGER_ORPHAN')
+    }
     if(current&&(current.ownerUid!==uid||current.inputtedBy!==uid))fail('QC_OWNER_ONLY')
     if(spray||Boolean(current)!==Boolean(old)||(!current&&actual)||current&&!sid(current.clientRevision))fail('FULL_FERTILIZER_PAIR_REQUIRES_REVIEW')
     const trusted=old?historicalFertilizerSource(projected,old.source):projected
@@ -549,8 +585,53 @@ export function createPlanningFertilizerCommitService(deps){
     tx.set(ref('qc_fertilizer_full',id),next.detail)
     tx.create(ref('qc_operational_audit',id+':'+rev),next.audit)
     tx.create(ref('qc_fertilizer_full_audit',id+':'+rev),next.detail)
+    if(ledger){
+     tx.set(ref('qc_photo_manifests',id),ledger)
+     tx.create(ref('qc_photo_manifest_audit',id+':'+rev),ledger)
+    }
     return {record:next.record,actual:next.actual,detail:next.detail}
    },true)
+  }
+ })
+}
+
+export function createPlanningFertilizerCommitService(deps){
+ const svc=createPlanningFertilizerCommitInternal(deps)
+ return Object.freeze({commit:(raw,input)=>svc.commit(raw,input)})
+}
+
+// Internal photo-aware service, not mounted on HTTP or available to browser.
+// Stage may leave a run-scoped orphan; only the later Firestore tx confirms QC.
+export function createPlanningPhotoCommitService(deps){
+ guard()
+ const {authAdmin,photoStore}=deps
+ if(!photoStore||![mockBucket,privateUatBucket].includes(photoStore.bucket)||
+    typeof photoStore.putImmutable!=='function'||typeof photoStore.read!=='function')fail('PHOTO_STAGE_DEPENDENCY_REQUIRED')
+ const source=createPlanningQcSourceService(deps)
+ const stage=createTrustedPhotoStage({
+  store:photoStore,
+  async authenticatedUid(raw){
+   if(typeof raw!=='string'||!raw||raw.length>16384)fail('INVALID_TOKEN')
+   let actor;try{actor=await authAdmin.verifyIdToken(raw,true)}catch{fail('INVALID_TOKEN')}
+   if(!sid(actor?.uid)||actor.qcUat!==true)fail('UAT_IDENTITY_DENIED')
+   return actor.uid
+  },
+  readSource:(raw,input)=>source.readSource(raw,input)
+ })
+ const spray=createPlanningSprayCommitInternal(deps)
+ const fertilizer=createPlanningFertilizerCommitInternal(deps)
+ return Object.freeze({
+  async commit(raw,input){
+   if(!input||Object.getPrototypeOf(input)!==Object.prototype||
+      Reflect.ownKeys(input).length!==3||
+      !['sourceRequest','request','photos'].every(k=>Object.hasOwn(input,k)))fail('PHOTO_STAGE_FIELDS')
+   const receipt=await stage.stage(raw,input)
+   const {record}=input.request
+   const service=record.formType==='spray'?spray:fertilizer
+   const result=await service.commit(raw,input.request,receipt)
+   return {qc:result,photo:{status:'committed',recordId:record.id,
+    revision:record.clientRevision,manifestSha256:receipt.manifestSha256,
+    count:Object.keys(receipt.manifest).length}}
   }
  })
 }
