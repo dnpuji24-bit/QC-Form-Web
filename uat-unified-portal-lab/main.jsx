@@ -67,6 +67,8 @@ function adapterFor(user){
   },
   session:async()=>validateSession((await owner('/uat/session/permissions',{})).session,user.uid),
   read:async(scope,id)=>(await planning('/uat/unified/planning/read',{scope,id})).plan,
+  operationalSummary:async(request)=>(await planning('/uat/unified/portal/summary',{request})).summary,
+  operationalCalendar:async(request)=>(await planning('/uat/unified/portal/calendar',{request})).calendar,
   lifecycle:{
    list:async()=>{
     const {roles}=await owner('/uat/owner/permissions/roles-list',{})
@@ -84,6 +86,11 @@ function App(){
  const [state,setState]=useState('signed-out'),[busy,setBusy]=useState(false)
  const [result,setResult]=useState('')
  const [portalArea,setPortalArea]=useState('home')
+ const [summaryPeriod,setSummaryPeriod]=useState('2027-01')
+ const [summaryWeek,setSummaryWeek]=useState('ALL')
+ const [summaryResult,setSummaryResult]=useState(null),[summaryState,setSummaryState]=useState('idle')
+ const [calendarMonth,setCalendarMonth]=useState('2026-11')
+ const [calendarResult,setCalendarResult]=useState(null),[calendarState,setCalendarState]=useState('idle')
  const seq=useRef(0),identity=useRef(null),refreshRef=useRef(()=>{})
  useEffect(()=>{
   let active=true
@@ -130,8 +137,38 @@ function App(){
    if(ticket===seq.current&&auth.currentUser===current){setSession(null);setState('denied');setResult('request-denied')}
   }
  }
+ async function loadSummary(){
+  if(!user||!session||!api||!['view','edit'].includes(session.permissions.data_plan_summary??'none'))return
+  const current=user,ticket=seq.current
+  setSummaryResult(null);setSummaryState('loading')
+  try{
+   const request={period:summaryPeriod,week:summaryWeek,companyCode:null,farm:null,shift:null,foreman:null}
+   const data=await api.operationalSummary(request)
+   if(ticket!==seq.current||auth.currentUser!==current)return
+   if(data?.testOnly!==true||data.readOnly!==true||data.period!==request.period||
+      data.week!==request.week||!data.monthly?.spray||!data.daily?.fertilizer||
+      !Array.isArray(data.executionByForemanShift))throw Error('INVALID_SUMMARY_RECEIPT')
+   setSummaryResult(data);setSummaryState('ready')
+  }catch{if(ticket===seq.current&&auth.currentUser===current){setSummaryResult(null);setSummaryState('denied')}}
+ }
+ async function loadCalendar(){
+  if(!user||!session||!api)return
+  const source=['view','edit'].includes(session.permissions.data_plan_daily??'none')?'daily':
+   ['view','edit'].includes(session.permissions.data_plan_actual??'none')?'actual':null
+  if(!source)return
+  const current=user,ticket=seq.current
+  setCalendarResult(null);setCalendarState('loading')
+  try{
+   const data=await api.operationalCalendar({monthKey:calendarMonth,source})
+   if(ticket!==seq.current||auth.currentUser!==current)return
+   if(data?.testOnly!==true||data.readOnly!==true||data.monthKey!==calendarMonth||
+      data.source!==source||!Array.isArray(data.entries)||data.entries.length>50||
+      data.eventCount!==data.entries.reduce((n,e)=>n+(e.count??1),0))throw Error('INVALID_CALENDAR_RECEIPT')
+   setCalendarResult(data);setCalendarState('ready')
+  }catch{if(ticket===seq.current&&auth.currentUser===current){setCalendarResult(null);setCalendarState('denied')}}
+ }
  const mode=key=>session?.permissions[key]??'none'
- useEffect(()=>{if(operationalPortalPilot)setPortalArea('home')},[user?.uid,session?.policyRevision])
+ useEffect(()=>{if(operationalPortalPilot){setPortalArea('home');setSummaryResult(null);setSummaryState('idle');setCalendarResult(null);setCalendarState('idle')}},[user?.uid,session?.policyRevision])
  const areas=operationalPortalPilot?allowedUatOperationalAreas(session):[]
  const area=operationalPortalPilot?resolveUatOperationalArea(session,portalArea):'home'
  const showData=!operationalPortalPilot||area==='data-unm'
@@ -159,8 +196,37 @@ function App(){
      data-testid={'uat-operational-card-'+item.id}
      onClick={()=>setPortalArea(item.id)}>{item.label}</button>)}
    </nav>}
-   {area==='summary'&&<p data-testid="uat-operational-summary">Summary: izin terverifikasi; dashboard produksi belum diaktifkan dalam pilot ini.</p>}
-   {area==='calendar'&&<p data-testid="uat-operational-calendar">Calendar Rekap: izin terverifikasi; kalender produksi belum diaktifkan dalam pilot ini.</p>}
+   {area==='summary'&&<section data-testid="uat-operational-summary" aria-label="Summary Planning UAT">
+    <h3>Summary MP, DP dan Actual — data sintetis</h3>
+    <label>Periode <input aria-label="Periode Summary" type="month" value={summaryPeriod}
+     onChange={e=>{setSummaryPeriod(e.target.value);setSummaryResult(null);setSummaryState('idle')}}/></label>
+    <label>Minggu <select aria-label="Minggu Summary" value={summaryWeek}
+     onChange={e=>{setSummaryWeek(e.target.value);setSummaryResult(null);setSummaryState('idle')}}>
+     {['ALL','W1','W2','W3','W4'].map(x=><option key={x}>{x}</option>)}
+    </select></label>
+    <button type="button" onClick={()=>void loadSummary()}>Muat Summary UAT</button>
+    <p data-testid="uat-operational-summary-state">{summaryState}</p>
+    {summaryResult&&<div data-testid="uat-operational-summary-result">
+     <p>Target MP Spray: {(summaryResult.monthly.spray.targetArea100??0)/100} Ha</p>
+     <p>Actual DP Spray: {(summaryResult.daily.spray.actualArea100??0)/100} Ha</p>
+     <p>Aplikasi pupuk: {(summaryResult.daily.fertilizer.applicationArea100??0)/100} Ha aplikasi (jumlah komponen, bukan luas fisik)</p>
+     <p>Eksekusi mandor/shift: {summaryResult.executionByForemanShift.length} kelompok</p>
+    </div>}
+   </section>}
+   {area==='calendar'&&<section data-testid="uat-operational-calendar" aria-label="Calendar Rekap UAT">
+    <h3>Calendar Rekap — sumber DP/Actual sintetis</h3>
+    <label>Bulan <input aria-label="Bulan Calendar" type="month" value={calendarMonth}
+     onChange={e=>{setCalendarMonth(e.target.value);setCalendarResult(null);setCalendarState('idle')}}/></label>
+    <button type="button" onClick={()=>void loadCalendar()}>Muat Calendar UAT</button>
+    <p data-testid="uat-operational-calendar-state">{calendarState}</p>
+    {calendarResult&&<div data-testid="uat-operational-calendar-result">
+     <p>{calendarResult.eventCount} record ({calendarResult.source==='daily'?'Daily Plan':'Actual Plan'})</p>
+     <ul>{calendarResult.entries.map((e,i)=><li key={i}>
+      {e.date} · Shift {e.shift} · {e.kind}
+      {calendarResult.source==='daily'?' · '+e.pid+' · '+(e.plannedArea100/100)+' Ha target':' · '+e.count+' aktual'}
+     </li>)}</ul>
+    </div>}
+   </section>}
    {area==='users'&&<p data-testid="uat-operational-users">Users & Access: editor role UAT, bukan data produksi.</p>}
   </section>}
   <nav aria-label="Menu berdasarkan permission server">
