@@ -14,6 +14,7 @@ const recordId=v=>typeof v==='string'&&/^qc-v2-uat-[a-z0-9-]{1,100}$/.test(v)
 const hash=v=>createHash('sha256').update(v).digest('hex')
 const hex=v=>typeof v==='string'&&/^[0-9a-f]{64}$/.test(v)
 export const mockBucket='qc-photos-uat-mock'
+export const privateUatBucket='qc-photos-uat'
 const signature=(b,t)=>{
  if(t==='image/png')return b.length>=8&&[137,80,78,71,13,10,26,10].every((n,i)=>b[i]===n)
  if(t==='image/jpeg')return b.length>=4&&b[0]===255&&b[1]===216&&b[2]===255
@@ -42,7 +43,10 @@ export function createMemoryPhotoObjectStore(){
 }
 export function createTrustedPhotoStage({authenticatedUid,readSource,store}){
  need(typeof authenticatedUid==='function'&&typeof readSource==='function'&&
-  store?.bucket===mockBucket&&typeof store.putImmutable==='function'&&typeof store.read==='function','PHOTO_STAGE_DEPENDENCY_REQUIRED')
+  [mockBucket,privateUatBucket].includes(store?.bucket)&&typeof store.putImmutable==='function'&&
+  typeof store.read==='function','PHOTO_STAGE_DEPENDENCY_REQUIRED')
+ if(store.bucket===privateUatBucket)
+  need(store.mode==='supabase-private-uat'&&/^[a-f0-9]{32}$/.test(store.runId??'')&&sid(store.actorUid),'PHOTO_REAL_UAT_SCOPE_REQUIRED')
  return Object.freeze({
   async stage(raw,input){
    need(exact(input,['sourceRequest','request','photos']),'PHOTO_STAGE_FIELDS')
@@ -50,6 +54,8 @@ export function createTrustedPhotoStage({authenticatedUid,readSource,store}){
    const q=input.request,r=q.record,uid=await authenticatedUid(raw)
    need(sid(uid)&&uid===q.uploaderUid&&r?.ownerUid===uid&&r.inputtedBy===uid,'PHOTO_OWNER_DENIED')
    need(recordId(r.id)&&sid(r.clientRevision)&&sid(q.jobId),'PHOTO_SYNTHETIC_ONLY')
+   if(store.bucket===privateUatBucket)
+    need(uid===store.actorUid&&r.id.startsWith('qc-v2-uat-'+store.runId+'-'),'PHOTO_REAL_UAT_SCOPE_REQUIRED')
    need(['spray','fertilizer'].includes(r.formType),'PHOTO_FORM_DENIED')
    need(r.saveType==='draft'||r.saveType==='ready','PHOTO_STAGE_STATUS')
    const source=await readSource(raw,input.sourceRequest)
@@ -69,12 +75,12 @@ export function createTrustedPhotoStage({authenticatedUid,readSource,store}){
     need(bytes.length>=1&&bytes.length<=2097152&&bytes.toString('base64')===m[2]&&signature(bytes,m[1])&&matchesUatPhotoSignature(bytes,m[1]),'PHOTO_BYTES_INVALID')
    }
    const {manifest,uploads}=await prepareOperationalPhotoManifest({
-    recordId:r.id,uploaderUid:uid,changes:input.photos,bucket:mockBucket
+    recordId:r.id,uploaderUid:uid,changes:input.photos,bucket:store.bucket
    })
    need(uploads.length===input.photos.length&&uploads.reduce((s,u)=>s+u.bytes.length,0)<=6291456,'PHOTO_AGGREGATE_LIMIT')
    for(const upload of uploads){
     const ref=upload.reference
-    need(ref.bucket===mockBucket&&ref.uploaderUid===uid&&ref.objectPath.startsWith(uid+'/qc/'+r.id+'/')&&
+    need(ref.bucket===store.bucket&&ref.uploaderUid===uid&&ref.objectPath.startsWith(uid+'/qc/'+r.id+'/')&&
      hex(ref.sha256)&&hash(upload.bytes)===ref.sha256&&ref.size===upload.bytes.length,'PHOTO_REF_INVALID')
     await store.putImmutable(ref,upload.bytes)
     const got=await store.read(ref)
@@ -86,10 +92,10 @@ export function createTrustedPhotoStage({authenticatedUid,readSource,store}){
    const latest=await readSource(raw,input.sourceRequest)
    need(isDeepStrictEqual(source,latest),'PHOTO_SOURCE_CHANGED')
    prepareUnifiedFullQc({...q,source:latest})
-   const receipt={testOnly:true,storageMode:'in-memory-mock',formType:r.formType,ownerUid:uid,
+   const receipt={testOnly:true,storageMode:store.bucket===mockBucket?'in-memory-mock':'supabase-private-uat',formType:r.formType,ownerUid:uid,
     recordId:r.id,clientRevision:r.clientRevision,jobId:q.jobId,baseRevision:q.baseRevision,
     dailyPlanId:r.dailyPlanId,expectedDailyRevision:q.expectedDailyRevision,
-    bucket:mockBucket,manifest}
+    bucket:store.bucket,manifest}
    return Object.freeze({...receipt,manifestSha256:hash(stable(receipt)),status:'verified-staged-only'})
   }
  })
