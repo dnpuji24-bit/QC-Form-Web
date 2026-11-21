@@ -25,10 +25,11 @@ assert.doesNotMatch(read(entry),/firebase\/firestore|localStorage|sessionStorage
 const shellSource=read('server/qc-photo-access/uat-unified-browser-shell.mjs')
 assert.doesNotMatch(shellSource.replaceAll('https://tcmtqgbpafwciaflgsaa.supabase.co',''),/Access-Control-Allow-Origin|https:\/\//)
 assert.match(shellSource,/privatePhotoPreview\?' https:\/\/tcmtqgbpafwciaflgsaa\.supabase\.co'/)
-assert.ok(process.argv.length===3&&['--self-test','--browser','--browser-portal'].includes(process.argv[2]))
-const portalMode=process.argv[2]==='--browser-portal'
+assert.ok(process.argv.length===3&&['--self-test','--browser','--browser-portal','--browser-modules'].includes(process.argv[2]))
+const modulesMode=process.argv[2]==='--browser-modules'
+const portalMode=process.argv[2]==='--browser-portal'||modulesMode
 console.log('SUCCESS: Unified portal-shell UI source, exact proxy routing and production isolation guards passed (offline)')
-if(['--browser','--browser-portal'].includes(process.argv[2])){
+if(['--browser','--browser-portal','--browser-modules'].includes(process.argv[2])){
  unifiedGuard()
  const directory=process.env.QC_UAT_PLAYWRIGHT_DIR
  assert.ok(directory?.startsWith('/'),'QC_UAT_PLAYWRIGHT_DIR_REQUIRED')
@@ -118,7 +119,11 @@ if(['--browser','--browser-portal'].includes(process.argv[2])){
   await mark('uat-owner').set({...marker('owner'),policyRevision:0,roleOverrides:{},manualOverrides:{}})
   await mark('uat-viewer').set(base)
   await adb.doc(prefix+'/monthly_plans/uat-m1').set({testOnly:true,id:'uat-m1',pid:'uat-p1',targetArea100:900})
-  await adb.doc(prefix+'/daily_plans/uat-d1').set({testOnly:true,id:'uat-d1',pid:'uat-p1',area100:400})
+  await adb.doc(prefix+'/daily_plans/uat-d1').set(modulesMode?
+   nextPlanningRow('daily',{action:'create',id:'uat-d1',expectedRevision:null,
+    fields:{pid:'uat-p1',activityId:'uat-a1',sourceType:'ADHOC',monthlyPlanLineId:'',
+     date:'2026-11-03',shift:'1',foreman:'uat-f1',formType:'spray',area100:400}},
+    null,'uat-owner'):{testOnly:true,id:'uat-d1',pid:'uat-p1',area100:400})
   for(const [id,activityId,formType,area100] of [['uat-ds','uat-a1','spray',1000],['uat-df','uat-a2','fertilizer',500]]){
    await adb.doc(prefix+'/daily_plans/'+id).set(nextPlanningRow('daily',{
     action:'create',id,expectedRevision:null,
@@ -130,7 +135,47 @@ if(['--browser','--browser-portal'].includes(process.argv[2])){
   await listen(ownerHttp,4497);await listen(planHttp,4697);await listen(browserHttp,shellPort)
   browser=await chromium.launch({headless:true})
   const owner=await page(),field=await page(),viewer=await page()
-  if(portalMode){
+  if(modulesMode){
+   await check('only authenticated Owner can open operational Summary and Calendar panels',async()=>{
+    await login(owner,'uat-owner')
+    await login(field,'uat-field')
+    await login(viewer,'uat-viewer')
+    assert.equal(await owner.getByTestId('uat-operational-card-summary').count(),1)
+    assert.equal(await owner.getByTestId('uat-operational-card-calendar').count(),1)
+    assert.equal(await field.getByTestId('uat-operational-card-summary').count(),0)
+    assert.equal(await field.getByTestId('uat-operational-card-calendar').count(),0)
+    assert.equal(await viewer.getByTestId('uat-operational-card-summary').count(),0)
+    assert.equal(await viewer.getByTestId('uat-operational-card-calendar').count(),0)
+   })
+   await check('Summary reads verified filtered Planning data and preserves fertilizer-area semantics',async()=>{
+    await owner.getByTestId('uat-operational-card-summary').click()
+    await expected(owner.getByTestId('uat-operational-active-area'),'summary')
+    await owner.getByRole('button',{name:'Muat Summary UAT'}).click()
+    await expected(owner.getByTestId('uat-operational-summary-state'),'ready')
+    const result=await owner.getByTestId('uat-operational-summary-result').innerText()
+    assert.match(result,/Target MP Spray: 0 Ha/)
+    assert.match(result,/Actual DP Spray: 0 Ha/)
+    assert.match(result,/Aplikasi pupuk: 0 Ha aplikasi/)
+    assert.match(result,/bukan luas fisik/)
+    assert.equal(await owner.getByTestId('uat-operational-calendar').count(),0)
+   })
+   await check('Daily and Actual Calendar use current authorized read-only Planning HTTP',async()=>{
+    await owner.getByRole('button',{name:'Menu Utama'}).click()
+    await owner.getByTestId('uat-operational-card-calendar').click()
+    await owner.getByRole('button',{name:'Muat Calendar UAT'}).click()
+    await expected(owner.getByTestId('uat-operational-calendar-state'),'ready')
+    assert.match(await owner.getByTestId('uat-operational-calendar-result').innerText(),/3 record \(Daily Plan\)/)
+    assert.equal(await owner.getByTestId('uat-operational-calendar-result').locator('li').count(),3)
+    await owner.getByRole('combobox',{name:'Sumber Calendar'}).selectOption('actual')
+    await owner.getByRole('button',{name:'Muat Calendar UAT'}).click()
+    await expected(owner.getByTestId('uat-operational-calendar-state'),'ready')
+    assert.match(await owner.getByTestId('uat-operational-calendar-result').innerText(),/0 record \(Actual Plan\)/)
+    assert.deepEqual(errors,[])
+    assert.deepEqual((await adb.doc('users/root-sentinel').get()).data(),{protected:true})
+    assert.deepEqual((await adb.doc('monthly_plans/root-sentinel').get()).data(),{protected:true})
+   })
+   console.log('SUCCESS: '+n+' focused operational Summary and Calendar real-read browser delta checks passed (demo Firebase only)')
+  }else if(portalMode){
    await check('portal navigation hidden until Firebase server session is confirmed',async()=>{
     for(const p of [owner,field,viewer]){
      assert.equal(await p.getByTestId('uat-operational-portal-pilot').count(),0)
