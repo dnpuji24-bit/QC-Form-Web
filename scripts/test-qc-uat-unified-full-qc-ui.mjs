@@ -14,6 +14,7 @@ import {createOwnerHttp,createOwnerService} from '../server/qc-photo-access/uat-
 import {createPlanningMasterSnapshotService} from '../server/qc-photo-access/uat-planning-role-service.mjs'
 import {createMemoryPhotoObjectStore} from '../server/qc-photo-access/uat-unified-photo-trusted-stage.mjs'
 import {createUnifiedPrivatePhotoStore,guardUnifiedPhotoStorage} from '../server/qc-photo-access/uat-unified-private-photo-store.mjs'
+import {createUnifiedUatPhotoSigner} from '../server/qc-photo-access/uat-unified-private-photo-read.mjs'
 import {cleanupVerifiedBrowserPhotoRun} from '../server/qc-photo-access/uat-unified-browser-photo-cleanup.mjs'
 import {createUnifiedPlanningHttp} from '../server/qc-photo-access/uat-unified-planning-http.mjs'
 import {createUnifiedBrowserShell,shellPort,shellOrigin,shellRoute} from '../server/qc-photo-access/uat-unified-browser-shell.mjs'
@@ -47,7 +48,7 @@ if(['--browser','--browser-photo','--browser-photo-real'].includes(process.argv[
  }}
  const runId=realPhotoMode?randomBytes(16).toString('hex'):null
  if(realPhotoMode)console.log('Synthetic browser UAT run ID: '+runId+' (Supabase private qc-photos-uat, demo Firebase emulators only)')
- const bundle=await build({root,configFile:false,envDir:false,publicDir:false,base:'/',logLevel:'warn',define:{__QC_UAT_BROWSER_PHOTO_PILOT__:JSON.stringify(photoMode),__QC_UAT_REAL_PHOTO_RUN_ID__:JSON.stringify(runId)},plugins:[plugin],build:{write:false,emptyOutDir:false,minify:false,modulePreload:false,rollupOptions:{input:root+'uat-unified-portal-lab/main.jsx'}}})
+ const bundle=await build({root,configFile:false,envDir:false,publicDir:false,base:'/',logLevel:'warn',define:{__QC_UAT_BROWSER_PHOTO_PILOT__:JSON.stringify(photoMode),__QC_UAT_REAL_PHOTO_RUN_ID__:JSON.stringify(runId),__QC_UAT_PRIVATE_PREVIEW__:JSON.stringify(realPhotoMode)},plugins:[plugin],build:{write:false,emptyOutDir:false,minify:false,modulePreload:false,rollupOptions:{input:root+'uat-unified-portal-lab/main.jsx'}}})
  const chunks=(Array.isArray(bundle)?bundle:[bundle]).flatMap(b=>b.output??[]),assets=new Map(),entries=[]
  for(const c of chunks){
   assert.equal(c.type,'chunk');assert.match(c.fileName,/\.m?js$/)
@@ -66,8 +67,9 @@ if(['--browser','--browser-photo','--browser-photo-real'].includes(process.argv[
  const admin=adminInit({projectId:unifiedProjectId},'uat-full-ui-browser'),adb=getFirestore(admin),authAdmin=getAuth(admin)
  const ownerHttp=createOwnerHttp(createOwnerService({adb,authAdmin}))
  const photoStore=realPhotoMode?await createUnifiedPrivatePhotoStore({runId,actorUid:'uat-field'}):photoMode?createMemoryPhotoObjectStore():null
- const planningHttp=createUnifiedPlanningHttp({adb,authAdmin,photoStore})
- const shell=createUnifiedBrowserShell(assets)
+ const photoSigner=realPhotoMode?await createUnifiedUatPhotoSigner():null
+ const planningHttp=createUnifiedPlanningHttp({adb,authAdmin,photoStore,photoSigner})
+ const shell=createUnifiedBrowserShell(assets,{privatePhotoPreview:realPhotoMode})
  const base='qc_uat_workspaces/cutover',ref=(c,id)=>adb.doc(base+'/'+c+'/'+id)
  const mark=uid=>adb.doc('qc_uat_identities/'+uid),uid='uat-field'
  const servers=[ownerHttp,planningHttp,shell],errors=[],contexts=[]
@@ -119,8 +121,11 @@ if(['--browser','--browser-photo','--browser-photo-real'].includes(process.argv[
   const ctx=await browser.newContext({serviceWorkers:'block'});contexts.push(ctx)
   await ctx.route('**/*',async route=>{
    const u=new URL(route.request().url())
+   const signedUatImage=realPhotoMode&&u.origin==='https://tcmtqgbpafwciaflgsaa.supabase.co'&&
+    route.request().method()==='GET'&&u.pathname.startsWith('/storage/v1/object/sign/qc-photos-uat/uat-field/qc/qc-v2-uat-'+runId+'-')&&
+    u.searchParams.has('token')&&!u.hash
    if((u.origin===shellOrigin&&!u.search&&(assets.has(u.pathname)||shellRoute(u.pathname)))||
-     u.origin==='http://'+unifiedHost+':'+unifiedAuthPort||u.protocol==='data:')await route.continue()
+     u.origin==='http://'+unifiedHost+':'+unifiedAuthPort||u.protocol==='data:'||signedUatImage)await route.continue()
    else{errors.push('EGRESS '+u.origin+u.pathname);await route.abort()}
   })
   await ctx.routeWebSocket('**/*',ws=>{errors.push('WEBSOCKET');ws.close()})
@@ -208,6 +213,34 @@ if(['--browser','--browser-photo','--browser-photo-real'].includes(process.argv[
     assert.deepEqual(Object.keys(ledger.manifest).sort(),['main','scan'])
     assert.deepEqual((await ref('qc_photo_manifest_audit',id+':'+ledger.clientRevision).get()).data(),ledger)
    })
+   if(realPhotoMode){
+    await check('private 60-second signed photo preview loads committed Spray and Fertilizer image bytes',async()=>{
+     for(const [panel,kind,slot] of [[spray,'spray','main'],[spray,'spray','hold_uat-h1'],[fert,'fertilizer','scan']]){
+      await panel.getByRole('button',{name:'Pratinjau tersimpan '+slot,exact:true}).click()
+      await expected(panel.getByTestId('uat-full-'+kind+'-private-status'),/berlaku 60 detik/)
+      const image=panel.getByTestId('uat-full-'+kind+'-private-image')
+      await image.waitFor({state:'visible'})
+      await image.evaluate(async e=>{
+       if(e.complete&&e.naturalWidth>0)return
+       await new Promise((resolve,reject)=>{
+        e.addEventListener('load',resolve,{once:true})
+        e.addEventListener('error',()=>reject(Error('PRIVATE_PREVIEW_IMAGE_LOAD_FAILED')),{once:true})
+       })
+      })
+      assert.equal(await image.evaluate(e=>e.naturalWidth),2)
+      assert.equal(await image.evaluate(e=>e.naturalHeight),2)
+     }
+    })
+    await check('same Firebase token denied a NEW signed preview after QC role revocation',async()=>{
+     const uidMarker=(await mark(uid).get()).data()
+     const denied={...uidMarker,policyRevision:uidMarker.policyRevision+1,
+      manualOverrides:{...uidMarker.manualOverrides,qc_spraying:'none',qc_fertilizer:'none',qc_records:'none'}}
+     await mark(uid).set({...denied,permissions:permissionsForIdentity(denied)})
+     await spray.getByRole('button',{name:'Pratinjau tersimpan main',exact:true}).click()
+     await expected(spray.getByTestId('uat-full-spray-private-status'),/akses foto ditolak/)
+     assert.equal(await spray.getByTestId('uat-full-spray-private-image').count(),0)
+    })
+   }
    await check('browser keeps root isolated and never contacts Supabase or browser storage',async()=>{
     assert.equal((await adb.collection(base+'/qc_records').get()).size,2)
     assert.equal((await adb.collection(base+'/daily_reports').get()).size,2)
@@ -221,7 +254,7 @@ if(['--browser','--browser-photo','--browser-photo-real'].includes(process.argv[
    if(realPhotoMode){
     await cleanupVerifiedBrowserPhotoRun({adb,store:photoStore,runId,actorUid:uid})
     runCleaned=true
-    console.log('SUCCESS: '+n+' isolated real private Supabase UAT photo browser + atomic QC/Actual checks and exact cleanup passed')
+    console.log('SUCCESS: '+n+' isolated real private Supabase UAT photo browser, signed preview, role revocation and scoped cleanup checks passed')
    }else console.log('SUCCESS: '+n+' isolated photo React -> trusted HTTP -> MOCK bytes + atomic QC/Actual emulator checks passed (NO Supabase upload)')
   }else{
   await check('real Auth login, permission-gated full editors and trusted complete Planning source',async()=>{
