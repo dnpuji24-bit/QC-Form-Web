@@ -28,7 +28,7 @@ if(process.argv[2]==='--browser'){
  assert.ok(pw?.startsWith('/'),'QC_UAT_PLAYWRIGHT_DIR_REQUIRED')
  const {chromium}=createRequire(pw+'/package.json')('playwright')
  const {build}=await import('vite')
- const allow=['UatRoleLifecyclePanel.tsx','accessControl.ts','qcUatSessionPermissions.mjs','qcUatRolePermissions.mjs','qcUatCustomRoles.mjs','UatUnifiedOperationalForm.jsx','qcUatUnifiedOperationalForm.mjs','UatUnifiedFullOperationalForm.jsx','qcUatUnifiedFullQcFormBuilder.mjs','qcUatSprayFullDto.mjs','qcUatFertilizerFullDto.mjs']
+ const allow=['UatRoleLifecyclePanel.tsx','accessControl.ts','qcUatSessionPermissions.mjs','qcUatRolePermissions.mjs','qcUatCustomRoles.mjs','UatUnifiedOperationalForm.jsx','qcUatUnifiedOperationalForm.mjs','UatUnifiedFullOperationalForm.jsx','qcUatUnifiedFullQcFormBuilder.mjs','qcUatSprayFullDto.mjs', 'qcUatFertilizerFullDto.mjs','qcUatUnifiedCarryoverSelection.mjs']
  const plugin={name:'full-qc-browser-exact-src-allowlist',enforce:'pre',generateBundle(_opts,bundle){
   const ids=Object.values(bundle).filter(x=>x.type==='chunk').flatMap(x=>Object.keys(x.modules))
   const paths=ids.filter(x=>x.startsWith(root+'src/')).map(x=>x.slice((root+'src/').length))
@@ -77,6 +77,7 @@ if(process.argv[2]==='--browser'){
   await put('master_companies','uat-company',{testOnly:true,code:'uat-company',active:true})
   await put('master_paddocks','uat-p1',{testOnly:true,pid:'uat-p1',active:true,companyCode:'uat-company',farm:'Farm A',stage:'Ratoon',variety:'V1/V2',areaPaddock100:2000,plantArea100:1800,varietyBreakdown:[{variety:'V1',area100:800},{variety:'V2',area100:1000}]})
   await put('master_foremen','uat-f1',{testOnly:true,id:'uat-f1',active:true,name:'Mandor A'})
+  await put('master_foremen','uat-f2',{testOnly:true,id:'uat-f2',active:true,name:'Mandor B'})
   await put('master_shifts','1',{testOnly:true,code:'1',active:true})
   await put('master_units','uat-unit',{testOnly:true,id:'uat-unit',name:'Unit 01',active:true})
   await put('master_activities','uat-as',{testOnly:true,id:'uat-as',active:true,formType:'spray',companyScope:'GLOBAL',activity:'Spray',description:'Post Emergence',components:[{materialId:'uat-herb',dosePerHa:'1.2345',unit:'L'}]})

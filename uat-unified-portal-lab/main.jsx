@@ -9,6 +9,7 @@ import UatUnifiedOperationalForm from '../src/UatUnifiedOperationalForm.jsx'
 import UatUnifiedFullOperationalForm from '../src/UatUnifiedFullOperationalForm.jsx'
 import {validateCustomRole} from '../src/qcUatCustomRoles.mjs'
 import {validateSession} from '../src/qcUatSessionPermissions.mjs'
+import {fullQcExecutionRequest,validateFullQcExecutionSource} from '../src/qcUatUnifiedCarryoverSelection.mjs'
 if(location.origin!=='http://127.0.0.1:4797')throw Error('UNIFIED_BROWSER_ORIGIN')
 const app=initializeApp({projectId:'demo-qc-uat-unified-role-planning',apiKey:'demo-only-not-a-real-key'})
 const auth=initializeAuth(app,{persistence:inMemoryPersistence})
@@ -36,13 +37,12 @@ function adapterFor(user){
   isCurrent:u=>auth.currentUser===u,
   qcSource:async(formType,dailyPlanId)=>(await planning('/uat/unified/qc/source',{request:{formType,dailyPlanId}})).source,
   qcCommit:async(request)=>(await planning('/uat/unified/qc/commit',{request})).qc,
-  fullQcSource:async(formType,dailyPlanId)=>{
+  fullQcSource:async(formType,dailyPlanId,selection={carryover:false,actualForemanId:''})=>{
    const scalar=(await planning('/uat/unified/qc/source',{request:{formType,dailyPlanId}})).source
    if(scalar?.readOnly!==true||scalar?.dailyPlanId!==dailyPlanId||scalar?.formType!==formType)throw Error('INVALID_SCALAR_SOURCE')
-   const request={dailyPlanId,expectedDailyRevision:scalar.revision,formType,date:scalar.date,shift:scalar.shift,foreman:scalar.foreman}
+   const {request}=fullQcExecutionRequest(scalar,formType,selection)
    const source=(await planning('/uat/unified/qc/full/source',{request})).source
-   if(source?.dailyPlanId!==dailyPlanId||source?.kind!==formType||source?.dailyRevision!==scalar.revision)throw Error('INVALID_FULL_SOURCE')
-   return source
+   return validateFullQcExecutionSource(source,scalar,formType,selection)
   },
   fullQcCommit:async(formType,request)=>{
    if(formType!==request.record?.formType||!['spray','fertilizer'].includes(formType))throw Error('FORM_KIND_DENIED')

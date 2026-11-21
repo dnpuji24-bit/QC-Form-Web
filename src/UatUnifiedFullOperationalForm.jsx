@@ -10,6 +10,7 @@ const fresh=()=>({
 const nonce=()=>crypto.randomUUID().replace(/-/g,'').slice(0,20)
 export default function UatUnifiedFullOperationalForm({user,kind,api}){
  const [dailyId,setDailyId]=useState(''),[source,setSource]=useState(null),[form,setForm]=useState(fresh)
+ const [carryover,setCarryover]=useState(false),[actualForemanId,setActualForemanId]=useState('')
  const [busy,setBusy]=useState(false),[pending,setPending]=useState(null),[status,setStatus]=useState('belum memilih sumber')
  const ticket=useRef(0),locked=useRef(false)
  useEffect(()=>()=>{ticket.current++},[])
@@ -23,7 +24,7 @@ export default function UatUnifiedFullOperationalForm({user,kind,api}){
   locked.current=true;setBusy(true);const current=++ticket.current
   setSource(null);setForm(fresh());setStatus('memeriksa sumber dan master di server')
   try{
-   const result=await api.fullQcSource(kind,dailyId)
+   const result=await api.fullQcSource(kind,dailyId,{carryover,actualForemanId})
    if(current!==ticket.current||!active())return
    if(result?.testOnly!==true||result.kind!==kind||result.dailyPlanId!==dailyId)throw Error('INVALID_FULL_SOURCE')
    setSource(result)
@@ -65,12 +66,20 @@ export default function UatUnifiedFullOperationalForm({user,kind,api}){
   <p>Editor sintetis untuk validasi DTO penuh; bukan formulir produksi dan tidak mengunggah foto.</p>
   <label>ID Daily Plan
    <input aria-label={'Full '+kind+' Daily Plan ID'} value={dailyId} disabled={busy||!!pending}
-    onChange={e=>{setDailyId(e.target.value);setSource(null);setForm(fresh());setStatus('belum memilih sumber')}}/>
+    onChange={e=>{setDailyId(e.target.value);setSource(null);setForm(fresh());setCarryover(false);setActualForemanId('');setStatus('belum memilih sumber')}}/>
   </label>
-  <button disabled={!dailyId||busy||!!pending} onClick={()=>void load()}>Full {kind} periksa sumber</button>
+  <label>Melanjutkan sumber Shift 1 ke Shift 2 pada tanggal yang sama
+   <input type="checkbox" aria-label={'Full '+kind+' lanjutkan Shift 1 ke Shift 2'} checked={carryover}
+    disabled={busy||!!pending} onChange={e=>{setCarryover(e.target.checked);setActualForemanId('');setSource(null);setForm(fresh());setStatus('pilih ulang sumber dan pelaksana')}}/>
+  </label>
+  {carryover&&<label>ID mandor pelaksana Shift 2 (wajib dari master aktif)
+   <input aria-label={'Full '+kind+' ID mandor Shift 2'} value={actualForemanId} disabled={busy||!!pending}
+    onChange={e=>{setActualForemanId(e.target.value);setSource(null);setForm(fresh());setStatus('pilih ulang sumber dan pelaksana')}}/>
+  </label>}
+  <button disabled={!dailyId||busy||!!pending||(carryover&&!actualForemanId)} onClick={()=>void load()}>Full {kind} periksa sumber</button>
   <p data-testid={'uat-full-'+kind+'-status'}>{status}</p>
   {source&&<div>
-   <p data-testid={'uat-full-'+kind+'-source'}>PID {source.pid} • {source.date} • shift pelaksanaan {source.executionShift} • mandor {source.executionForemanName} • revisi {source.dailyRevision}</p>
+   <p data-testid={'uat-full-'+kind+'-source'}>PID {source.pid} • {source.date} • sumber shift {source.sourceShift} / mandor asal {source.sourceForemanName} • shift pelaksanaan {source.executionShift} / mandor aktual {source.executionForemanName} • revisi {source.dailyRevision}</p>
    <p>Area rencana DP {(source.area100/100).toFixed(2)} Ha · bahan {source.materials.map(m=>m.material).join(', ')}</p>
    {input('Nama asisten','assistant')}
    {input('Unit','unit')}
