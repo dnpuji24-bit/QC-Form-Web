@@ -17,17 +17,15 @@ export function shellRoute(path){
  return null
 }
 function problem(status,code){throw Object.assign(Error(code),{status})}
-function bytes(req){
- return new Promise((resolve,reject)=>{
-  let total=0;const chunks=[]
-  req.on('data',chunk=>{
-   total+=chunk.length
-   if(total>8192){reject(Object.assign(Error('BODY_TOO_LARGE'),{status:413}));req.destroy();return}
-   chunks.push(chunk)
-  })
-  req.on('end',()=>resolve(Buffer.concat(chunks)))
-  req.on('error',reject)
- })
+async function bytes(req){
+ let total=0
+ const chunks=[]
+ for await(const chunk of req){
+  total+=chunk.length
+  if(total>8192)problem(413,'BODY_TOO_LARGE')
+  chunks.push(chunk)
+ }
+ return Buffer.concat(chunks)
 }
 export function createUnifiedBrowserShell(assets){
  const project=unifiedGuard()
