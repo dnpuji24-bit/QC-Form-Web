@@ -10,7 +10,13 @@ const fresh=()=>({
  waterRate:'',adjuvantDosage:'',adjuvant:'',actUsageAdjuvant:'',measuredUsage:['','','',''],
  fillings:[{materialId:'',productName:'',kg:'',areaHa:'',statusHose:'Lancar',distribution:''}]
 })
-const nonce=()=>crypto.randomUUID().replace(/-/g,'').slice(0,20)
+const nonce=()=>{
+ // Only the explicit synthetic real-Storage test build has this run scope.
+ // The ordinary UAT and production builds keep their existing random nonce.
+ const scope=typeof __QC_UAT_REAL_PHOTO_RUN_ID__==='string'?__QC_UAT_REAL_PHOTO_RUN_ID__:''
+ const random=crypto.randomUUID().replace(/-/g,'')
+ return /^[a-f0-9]{32}$/.test(scope)?scope+'-'+random.slice(0,6):random.slice(0,20)
+}
 export default function UatUnifiedFullOperationalForm({user,kind,api}){
  const [dailyId,setDailyId]=useState(''),[source,setSource]=useState(null),[form,setForm]=useState(fresh)
  const [carryover,setCarryover]=useState(false),[actualForemanId,setActualForemanId]=useState('')
