@@ -126,7 +126,7 @@ if(['--browser','--browser-photo','--browser-photo-real'].includes(process.argv[
     u.searchParams.has('token')&&!u.hash
    if((u.origin===shellOrigin&&!u.search&&(assets.has(u.pathname)||shellRoute(u.pathname)))||
      u.origin==='http://'+unifiedHost+':'+unifiedAuthPort||u.protocol==='data:'||signedUatImage)await route.continue()
-   else{errors.push('EGRESS '+u.origin+u.pathname);await route.abort()}
+   else{errors.push('EGRESS_DENIED '+u.origin);await route.abort()}
   })
   await ctx.routeWebSocket('**/*',ws=>{errors.push('WEBSOCKET');ws.close()})
   await ctx.addInitScript(()=>{globalThis.cspViolations=[];document.addEventListener('securitypolicyviolation',event=>cspViolations.push(event.effectiveDirective))})
@@ -231,7 +231,7 @@ if(['--browser','--browser-photo','--browser-photo-real'].includes(process.argv[
       const image=panel.getByTestId('uat-full-'+kind+'-private-image')
       await image.waitFor({state:'visible'})
       await image.evaluate(async e=>{
-       if(e.complete&&e.naturalWidth>0)return
+       if(e.complete){if(e.naturalWidth>0)return;throw Error('PRIVATE_PREVIEW_IMAGE_LOAD_FAILED')}
        await new Promise((resolve,reject)=>{
         e.addEventListener('load',resolve,{once:true})
         e.addEventListener('error',()=>reject(Error('PRIVATE_PREVIEW_IMAGE_LOAD_FAILED')),{once:true})
