@@ -30,3 +30,18 @@ This short regression also includes already-known photo manifest/source guards a
 - No change to `src/SprayForm.tsx` or `src/FertilizerForm.tsx` in production. Those retain their existing independent 1400px / JPEG quality 0.72 compression.
 - No Supabase upload yet, no Server-side photo-inclusive commit, no signed private image reader, no offline queue persistence, no live hosting; the UAT React editor still **blocks QC saving when an image is staged**.
 - `11D.5c.3b.2` remains the pending trusted UAT private-storage + atomic QC/Actual/photo receipt integration with new unified Auth boundary, based on the existing isolated verifier once this compression gate passes.
+
+## 21 November 2026 browser regression correction (operator test pending)
+The operator reported that the `photo-compress` gate's existing Spray photo browser scenario timed out waiting for a staged item after selection. The original sample embedded in that browser test had an invalid PNG `IDAT` CRC; the earlier header-only stage had accepted it, but the new browser image decoder rightfully rejected it. The image generation/compression feature must **not** be weakened to pass broken pixels.
+
+Code fix: replace the sample in both Spray and Fertilizer browser steps and all photo contract fixtures with a new valid PNG carrying CRC-correct IHDR, IDAT, and IEND chunks. The existing browser test now explicitly selects the former corrupted sample and expects `PHOTO_DECODE_FAILED` with zero QC records written. A new failure diagnostic reports the real form status immediately if a valid image fails staging. Separately, the rare browser Image fallback decodes validated bytes using a `data:image/...;base64,` URL instead of `blob:`: this preserves the portal's restrictive `img-src data:` Content-Security-Policy and never requires remote requests. The default `createImageBitmap` path is unchanged.
+
+The previously completed 15/15 trusted-stage mock contract remains confirmed in Cloud Shell; the full compression browser gate must be re-run for this corrected commit. Test exactly:
+
+```bash
+cd ~/QC-Form-Web
+git pull --ff-only origin feature/firebase-auth-claims-supabase
+npm run test:uat:photo-compress
+```
+
+This is test-fixture and decoder-CSP compatibility repair only. The original UAT compression limits, SHA-256-after-compression behavior, write protection while photos are staged, and production isolation remain unchanged.
