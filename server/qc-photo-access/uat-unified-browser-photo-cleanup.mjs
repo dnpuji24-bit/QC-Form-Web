@@ -4,6 +4,36 @@ import assert from 'node:assert/strict'
 import {unifiedGuard,unifiedProjectId} from './uat-unified-identity-guard.mjs'
 import {guardUnifiedPhotoStorage,unifiedPhotoOrigin,unifiedPhotoBucket,
  unifiedPhotoPath,createUnifiedPhotoSafeFetch} from './uat-unified-private-photo-store.mjs'
+import {assessFailedPhotoRun} from './uat-unified-photo-failure-assessment.mjs'
+
+
+// Inspection only, intentionally separate from cleanupVerifiedBrowserPhotoRun.
+// A failed upload may have reached Storage but not the in-memory owned tracker.
+// Never infer an empty remote folder from empty process-local sets.
+export async function inspectFailedBrowserPhotoRun({adb,store,runId,actorUid}){
+ unifiedGuard()
+ assert.equal(adb?.projectId,unifiedProjectId,'DEMO_EMULATOR_REQUIRED')
+ assert.equal(store?.mode,'supabase-private-uat','REAL_UAT_STORE_REQUIRED')
+ assert.equal(store.runId,runId,'RUN_SCOPE_CHANGED')
+ assert.equal(store.actorUid,actorUid,'ACTOR_SCOPE_CHANGED')
+ assert.match(runId,/^[a-f0-9]{32}$/)
+ assert.match(actorUid,/^uat-[a-z0-9-]{1,60}$/)
+ const records=await adb.collection('qc_uat_workspaces/cutover/qc_photo_manifests').limit(51).get()
+ assert.ok(records.size<=50,'RECOVERY_SCOPE_TOO_LARGE')
+ const rows=[]
+ for(const doc of records.docs){
+  if(!doc.id.startsWith('uat-'+runId+'-'))continue
+  const ledger=doc.data()
+  // The diagnostic does not trust the active ledger if its audit is missing.
+  const revision=ledger?.clientRevision
+  const audit=typeof revision==='string'&&/^uat-[a-z0-9-]{1,60}$/.test(revision)?
+   (await adb.doc('qc_uat_workspaces/cutover/qc_photo_manifest_audit/'+doc.id+':'+revision).get()).data():null
+  rows.push({id:doc.id,ledger,audit})
+ }
+ return assessFailedPhotoRun({
+  runId,actorUid,touched:store.inspectTouched(),owned:store.inspectOwned(),ledgerPairs:rows
+ })
+}
 
 export async function cleanupVerifiedBrowserPhotoRun({adb,store,runId,actorUid}){
  unifiedGuard()
