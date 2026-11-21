@@ -10,7 +10,8 @@
     "typecheck": "tsc -b",
     "test:uat:quick": "node scripts/run-qc-uat-gates.mjs quick",
     "test:uat:smoke": "node scripts/run-qc-uat-gates.mjs smoke",
-    "test:uat:full": "node scripts/run-qc-uat-gates.mjs full"
+    "test:uat:full": "node scripts/run-qc-uat-gates.mjs full",
+    "test:uat:ui": "node scripts/run-qc-uat-gates.mjs ui"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
