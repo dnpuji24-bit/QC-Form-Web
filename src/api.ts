@@ -14,6 +14,8 @@ const CONFIG_KEY = 'qc_v48_config'
 const DEFAULT_API = 'https://script.google.com/macros/s/AKfycbwjqnVwOBDQg3ptclpw_bCQO9kAcYUcHkxz4tdlNppcPYmMpCocPTbG8fgGVlp1muY/exec'
 
 export function getApiUrl(): string {
+  // In Firebase-only mode, do not read, reveal or use the saved Apps Script URL.
+  if (nativePortalEnabled) return ''
   try {
     const saved = JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}') as { apiUrl?: string }
     return saved.apiUrl || DEFAULT_API
@@ -23,6 +25,8 @@ export function getApiUrl(): string {
 }
 
 export function setApiUrl(apiUrl: string): void {
+  // A restored browser config must never re-enable the legacy endpoint in native mode.
+  assertLegacyApiAllowed(nativePortalEnabled, '')
   if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(apiUrl)) throw new Error('URL Apps Script harus berakhiran /exec')
   localStorage.setItem(CONFIG_KEY, JSON.stringify({ apiUrl }))
 }
