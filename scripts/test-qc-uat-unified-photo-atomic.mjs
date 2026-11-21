@@ -163,6 +163,11 @@ if(process.argv[2]!=='--self-test'){
      const altered={...stale,request:{...stale.request,baseRevision:'uat-r2',
       record:{...stale.request.record,noted:'Tampered operator note'}}}
      await assert.rejects(()=>service.commit(operator.token,altered),{message:'PHOTO_CORRECTION_OPERATIONAL_FIELDS_CHANGED'})
+     // A photo correction may not silently drop an existing scan or HOLD slot.
+     const missingScan={...fixingFert,request:{...rFert,record:{...rFert.record,clientRevision:'uat-r3'},
+      baseRevision:'uat-r2',jobId:'uat-job-f-photo-r3'},photos:[photo]}
+     await assert.rejects(()=>service.commit(operator.token,missingScan),
+      {message:'PHOTO_CORRECTION_ALL_SLOTS_REQUIRED'})
      const refAudit=root('qc_photo_manifest_audit','uat-photo-s:uat-r2')
      const before=(await refAudit.get()).data()
      await refAudit.set({...before,jobId:'uat-forged'})
