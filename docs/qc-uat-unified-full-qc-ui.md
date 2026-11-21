@@ -19,9 +19,12 @@ This is **not** mounting or refactoring the production `SprayForm.tsx` or `Ferti
 cd ~/QC-Form-Web
 git pull --ff-only origin feature/firebase-auth-claims-supabase
 npm run test:uat:quick
-npm run test:uat:smoke
+npm run test:uat:ui
 ```
-Quick now includes the extra 10 full editor DTO cases plus previous 10 scalar cases and isolation/TypeScript; it does not boot Firebase. Smoke retains 16 targeted backend emulator checks. `npm run test:uat:full` is reserved for release gates; it exercises the React browser bundle and current edit/revoke visibility, plus the 130 associated regression checks, but not all repository tests.
+Quick now includes the extra 10 full editor DTO cases plus previous 10 scalar cases and isolation/TypeScript; it does not boot Firebase. The existing 16/16 backend Smoke Test was already operator-verified at 11D.5c.2b.1 and the backend is unchanged. For THIS UI slice, run `npm run test:uat:ui` (17 browser checks including React module build, valid role visibility, role revocation, and original scalar QC UI). Repeat `npm run test:uat:smoke` only after backend/DTO change or before a release gate. `npm run test:uat:full` is reserved for release gates; it exercises the React browser bundle and current edit/revoke visibility, plus the 130 associated regression checks, but not all repository tests.
 
 ## Decision before proceeding
 Once Quick/Smoke confirm no regressions, next task is *11D.5c.2b.3*: create a **targeted real-browser full form submission test** on complete Planning/master fixture; fill Spray and two Fertilizer components with UI controls, verify canonical, full sidecars, Actual and audit before considering final UX parity. Preserve current UAT-only isolation.
+
+### Internal author-time check
+The 10 new full editor DTO scenarios were executed independently using the exact repository pure JS sources and their actual full validators and HTTP envelope helpers inside a sandboxed JavaScript runtime: **10/10 passed**. This does not replace the operator's Cloud Shell Quick/Browser run.
