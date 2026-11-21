@@ -1,5 +1,6 @@
 import { photoUat } from '../_shared/qcPhotoUat.ts'
 import { isOperationalPhotoIdentityAllowed } from '../_shared/qcOperationalPhotoIdentity.mjs'
+import { maySignOperationalQcPhoto } from '../_shared/qcOperationalPhotoAccess.mjs'
 import { resolveOperationalPhotoPath } from './manifest.ts'
 // Supabase Edge Function: Firebase ID Token -> current Firestore Data QC permission
 // -> temporary signed URL to an EXISTING private QC photo. Not deployed by this commit.
@@ -157,16 +158,17 @@ export function createHandler(deps=defaults,pilot=false,uat=false){
     const [u,q,reservationDoc]=await Promise.all([
       googleJson(documentPath('users/'+uid),oauth),
       googleJson(documentPath(records+data.recordId),oauth),
-      googleJson(documentPath(intents+data.recordId),oauth),
+      pilot ? googleJson(documentPath(intents+data.recordId),oauth) : Promise.resolve(null),
     ])
     const profile=decodeFields(u?.fields),qc=decodeFields(q?.fields),reservation=decodeFields(reservationDoc?.fields)
     // Explicit null narrowing for TypeScript; missing profiles remain forbidden.
     if(!profile)throw new RequestError(403)
     if(!isOperationalPhotoIdentityAllowed({uid,tokenEmail:verified.payload.email,account:userAccount,profile}))throw new RequestError(403)
-    if(profile.role!=='owner'){
-      const role=decodeFields((await googleJson(documentPath('role_access/'+profile.role),oauth))?.fields)
-      if(!role||role.role!==profile.role||!['view','edit'].includes(role.permissions?.qc_records))throw new RequestError(403)
-    }
+    const role=profile.role==='owner'?null:
+      decodeFields((await googleJson(documentPath('role_access/'+profile.role),oauth))?.fields)
+    // A mandor may only sign photos of QC owned by their username, matching
+    // the existing Firestore qc_records read rules. Viewer grants do not lift this.
+    if(!maySignOperationalQcPhoto(profile,role,qc))throw new RequestError(403)
     if(pilot?(qc?.testOnly!==true||reservation?.testOnly!==true):qc?.testOnly===true)throw new RequestError(403)
     const path=await resolveOperationalPhotoPath(qc,reservation,data.recordId,data.photoId,pilot,targetBucket)
     if(!path)throw new RequestError(403)
