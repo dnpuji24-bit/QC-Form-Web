@@ -200,7 +200,7 @@ function App(){
   if(mode!=='recent'&&mode!=='exact')return
   const term=qcSearchTerm.trim().toLowerCase()
   if(mode==='exact'&&!/^uat-[a-z0-9-]{1,60}$/.test(term)){
-   setQcRecords(null);setQcRecordsState('invalid-id');return
+   qcRequestSeq.current++;setQcRecords(null);setQcRecordsState('invalid-id');return
   }
   const request=mode==='recent'?{mode:'recent',kind:qcKind}:{mode:'exact',kind:qcKind,term}
   const current=user,ticket=seq.current,queryTicket=++qcRequestSeq.current
