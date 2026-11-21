@@ -5,6 +5,7 @@ import {createHash} from 'node:crypto'
 import {isDeepStrictEqual} from 'node:util'
 import {prepareOperationalPhotoManifest} from '../../src/qcOperationalPhotoManifest.mjs'
 import {prepareUnifiedFullQc} from '../../src/qcUatUnifiedFullQcTransport.mjs'
+import {matchesUatPhotoSignature} from '../../src/qcUatUnifiedPhotoPreflight.mjs'
 
 const need=(ok,code)=>{if(!ok)throw Error(code)}
 const exact=(o,ks)=>o&&Object.getPrototypeOf(o)===Object.prototype&&Reflect.ownKeys(o).length===ks.length&&ks.every(k=>Object.hasOwn(o,k))
@@ -65,7 +66,7 @@ export function createTrustedPhotoStage({authenticatedUid,readSource,store}){
     const m=/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(change.dataUrl)
     need(m&&m[2].length%4===0,'PHOTO_DATA_INVALID')
     const bytes=Buffer.from(m[2],'base64')
-    need(bytes.length>=1&&bytes.length<=2097152&&bytes.toString('base64')===m[2]&&signature(bytes,m[1]),'PHOTO_BYTES_INVALID')
+    need(bytes.length>=1&&bytes.length<=2097152&&bytes.toString('base64')===m[2]&&signature(bytes,m[1])&&matchesUatPhotoSignature(bytes,m[1]),'PHOTO_BYTES_INVALID')
    }
    const {manifest,uploads}=await prepareOperationalPhotoManifest({
     recordId:r.id,uploaderUid:uid,changes:input.photos,bucket:mockBucket

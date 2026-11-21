@@ -289,7 +289,8 @@ if(process.argv[2]==='--browser'){
    assert.equal((await adb.collection(base+'/qc_records').get()).size,4)
    const corruptPng=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4//8/AwAI/AL+PcCaAAAAAElFTkSuQmCC','base64')
    await spray.getByLabel('Full spray file foto',{exact:true}).setInputFiles({name:'corrupt.png',mimeType:'image/png',buffer:corruptPng})
-   await expected(spray.getByTestId('uat-full-spray-status'),/foto ditolak: PHOTO_DECODE_FAILED/)
+   await expected(spray.getByTestId('uat-full-spray-status'),/foto ditolak: PHOTO_SIGNATURE_INVALID/)
+   assert.equal(await spray.getByTestId('uat-full-spray-photo-status').innerText(),'0 foto diverifikasi lokal · 0 diunggah')
    assert.equal((await adb.collection(base+'/qc_records').get()).size,4)
   })
   await check('React large camera photo compresses before hash and retains zero QC writes until removal',async()=>{

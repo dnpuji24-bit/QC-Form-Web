@@ -2,6 +2,7 @@
 // had a corrupt IDAT CRC. Chromium correctly refuses to decode the old fixture.
 import assert from 'node:assert/strict'
 import {UAT_PHOTO_COMPRESSION,uatCompressedDimensions,validateUatOriginalPhoto} from '../src/qcUatPhotoCompression.mjs'
+import {hasValidUatPngCrc,matchesUatPhotoSignature} from '../src/qcUatUnifiedPhotoPreflight.mjs'
 const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGM0atryn4GBgYGJAQoAJCYCa4s7a6wAAAAASUVORK5CYII=','base64'))
 const f=(bytes=png,type='image/png',name='paddock.png')=>({size:bytes.length,type,name,arrayBuffer:async()=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.length)})
 let n=0
@@ -24,10 +25,17 @@ await check('policy exactly 6MB original, <=2 MiB staged and 800KiB target',()=>
  assert.equal(UAT_PHOTO_COMPRESSION.maxSide,1280)
  assert.equal(UAT_PHOTO_COMPRESSION.jpegQuality[0],.7)
 })
-await check('valid PNG header passes precompression validation unmodified',async()=>{
+await check('valid PNG chunk CRC passes precompression validation unmodified',async()=>{
  const x=await validateUatOriginalPhoto(f());assert.equal(x.originalBytes,png.length)
  assert.equal(x.originalType,'image/png')
  assert.deepEqual(x.bytes,png)
+ assert.equal(hasValidUatPngCrc(png),true)
+ const corrupt=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4//8/AwAI/AL+PcCaAAAAAElFTkSuQmCC','base64'))
+ assert.equal(hasValidUatPngCrc(corrupt),false)
+ assert.equal(matchesUatPhotoSignature(corrupt,'image/png'),false)
+ await assert.rejects(()=>validateUatOriginalPhoto(f(corrupt,'image/png','corrupt.png')),{message:'PHOTO_SIGNATURE_INVALID'})
+ const missingChunks=Uint8Array.from(png.subarray(0,8))
+ assert.equal(hasValidUatPngCrc(missingChunks),false)
 })
 await check('original larger than 6 MB rejected without reading bytes',async()=>{
  let reads=0

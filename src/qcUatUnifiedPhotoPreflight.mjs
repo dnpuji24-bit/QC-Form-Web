@@ -4,8 +4,46 @@ import {prepareOperationalPhotoManifest} from './qcOperationalPhotoManifest.mjs'
 const need=(ok,code)=>{if(!ok)throw Error(code)}
 const sid=v=>typeof v==='string'&&/^uat-[a-z0-9-]{1,60}$/.test(v)
 const mimeMap={'image/png':'png','image/jpeg':'jpg','image/webp':'webp'}
+// CRC validation is deterministic across Chromium, Firefox and Node.
+// PNG decoders differ in whether they tolerate damaged IDAT checksums.
+// Validate every chunk before any browser decode or upload manifest.
+const pngCrcTable=Uint32Array.from({length:256},(_,index)=>{
+ let value=index
+ for(let i=0;i<8;i++)value=(value&1)?(0xedb88320^(value>>>1)):(value>>>1)
+ return value>>>0
+})
+const pngU32=(b,i)=>((b[i]*0x1000000)+(b[i+1]<<16)+(b[i+2]<<8)+b[i+3])>>>0
+export function hasValidUatPngCrc(bytes){
+ if(!bytes||bytes.length<57||![137,80,78,71,13,10,26,10].every((v,i)=>bytes[i]===v))return false
+ let offset=8,ihdr=false,idat=false,iend=false
+ for(let count=0;offset+12<=bytes.length&&count<4096;count++){
+  const length=pngU32(bytes,offset)
+  if(length>bytes.length-offset-12)return false
+  const start=offset+4,payload=start+4,end=payload+length
+  const name=String.fromCharCode(...bytes.subarray(start,start+4))
+  if(!/^[A-Za-z]{4}$/.test(name))return false
+  if(!ihdr){
+   if(name!=='IHDR'||length!==13)return false
+   const width=pngU32(bytes,payload),height=pngU32(bytes,payload+4)
+   if(!width||!height||width*height>32000000||bytes[payload+10]!==0||bytes[payload+11]!==0||
+      ![0,1].includes(bytes[payload+12]))return false
+   ihdr=true
+  }else if(name==='IHDR')return false
+  if(name==='IDAT')idat=true
+  if(name==='IEND'){
+   if(!idat||length!==0||end+4!==bytes.length)return false
+   iend=true
+  }
+  let crc=0xffffffff
+  for(let i=start;i<end;i++)crc=(pngCrcTable[(crc^bytes[i])&0xff]^(crc>>>8))>>>0
+  if(((crc^0xffffffff)>>>0)!==pngU32(bytes,end))return false
+  offset=end+4
+  if(iend)break
+ }
+ return ihdr&&idat&&iend&&offset===bytes.length
+}
 export const matchesUatPhotoSignature=(bytes,type)=>{
- if(type==='image/png')return bytes.length>=8&&[137,80,78,71,13,10,26,10].every((v,i)=>bytes[i]===v)
+ if(type==='image/png')return hasValidUatPngCrc(bytes)
  if(type==='image/jpeg')return bytes.length>=4&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255
  if(type==='image/webp')return bytes.length>=12&&[82,73,70,70].every((v,i)=>bytes[i]===v)&&[87,69,66,80].every((v,i)=>bytes[i+8]===v)
  return false
