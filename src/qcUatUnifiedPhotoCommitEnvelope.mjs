@@ -22,7 +22,7 @@ export function buildUnifiedPhotoCommitEnvelope(request,stagedPhotos){
  need(typeof r.dailyPlanId==='string'&&/^uat-[a-z0-9-]{1,60}$/.test(r.dailyPlanId)&&
   Number.isSafeInteger(request.expectedDailyRevision)&&request.expectedDailyRevision>=0&&
   request.expectedDailyRevision<1000000&&typeof r.date==='string'&&
-  /^\\d{4}-\\d{2}-\\d{2}$/.test(r.date)&&
+  /^\d{4}-\d{2}-\d{2}$/.test(r.date)&&
   ['1','2'].includes(r.shift)&&typeof request.foremanId==='string'&&
   /^uat-[a-z0-9-]{1,60}$/.test(request.foremanId),'PHOTO_SOURCE_INVALID')
  const sourceRequest={
