@@ -24,7 +24,8 @@ export function allowedUatOperationalAreas(session){
  const qc=keys.some(k=>k.startsWith('qc_')&&has(p[k]))
  const data=keys.some(k=>k.startsWith('data_')&&has(p[k]))
  const summary=has(p.data_plan_summary)
- const calendar=summary||has(p.data_plan_daily)||has(p.data_plan_actual)
+ // Calendar requires its own source read grant; Summary alone is not enough.
+ const calendar=has(p.data_plan_daily)||has(p.data_plan_actual)
  const users=session.role==='owner'
  return Object.freeze(operationalPortalAreas.filter(a=>
   a.id==='qc'?qc:
