@@ -39,6 +39,7 @@ function adapterFor(user){
   // The browser pilot flag is injected ONLY by the dedicated emulator test bundle.
   // Ordinary builds have no flag, and their trusted HTTP route is disabled.
   photoCommitEnabled:typeof __QC_UAT_BROWSER_PHOTO_PILOT__!=='undefined'&&__QC_UAT_BROWSER_PHOTO_PILOT__===true,
+  photoPreviewEnabled:typeof __QC_UAT_PRIVATE_PREVIEW__!=='undefined'&&__QC_UAT_PRIVATE_PREVIEW__===true,
   qcSource:async(formType,dailyPlanId)=>(await planning('/uat/unified/qc/source',{request:{formType,dailyPlanId}})).source,
   qcCommit:async(request)=>(await planning('/uat/unified/qc/commit',{request})).qc,
   fullQcSource:async(formType,dailyPlanId,selection={carryover:false,actualForemanId:''})=>{
@@ -56,6 +57,10 @@ function adapterFor(user){
   fullQcPhotoCommit:async(formType,envelope)=>{
    if(formType!==envelope?.request?.record?.formType||!['spray','fertilizer'].includes(formType))throw Error('FORM_KIND_DENIED')
    return planning('/uat/unified/qc/full/photo/commit',envelope)
+  },
+  fullQcPhotoPreview:async({recordId,photoId})=>{
+   if(typeof __QC_UAT_PRIVATE_PREVIEW__==='undefined'||__QC_UAT_PRIVATE_PREVIEW__!==true)throw Error('PREVIEW_DISABLED')
+   return (await planning('/uat/unified/qc/photo/sign',{request:{recordId,photoId}})).preview
   },
   session:async()=>validateSession((await owner('/uat/session/permissions',{})).session,user.uid),
   read:async(scope,id)=>(await planning('/uat/unified/planning/read',{scope,id})).plan,
