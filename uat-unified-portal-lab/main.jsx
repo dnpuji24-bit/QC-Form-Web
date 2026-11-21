@@ -70,6 +70,7 @@ function adapterFor(user){
   operationalSummary:async(request)=>(await planning('/uat/unified/portal/summary',{request})).summary,
   operationalCalendar:async(request)=>(await planning('/uat/unified/portal/calendar',{request})).calendar,
   operationalRecords:async(request)=>(await planning('/uat/unified/portal/qc-records',{request})).records,
+  operationalRecordsBrowse:async(request)=>(await planning('/uat/unified/portal/qc-browse',{request})).records,
   lifecycle:{
    list:async()=>{
     const {roles}=await owner('/uat/owner/permissions/roles-list',{})
@@ -94,6 +95,8 @@ function App(){
  const [calendarResult,setCalendarResult]=useState(null),[calendarState,setCalendarState]=useState('idle')
  const [qcMonth,setQcMonth]=useState(()=>new Date().toISOString().slice(0,7)),[qcKind,setQcKind]=useState('all')
  const [qcRecords,setQcRecords]=useState(null),[qcRecordsState,setQcRecordsState]=useState('idle')
+ const [qcSearchTerm,setQcSearchTerm]=useState(''),[qcViewMode,setQcViewMode]=useState('month')
+ const qcRequestSeq=useRef(0)
  const seq=useRef(0),identity=useRef(null),refreshRef=useRef(()=>{})
  useEffect(()=>{
   let active=true
@@ -173,11 +176,11 @@ function App(){
  }
  async function loadQcRecords(){
   if(!user||!session||!api||!['view','edit'].includes(session.permissions.qc_records??'none'))return
-  const current=user,ticket=seq.current,request={monthKey:qcMonth,kind:qcKind}
-  setQcRecords(null);setQcRecordsState('loading')
+  const current=user,ticket=seq.current,queryTicket=++qcRequestSeq.current,request={monthKey:qcMonth,kind:qcKind}
+  setQcViewMode('month');setQcRecords(null);setQcRecordsState('loading')
   try{
    const data=await api.operationalRecords(request)
-   if(ticket!==seq.current||auth.currentUser!==current)return
+   if(ticket!==seq.current||queryTicket!==qcRequestSeq.current||auth.currentUser!==current)return
    if(data?.testOnly!==true||data.readOnly!==true||
       data.monthKey!==request.monthKey||data.kind!==request.kind||
       !Array.isArray(data.records)||data.records.length>50||
@@ -188,7 +191,33 @@ function App(){
        r.actual?.semantics==='COMPONENT_APPLICATION_SUM'&&
         !Array.isArray(r.actual.components)))throw Error('INVALID_QC_RECORDS_RECEIPT')
    setQcRecords(data);setQcRecordsState('ready')
-  }catch{if(ticket===seq.current&&auth.currentUser===current){
+  }catch{if(ticket===seq.current&&queryTicket===qcRequestSeq.current&&auth.currentUser===current){
+   setQcRecords(null);setQcRecordsState('denied')
+  }}
+ }
+ async function loadQcBrowse(mode){
+  if(!user||!session||!api||!['view','edit'].includes(session.permissions.qc_records??'none'))return
+  if(mode!=='recent'&&mode!=='exact')return
+  const term=qcSearchTerm.trim().toLowerCase()
+  if(mode==='exact'&&!/^uat-[a-z0-9-]{1,60}$/.test(term)){
+   setQcRecords(null);setQcRecordsState('invalid-id');return
+  }
+  const request=mode==='recent'?{mode:'recent',kind:qcKind}:{mode:'exact',kind:qcKind,term}
+  const current=user,ticket=seq.current,queryTicket=++qcRequestSeq.current
+  setQcViewMode(mode);setQcRecords(null);setQcRecordsState('loading')
+  try{
+   const data=await api.operationalRecordsBrowse(request)
+   if(ticket!==seq.current||queryTicket!==qcRequestSeq.current||auth.currentUser!==current)return
+   if(data?.testOnly!==true||data.readOnly!==true||data.mode!==mode||
+      data.kind!==qcKind||data.window!==(mode==='recent'?'LATEST_100_ALL_KINDS':'EXACT_ID_ACROSS_ALL_DATES')||
+      (mode==='exact'&&data.term!==term)||
+      !Array.isArray(data.records)||data.records.length>100||
+      typeof data.hasMore!=='boolean'||data.recordCount!==data.records.length||
+      data.records.some(r=>!['spray','fertilizer'].includes(r.formType)||
+       !['draft','ready','uploaded'].includes(r.saveType)||
+       !/^uat-[a-z0-9-]{1,60}$/.test(r.id)))throw Error('INVALID_QC_BROWSE_RECEIPT')
+   setQcRecords(data);setQcRecordsState('ready')
+  }catch{if(ticket===seq.current&&queryTicket===qcRequestSeq.current&&auth.currentUser===current){
    setQcRecords(null);setQcRecordsState('denied')
   }}
  }
@@ -200,7 +229,7 @@ function App(){
   if(!daily&&actual&&calendarSource==='daily')setCalendarSource('actual')
   if(!actual&&daily&&calendarSource==='actual')setCalendarSource('daily')
  },[session?.policyRevision,session?.uid,calendarSource])
- useEffect(()=>{if(operationalPortalPilot){setPortalArea('home');setSummaryResult(null);setSummaryState('idle');setCalendarResult(null);setCalendarState('idle');setCalendarSource('daily');setQcRecords(null);setQcRecordsState('idle')}},[user?.uid,session?.policyRevision])
+ useEffect(()=>{if(operationalPortalPilot){setPortalArea('home');setSummaryResult(null);setSummaryState('idle');setCalendarResult(null);setCalendarState('idle');setCalendarSource('daily');qcRequestSeq.current++;setQcRecords(null);setQcRecordsState('idle');setQcViewMode('month')}},[user?.uid,session?.policyRevision])
  const areas=operationalPortalPilot?allowedUatOperationalAreas(session):[]
  const area=operationalPortalPilot?resolveUatOperationalArea(session,portalArea):'home'
  const showData=!operationalPortalPilot||area==='data-unm'
@@ -287,15 +316,26 @@ function App(){
    <h3>Data QC dan Actual Plan — UAT</h3>
    <p>Ringkasan record yang memiliki audit valid. Maksimum 50 record per bulan, tanpa foto atau DTO mentah.</p>
    <label>Bulan Data QC <input type="month" aria-label="Bulan Data QC" value={qcMonth}
-    onChange={e=>{setQcMonth(e.target.value);setQcRecords(null);setQcRecordsState('idle')}}/></label>
+    onChange={e=>{qcRequestSeq.current++;setQcMonth(e.target.value);setQcRecords(null);setQcRecordsState('idle')}}/></label>
    <label>Jenis QC <select aria-label="Jenis Data QC" value={qcKind}
-    onChange={e=>{setQcKind(e.target.value);setQcRecords(null);setQcRecordsState('idle')}}>
+    onChange={e=>{qcRequestSeq.current++;setQcKind(e.target.value);setQcRecords(null);setQcRecordsState('idle')}}>
     <option value="all">Semua</option><option value="spray">Spray</option><option value="fertilizer">Fertilizer</option>
    </select></label>
    <button type="button" onClick={()=>void loadQcRecords()}>Muat Data QC UAT</button>
+   <button type="button" onClick={()=>void loadQcBrowse('recent')}>Muat 100 QC Terbaru</button>
+   <label>ID tepat lintas bulan <input aria-label="ID Pencarian QC" value={qcSearchTerm}
+    placeholder="uat-p1, uat-d1, uat-f1, atau ID QC"
+    onChange={e=>{qcRequestSeq.current++;setQcSearchTerm(e.target.value);setQcRecords(null);setQcRecordsState('idle')}}/></label>
+   <button type="button" onClick={()=>void loadQcBrowse('exact')}>Cari ID QC Tepat</button>
+   <p>Pencarian tepat berdasarkan ID QC, paddock, Daily Plan, atau mandor; bukan pencarian sebagian kata.
+   Filter jenis untuk 100 terbaru berlaku di dalam 100 record terbaru seluruh jenis.</p>
    <p data-testid="uat-operational-qc-records-state">{qcRecordsState}</p>
    {qcRecords&&<div data-testid="uat-operational-qc-records-result">
     <p>{qcRecords.recordCount} record QC</p>
+    {qcViewMode==='recent'&&<p data-testid="uat-qc-recent-window">
+     100 QC terbaru lintas periode{qcRecords.hasMore?' (masih ada record lebih lama)':''}
+    </p>}
+    {qcViewMode==='exact'&&<p data-testid="uat-qc-exact-window">Pencarian ID tepat lintas periode: {qcRecords.term}</p>}
     <ul>{qcRecords.records.map(r=><li key={r.id} data-testid={'uat-qc-row-'+r.id}>
      <strong>{r.id}</strong> — {r.formType} — {r.saveType} — {r.date} Shift {r.shift} — {r.pid}
      <div>Daily Plan: {r.dailyPlanId} · Mandor: {r.foreman}</div>
