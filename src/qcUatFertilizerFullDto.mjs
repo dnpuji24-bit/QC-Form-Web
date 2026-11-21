@@ -9,6 +9,8 @@ const round=v=>Math.round(v*100)/100
 const clock=v=>{need(typeof v==='string'&&/^([01]\d|2[0-3]):[0-5]\d$/.test(v),'INVALID_CLOCK');return Number(v.slice(0,2))*60+Number(v.slice(3))}
 const strings=['id','sessionId','formType','date','shift','name','nameOfAssistan','status','dailyPlanId','monthlyPlanLineId','dailyPlanLinkStatus','dailyPlanSourceType','companyCode','farm','startTime','endTime','paddock','unit','noUnit','type','activity','jenisPupuk','statusHose','catatan','noted','photoBase64','photoDriveUrl','scanReportPhotoBase64','scanReportDriveUrl','scanRawText','scanSourceFileName','scanAppliedAt','saveType','inputtedBy','ownerUid','createdAt','clientRevision']
 const nums=['plannedDailyAreaHa','actualAreaHa','dailyPlanningOrder','workingDurationMinutes','holdTotalMinutes','effectiveWorkingMinutes','productivityHaPerHour','dosis','scanConfidence','averageActualDosage','weightedActualDosage']
+export const fertilizerTextFields=strings
+export const fertilizerNumberFields=nums
 export function summarizeFertilizerFillings(fills){
  need(Array.isArray(fills)&&fills.length>=1&&fills.length<=100,'INVALID_FILLINGS')
  const seen=new Set()
