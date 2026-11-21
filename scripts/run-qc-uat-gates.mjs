@@ -4,8 +4,8 @@ import {fileURLToPath} from 'node:url'
 import path from 'node:path'
 const root=fileURLToPath(new URL('../',import.meta.url))
 const mode=process.argv[2]
-if(!['quick','smoke','ui','full-ui','carryover','photo-stage','photo-compress','photo-commit','photo-correction','photo-browser','portal-integration','full'].includes(mode)||process.argv.length!==3){
- console.error('Usage: node scripts/run-qc-uat-gates.mjs quick|smoke|ui|full-ui|carryover|photo-stage|photo-compress|photo-commit|photo-correction|photo-browser|portal-integration|full')
+if(!['quick','smoke','ui','full-ui','carryover','photo-stage','photo-compress','photo-commit','photo-correction','photo-browser','portal-integration','portal-modules','full'].includes(mode)||process.argv.length!==3){
+ console.error('Usage: node scripts/run-qc-uat-gates.mjs quick|smoke|ui|full-ui|carryover|photo-stage|photo-compress|photo-commit|photo-correction|photo-browser|portal-integration|portal-modules|full')
  process.exit(2)
 }
 const env={...process.env}
@@ -91,6 +91,12 @@ function fullUi(){
   'firebase.uat-unified-role-planning-emulator.json',9285,10099,
   'scripts/test-qc-uat-unified-full-qc-ui.mjs','--browser',true)
 }
+function portalModules(){
+ node('three real read-only Summary/Calendar contracts','scripts/test-qc-uat-operational-modules-delta.mjs')
+ emu('three Summary and Calendar HTTP browser delta checks (demo Auth + Firestore only)',
+  'demo-qc-uat-unified-role-planning','firebase.uat-unified-role-planning-emulator.json',
+  9285,10099,'scripts/test-qc-uat-unified-portal-ui.mjs','--browser-modules',true)
+}
 function portalIntegration(){
  node('three portal access and route contracts','scripts/test-qc-uat-operational-portal-delta.mjs')
  emu('three operational portal browser navigation delta checks (demo Auth + Firestore only)',
@@ -147,6 +153,7 @@ if(mode==='full-ui'){fullUi();console.log('\nSUCCESS: focused 11-case full QC Re
 if(mode==='carryover'){quick();fullUi();console.log('\nSUCCESS: 10 explicit carryover contract checks, TypeScript and 11 focused full QC browser checks passed')}
 if(mode==='photo-stage'){quick();fullUi();console.log('\nSUCCESS: 10 photo preflight + 10 compression contracts, TypeScript and 11 focused QC React browser checks passed (no photo upload)')}
 if(mode==='photo-compress'){quick();fullUi();console.log('\nSUCCESS: 10 compression contracts, TypeScript and 11 focused browser QC cases passed (JPEG/PNG/WebP compression before SHA256, no upload)')}
+if(mode==='portal-modules'){portalModules();console.log('\nSUCCESS: 3 offline Summary/Calendar contracts and 3 focused browser reads passed (demo emulator only)')}
 if(mode==='portal-integration'){portalIntegration();console.log('\nSUCCESS: 3 offline access contracts and 3 focused operational portal browser checks passed (demo emulator only)')}
 if(mode==='photo-correction'){photoCorrection();console.log('\nSUCCESS: 3 focused photo correction revisions/retry emulator checks passed (MOCK Storage only)')}
 if(mode==='photo-browser'){photoBrowser();console.log('\nSUCCESS: 7 offline photo transport checks, TypeScript and 4 focused MOCK photo browser-emulator checks passed (NO Supabase upload)')}
