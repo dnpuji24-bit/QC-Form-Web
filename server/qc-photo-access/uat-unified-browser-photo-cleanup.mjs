@@ -17,7 +17,7 @@ export async function cleanupVerifiedBrowserPhotoRun({adb,store,runId,actorUid})
  const touched=store.inspectTouched().sort(),owned=store.inspectOwned().sort()
  assert.deepEqual(touched,owned,'UNACKNOWLEDGED_UAT_PATHS_NEED_MANUAL_RECONCILIATION')
  assert.equal(owned.length,4,'FOUR_SYNTHETIC_BROWSER_PHOTOS_EXPECTED')
- const expected=new RegExp('^'+actorUid+'/qc/qc-v2-uat-'+runId+'-[a-z0-9]{1,16}/[a-f0-9]{24}_[a-f0-9]{64}\\.png$')
+ const expected=new RegExp('^'+actorUid+'/qc/qc-v2-uat-'+runId+'-[a-z0-9]{1,16}/[a-f0-9]{24}_[a-f0-9]{64}\\.(?:png|jpg|webp)$')
  const ledgerDocs=await adb.collection('qc_uat_workspaces/cutover/qc_photo_manifests').get()
  assert.equal(ledgerDocs.size,2,'TWO_COMMITTED_QC_MANIFESTS_REQUIRED')
  const committed=[]
