@@ -6,6 +6,7 @@ import type {QcSaveIntent} from './qcFormSaveIntent.mjs'
 import type {QcRecord} from './types'
 import {qcLocalUat,localUatPhotos,localUatPhotoKey} from './qcLocalUat'
 import {photoUploadEndpoint as endpoint, operationalPhotoBucket} from './qcPhotoEnvironment'
+import {postVerifiedOperationalPhoto} from './qcOperationalPhotoHttp.mjs'
 
 export const operationalSaveEnabled=import.meta.env.VITE_QC_OPERATIONAL_SAVE==='true'
 const validId=(s:string)=>/^[A-Za-z0-9_-]{1,160}$/.test(s)&&!/^qc-(operational-pilot|photo-staging)-/.test(s)
@@ -79,12 +80,13 @@ export async function flushOperationalQc(){
       }
       const token=await firebaseAuth!.currentUser!.getIdToken()
       assertUid(uid)
-      let binary=''
-      for(let i=0;i<bytes.length;i+=16384)binary+=String.fromCharCode(...bytes.subarray(i,i+16384))
-      const response=await fetch(endpoint,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({recordId:job.record.id,formType:job.record.formType,baseRevision:job.baseRevision,clientRevision:job.record.clientRevision,kind:ref.kind,contentType:ref.contentType,...(ref.kind==='hold'?{holdId:ref.holdId}:{}),base64:btoa(binary)}),cache:'no-store',signal:AbortSignal.timeout(60000)})
-      if(!response.ok)throw Error('QC photo upload HTTP '+response.status)
-      const result=await response.json()
-      for(const key of ['photoId','objectPath','sha256','size','bucket'])if(result[key]!==ref[key])throw Error('QC_PHOTO_VERIFICATION_MISMATCH')
+      await postVerifiedOperationalPhoto({
+        endpoint,bucket:operationalPhotoBucket,token,recordId:job.record.id,
+        formType:job.record.formType,baseRevision:job.baseRevision,
+        clientRevision:job.record.clientRevision,uploaderUid:uid,
+        reference:ref,bytes
+      })
+      assertUid(uid)
     },
     commitRecord:async(input:AtomicQcInput)=>{assertUid(uid);if(input.uploaderUid!==uid)throw Error('QC_QUEUE_ACCOUNT_MISMATCH');return commitOperationalQc(input)}
   })
