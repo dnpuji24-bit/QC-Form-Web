@@ -19,8 +19,9 @@ const exact=(v,ks)=>v&&Object.getPrototypeOf(v)===Object.prototype&&Reflect.ownK
 function error(status,code){throw Object.assign(Error(code),{status})}
 async function parseJson(req,maxBytes=8192){
  if(req.headers['content-type']!=='application/json')error(415,'JSON_REQUIRED')
- let size=0,chunks=[]
- for await(const chunk of req){size+=chunk.length;if(size>maxBytes)error(413,'BODY_TOO_LARGE');chunks.push(chunk)}
+ let size=0,overflow=false,chunks=[]
+ for await(const chunk of req){size+=chunk.length;if(size>maxBytes){overflow=true;continue}if(!overflow)chunks.push(chunk)}
+ if(overflow)error(413,'BODY_TOO_LARGE')
  try{return JSON.parse(Buffer.concat(chunks).toString('utf8'))}catch{error(400,'INVALID_JSON')}
 }
 function classify(e){
