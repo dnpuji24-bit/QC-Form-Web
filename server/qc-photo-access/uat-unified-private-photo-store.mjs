@@ -86,24 +86,30 @@ export async function createUnifiedPrivatePhotoStore({runId,actorUid,client=null
    const p=check(ref),input=Buffer.from(bytes)
    verify(input,ref)
    touched.add(p)
-   const prior=await rawRead(p)
-   if(prior){
-    need(prior.equals(input),'PHOTO_UAT_IMMUTABLE_CONFLICT')
-    owned.add(p);stats.reuses++;return
-   }
+   // Upload first: a missing private object currently yields HTTP 400 from
+   // Supabase on GET, not a dependable 404. Preflight GET is unnecessary.
+   // upsert:false always prevents overwriting an existing immutable object.
    const response=await storage.upload(p,input,{contentType:ref.contentType,cacheControl:'0',upsert:false})
-   // A storage timeout can mean that the object was written. Read back and compare
-   // before deciding whether to retry, but do NOT delete ambiguous objects.
-   if(response?.error)stats.ambiguous++
-   const stored=await rawRead(p)
-   if(!stored){
-    need(!response?.error,'PHOTO_UAT_UPLOAD_AMBIGUOUS')
-    throw Error('PHOTO_UAT_UPLOAD_MISSING')
+   if(response?.error){
+    const error=response.error
+    const status=Number(error.statusCode??error.status??0)
+    const code=String(error.error??error.code??'')
+    const message=String(error.message??'')
+    const duplicate=status===409||(status===400&&(
+     code==='Duplicate'||code==='ResourceAlreadyExists'||/asset already exists/i.test(message)))
+    const uncertain=status>=500||error.name==='StorageUnknownError'
+    // Never mask permission denials, invalid MIME or file-size errors as replay.
+    need(duplicate||uncertain,'PHOTO_UAT_UPLOAD_DENIED')
+    if(uncertain)stats.ambiguous++
    }
+   // Re-read exact bytes both after a first upload and after a conflict/timeout.
+   // This is the only proof that a retry refers to the SAME immutable object.
+   const stored=await rawRead(p)
+   if(!stored)throw Error(response?.error?'PHOTO_UAT_UPLOAD_AMBIGUOUS':'PHOTO_UAT_UPLOAD_MISSING')
    need(stored.equals(input),'PHOTO_UAT_IMMUTABLE_CONFLICT')
    owned.add(p)
-   if(!response?.error)stats.puts++
-   else stats.reuses++
+   if(response?.error)stats.reuses++
+   else stats.puts++
   },
   async read(ref){
    const p=check(ref)
