@@ -30,19 +30,22 @@ export function parseUnifiedPhotoRead(input){
 // Resolve only one immutable, audited reference attached to a committed QC form.
 export function resolveUnifiedPhotoRead(input,rows,actor){
  const q=parseUnifiedPhotoRead(input)
- const {qc,full,ledger,audit}=rows??{}
+ const {qc,full,fullAudit,ledger,audit}=rows??{}
  const {uid,marker,permissions}=actor??{}
- need(qc?.testOnly===true&&ledger?.testOnly===true&&full?.testOnly===true&&
+ need(qc?.testOnly===true&&qc.firestoreSaveState==='confirmed'&&ledger?.testOnly===true&&full?.testOnly===true&&
   ledger?.storageMode==='supabase-private-uat'&&ledger.bucket===unifiedPhotoBucket&&
   qc.id===q.canonicalId&&ledger.recordId===q.canonicalId&&ledger.fullRecordId===q.recordId&&
   ['spray','fertilizer'].includes(qc.formType)&&ledger.formType===qc.formType&&
   full?.form?.formType===qc.formType&&full.form.id===q.recordId&&
-  ledger.ownerUid===qc.ownerUid&&full.form.ownerUid===qc.ownerUid&&
+  full.fullRecordId===q.recordId&&full.canonicalQcId===q.canonicalId&&
+  ledger.ownerUid===qc.ownerUid&&qc.inputtedBy===qc.ownerUid&&
+  full.ownerUid===qc.ownerUid&&full.form.ownerUid===qc.ownerUid&&
   ledger.clientRevision===qc.clientRevision&&full.form.clientRevision===qc.clientRevision&&
   full.clientRevision===qc.clientRevision&&ledger.jobId===full.jobId&&
   qc.operationalSaveId===ledger.jobId&&hex(ledger.manifestSha256)&&
-  ledger.dailyPlanId===qc.dailyPlanId&&
-  photoLedgerEqual(ledger,audit),
+  ledger.dailyPlanId===qc.dailyPlanId&&full.form.dailyPlanId===qc.dailyPlanId&&
+  full.source?.dailyPlanId===qc.dailyPlanId&&
+  photoLedgerEqual(ledger,audit)&&photoLedgerEqual(full,fullAudit),
   'PHOTO_READ_LEDGER_INVALID')
  need(uidOK(uid)&&marker?.enabled===true&&permissions&&
   canReadOperationalPhoto(marker,permissions,uid,qc,qc.formType==='spray'?'qc_spraying':'qc_fertilizer'),
@@ -135,13 +138,14 @@ export function createPlanningPhotoReadService({adb,authAdmin,signer}){
       keys.every(k=>permissions[k]===expected[k]),'UAT_IDENTITY_DENIED')
    }
    need(qc?.testOnly===true&&['spray','fertilizer'].includes(qc.formType),'PHOTO_READ_NOT_COMMITTED')
-   const [fullDoc,ledgerDoc,auditDoc]=await Promise.all([
+   const [fullDoc,fullAuditDoc,ledgerDoc,auditDoc]=await Promise.all([
     tx.get(root(qc.formType==='spray'?'qc_spray_full':'qc_fertilizer_full',request.canonicalId)),
+    tx.get(root(qc.formType==='spray'?'qc_spray_full_audit':'qc_fertilizer_full_audit',request.canonicalId+':'+qc.clientRevision)),
     tx.get(root('qc_photo_manifests',request.canonicalId)),
     tx.get(root('qc_photo_manifest_audit',request.canonicalId+':'+qc.clientRevision))
    ])
    return resolveUnifiedPhotoRead({recordId:request.recordId,photoId:request.photoId},
-    {qc,full:fullDoc.data(),ledger:ledgerDoc.data(),audit:auditDoc.data()},
+    {qc,full:fullDoc.data(),fullAudit:fullAuditDoc.data(),ledger:ledgerDoc.data(),audit:auditDoc.data()},
     {uid,marker,permissions})
   })
  }
