@@ -293,7 +293,14 @@ if(process.argv[2]==='--browser'){
      pix.data[i+3]=255
     }
     ctx.putImageData(pix,0,0)
-    return c.toDataURL('image/jpeg',.92)
+    // Choose a browser-native JPEG that really exercises the 2 MiB -> <=800 KiB path.
+    // JPEG encoder/subsampling sizes can vary across Chromium versions.
+    for(const quality of [.95,.92,.88,.84,.80,.75]){
+     const data=c.toDataURL('image/jpeg',quality)
+     const approxBytes=Math.floor((data.length-data.indexOf(',')-1)*3/4)
+     if(approxBytes>2097152&&approxBytes<6000000)return data
+    }
+    throw Error('NO_VALID_COMPRESSION_BROWSER_FIXTURE')
    })
    const originalBytes=Buffer.from(original.split(',')[1],'base64')
    assert.ok(originalBytes.length>2097152&&originalBytes.length<6000000,'browser fixture must be bigger than 2 MiB, smaller than 6 MB')
