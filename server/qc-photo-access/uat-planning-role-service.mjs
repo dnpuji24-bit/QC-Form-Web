@@ -22,13 +22,14 @@ import {manualActualId,manualRequest,nextManualActual,verifyManualActual,manualP
 import {planningWeek} from '../../src/qcUatPlanningProgressContract.mjs'
 import {summaryRequest,actualProjection,summarizeActualPlan} from '../../src/qcUatPlanningActualSummary.mjs'
 import {operationalCalendarRequest,operationalCalendarProjection} from '../../src/qcUatOperationalPeriod.mjs'
+import {operationalRecordsRequest,operationalRecordsProjection} from '../../src/qcUatOperationalRecords.mjs'
 import {qcSourceRequest,projectQcSource} from '../../src/qcUatPlanningQcSource.mjs'
 import {groupHeaderIds,validateGroupState,groupMutationRequest,nextDailyGroup,groupReorderRequest,nextGroupOrder} from '../../src/qcUatDailyGroupLifecycle.mjs'
 
 export const projectId='demo-qc-uat-planning-role',host='127.0.0.1',firestorePort=9085,authPort=9899
 const prefix='qc_uat_workspaces/cutover'
 const sid=v=>typeof v==='string'&&/^uat-[a-z0-9-]{1,60}$/.test(v)
-const scopes=Object.freeze({monthly:'data_plan_monthly',daily:'data_plan_daily',actual:'data_plan_actual',summary:'data_plan_summary',reconciliation:'data_plan_reconciliation'})
+const scopes=Object.freeze({monthly:'data_plan_monthly',daily:'data_plan_daily',actual:'data_plan_actual',summary:'data_plan_summary',reconciliation:'data_plan_reconciliation',records:'qc_records'})
 const collections=Object.freeze({monthly:'monthly_plans',daily:'daily_plans'})
 const fail=code=>{throw Error(code)}
 export function guard(e=process.env){
@@ -89,7 +90,43 @@ export function createPlanningService(deps){
  })
 }
 
- // Isolated read-only calendar: same live role revision and token guard as Planning.
+ // A bounded synthetic Data QC list, authorized using qc_records, not QC edit access.
+// Verifies the current full DTO audit and linked Actual before returning projections.
+export function createPlanningOperationalRecordsService(deps){
+ const {adb}=deps,authorize=createAuthorizer(deps)
+ const ref=(c,id)=>adb.doc(prefix+'/'+c+'/'+id)
+ return Object.freeze({
+  async listPeriod(raw,input){
+   const q=operationalRecordsRequest(input)
+   return authorize(raw,'records','view',async tx=>{
+    const snap=await tx.get(adb.collection(prefix+'/qc_records')
+     .where('date','>=',q.startDate).where('date','<=',q.endDate).limit(51))
+    if(snap.size>50)fail('RECORDS_SCOPE_LIMIT')
+    const pairs=[]
+    for(const doc of snap.docs){
+     const qc=doc.data(),id=doc.id
+     // Never use unvalidated stored IDs or collection names in trusted paths.
+     if(!sid(id)||!sid(qc?.clientRevision)||!['spray','fertilizer'].includes(qc?.formType))
+      fail('INVALID_RECORDS_QC')
+     if(q.kind!=='all'&&q.kind!==qc.formType)continue
+     const full=qc.formType==='spray'?'qc_spray_full':'qc_fertilizer_full'
+     const revisionKey=id+':'+qc.clientRevision
+     const [detail,fullAudit,audit,actual]=await Promise.all([
+      tx.get(ref(full,id)),tx.get(ref(full+'_audit',revisionKey)),
+      tx.get(ref('qc_operational_audit',revisionKey)),
+      tx.get(ref('daily_reports','qcactual_'+id))
+     ])
+     pairs.push({id,qc,detail:detail.data()??null,
+      fullAudit:fullAudit.data()??null,audit:audit.data()??null,
+      actual:actual.data()??null})
+    }
+    return operationalRecordsProjection(q,pairs)
+   })
+  }
+ })
+}
+
+// Isolated read-only calendar: same live role revision and token guard as Planning.
 // No raw Actual/QC/photo objects are returned to browser clients.
 export function createPlanningCalendarService(deps){
  const {adb}=deps,authorize=createAuthorizer(deps)
