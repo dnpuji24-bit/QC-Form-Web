@@ -12,7 +12,8 @@
     "test:uat:smoke": "node scripts/run-qc-uat-gates.mjs smoke",
     "test:uat:full": "node scripts/run-qc-uat-gates.mjs full",
     "test:uat:ui": "node scripts/run-qc-uat-gates.mjs ui",
-    "test:uat:full-ui": "node scripts/run-qc-uat-gates.mjs full-ui"
+    "test:uat:full-ui": "node scripts/run-qc-uat-gates.mjs full-ui",
+    "test:uat:carryover": "node scripts/run-qc-uat-gates.mjs carryover"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",

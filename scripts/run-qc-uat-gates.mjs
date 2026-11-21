@@ -4,8 +4,8 @@ import {fileURLToPath} from 'node:url'
 import path from 'node:path'
 const root=fileURLToPath(new URL('../',import.meta.url))
 const mode=process.argv[2]
-if(!['quick','smoke','ui','full-ui','full'].includes(mode)||process.argv.length!==3){
- console.error('Usage: node scripts/run-qc-uat-gates.mjs quick|smoke|ui|full-ui|full')
+if(!['quick','smoke','ui','full-ui','carryover','full'].includes(mode)||process.argv.length!==3){
+ console.error('Usage: node scripts/run-qc-uat-gates.mjs quick|smoke|ui|full-ui|carryover|full')
  process.exit(2)
 }
 const env={...process.env}
@@ -99,4 +99,5 @@ if(mode==='quick'){quick();console.log('\nSUCCESS: Quick Test contract and typec
 if(mode==='smoke'){smoke();console.log('\nSUCCESS: targeted 16-case Spray/Fertilizer emulator smoke passed')}
 if(mode==='ui'){ui();console.log('\nSUCCESS: 17-case unified UAT browser permission and UI gate passed')}
 if(mode==='full-ui'){fullUi();console.log('\nSUCCESS: focused 7-case full QC React browser commit, retry and Shift 2 carryover passed')}
+if(mode==='carryover'){quick();fullUi();console.log('\nSUCCESS: 10 explicit carryover contract checks, TypeScript and 7 focused full QC browser checks passed')}
 if(mode==='full')full()
