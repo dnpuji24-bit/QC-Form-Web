@@ -3,6 +3,7 @@
 // 11D.5c.2b.3 — focused actual React full-form browser -> trusted HTTP -> Firestore emulator.
 // No production, no photos, no Supabase, no storage, no invented real-world field records.
 import assert from 'node:assert/strict'
+import {randomBytes} from 'node:crypto'
 import {createRequire} from 'node:module'
 import {readFileSync} from 'node:fs'
 import {fileURLToPath} from 'node:url'
@@ -12,12 +13,16 @@ import {unifiedGuard,unifiedProjectId,unifiedHost,unifiedAuthPort} from '../serv
 import {createOwnerHttp,createOwnerService} from '../server/qc-photo-access/uat-owner-permission-http.mjs'
 import {createPlanningMasterSnapshotService} from '../server/qc-photo-access/uat-planning-role-service.mjs'
 import {createMemoryPhotoObjectStore} from '../server/qc-photo-access/uat-unified-photo-trusted-stage.mjs'
+import {createUnifiedPrivatePhotoStore,guardUnifiedPhotoStorage} from '../server/qc-photo-access/uat-unified-private-photo-store.mjs'
+import {cleanupVerifiedBrowserPhotoRun} from '../server/qc-photo-access/uat-unified-browser-photo-cleanup.mjs'
 import {createUnifiedPlanningHttp} from '../server/qc-photo-access/uat-unified-planning-http.mjs'
 import {createUnifiedBrowserShell,shellPort,shellOrigin,shellRoute} from '../server/qc-photo-access/uat-unified-browser-shell.mjs'
 const root=fileURLToPath(new URL('../',import.meta.url)),read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8')
 assert.equal(process.argv.length,3)
-assert.ok(['--self-test','--browser','--browser-photo'].includes(process.argv[2]))
-const photoMode=process.argv[2]==='--browser-photo'
+assert.ok(['--self-test','--browser','--browser-photo','--browser-photo-real'].includes(process.argv[2]))
+const realPhotoMode=process.argv[2]==='--browser-photo-real'
+const photoMode=process.argv[2]==='--browser-photo'||realPhotoMode
+if(realPhotoMode)guardUnifiedPhotoStorage()
 assert.doesNotMatch(read('src/App.tsx'),/UatUnifiedFullOperationalForm|uat-unified-portal-lab/)
 assert.doesNotMatch(read('src/main.tsx'),/UatUnifiedFullOperationalForm|uat-unified-portal-lab/)
 assert.match(read('uat-unified-portal-lab/main.jsx'),/UatUnifiedFullOperationalForm/)
@@ -26,7 +31,7 @@ for(const p of ['/api/planning/uat/unified/qc/full/source','/api/planning/uat/un
  assert.equal(shellRoute(p+'?x=1'),null)
 }
 console.log('SUCCESS: focused full QC browser test isolation and explicit routes passed (offline)')
-if(['--browser','--browser-photo'].includes(process.argv[2])){
+if(['--browser','--browser-photo','--browser-photo-real'].includes(process.argv[2])){
  unifiedGuard()
  const pw=process.env.QC_UAT_PLAYWRIGHT_DIR
  assert.ok(pw?.startsWith('/'),'QC_UAT_PLAYWRIGHT_DIR_REQUIRED')
@@ -40,7 +45,9 @@ if(['--browser','--browser-photo'].includes(process.argv[2])){
   for(const p of allow)assert.ok(paths.includes(p),'MISSING_SOURCE '+p)
   assert.ok(!ids.some(x=>/node_modules\/(?:@firebase\/firestore|firebase\/firestore|@supabase)\//.test(x)),'UNEXPECTED_DATA_SDK')
  }}
- const bundle=await build({root,configFile:false,envDir:false,publicDir:false,base:'/',logLevel:'warn',define:{__QC_UAT_BROWSER_PHOTO_PILOT__:JSON.stringify(photoMode)},plugins:[plugin],build:{write:false,emptyOutDir:false,minify:false,modulePreload:false,rollupOptions:{input:root+'uat-unified-portal-lab/main.jsx'}}})
+ const runId=realPhotoMode?randomBytes(16).toString('hex'):null
+ if(realPhotoMode)console.log('Synthetic browser UAT run ID: '+runId+' (Supabase private qc-photos-uat, demo Firebase emulators only)')
+ const bundle=await build({root,configFile:false,envDir:false,publicDir:false,base:'/',logLevel:'warn',define:{__QC_UAT_BROWSER_PHOTO_PILOT__:JSON.stringify(photoMode),__QC_UAT_REAL_PHOTO_RUN_ID__:JSON.stringify(runId)},plugins:[plugin],build:{write:false,emptyOutDir:false,minify:false,modulePreload:false,rollupOptions:{input:root+'uat-unified-portal-lab/main.jsx'}}})
  const chunks=(Array.isArray(bundle)?bundle:[bundle]).flatMap(b=>b.output??[]),assets=new Map(),entries=[]
  for(const c of chunks){
   assert.equal(c.type,'chunk');assert.match(c.fileName,/\.m?js$/)
@@ -58,7 +65,7 @@ if(['--browser','--browser-photo'].includes(process.argv[2])){
  const {initializeAuth,inMemoryPersistence,connectAuthEmulator,signInWithEmailAndPassword,signOut}=await import('firebase/auth')
  const admin=adminInit({projectId:unifiedProjectId},'uat-full-ui-browser'),adb=getFirestore(admin),authAdmin=getAuth(admin)
  const ownerHttp=createOwnerHttp(createOwnerService({adb,authAdmin}))
- const photoStore=photoMode?createMemoryPhotoObjectStore():null
+ const photoStore=realPhotoMode?await createUnifiedPrivatePhotoStore({runId,actorUid:'uat-field'}):photoMode?createMemoryPhotoObjectStore():null
  const planningHttp=createUnifiedPlanningHttp({adb,authAdmin,photoStore})
  const shell=createUnifiedBrowserShell(assets)
  const base='qc_uat_workspaces/cutover',ref=(c,id)=>adb.doc(base+'/'+c+'/'+id)
@@ -131,7 +138,8 @@ if(['--browser','--browser-photo'].includes(process.argv[2])){
     await panel.getByLabel('Full '+kind+' file foto',{exact:true}).setInputFiles({name:'uat-photo.png',mimeType:'image/png',buffer:png})
    }
    await check('isolated photo browser login and trusted Spray/Fertilizer sources',async()=>{
-    assert.ok(photoStore,'MOCK_STORE_REQUIRED')
+    assert.ok(photoStore,'PHOTO_STORE_REQUIRED')
+    assert.equal(photoStore.bucket,realPhotoMode?'qc-photos-uat':'qc-photos-uat-mock')
     await page.getByRole('button',{name:'Login uat-field',exact:true}).click()
     await expected(page.getByTestId('session-state'),/^confirmed$/)
     assert.match(await spray.getByRole('heading',{name:/Full QC Spray/}).innerText(),/UAT photo pilot/)
@@ -208,9 +216,12 @@ if(['--browser','--browser-photo'].includes(process.argv[2])){
     assert.deepEqual(await page.evaluate(()=>[localStorage.length,sessionStorage.length]),[0,0])
     assert.deepEqual(await page.evaluate(()=>cspViolations),[])
     assert.deepEqual(errors,[])
-    assert.equal(photoStore.inspect().length,4)
+    assert.equal(realPhotoMode?photoStore.inspectOwned().length:photoStore.inspect().length,4)
    })
-   console.log('SUCCESS: '+n+' isolated photo React -> trusted HTTP -> MOCK bytes + atomic QC/Actual emulator checks passed (NO Supabase upload)')
+   if(realPhotoMode){
+    await cleanupVerifiedBrowserPhotoRun({adb,store:photoStore,runId,actorUid:uid})
+    console.log('SUCCESS: '+n+' isolated real private Supabase UAT photo browser + atomic QC/Actual checks and exact cleanup passed')
+   }else console.log('SUCCESS: '+n+' isolated photo React -> trusted HTTP -> MOCK bytes + atomic QC/Actual emulator checks passed (NO Supabase upload)')
   }else{
   await check('real Auth login, permission-gated full editors and trusted complete Planning source',async()=>{
    await page.getByRole('button',{name:'Login uat-field',exact:true}).click()
