@@ -4,8 +4,8 @@ import {fileURLToPath} from 'node:url'
 import path from 'node:path'
 const root=fileURLToPath(new URL('../',import.meta.url))
 const mode=process.argv[2]
-if(!['quick','smoke','ui','full-ui','carryover','photo-stage','full'].includes(mode)||process.argv.length!==3){
- console.error('Usage: node scripts/run-qc-uat-gates.mjs quick|smoke|ui|full-ui|carryover|photo-stage|full')
+if(!['quick','smoke','ui','full-ui','carryover','photo-stage','photo-compress','full'].includes(mode)||process.argv.length!==3){
+ console.error('Usage: node scripts/run-qc-uat-gates.mjs quick|smoke|ui|full-ui|carryover|photo-stage|photo-compress|full')
  process.exit(2)
 }
 const env={...process.env}
@@ -44,6 +44,8 @@ function quick(){
   'src/qcUatUnifiedFullQcFormBuilder.mjs',
   'src/qcUatUnifiedCarryoverSelection.mjs',
   'src/qcUatUnifiedPhotoPreflight.mjs',
+  'src/qcUatPhotoCompression.mjs',
+  'scripts/test-qc-uat-photo-compression-contract.mjs',
   'src/qcOperationalPhotoManifest.mjs',
   'scripts/test-qc-uat-unified-photo-preflight.mjs',
   'server/qc-photo-access/uat-unified-photo-trusted-stage.mjs',
@@ -60,6 +62,7 @@ function quick(){
  node('full operational editor DTO contract (10 cases)','scripts/test-qc-uat-unified-full-qc-form.mjs')
  node('explicit Shift 1 -> Shift 2 carryover contract (10 cases)','scripts/test-qc-uat-unified-carryover-contract.mjs')
  node('photo staging preflight contract (10 cases)','scripts/test-qc-uat-unified-photo-preflight.mjs')
+ node('automatic photo compression policy (10 cases)','scripts/test-qc-uat-photo-compression-contract.mjs')
  node('server-side immutable photo readback and fresh authorization (15 cases)','scripts/test-qc-uat-unified-photo-trusted-stage.mjs')
  node('full form HTTP route and data loss guard','scripts/test-qc-uat-unified-full-qc-http.mjs','--self-test')
  node('unified source guard','scripts/test-qc-uat-unified-role-planning.mjs','--self-test')
@@ -80,7 +83,7 @@ function ui(){
   'scripts/test-qc-uat-unified-portal-ui.mjs','--browser',true)
 }
 function fullUi(){
- emu('focused Spray/Fertilizer QC browser, carryover and photo preflight staging (9 cases)','demo-qc-uat-unified-role-planning',
+ emu('focused Spray/Fertilizer QC browser, carryover and photo compression (10 cases)','demo-qc-uat-unified-role-planning',
   'firebase.uat-unified-role-planning-emulator.json',9285,10099,
   'scripts/test-qc-uat-unified-full-qc-ui.mjs','--browser',true)
 }
@@ -100,12 +103,13 @@ function full(){
    'firebase.uat-planning-role-emulator.json',9085,9899,
    'scripts/test-qc-uat-'+s+'.mjs','--emulator')
  }
- console.log('\nSUCCESS: release-gate baseline 139 emulator/browser checks plus quick contract and TypeScript. This is NOT all repository tests.')
+ console.log('\nSUCCESS: release-gate baseline 140 emulator/browser checks plus quick contract and TypeScript. This is NOT all repository tests.')
 }
 if(mode==='quick'){quick();console.log('\nSUCCESS: Quick Test contract and typecheck passed (no emulator)')}
 if(mode==='smoke'){smoke();console.log('\nSUCCESS: targeted 16-case Spray/Fertilizer emulator smoke passed')}
 if(mode==='ui'){ui();console.log('\nSUCCESS: 17-case unified UAT browser permission and UI gate passed')}
-if(mode==='full-ui'){fullUi();console.log('\nSUCCESS: focused 9-case full QC React browser, retry, carryover and photo preflight passed')}
-if(mode==='carryover'){quick();fullUi();console.log('\nSUCCESS: 10 explicit carryover contract checks, TypeScript and 7 focused full QC browser checks passed')}
-if(mode==='photo-stage'){quick();fullUi();console.log('\nSUCCESS: 10 photo preflight contracts, TypeScript and 9 focused QC React browser checks passed (no photo upload)')}
+if(mode==='full-ui'){fullUi();console.log('\nSUCCESS: focused 10-case full QC React browser, retry, carryover and photo compression passed')}
+if(mode==='carryover'){quick();fullUi();console.log('\nSUCCESS: 10 explicit carryover contract checks, TypeScript and 10 focused full QC browser checks passed')}
+if(mode==='photo-stage'){quick();fullUi();console.log('\nSUCCESS: 10 photo preflight + 10 compression contracts, TypeScript and 10 focused QC React browser checks passed (no photo upload)')}
+if(mode==='photo-compress'){quick();fullUi();console.log('\nSUCCESS: 10 compression contracts, TypeScript and 10 focused browser QC cases passed (compression before SHA256, no upload)')}
 if(mode==='full')full()
