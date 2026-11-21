@@ -23,7 +23,7 @@ function adapterFor(user){
   const response=await fetch('/api/'+group+path,{
    method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
    body:JSON.stringify(body),cache:'no-store',redirect:'error',credentials:'omit',
-   signal:AbortSignal.timeout(7000)
+   signal:AbortSignal.timeout(path==='/uat/unified/qc/full/photo/commit'?45000:7000)
   })
   if(auth.currentUser!==user)throw Error('IDENTITY_CHANGED')
   if(!response.ok)throw Error('REQUEST_DENIED')
@@ -35,6 +35,8 @@ function adapterFor(user){
  const planning=(path,body)=>call('planning',path,body)
  return {
   isCurrent:u=>auth.currentUser===u,
+  // Default OFF. A separate emulator-backed browser gate must explicitly enable this.
+  photoCommitEnabled:false,
   qcSource:async(formType,dailyPlanId)=>(await planning('/uat/unified/qc/source',{request:{formType,dailyPlanId}})).source,
   qcCommit:async(request)=>(await planning('/uat/unified/qc/commit',{request})).qc,
   fullQcSource:async(formType,dailyPlanId,selection={carryover:false,actualForemanId:''})=>{
@@ -48,6 +50,10 @@ function adapterFor(user){
    if(formType!==request.record?.formType||!['spray','fertilizer'].includes(formType))throw Error('FORM_KIND_DENIED')
    const route=formType==='spray'?'/uat/unified/qc/full/spray/commit':'/uat/unified/qc/full/fertilizer/commit'
    return (await planning(route,{request})).qc
+  },
+  fullQcPhotoCommit:async(formType,envelope)=>{
+   if(formType!==envelope?.request?.record?.formType||!['spray','fertilizer'].includes(formType))throw Error('FORM_KIND_DENIED')
+   return planning('/uat/unified/qc/full/photo/commit',envelope)
   },
   session:async()=>validateSession((await owner('/uat/session/permissions',{})).session,user.uid),
   read:async(scope,id)=>(await planning('/uat/unified/planning/read',{scope,id})).plan,
