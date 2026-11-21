@@ -86,10 +86,10 @@ function App(){
  const [state,setState]=useState('signed-out'),[busy,setBusy]=useState(false)
  const [result,setResult]=useState('')
  const [portalArea,setPortalArea]=useState('home')
- const [summaryPeriod,setSummaryPeriod]=useState('2027-01')
+ const [summaryPeriod,setSummaryPeriod]=useState(()=>new Date().toISOString().slice(0,7))
  const [summaryWeek,setSummaryWeek]=useState('ALL')
  const [summaryResult,setSummaryResult]=useState(null),[summaryState,setSummaryState]=useState('idle')
- const [calendarMonth,setCalendarMonth]=useState('2026-11'),[calendarSource,setCalendarSource]=useState('daily')
+ const [calendarMonth,setCalendarMonth]=useState(()=>new Date().toISOString().slice(0,7)),[calendarSource,setCalendarSource]=useState('daily')
  const [calendarResult,setCalendarResult]=useState(null),[calendarState,setCalendarState]=useState('idle')
  const seq=useRef(0),identity=useRef(null),refreshRef=useRef(()=>{})
  useEffect(()=>{
@@ -169,6 +169,13 @@ function App(){
   }catch{if(ticket===seq.current&&auth.currentUser===current){setCalendarResult(null);setCalendarState('denied')}}
  }
  const mode=key=>session?.permissions[key]??'none'
+ useEffect(()=>{
+  if(!operationalPortalPilot||!session)return
+  const daily=['view','edit'].includes(session.permissions.data_plan_daily??'none')
+  const actual=['view','edit'].includes(session.permissions.data_plan_actual??'none')
+  if(!daily&&actual&&calendarSource==='daily')setCalendarSource('actual')
+  if(!actual&&daily&&calendarSource==='actual')setCalendarSource('daily')
+ },[session?.policyRevision,session?.uid,calendarSource])
  useEffect(()=>{if(operationalPortalPilot){setPortalArea('home');setSummaryResult(null);setSummaryState('idle');setCalendarResult(null);setCalendarState('idle');setCalendarSource('daily')}},[user?.uid,session?.policyRevision])
  const areas=operationalPortalPilot?allowedUatOperationalAreas(session):[]
  const area=operationalPortalPilot?resolveUatOperationalArea(session,portalArea):'home'
