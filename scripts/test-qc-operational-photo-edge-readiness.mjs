@@ -9,8 +9,16 @@ const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8')
 let passed=0
 async function check(name,fn){await fn();passed++;console.log('PASS: '+name)}
 const source=read('supabase/functions/qc-photo-sign-operational/manifest.ts')
+// TypeScript "latest" in Cloud Shell can expose the transpiler without the
+// ScriptTarget enum. ES2022 = ScriptTarget 9; ModuleKind.ES2022 = 7.
+// Do not modify the app's installed TypeScript or skip the manifest test.
+assert.equal(typeof ts.transpileModule,'function','TYPESCRIPT_TRANSPILER_UNAVAILABLE')
+const es2022Target=ts.ScriptTarget?.ES2022 ?? 9
+const es2022Module=ts.ModuleKind?.ES2022 ?? 7
 const transpiled=ts.transpileModule(source,{fileName:'manifest.ts',reportDiagnostics:true,
- compilerOptions:{module:ts.ModuleKind.ES2022,target:ts.ScriptTarget.ES2022,strict:true}})
+ compilerOptions:{module:es2022Module,target:es2022Target,strict:true}})
+console.log('INFO: TypeScript transpiler '+(ts.version||'unknown')+
+ (ts.ScriptTarget?.ES2022===undefined?' (numeric ES2022 fallback)':''))
 assert.deepEqual(transpiled.diagnostics||[],[],'SIGNER_MANIFEST_TYPE_SYNTAX')
 const {resolveOperationalPhotoPath}=await import('data:text/javascript;base64,'+Buffer.from(transpiled.outputText).toString('base64'))
 const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR1sAAAAASUVORK5CYII='
