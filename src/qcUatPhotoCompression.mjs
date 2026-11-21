@@ -9,7 +9,7 @@ export const UAT_PHOTO_COMPRESSION=Object.freeze({
  maxSide:1280,
  maxPixels:32000000,
  jpegQuality:Object.freeze([.70,.64,.58,.52,.46]),
- outputSides:Object.freeze([1280,1120,960])
+ outputSides:Object.freeze([1280,1120,960,800,640,480])
 })
 export function uatCompressedDimensions(width,height,maxSide=UAT_PHOTO_COMPRESSION.maxSide){
  requirePhoto(Number.isSafeInteger(width)&&Number.isSafeInteger(height)&&width>0&&height>0&&
@@ -27,13 +27,18 @@ export async function validateUatOriginalPhoto(file){
  requirePhoto(bytes.length===file.size&&matchesUatPhotoSignature(bytes,file.type),'PHOTO_SIGNATURE_INVALID')
  return {bytes,originalBytes:bytes.length,originalType:file.type}
 }
-function blobAsJpeg(canvas,quality){
+export const UAT_PHOTO_MIME_EXTENSION=Object.freeze({'image/jpeg':'jpg','image/png':'png','image/webp':'webp'})
+export function uatPhotoOutputFormat(inputType){
+ requirePhoto(Object.hasOwn(UAT_PHOTO_MIME_EXTENSION,inputType),'PHOTO_MIME_DENIED')
+ return {mime:inputType,extension:UAT_PHOTO_MIME_EXTENSION[inputType],lossless:inputType==='image/png'}
+}
+function encodePhoto(canvas,type,quality){
  return new Promise((resolve,reject)=>{
   if(typeof canvas.toBlob!=='function'){reject(Error('PHOTO_ENCODING_UNAVAILABLE'));return}
   try{canvas.toBlob(blob=>{
-   if(!blob||blob.type!=='image/jpeg'||blob.size<=0){reject(Error('PHOTO_ENCODING_UNAVAILABLE'));return}
+   if(!blob||blob.type!==type||blob.size<=0){reject(Error('PHOTO_ENCODING_UNAVAILABLE'));return}
    resolve(blob)
-  },'image/jpeg',quality)}catch{reject(Error('PHOTO_ENCODING_UNAVAILABLE'))}
+  },type,quality)}catch{reject(Error('PHOTO_ENCODING_UNAVAILABLE'))}
  })
 }
 function byteDataUrl(bytes,mime){
@@ -41,12 +46,13 @@ function byteDataUrl(bytes,mime){
  for(let i=0;i<bytes.length;i+=8190)binary+=String.fromCharCode(...bytes.subarray(i,i+8190))
  return 'data:'+mime+';base64,'+btoa(binary)
 }
-function asFile(blob,originalName){
+function asFile(blob,originalName,type){
  const stem=originalName.replace(/\.[^.]*$/,'').slice(0,155)||'foto'
- return new File([blob],stem+'.jpg',{type:'image/jpeg'})
+ return new File([blob],stem+'.'+uatPhotoOutputFormat(type).extension,{type})
 }
 export async function compressUatPhoto(file){
  const original=await validateUatOriginalPhoto(file)
+ const outputFormat=uatPhotoOutputFormat(file.type)
  let bitmap=null,image=null
  try{
   if(typeof createImageBitmap==='function'){
@@ -74,19 +80,23 @@ export async function compressUatPhoto(file){
   requirePhoto(typeof document!=='undefined'&&typeof document.createElement==='function',
     'PHOTO_CANVAS_UNAVAILABLE')
   const canvas=document.createElement('canvas')
-  const ctx=canvas.getContext('2d',{alpha:false})
+  const ctx=canvas.getContext('2d',{alpha:outputFormat.mime!=='image/jpeg'})
   requirePhoto(ctx,'PHOTO_CANVAS_UNAVAILABLE')
   let best=null
   target:for(const side of UAT_PHOTO_COMPRESSION.outputSides){
    const dims=uatCompressedDimensions(width,height,side)
    canvas.width=dims.width;canvas.height=dims.height
-   ctx.fillStyle='#ffffff'
-   ctx.fillRect(0,0,canvas.width,canvas.height)
+   if(outputFormat.mime==='image/jpeg'){
+    ctx.fillStyle='#ffffff'
+    ctx.fillRect(0,0,canvas.width,canvas.height)
+   }else ctx.clearRect(0,0,canvas.width,canvas.height)
    ctx.drawImage(bitmap??image,0,0,canvas.width,canvas.height)
-   for(const quality of UAT_PHOTO_COMPRESSION.jpegQuality){
-    const blob=await blobAsJpeg(canvas,quality)
-    if(!best||blob.size<best.blob.size)best={blob,quality,...dims}
-    if(blob.size<=UAT_PHOTO_COMPRESSION.targetBytes){best={blob,quality,...dims};break target}
+   // PNG is lossless: only pixel dimensions change its size.
+   const qualities=outputFormat.lossless?[undefined]:UAT_PHOTO_COMPRESSION.jpegQuality
+   for(const quality of qualities){
+    const blob=await encodePhoto(canvas,outputFormat.mime,quality)
+    if(!best||blob.size<best.blob.size)best={blob,quality:quality??null,...dims}
+    if(blob.size<=UAT_PHOTO_COMPRESSION.targetBytes){best={blob,quality:quality??null,...dims};break target}
    }
   }
   requirePhoto(best&&best.blob.size<=UAT_PHOTO_COMPRESSION.maxOutputBytes,'PHOTO_COMPRESSED_TOO_LARGE')
@@ -96,7 +106,7 @@ export async function compressUatPhoto(file){
    original.originalBytes<best.blob.size)
    return {file,details:{...base,outputBytes:file.size,outputType:file.type,
     outputWidth:width,outputHeight:height,quality:null,compressed:false}}
-  const outputFile=asFile(best.blob,file.name)
+  const outputFile=asFile(best.blob,file.name,outputFormat.mime)
   const checked=await validateUatOriginalPhoto(outputFile)
   requirePhoto(checked.originalBytes<=UAT_PHOTO_COMPRESSION.maxOutputBytes,'PHOTO_COMPRESSED_TOO_LARGE')
   return {file:outputFile,details:{...base,outputBytes:outputFile.size,outputType:outputFile.type,

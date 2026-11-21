@@ -336,6 +336,41 @@ if(process.argv[2]==='--browser'){
    await spray.getByRole('button',{name:'Hapus foto lokal main'}).click()
    await expected(spray.getByTestId('uat-full-spray-photo-status'),/0 foto diverifikasi lokal/)
   })
+  await check('React PNG and WebP photo compression preserves MIME, transparency and staging-only safety',async()=>{
+   for(const type of ['image/png','image/webp']){
+    const encoded=await page.evaluate((mime)=>{
+     const canvas=document.createElement('canvas')
+     canvas.width=1600;canvas.height=1100
+     const ctx=canvas.getContext('2d',{alpha:true})
+     ctx.clearRect(0,0,1600,1100)
+     ctx.fillStyle='rgba(0,170,85,.65)';ctx.fillRect(350,260,900,620)
+     const url=canvas.toDataURL(mime,.9)
+     if(!url.startsWith('data:'+mime+';base64,'))throw Error('BROWSER_IMAGE_FORMAT_UNSUPPORTED: '+mime)
+     return url
+    },type)
+    const bytes=Buffer.from(encoded.split(',')[1],'base64')
+    const ext=type==='image/png'?'png':'webp'
+    await spray.getByLabel('Full spray file foto',{exact:true}).setInputFiles({name:'transparent.'+ext,mimeType:type,buffer:bytes})
+    await expected(spray.getByTestId('uat-full-spray-photo-status'),/1 foto diverifikasi lokal · 0 diunggah/)
+    const status=await spray.getByTestId('uat-full-spray-photo-main').innerText()
+    assert.ok(status.includes('transparent.'+ext))
+    assert.ok(status.includes('dikompresi '+(ext==='png'?'PNG':'WebP')))
+    const result=await spray.getByRole('img',{name:'Pratinjau lokal main'}).evaluate(async img=>{
+     await img.decode()
+     const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight
+     const ctx=c.getContext('2d');ctx.drawImage(img,0,0)
+     return {mime:img.src.slice(0,img.src.indexOf(';')),width:c.width,height:c.height,alpha:ctx.getImageData(0,0,1,1).data[3]}
+    })
+    assert.equal(result.mime,'data:'+type)
+    assert.ok(Math.max(result.width,result.height)<=1280)
+    assert.equal(result.alpha,0)
+    assert.equal(await spray.getByRole('button',{name:'Full spray simpan ready'}).isDisabled(),true)
+    assert.equal((await adb.collection(base+'/qc_records').get()).size,4)
+    assert.equal((await adb.collection(base+'/daily_reports').get()).size,4)
+    await spray.getByRole('button',{name:'Hapus foto lokal main'}).click()
+    await expected(spray.getByTestId('uat-full-spray-photo-status'),/0 foto diverifikasi lokal/)
+   }
+  })
   await check('React Fertilizer stages distinct scanner and hold locally; removing hold and changing Daily source discards stale photo',async()=>{
    const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGM0atryn4GBgYGJAQoAJCYCa4s7a6wAAAAASUVORK5CYII=','base64')
    await fert.getByRole('combobox',{name:'Full fertilizer slot foto'}).selectOption('scan')

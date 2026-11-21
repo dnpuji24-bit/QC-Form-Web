@@ -1,7 +1,7 @@
 // Valid PNG with CRC-verified IHDR/IDAT/IEND chunks; the previous tiny fixture
 // had a corrupt IDAT CRC. Chromium correctly refuses to decode the old fixture.
 import assert from 'node:assert/strict'
-import {UAT_PHOTO_COMPRESSION,uatCompressedDimensions,validateUatOriginalPhoto} from '../src/qcUatPhotoCompression.mjs'
+import {UAT_PHOTO_COMPRESSION,uatCompressedDimensions,validateUatOriginalPhoto,uatPhotoOutputFormat} from '../src/qcUatPhotoCompression.mjs'
 import {hasValidUatPngCrc,matchesUatPhotoSignature} from '../src/qcUatUnifiedPhotoPreflight.mjs'
 const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGM0atryn4GBgYGJAQoAJCYCa4s7a6wAAAAASUVORK5CYII=','base64'))
 const f=(bytes=png,type='image/png',name='paddock.png')=>({size:bytes.length,type,name,arrayBuffer:async()=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.length)})
@@ -24,6 +24,11 @@ await check('policy exactly 6MB original, <=2 MiB staged and 800KiB target',()=>
  assert.equal(UAT_PHOTO_COMPRESSION.targetBytes,819200)
  assert.equal(UAT_PHOTO_COMPRESSION.maxSide,1280)
  assert.equal(UAT_PHOTO_COMPRESSION.jpegQuality[0],.7)
+ assert.equal(uatPhotoOutputFormat('image/jpeg').extension,'jpg')
+ assert.deepEqual(uatPhotoOutputFormat('image/png'),{mime:'image/png',extension:'png',lossless:true})
+ assert.deepEqual(uatPhotoOutputFormat('image/webp'),{mime:'image/webp',extension:'webp',lossless:false})
+ assert.ok(UAT_PHOTO_COMPRESSION.outputSides.includes(480))
+ assert.throws(()=>uatPhotoOutputFormat('image/svg+xml'),{message:'PHOTO_MIME_DENIED'})
 })
 await check('valid PNG chunk CRC passes precompression validation unmodified',async()=>{
  const x=await validateUatOriginalPhoto(f());assert.equal(x.originalBytes,png.length)

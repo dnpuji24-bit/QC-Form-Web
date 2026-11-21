@@ -154,7 +154,7 @@ export default function UatUnifiedFullOperationalForm({user,kind,api}){
    </div>
    <div data-testid={'uat-full-'+kind+'-photo-staging'}>
     <h4>Foto QC (hanya staging lokal, tanpa upload)</h4>
-    <p>JPEG/PNG/WebP asli maksimal 6 MB. Kompresi otomatis jika diperlukan: sisi maksimal 1.280 piksel, target hasil 800 KB, batas staging 2 MB. Foto tetap lokal (belum diunggah); simpan QC dinonaktifkan selama ada lampiran.</p>
+    <p>JPEG/PNG/WebP asli maksimal 6 MB. Kompresi otomatis jika diperlukan: sisi maksimal 1.280 piksel, target hasil 800 KB, batas staging 2 MB. Format JPEG/PNG/WebP dipertahankan, termasuk transparansi PNG/WebP. Foto tetap lokal (belum diunggah); simpan QC dinonaktifkan selama ada lampiran.</p>
     <label>Slot foto
      <select aria-label={'Full '+kind+' slot foto'} value={photoSlot} disabled={busy||!!pending} onChange={e=>setPhotoSlot(e.target.value)}>
       <option value="main">Foto utama</option>
@@ -169,7 +169,7 @@ export default function UatUnifiedFullOperationalForm({user,kind,api}){
     <p data-testid={'uat-full-'+kind+'-photo-status'}>{stagedPhotos.length} foto diverifikasi lokal · 0 diunggah</p>
     {stagedPhotos.map(p=><div key={p.slot} data-testid={'uat-full-'+kind+'-photo-'+p.slot}>
      <img alt={'Pratinjau lokal '+p.slot} src={p.dataUrl} width="100" height="100"/>
-     <span>{p.slot} · {p.fileName} · SHA256 {p.sha256.slice(0,12)} · {p.compression.originalBytes} → {p.compression.outputBytes} byte {p.compression.compressed?'(dikompresi JPEG)':'(asli sudah kecil)'}</span>
+     <span>{p.slot} · {p.fileName} · SHA256 {p.sha256.slice(0,12)} · {p.compression.originalBytes} → {p.compression.outputBytes} byte {p.compression.compressed?'(dikompresi '+({'image/jpeg':'JPEG','image/png':'PNG','image/webp':'WebP'}[p.compression.outputType]||'gambar')+')':'(asli sudah kecil)'}</span>
      <button disabled={busy||!!pending} onClick={()=>setStagedPhotos(v=>v.filter(x=>x.slot!==p.slot))}>Hapus foto lokal {p.slot}</button>
     </div>)}
    </div>
