@@ -150,6 +150,7 @@ if(['--browser','--browser-portal','--browser-modules'].includes(process.argv[2]
    await check('Summary reads verified filtered Planning data and preserves fertilizer-area semantics',async()=>{
     await owner.getByTestId('uat-operational-card-summary').click()
     await expected(owner.getByTestId('uat-operational-active-area'),'summary')
+    await owner.getByLabel('Periode Summary').fill('2027-01')
     await owner.getByRole('button',{name:'Muat Summary UAT'}).click()
     await expected(owner.getByTestId('uat-operational-summary-state'),'ready')
     const result=await owner.getByTestId('uat-operational-summary-result').innerText()
@@ -162,6 +163,7 @@ if(['--browser','--browser-portal','--browser-modules'].includes(process.argv[2]
    await check('Daily and Actual Calendar use current authorized read-only Planning HTTP',async()=>{
     await owner.getByRole('button',{name:'Menu Utama'}).click()
     await owner.getByTestId('uat-operational-card-calendar').click()
+    await owner.getByLabel('Bulan Calendar').fill('2026-11')
     await owner.getByRole('button',{name:'Muat Calendar UAT'}).click()
     await expected(owner.getByTestId('uat-operational-calendar-state'),'ready')
     assert.match(await owner.getByTestId('uat-operational-calendar-result').innerText(),/3 record \(Daily Plan\)/)
