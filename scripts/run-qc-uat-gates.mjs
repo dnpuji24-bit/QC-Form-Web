@@ -73,7 +73,7 @@ function ui(){
   'scripts/test-qc-uat-unified-portal-ui.mjs','--browser',true)
 }
 function fullUi(){
- emu('focused complete Spray/Fertilizer React browser commit and retry (5 cases)','demo-qc-uat-unified-role-planning',
+ emu('focused complete Spray/Fertilizer React browser commit, retry and carryover (7 cases)','demo-qc-uat-unified-role-planning',
   'firebase.uat-unified-role-planning-emulator.json',9285,10099,
   'scripts/test-qc-uat-unified-full-qc-ui.mjs','--browser',true)
 }
@@ -93,10 +93,10 @@ function full(){
    'firebase.uat-planning-role-emulator.json',9085,9899,
    'scripts/test-qc-uat-'+s+'.mjs','--emulator')
  }
- console.log('\nSUCCESS: release-gate baseline 135 emulator/browser checks plus quick contract and TypeScript. This is NOT all repository tests.')
+ console.log('\nSUCCESS: release-gate baseline 137 emulator/browser checks plus quick contract and TypeScript. This is NOT all repository tests.')
 }
 if(mode==='quick'){quick();console.log('\nSUCCESS: Quick Test contract and typecheck passed (no emulator)')}
 if(mode==='smoke'){smoke();console.log('\nSUCCESS: targeted 16-case Spray/Fertilizer emulator smoke passed')}
 if(mode==='ui'){ui();console.log('\nSUCCESS: 17-case unified UAT browser permission and UI gate passed')}
-if(mode==='full-ui'){fullUi();console.log('\nSUCCESS: focused 5-case complete full QC React browser operational commit passed')}
+if(mode==='full-ui'){fullUi();console.log('\nSUCCESS: focused 7-case full QC React browser commit, retry and Shift 2 carryover passed')}
 if(mode==='full')full()
