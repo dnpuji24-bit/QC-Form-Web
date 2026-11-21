@@ -25,11 +25,12 @@ assert.doesNotMatch(read(entry),/firebase\/firestore|localStorage|sessionStorage
 const shellSource=read('server/qc-photo-access/uat-unified-browser-shell.mjs')
 assert.doesNotMatch(shellSource.replaceAll('https://tcmtqgbpafwciaflgsaa.supabase.co',''),/Access-Control-Allow-Origin|https:\/\//)
 assert.match(shellSource,/privatePhotoPreview\?' https:\/\/tcmtqgbpafwciaflgsaa\.supabase\.co'/)
-assert.ok(process.argv.length===3&&['--self-test','--browser','--browser-portal','--browser-modules'].includes(process.argv[2]))
+assert.ok(process.argv.length===3&&['--self-test','--browser','--browser-portal','--browser-modules','--browser-records'].includes(process.argv[2]))
 const modulesMode=process.argv[2]==='--browser-modules'
-const portalMode=process.argv[2]==='--browser-portal'||modulesMode
+const recordsMode=process.argv[2]==='--browser-records'
+const portalMode=process.argv[2]==='--browser-portal'||modulesMode||recordsMode
 console.log('SUCCESS: Unified portal-shell UI source, exact proxy routing and production isolation guards passed (offline)')
-if(['--browser','--browser-portal','--browser-modules'].includes(process.argv[2])){
+if(['--browser','--browser-portal','--browser-modules','--browser-records'].includes(process.argv[2])){
  unifiedGuard()
  const directory=process.env.QC_UAT_PLAYWRIGHT_DIR
  assert.ok(directory?.startsWith('/'),'QC_UAT_PLAYWRIGHT_DIR_REQUIRED')
@@ -130,12 +131,88 @@ if(['--browser','--browser-portal','--browser-modules'].includes(process.argv[2]
     fields:{pid:'uat-p1',activityId,sourceType:'ADHOC',monthlyPlanLineId:'',date:'2026-11-03',shift:'1',foreman:'uat-f1',formType,area100}
    },null,'uat-field'))
   }
+  if(recordsMode){
+   for(const [id,kind,dailyPlanId] of [['uat-record-spray','spray','uat-ds'],['uat-record-fert','fertilizer','uat-df']]){
+    const revision='uat-r1',ownerUid='uat-owner',date='2026-11-03',shift='1',foreman='uat-f1',pid='uat-p1'
+    const qc={testOnly:true,id,formType:kind,clientRevision:revision,saveType:'ready',
+     ownerUid,dailyPlanId,pid,foreman,shift,date,
+     ...(kind==='spray'?{actualArea100:900}:{applicationArea100:1300})}
+    const detail={testOnly:true,canonicalQcId:id,fullRecordId:'qc-v2-'+id,
+     clientRevision:revision,ownerUid,form:{id:'qc-v2-'+id,formType:kind,clientRevision:revision,saveType:'ready'}}
+    const audit={testOnly:true,recordId:id,revision,actorUid:ownerUid,formType:kind,saveType:'ready'}
+    const actual={testOnly:true,actualReportId:'qcactual_'+id,qcRecordId:id,sourceOrigin:'QC',
+     qcFormType:kind,clientRevision:revision,ownerUid,dailyPlanId,pid,foreman,shift,date,
+     ...(kind==='spray'?{actualArea100:900}:{applicationArea100:1300,
+      fertilizerComponents:[{componentId:'uat-nk',actualArea100:800},{componentId:'uat-dap',actualArea100:500}]})}
+    const full=kind==='spray'?'qc_spray_full':'qc_fertilizer_full'
+    await Promise.all([
+     adb.doc(prefix+'/qc_records/'+id).set(qc),
+     adb.doc(prefix+'/'+full+'/'+id).set(detail),
+     adb.doc(prefix+'/'+full+'_audit/'+id+':'+revision).set(detail),
+     adb.doc(prefix+'/qc_operational_audit/'+id+':'+revision).set(audit),
+     adb.doc(prefix+'/daily_reports/qcactual_'+id).set(actual)
+    ])
+   }
+  }
   await adb.doc('users/root-sentinel').set({protected:true})
   await adb.doc('monthly_plans/root-sentinel').set({protected:true})
   await listen(ownerHttp,4497);await listen(planHttp,4697);await listen(browserHttp,shellPort)
   browser=await chromium.launch({headless:true})
   const owner=await page(),field=await page(),viewer=await page()
-  if(modulesMode){
+  if(recordsMode){
+   await check('Data QC navigation respects qc_records viewer grant without edit access',async()=>{
+    await login(owner,'uat-owner')
+    await login(field,'uat-field')
+    await login(viewer,'uat-viewer')
+    assert.equal(await owner.getByTestId('uat-operational-card-qc').count(),1)
+    assert.equal(await field.getByTestId('uat-operational-card-qc').count(),0)
+    await viewer.getByTestId('uat-operational-card-qc').click()
+    await expected(viewer.getByTestId('uat-operational-active-area'),'qc')
+    assert.equal(await viewer.getByTestId('uat-full-spray').count(),0)
+    assert.equal(await viewer.getByTestId('uat-operational-qc-records').count(),1)
+   })
+   await check('viewer reads immutable Spray and Fertilizer QC with component-wise Actual details',async()=>{
+    await viewer.getByLabel('Bulan Data QC').fill('2026-11')
+    await viewer.getByRole('button',{name:'Muat Data QC UAT'}).click()
+    await expected(viewer.getByTestId('uat-operational-qc-records-state'),'ready')
+    const list=await viewer.getByTestId('uat-operational-qc-records-result').innerText()
+    assert.match(list,/2 record QC/)
+    assert.match(list,/Actual: 9 Ha lahan/)
+    assert.match(list,/Aplikasi komponen: 13 Ha-aplikasi/)
+    assert.match(list,/uat-nk: 8 Ha-aplikasi/)
+    assert.match(list,/uat-dap: 5 Ha-aplikasi/)
+    await viewer.getByRole('combobox',{name:'Jenis Data QC'}).selectOption('spray')
+    await viewer.getByRole('button',{name:'Muat Data QC UAT'}).click()
+    await expected(viewer.getByTestId('uat-operational-qc-records-state'),'ready')
+    assert.match(await viewer.getByTestId('uat-operational-qc-records-result').innerText(),/1 record QC/)
+    assert.equal(await viewer.getByTestId('uat-qc-row-uat-record-fert').count(),0)
+   })
+   await check('current-role revocation hides Data QC and same-token backend read returns 403',async()=>{
+    await mark('uat-viewer').set({...marker('pengunjung',{qc_records:'none'}),
+     policyRevision:2,roleOverrides:{qc_records:'none'},manualOverrides:{}})
+    await viewer.getByRole('button',{name:'Refresh permission'}).click()
+    await expected(viewer.getByTestId('session-state'),'confirmed')
+    await expected(viewer.getByTestId('uat-operational-active-area'),'home')
+    await viewer.getByTestId('uat-operational-card-qc').click()
+    assert.equal(await viewer.getByTestId('uat-operational-qc-records').count(),0)
+    const signin=await fetch('http://'+unifiedHost+':'+unifiedAuthPort+
+     '/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-only-not-a-real-key',{
+     method:'POST',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({email:'uat-viewer@unified-ui.example.test',
+      password:'Synthetic-2026-uat-viewer',returnSecureToken:true})
+    })
+    assert.equal(signin.status,200)
+    const {idToken}=await signin.json()
+    const denied=await fetch(unifiedPlanningOrigin+unifiedPaths.portalRecords,{
+     method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+idToken},
+     body:JSON.stringify({request:{monthKey:'2026-11',kind:'all'}})})
+    assert.equal(denied.status,403)
+    assert.deepEqual(errors,[])
+    assert.deepEqual((await adb.doc('users/root-sentinel').get()).data(),{protected:true})
+    assert.deepEqual((await adb.doc('monthly_plans/root-sentinel').get()).data(),{protected:true})
+   })
+   console.log('SUCCESS: '+n+' focused Data QC/Actual record browser delta checks passed (demo Firebase only)')
+  }else if(modulesMode){
    await check('only authenticated Owner can open operational Summary and Calendar panels',async()=>{
     await login(owner,'uat-owner')
     await login(field,'uat-field')
