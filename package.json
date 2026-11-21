@@ -19,7 +19,8 @@
     "test:uat:photo-compress": "node scripts/run-qc-uat-gates.mjs photo-compress",
     "test:uat:photo-storage": "node scripts/test-qc-uat-unified-private-photo-store.mjs && node scripts/test-qc-uat-unified-photo-trusted-stage.mjs && npm run typecheck",
     "test:uat:photo-commit": "node scripts/run-qc-uat-gates.mjs photo-commit",
-    "test:uat:photo-transport": "node scripts/test-qc-uat-unified-photo-transport-contract.mjs && npm run test:uat:photo-commit"
+    "test:uat:photo-transport": "node scripts/test-qc-uat-unified-photo-transport-contract.mjs && npm run test:uat:photo-commit",
+    "test:uat:photo-browser": "node scripts/run-qc-uat-gates.mjs photo-browser"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
