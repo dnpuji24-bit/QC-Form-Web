@@ -93,7 +93,7 @@ function fullUi(){
 }
 function photoCommit(){
  node('immutable QC photo ledger (11 quick checks)','scripts/test-qc-uat-unified-photo-ledger-contract.mjs')
- emu('photo-inclusive QC+Actual atomic emulator (9 checks)','demo-qc-uat-unified-role-planning',
+ emu('photo-inclusive QC+Actual+HTTP atomic emulator (10 checks)','demo-qc-uat-unified-role-planning',
   'firebase.uat-unified-role-planning-emulator.json',9285,10099,
   'scripts/test-qc-uat-unified-photo-atomic.mjs','--emulator',true)
  run('TypeScript','npm',['run','typecheck'])
@@ -123,5 +123,5 @@ if(mode==='full-ui'){fullUi();console.log('\nSUCCESS: focused 11-case full QC Re
 if(mode==='carryover'){quick();fullUi();console.log('\nSUCCESS: 10 explicit carryover contract checks, TypeScript and 11 focused full QC browser checks passed')}
 if(mode==='photo-stage'){quick();fullUi();console.log('\nSUCCESS: 10 photo preflight + 10 compression contracts, TypeScript and 11 focused QC React browser checks passed (no photo upload)')}
 if(mode==='photo-compress'){quick();fullUi();console.log('\nSUCCESS: 10 compression contracts, TypeScript and 11 focused browser QC cases passed (JPEG/PNG/WebP compression before SHA256, no upload)')}
-if(mode==='photo-commit'){photoCommit();console.log('\nSUCCESS: 11 photo ledger contracts, 9 atomic photo emulator checks, and TypeScript passed (MOCK storage only)')}
+if(mode==='photo-commit'){photoCommit();console.log('\nSUCCESS: 11 photo ledger contracts, 10 atomic photo and HTTP emulator checks, and TypeScript passed (MOCK storage only)')}
 if(mode==='full')full()
