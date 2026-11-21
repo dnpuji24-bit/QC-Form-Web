@@ -2,6 +2,7 @@
 import React,{useEffect,useRef,useState} from 'react'
 import {buildUnifiedFullQc} from './qcUatUnifiedFullQcFormBuilder.mjs'
 import {stageUatPhoto} from './qcUatUnifiedPhotoPreflight.mjs'
+import {compressUatPhoto} from './qcUatPhotoCompression.mjs'
 const fresh=()=>({
  unit:'',noUnit:'',assistant:'',startTime:'',endTime:'',notes:'',holds:[],
  areaHa:'',dropper:'',nozzle:'',waterQuality:'',weatherCondition:'',windSpeed:'',
@@ -69,10 +70,12 @@ export default function UatUnifiedFullOperationalForm({user,kind,api}){
   const photoKind=holdId?'hold':slot
   try{
    if(photoKind==='hold'&&!form.holds.some((_,i)=>holdId==='uat-h'+(i+1)))throw Error('PHOTO_HOLD_SOURCE_REQUIRED')
-   const photo=await stageUatPhoto({file,uploaderUid:user.uid,formType:kind,kind:photoKind,holdId})
+   // Compression occurs BEFORE photo manifest and SHA-256 generation.
+   const processed=await compressUatPhoto(file)
+   const photo=await stageUatPhoto({file:processed.file,uploaderUid:user.uid,formType:kind,kind:photoKind,holdId})
    if(current!==ticket.current||!active())return
-   setStagedPhotos(v=>[...v.filter(p=>p.slot!==photo.slot),photo])
-   setStatus('foto diverifikasi secara lokal, belum diunggah; penyimpanan QC diblokir selama foto staging tersedia')
+   setStagedPhotos(v=>[...v.filter(p=>p.slot!==photo.slot),{...photo,compression:processed.details}])
+   setStatus((processed.details.compressed?'Foto berhasil dikompresi dan diverifikasi':'Foto sudah kecil, diverifikasi tanpa kompresi ulang')+'; hanya staging lokal (0 diunggah), simpan QC diblokir hingga foto dihapus atau upload tersedia')
   }catch(e){
    if(current===ticket.current&&active())setStatus('foto ditolak: '+String(e?.message||'INVALID_PHOTO'))
   }finally{locked.current=false;if(current===ticket.current&&active())setBusy(false)}
@@ -151,7 +154,7 @@ export default function UatUnifiedFullOperationalForm({user,kind,api}){
    </div>
    <div data-testid={'uat-full-'+kind+'-photo-staging'}>
     <h4>Foto QC (hanya staging lokal, tanpa upload)</h4>
-    <p>PNG/JPEG/WebP maksimal 2 MB. Jika ada foto staging, simpan QC dinonaktifkan sampai ada penyimpanan foto terverifikasi.</p>
+    <p>JPEG/PNG/WebP asli maksimal 6 MB. Kompresi otomatis jika diperlukan: sisi maksimal 1.280 piksel, target hasil 800 KB, batas staging 2 MB. Foto tetap lokal (belum diunggah); simpan QC dinonaktifkan selama ada lampiran.</p>
     <label>Slot foto
      <select aria-label={'Full '+kind+' slot foto'} value={photoSlot} disabled={busy||!!pending} onChange={e=>setPhotoSlot(e.target.value)}>
       <option value="main">Foto utama</option>
@@ -166,7 +169,7 @@ export default function UatUnifiedFullOperationalForm({user,kind,api}){
     <p data-testid={'uat-full-'+kind+'-photo-status'}>{stagedPhotos.length} foto diverifikasi lokal · 0 diunggah</p>
     {stagedPhotos.map(p=><div key={p.slot} data-testid={'uat-full-'+kind+'-photo-'+p.slot}>
      <img alt={'Pratinjau lokal '+p.slot} src={p.dataUrl} width="100" height="100"/>
-     <span>{p.slot} · {p.fileName} · SHA256 {p.sha256.slice(0,12)} · {p.size} byte</span>
+     <span>{p.slot} · {p.fileName} · SHA256 {p.sha256.slice(0,12)} · {p.compression.originalBytes} → {p.compression.outputBytes} byte {p.compression.compressed?'(dikompresi JPEG)':'(asli sudah kecil)'}</span>
      <button disabled={busy||!!pending} onClick={()=>setStagedPhotos(v=>v.filter(x=>x.slot!==p.slot))}>Hapus foto lokal {p.slot}</button>
     </div>)}
    </div>

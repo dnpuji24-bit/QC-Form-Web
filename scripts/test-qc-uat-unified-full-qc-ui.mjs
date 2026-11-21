@@ -28,7 +28,7 @@ if(process.argv[2]==='--browser'){
  assert.ok(pw?.startsWith('/'),'QC_UAT_PLAYWRIGHT_DIR_REQUIRED')
  const {chromium}=createRequire(pw+'/package.json')('playwright')
  const {build}=await import('vite')
- const allow=['UatRoleLifecyclePanel.tsx','accessControl.ts','qcUatSessionPermissions.mjs','qcUatRolePermissions.mjs','qcUatCustomRoles.mjs','UatUnifiedOperationalForm.jsx','qcUatUnifiedOperationalForm.mjs','UatUnifiedFullOperationalForm.jsx','qcUatUnifiedFullQcFormBuilder.mjs','qcUatSprayFullDto.mjs', 'qcUatFertilizerFullDto.mjs','qcUatUnifiedCarryoverSelection.mjs','qcUatUnifiedPhotoPreflight.mjs','qcOperationalPhotoManifest.mjs']
+ const allow=['UatRoleLifecyclePanel.tsx','accessControl.ts','qcUatSessionPermissions.mjs','qcUatRolePermissions.mjs','qcUatCustomRoles.mjs','UatUnifiedOperationalForm.jsx','qcUatUnifiedOperationalForm.mjs','UatUnifiedFullOperationalForm.jsx','qcUatUnifiedFullQcFormBuilder.mjs','qcUatSprayFullDto.mjs', 'qcUatFertilizerFullDto.mjs','qcUatUnifiedCarryoverSelection.mjs','qcUatUnifiedPhotoPreflight.mjs','qcUatPhotoCompression.mjs','qcOperationalPhotoManifest.mjs']
  const plugin={name:'full-qc-browser-exact-src-allowlist',enforce:'pre',generateBundle(_opts,bundle){
   const ids=Object.values(bundle).filter(x=>x.type==='chunk').flatMap(x=>Object.keys(x.modules))
   const paths=ids.filter(x=>x.startsWith(root+'src/')).map(x=>x.slice((root+'src/').length))
@@ -280,6 +280,42 @@ if(process.argv[2]==='--browser'){
    await spray.getByLabel('Full spray file foto',{exact:true}).setInputFiles({name:'fake.jpg',mimeType:'image/jpeg',buffer:png})
    await expected(spray.getByTestId('uat-full-spray-status'),/foto ditolak: PHOTO_SIGNATURE_INVALID/)
    assert.equal((await adb.collection(base+'/qc_records').get()).size,4)
+  })
+  await check('React large camera photo compresses before hash and retains zero QC writes until removal',async()=>{
+   const original=await page.evaluate(()=>{
+    const c=document.createElement('canvas');c.width=2400;c.height=1800
+    const ctx=c.getContext('2d'),pix=ctx.createImageData(c.width,c.height)
+    let seed=42
+    for(let i=0;i<pix.data.length;i+=4){
+     seed=(Math.imul(seed,1664525)+1013904223)>>>0;pix.data[i]=seed>>>24
+     seed=(Math.imul(seed,1664525)+1013904223)>>>0;pix.data[i+1]=seed>>>24
+     seed=(Math.imul(seed,1664525)+1013904223)>>>0;pix.data[i+2]=seed>>>24
+     pix.data[i+3]=255
+    }
+    ctx.putImageData(pix,0,0)
+    return c.toDataURL('image/jpeg',.92)
+   })
+   const originalBytes=Buffer.from(original.split(',')[1],'base64')
+   assert.ok(originalBytes.length>2097152&&originalBytes.length<6000000,'browser fixture must be bigger than 2 MiB, smaller than 6 MB')
+   await spray.getByLabel('Full spray file foto',{exact:true}).setInputFiles({name:'kamera.jpg',mimeType:'image/jpeg',buffer:originalBytes})
+   await expected(spray.getByTestId('uat-full-spray-photo-status'),/1 foto diverifikasi lokal · 0 diunggah/)
+   const photoText=await spray.getByTestId('uat-full-spray-photo-main').innerText()
+   const sizeMatch=photoText.match(/(\d+) → (\d+) byte/)
+   assert.ok(sizeMatch,'shows original and compressed byte sizes')
+   assert.equal(Number(sizeMatch[1]),originalBytes.length)
+   assert.ok(Number(sizeMatch[2])<Number(sizeMatch[1])&&Number(sizeMatch[2])<=819200,'photo reduced to 800 KiB target')
+   assert.match(photoText,/dikompresi JPEG/)
+   const decoded=await spray.getByRole('img',{name:'Pratinjau lokal main'}).evaluate(async img=>{
+    await img.decode()
+    return {width:img.naturalWidth,height:img.naturalHeight,prefix:img.src.slice(0,24)}
+   })
+   assert.ok(Math.max(decoded.width,decoded.height)<=1280,'compressed image max dimension 1280')
+   assert.match(decoded.prefix,/^data:image\/jpeg;base64/)
+   assert.equal(await spray.getByRole('button',{name:'Full spray simpan ready'}).isDisabled(),true)
+   assert.equal((await adb.collection(base+'/qc_records').get()).size,4)
+   assert.equal((await adb.collection(base+'/daily_reports').get()).size,4)
+   await spray.getByRole('button',{name:'Hapus foto lokal main'}).click()
+   await expected(spray.getByTestId('uat-full-spray-photo-status'),/0 foto diverifikasi lokal/)
   })
   await check('React Fertilizer stages distinct scanner and hold locally; removing hold and changing Daily source discards stale photo',async()=>{
    const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4//8/AwAI/AL+PcCaAAAAAElFTkSuQmCC','base64')
