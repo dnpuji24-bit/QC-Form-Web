@@ -17,6 +17,7 @@ const emulatorConfig=JSON.parse(read('firebase.native-cutover-browser-emulator.j
 assert.equal(emulatorConfig.firestore?.rules,'firestore.rules','FIRESTORE_RULES_MUST_STAY_INSIDE_REPO')
 assert.deepEqual(emulatorConfig.emulators?.firestore,{host:'127.0.0.1',port:8085})
 assert.deepEqual(emulatorConfig.emulators?.auth,{host:'127.0.0.1',port:9099})
+assert.ok(read('vite.config.ts').includes("base: '/react/'"),'VITE_BASE_MISMATCH')
 assert.match(read('src/main.tsx'),/nativePortalEnabled \? <NativePortalSession>/)
 assert.match(read('src/firebase.ts'),/connectAuthEmulator\(firebaseAuth, 'http:\/\/127\.0\.0\.1:9099'\)/)
 assert.match(read('src/firebase.ts'),/connectFirestoreEmulator\(firestoreDb, '127\.0\.0\.1', 8085\)/)
@@ -118,11 +119,17 @@ if(mode==='--browser'){
   await page.locator('button.primary').click()
   await page.getByRole('heading',{name:'Operational Portal'}).waitFor({timeout:30000})
   assert.ok(visited.has(authOrigin)&&visited.has(firestoreOrigin),'REAL_NATIVE_AUTH_REQUIRED')
+  // Request the transformed module below Vite's /react/ base before import.
+  const moduleReply=await page.request.get(origin+'/react/src/qcOperationalFormBridge.ts')
+  const moduleText=await moduleReply.text()
+  assert.ok(moduleReply.ok()&&moduleText.includes('queueFormSession')&&
+    !moduleText.trimStart().toLowerCase().startsWith('<!doctype html'),
+    'VITE_NATIVE_BRIDGE_MODULE_UNAVAILABLE: HTTP '+moduleReply.status()+' '+moduleText.slice(0,160))
   const recordId='qc-v2-uat-native-save-1'
   await check('actual SprayForm bridge persists synthetic QC and photo change in account-scoped IndexedDB',async()=>{
    const queued=await page.evaluate(async ({recordId,uid})=>{
-    const {queueFormSession}=await import('/src/qcOperationalFormBridge.ts')
-    const {operationalQueuedRecords}=await import('/src/qcOperationalAdapters.ts')
+    const {queueFormSession}=await import('/react/src/qcOperationalFormBridge.ts')
+    const {operationalQueuedRecords}=await import('/react/src/qcOperationalAdapters.ts')
     const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR1sAAAAASUVORK5CYII='
     await queueFormSession([{record:{
       id:recordId,sessionId:'uat-native-session-1',ownerUid:uid,
@@ -141,7 +148,7 @@ if(mode==='--browser'){
   })
   await check('actual operational adapter atomically writes QC, Actual and immutable revision audit',async()=>{
    const result=await page.evaluate(async()=>{
-    const {flushOperationalQc,operationalQueuedRecords}=await import('/src/qcOperationalAdapters.ts')
+    const {flushOperationalQc,operationalQueuedRecords}=await import('/react/src/qcOperationalAdapters.ts')
     const result=await flushOperationalQc()
     return {result,remaining:(await operationalQueuedRecords()).length}
    })
@@ -167,7 +174,7 @@ if(mode==='--browser'){
    assert.equal(audit.revision,'uat-revision-one')
    assert.equal(audit.actorUid,uid)
    const photo=await page.evaluate(async({uid,recordId,photoId})=>{
-    const {localUatPhotoKey}=await import('/src/qcLocalUat.ts')
+    const {localUatPhotoKey}=await import('/react/src/qcLocalUat.ts')
     const key=localUatPhotoKey(uid,recordId,photoId)
     const cache=await caches.open('qc-local-uat-photos-v1')
     const response=await cache.match(key)
@@ -180,7 +187,7 @@ if(mode==='--browser'){
   })
   await check('empty retry never duplicates committed QC, Actual, audit or queue job',async()=>{
    const data=await page.evaluate(async()=>{
-    const {flushOperationalQc,operationalQueuedRecords}=await import('/src/qcOperationalAdapters.ts')
+    const {flushOperationalQc,operationalQueuedRecords}=await import('/react/src/qcOperationalAdapters.ts')
     return {result:await flushOperationalQc(),jobs:(await operationalQueuedRecords()).length}
    })
    assert.equal(data.result.sent,0)
