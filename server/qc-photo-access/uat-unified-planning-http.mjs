@@ -29,7 +29,7 @@ function classify(e){
  if(code==='INVALID_TOKEN')return [401,'AUTH_REQUIRED']
  if(['UAT_IDENTITY_DENIED','PLANNING_PERMISSION_DENIED','QC_PERMISSION_DENIED','QC_OWNER_ONLY'].includes(code))return [403,'ACCESS_DENIED']
  if(code==='WRONG_PROJECT'||code==='UNIFIED_DEMO_EMULATORS_REQUIRED')return [503,'EMULATOR_GUARD_DENIED']
- if(typeof code==='string'&&/^(?:INVALID_|MISSING_|PLAN_|MONTHLY_|DAILY_|QC_|GROUP_)/.test(code))return [409,'CONTRACT_REJECTED']
+ if(typeof code==='string'&&/^(?:INVALID_|MISSING_|PLAN_|MONTHLY_|DAILY_|QC_|GROUP_|FULL_|SPRAY_|FERTILIZER_|SOURCE_|MATERIAL_|PHOTO_|PRODUCT_|UNMAPPED_)/.test(code))return [409,'CONTRACT_REJECTED']
  return [500,'SERVICE_UNAVAILABLE']
 }
 export function createUnifiedPlanningHttp({adb,authAdmin}){
