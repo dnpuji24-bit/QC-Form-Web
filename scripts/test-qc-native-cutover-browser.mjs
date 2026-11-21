@@ -98,7 +98,7 @@ if(mode==='--browser'){
   page.on('pageerror',e=>errors.push(e.message))
   page.on('websocket',socket=>{
    const u=new URL(socket.url())
-   if(u.host!==host+':'+port&&u.host!==host+':8085)denied.push('websocket '+u.host)
+   if(u.host!==host+':'+port&&u.host!==host+':8085')denied.push('websocket '+u.host)
   })
   await page.addInitScript(()=>{
    // Simulate an already configured Apps Script URL without using it.
