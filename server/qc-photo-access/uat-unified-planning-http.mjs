@@ -22,7 +22,8 @@ export const unifiedPaths=Object.freeze({
  // Read-only, isolated operational UAT Summary and Calendar.
  portalSummary:'/uat/unified/portal/summary',
  portalCalendar:'/uat/unified/portal/calendar',
- portalRecords:'/uat/unified/portal/qc-records'
+ portalRecords:'/uat/unified/portal/qc-records',
+ portalRecordsBrowse:'/uat/unified/portal/qc-browse'
 })
 const exact=(v,ks)=>v&&Object.getPrototypeOf(v)===Object.prototype&&Reflect.ownKeys(v).length===ks.length&&ks.every(k=>Object.hasOwn(v,k))
 function error(status,code){throw Object.assign(Error(code),{status})}
@@ -77,6 +78,10 @@ export function createUnifiedPlanningHttp({adb,authAdmin,photoStore=null,photoSi
    if(req.url===unifiedPaths.portalSummary){
     if(!exact(input,['request']))error(400,'INVALID_REQUEST')
     return send(200,{summary:await portalSummary.readPeriod(auth[1],input.request)})
+   }
+   if(req.url===unifiedPaths.portalRecordsBrowse){
+    if(!exact(input,['request']))error(400,'INVALID_REQUEST')
+    return send(200,{records:await portalRecords.browse(auth[1],input.request)})
    }
    if(req.url===unifiedPaths.portalRecords){
     if(!exact(input,['request']))error(400,'INVALID_REQUEST')
