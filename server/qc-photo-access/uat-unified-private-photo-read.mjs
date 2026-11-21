@@ -156,7 +156,7 @@ export function createPlanningPhotoReadService({adb,authAdmin,signer}){
    const next=await authorize(raw,request,uid)
    need(next.ref.objectPath===first.ref.objectPath&&next.ref.sha256===first.ref.sha256&&
     next.contentType===first.contentType,'PHOTO_READ_LEDGER_CHANGED')
-   const signedUrl=await signer.sign(next.ref,next.runId,next.ownerUid)
+   const signedUrl=validateSignedUrl(await signer.sign(next.ref,next.runId,next.ownerUid),next.ref)
    return {signedUrl,expiresIn:60,contentType:next.contentType}
   }
  })
