@@ -90,7 +90,7 @@ function full(){
    'firebase.uat-planning-role-emulator.json',9085,9899,
    'scripts/test-qc-uat-'+s+'.mjs','--emulator')
  }
- console.log('\nSUCCESS: release-gate baseline 130 emulator/browser checks plus quick contract and TypeScript. This is NOT all repository tests.')
+ console.log('\nSUCCESS: release-gate baseline 135 emulator/browser checks plus quick contract and TypeScript. This is NOT all repository tests.')
 }
 if(mode==='quick'){quick();console.log('\nSUCCESS: Quick Test contract and typecheck passed (no emulator)')}
 if(mode==='smoke'){smoke();console.log('\nSUCCESS: targeted 16-case Spray/Fertilizer emulator smoke passed')}
