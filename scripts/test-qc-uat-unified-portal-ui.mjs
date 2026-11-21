@@ -6,6 +6,7 @@ import {createRequire} from 'node:module'
 import {fileURLToPath} from 'node:url'
 import {marker} from '../src/qcUatRolePermissions.mjs'
 import {roleDefinition,assignIdentityRole} from '../src/qcUatCustomRoles.mjs'
+import {nextPlanningRow} from '../src/qcUatPlanningWriteContract.mjs'
 import {unifiedGuard,unifiedProjectId,unifiedHost,unifiedAuthPort} from '../server/qc-photo-access/uat-unified-identity-guard.mjs'
 import {createOwnerHttp,createOwnerService,paths as ownerPaths} from '../server/qc-photo-access/uat-owner-permission-http.mjs'
 import {createUnifiedPlanningHttp} from '../server/qc-photo-access/uat-unified-planning-http.mjs'
@@ -115,6 +116,12 @@ if(process.argv[2]==='--browser'){
   await mark('uat-viewer').set(base)
   await adb.doc(prefix+'/monthly_plans/uat-m1').set({testOnly:true,id:'uat-m1',pid:'uat-p1',targetArea100:900})
   await adb.doc(prefix+'/daily_plans/uat-d1').set({testOnly:true,id:'uat-d1',pid:'uat-p1',area100:400})
+  for(const [id,activityId,formType,area100] of [['uat-ds','uat-a1','spray',1000],['uat-df','uat-a2','fertilizer',500]]){
+   await adb.doc(prefix+'/daily_plans/'+id).set(nextPlanningRow('daily',{
+    action:'create',id,expectedRevision:null,
+    fields:{pid:'uat-p1',activityId,sourceType:'ADHOC',monthlyPlanLineId:'',date:'2026-11-03',shift:'1',foreman:'uat-f1',formType,area100}
+   },null,'uat-field'))
+  }
   await adb.doc('users/root-sentinel').set({protected:true})
   await adb.doc('monthly_plans/root-sentinel').set({protected:true})
   await listen(ownerHttp,4497);await listen(planHttp,4697);await listen(browserHttp,shellPort)
@@ -152,7 +159,7 @@ if(process.argv[2]==='--browser'){
    assert.match(await owner.getByRole('list',{name:'Akun yang menggunakan role'}).innerText(),/uat-field/)
   })
   await check('Owner UI edits catalog permissions through trusted server transaction',async()=>{
-   await update(owner,{data_plan_monthly:'none',data_plan_daily:'view',qc_spraying:'edit'})
+   await update(owner,{data_plan_monthly:'none',data_plan_daily:'view',qc_spraying:'edit',qc_fertilizer:'edit'})
    assert.equal((await catalog.get()).data().definition.revision,1)
    assert.equal((await mark('uat-field').get()).data().policyRevision,2)
    assert.equal((await adb.doc(prefix+'/role_catalog_audit/'+roleId+':1').get()).data().action,'edit_role')
@@ -165,17 +172,45 @@ if(process.argv[2]==='--browser'){
    assert.equal(await field.getByTestId('menu-daily').count(),1)
    assert.equal(await field.getByTestId('menu-spray').count(),1)
    assert.match(await field.getByTestId('menu-spray').innerText(),/edit/)
+   assert.equal(await field.getByTestId('menu-fertilizer').count(),1)
   })
   await check('worker reads actual Daily via Planning HTTP with updated role but cannot read Monthly',async()=>{
    await field.getByRole('button',{name:'Baca Daily UAT'}).click()
    await expected(field.getByTestId('read-result'),'daily: uat-d1 / 400')
    assert.equal(await field.getByTestId('menu-monthly').count(),0)
   })
+  await check('actual React Spray UAT selector commits over-target ready QC and Actual using verified Daily source',async()=>{
+   assert.equal(await field.getByTestId('uat-qc-spray').count(),1)
+   await field.getByRole('textbox',{name:'ID Daily Plan spray'}).fill('uat-ds')
+   await field.getByRole('button',{name:'Periksa sumber spray'}).click()
+   await expected(field.getByTestId('uat-qc-spray-state'),'sumber terverifikasi')
+   assert.match(await field.getByTestId('uat-qc-spray-source').innerText(),/PID uat-p1/)
+   await field.getByRole('textbox',{name:'Luas aktual spray'}).fill('12.00')
+   await field.getByRole('button',{name:'Simpan ready spray'}).click()
+   await field.getByTestId('uat-qc-spray-state').filter({hasText:/QC ready dan Actual tersimpan:/}).waitFor({timeout:20000})
+   const actual=(await adb.collection(prefix+'/daily_reports').where('dailyPlanId','==','uat-ds').get()).docs
+   assert.equal(actual.length,1)
+   assert.equal(actual[0].data().actualArea100,1200)
+   assert.equal(actual[0].data().plannedDailyArea100,1000)
+  })
+  await check('actual React Fertilizer UAT selector commits only its source and own Actual',async()=>{
+   assert.equal(await field.getByTestId('uat-qc-fertilizer').count(),1)
+   await field.getByRole('textbox',{name:'ID Daily Plan fertilizer'}).fill('uat-df')
+   await field.getByRole('button',{name:'Periksa sumber fertilizer'}).click()
+   await expected(field.getByTestId('uat-qc-fertilizer-state'),'sumber terverifikasi')
+   await field.getByRole('textbox',{name:'Luas aktual fertilizer'}).fill('5.50')
+   await field.getByRole('button',{name:'Simpan ready fertilizer'}).click()
+   await field.getByTestId('uat-qc-fertilizer-state').filter({hasText:/QC ready dan Actual tersimpan:/}).waitFor({timeout:20000})
+   const actual=(await adb.collection(prefix+'/daily_reports').where('dailyPlanId','==','uat-df').get()).docs
+   assert.equal(actual.length,1)
+   assert.equal(actual[0].data().actualArea100,550)
+   assert.equal(actual[0].data().qcFormType,'fertilizer')
+  })
   await check('Owner second edit revokes Daily and QC Spray while worker session is stale',async()=>{
    await owner.getByRole('button',{name:'Refresh daftar lifecycle role'}).click()
    await expected(owner.getByTestId('lifecycle-state'),'ready')
    await select(owner)
-   await update(owner,{data_plan_daily:'none',qc_spraying:'none'})
+   await update(owner,{data_plan_daily:'none',qc_spraying:'none',qc_fertilizer:'none'})
    assert.equal((await catalog.get()).data().definition.revision,2)
    assert.equal((await mark('uat-field').get()).data().policyRevision,3)
    assert.equal(await field.getByTestId('menu-daily').count(),1)
@@ -216,7 +251,7 @@ if(process.argv[2]==='--browser'){
    }
    assert.deepEqual((await adb.doc('users/root-sentinel').get()).data(),{protected:true})
    assert.deepEqual((await adb.doc('monthly_plans/root-sentinel').get()).data(),{protected:true})
-   assert.equal((await adb.collection(prefix+'/daily_reports').get()).size,0)
+   assert.equal((await adb.collection(prefix+'/daily_reports').get()).size,2)
   })
   await check('logout clears authenticated role and permission menus immediately',async()=>{
    await owner.getByRole('button',{name:'Logout'}).click()
