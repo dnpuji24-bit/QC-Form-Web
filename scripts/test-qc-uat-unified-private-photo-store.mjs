@@ -9,7 +9,7 @@ const photoRef=async()=>{
  const x=await prepareOperationalPhotoManifest({recordId:id,uploaderUid:uid,bucket:unifiedPhotoBucket,changes:[{action:'replace',kind:'main',dataUrl:'data:image/png;base64,'+png.toString('base64')}]})
  return x.manifest.main
 }
-function fakeSdk(policy={}){
+function fakeSdk(policy={},missingStatus='404'){
  const objects=new Map(),stats={upload:0,download:0,removed:0,options:null}
  let failure='',corrupt=null
  const storage={
@@ -23,7 +23,7 @@ function fakeSdk(policy={}){
   async download(path){
    stats.download++;return objects.has(path)?
     {data:new Blob([objects.get(path)]),error:null}:
-    {data:null,error:{statusCode:'404',message:'not found'}}
+    {data:null,error:{statusCode:missingStatus,message:missingStatus==='400'?'The resource cannot be downloaded':'not found'}}
   },
   async remove(){stats.removed++;throw Error('MUST_NOT_DELETE')}
  }
@@ -60,13 +60,21 @@ await check('first upload is no-upsert and exact verified-byte readback',async()
  assert.deepEqual(await store.read(ref),png)
  assert.equal(store.stats.puts,1);assert.equal(fake.stats.upload,1);assert.equal(fake.stats.removed,0)
 })
-await check('same-process and new-process retries reuse bytes without another upload',async()=>{
+await check('missing-object GET returning HTTP 400 cannot block first immutable upload',async()=>{
+ const fake=fakeSdk({},'400'),store=await createUnifiedPrivatePhotoStore({runId:run,actorUid:uid,client:fake.client,env}),ref=await photoRef()
+ await store.putImmutable(ref,png)
+ assert.deepEqual(await store.read(ref),png)
+ assert.equal(fake.stats.upload,1)
+ assert.equal(fake.stats.download,2,'only successful post-upload download and explicit read allowed')
+ assert.equal(fake.objects.size,1)
+})
+await check('same-process and new-process retries never overwrite immutable bytes',async()=>{
  const fake=fakeSdk(),ref=await photoRef()
  const first=await createUnifiedPrivatePhotoStore({runId:run,actorUid:uid,client:fake.client,env})
  await first.putImmutable(ref,png);await first.putImmutable(ref,png)
  const next=await createUnifiedPrivatePhotoStore({runId:run,actorUid:uid,client:fake.client,env})
  await next.putImmutable(ref,png)
- assert.equal(fake.stats.upload,1);assert.equal(first.stats.reuses,1);assert.equal(next.stats.reuses,1)
+ assert.equal(fake.stats.upload,3);assert.equal(fake.objects.size,1);assert.equal(first.stats.reuses,1);assert.equal(next.stats.reuses,1)
 })
 await check('mismatched bytes cannot be uploaded or overwrite original',async()=>{
  const fake=fakeSdk(),ref=await photoRef(),store=await createUnifiedPrivatePhotoStore({runId:run,actorUid:uid,client:fake.client,env})
@@ -75,7 +83,7 @@ await check('mismatched bytes cannot be uploaded or overwrite original',async()=
  fake.objects.set(ref.objectPath,Buffer.from('corrupted'))
  await assert.rejects(()=>store.putImmutable(ref,png),{message:'PHOTO_UAT_IMMUTABLE_CONFLICT'})
  await assert.rejects(()=>store.read(ref),{message:'PHOTO_UAT_READBACK_MISMATCH'})
- assert.equal(fake.stats.upload,1);assert.equal(fake.stats.removed,0)
+ assert.equal(fake.stats.upload,2);assert.equal(fake.stats.removed,0)
 })
 await check('lost successful upload response recovers by readback only',async()=>{
  const fake=fakeSdk(),ref=await photoRef(),store=await createUnifiedPrivatePhotoStore({runId:run,actorUid:uid,client:fake.client,env})
