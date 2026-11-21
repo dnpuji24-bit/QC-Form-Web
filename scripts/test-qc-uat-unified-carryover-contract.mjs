@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict'
+import {fullQcExecutionRequest,validateFullQcExecutionSource} from '../src/qcUatUnifiedCarryoverSelection.mjs'
+let n=0
+const check=(label,fn)=>{fn();n++;console.log('PASS: '+label)}
+const source={testOnly:true,readOnly:true,dailyPlanId:'uat-ds',formType:'spray',date:'2026-11-03',shift:'1',foreman:'uat-f1',revision:0}
+const normal={carryover:false,actualForemanId:''},shift2={carryover:true,actualForemanId:'uat-f2'}
+const response=(s,k,mode)=>{const e=fullQcExecutionRequest(s,k,mode).expected;return {testOnly:true,kind:k,dailyPlanId:s.dailyPlanId,date:s.date,dailyRevision:s.revision,...e}}
+check('normal same-shift uses actual source foreman without override',()=>{const x=fullQcExecutionRequest(source,'spray',normal);assert.equal(x.request.shift,'1');assert.equal(x.request.foreman,'uat-f1')})
+check('real Shift 2 source is not converted into carryover',()=>{const s={...source,shift:'2'};assert.equal(fullQcExecutionRequest(s,'spray',normal).request.shift,'2');assert.throws(()=>fullQcExecutionRequest(s,'spray',shift2),{message:'CARRYOVER_SOURCE_SHIFT_REQUIRED'})})
+check('explicit Shift 1 -> Shift 2 maintains original source Daily and date',()=>{const x=fullQcExecutionRequest(source,'spray',shift2);assert.equal(x.request.dailyPlanId,'uat-ds');assert.equal(x.request.date,'2026-11-03');assert.equal(x.request.shift,'2');assert.equal(x.request.foreman,'uat-f2');assert.equal(x.expected.sourceShift,'1');assert.equal(x.expected.sourceForemanId,'uat-f1')})
+check('same mandor may continue Shift 2',()=>{const x=fullQcExecutionRequest(source,'spray',{carryover:true,actualForemanId:'uat-f1'});assert.equal(x.request.shift,'2')})
+check('Fertilizer preserves material and form type',()=>{const s={...source,formType:'fertilizer',dailyPlanId:'uat-df'};const x=fullQcExecutionRequest(s,'fertilizer',shift2);assert.equal(x.request.formType,'fertilizer');assert.equal(validateFullQcExecutionSource(response(s,'fertilizer',shift2),s,'fertilizer',shift2).sourceForemanId,'uat-f1')})
+check('explicit executor ID must be valid synthetic ID',()=>{for(const x of ['', 'bad','uat-','uat-F2','uat-f2/extra'])assert.throws(()=>fullQcExecutionRequest(source,'spray',{carryover:true,actualForemanId:x}),{message:'INVALID_EXECUTION_FOREMAN'})})
+check('normal same-shift execution cannot override original mandor',()=>assert.throws(()=>fullQcExecutionRequest(source,'spray',{carryover:false,actualForemanId:'uat-f2'}),{message:'UNEXPECTED_FOREMAN_OVERRIDE'}))
+check('stale, untrusted and mismatched source metadata rejected',()=>{assert.throws(()=>fullQcExecutionRequest({...source,readOnly:false},'spray',shift2),{message:'INVALID_SCALAR_SOURCE'});assert.throws(()=>fullQcExecutionRequest({...source,revision:1000000},'spray',shift2),{message:'INVALID_SCALAR_SOURCE'});assert.throws(()=>fullQcExecutionRequest(source,'fertilizer',shift2),{message:'INVALID_SCALAR_SOURCE'})})
+check('forged selection fields and nonboolean opt-in fail closed',()=>{assert.throws(()=>fullQcExecutionRequest(source,'spray',{...shift2,date:'2026-11-04'}),{message:'INVALID_EXECUTION_SELECTION'});assert.throws(()=>fullQcExecutionRequest(source,'spray',{...shift2,carryover:'true'}),{message:'INVALID_EXECUTION_SELECTION'})})
+check('trusted response must agree on both original and execution metadata',()=>{const v=response(source,'spray',shift2);for(const [key,value] of [['sourceShift','2'],['sourceForemanId','uat-f2'],['executionShift','1'],['executionForemanId','uat-f3'],['carryover',false]])assert.throws(()=>validateFullQcExecutionSource({...v,[key]:value},source,'spray',shift2),{message:'QC_EXECUTION_SOURCE_MISMATCH'})})
+console.log('SUCCESS: '+n+' same-day explicit QC UAT carryover contract checks passed (offline)')
