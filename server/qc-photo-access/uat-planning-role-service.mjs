@@ -22,7 +22,7 @@ import {manualActualId,manualRequest,nextManualActual,verifyManualActual,manualP
 import {planningWeek} from '../../src/qcUatPlanningProgressContract.mjs'
 import {summaryRequest,actualProjection,summarizeActualPlan} from '../../src/qcUatPlanningActualSummary.mjs'
 import {operationalCalendarRequest,operationalCalendarProjection} from '../../src/qcUatOperationalPeriod.mjs'
-import {operationalRecordsRequest,operationalRecordsProjection} from '../../src/qcUatOperationalRecords.mjs'
+import {operationalRecordsRequest,operationalRecordsBrowseRequest,operationalRecordsProjection} from '../../src/qcUatOperationalRecords.mjs'
 import {qcSourceRequest,projectQcSource} from '../../src/qcUatPlanningQcSource.mjs'
 import {groupHeaderIds,validateGroupState,groupMutationRequest,nextDailyGroup,groupReorderRequest,nextGroupOrder} from '../../src/qcUatDailyGroupLifecycle.mjs'
 
@@ -94,33 +94,64 @@ export function createPlanningService(deps){
 // Verifies the current full DTO audit and linked Actual before returning projections.
 export function createPlanningOperationalRecordsService(deps){
  const {adb}=deps,authorize=createAuthorizer(deps)
+ const col=adb.collection(prefix+'/qc_records')
  const ref=(c,id)=>adb.doc(prefix+'/'+c+'/'+id)
+ async function verifiedPairs(tx,docs,kind){
+  const pairs=[]
+  for(const doc of docs){
+   const qc=doc.data(),id=doc.id
+   if(!sid(id)||!sid(qc?.clientRevision)||!['spray','fertilizer'].includes(qc?.formType))
+    fail('INVALID_RECORDS_QC')
+   if(kind!=='all'&&kind!==qc.formType)continue
+   const full=qc.formType==='spray'?'qc_spray_full':'qc_fertilizer_full'
+   const revisionKey=id+':'+qc.clientRevision
+   const [detail,fullAudit,audit,actual]=await Promise.all([
+    tx.get(ref(full,id)),tx.get(ref(full+'_audit',revisionKey)),
+    tx.get(ref('qc_operational_audit',revisionKey)),
+    tx.get(ref('daily_reports','qcactual_'+id))
+   ])
+   pairs.push({id,qc,detail:detail.data()??null,
+    fullAudit:fullAudit.data()??null,audit:audit.data()??null,
+    actual:actual.data()??null})
+  }
+  return pairs
+ }
  return Object.freeze({
   async listPeriod(raw,input){
    const q=operationalRecordsRequest(input)
    return authorize(raw,'records','view',async tx=>{
-    const snap=await tx.get(adb.collection(prefix+'/qc_records')
-     .where('date','>=',q.startDate).where('date','<=',q.endDate).limit(51))
+    const snap=await tx.get(col.where('date','>=',q.startDate)
+     .where('date','<=',q.endDate).limit(51))
     if(snap.size>50)fail('RECORDS_SCOPE_LIMIT')
-    const pairs=[]
-    for(const doc of snap.docs){
-     const qc=doc.data(),id=doc.id
-     // Never use unvalidated stored IDs or collection names in trusted paths.
-     if(!sid(id)||!sid(qc?.clientRevision)||!['spray','fertilizer'].includes(qc?.formType))
-      fail('INVALID_RECORDS_QC')
-     if(q.kind!=='all'&&q.kind!==qc.formType)continue
-     const full=qc.formType==='spray'?'qc_spray_full':'qc_fertilizer_full'
-     const revisionKey=id+':'+qc.clientRevision
-     const [detail,fullAudit,audit,actual]=await Promise.all([
-      tx.get(ref(full,id)),tx.get(ref(full+'_audit',revisionKey)),
-      tx.get(ref('qc_operational_audit',revisionKey)),
-      tx.get(ref('daily_reports','qcactual_'+id))
-     ])
-     pairs.push({id,qc,detail:detail.data()??null,
-      fullAudit:fullAudit.data()??null,audit:audit.data()??null,
-      actual:actual.data()??null})
+    return operationalRecordsProjection(q,await verifiedPairs(tx,snap.docs,q.kind))
+   })
+  },
+  async browse(raw,input){
+   const q=operationalRecordsBrowseRequest(input)
+   return authorize(raw,'records','view',async tx=>{
+    if(q.mode==='recent'){
+     // A fixed, bounded 100-latest listing across all QC; kind selection applies
+     // within this top-100 window, never masquerades as global kind pagination.
+     const snap=await tx.get(col.orderBy('date','desc').orderBy('__name__','asc').limit(101))
+     const records=operationalRecordsProjection(q,
+      await verifiedPairs(tx,snap.docs.slice(0,100),q.kind))
+     return Object.freeze({...records,window:'LATEST_100_ALL_KINDS',
+      hasMore:snap.size>100})
     }
-    return operationalRecordsProjection(q,pairs)
+    // Exact ID search spans all months without a full collection scan. It
+    // cannot perform fuzzy/substring matching; do not label as text search.
+    const matches=new Map()
+    const own=await tx.get(ref('qc_records',q.term))
+    if(own.exists)matches.set(own.id,own)
+    for(const field of ['pid','dailyPlanId','foreman']){
+     const snap=await tx.get(col.where(field,'==',q.term).limit(101))
+     if(snap.size>100)fail('RECORDS_SEARCH_TOO_BROAD')
+     for(const doc of snap.docs)matches.set(doc.id,doc)
+     if(matches.size>100)fail('RECORDS_SEARCH_TOO_BROAD')
+    }
+    const records=operationalRecordsProjection(q,
+     await verifiedPairs(tx,[...matches.values()],q.kind))
+    return Object.freeze({...records,window:'EXACT_ID_ACROSS_ALL_DATES',hasMore:false})
    })
   }
  })
