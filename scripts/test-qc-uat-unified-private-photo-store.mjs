@@ -16,6 +16,8 @@ function fakeSdk(policy={},missingStatus='404'){
   async upload(path,bytes,opts){
    stats.upload++;stats.options=opts
    if(failure==='before')return {data:null,error:{statusCode:'503',message:'timeout'}}
+   if(failure==='denied')return {data:null,error:{statusCode:'403',message:'permission denied'}}
+   if(failure==='invalid')return {data:null,error:{statusCode:'400',message:'invalid file'}}
    if(objects.has(path))return {data:null,error:{statusCode:'409',message:'exists'}}
    objects.set(path,Buffer.from(corrupt??bytes))
    return failure==='after'?{data:null,error:{statusCode:'503',message:'timeout'}}:{data:{path},error:null}
@@ -84,6 +86,17 @@ await check('mismatched bytes cannot be uploaded or overwrite original',async()=
  await assert.rejects(()=>store.putImmutable(ref,png),{message:'PHOTO_UAT_IMMUTABLE_CONFLICT'})
  await assert.rejects(()=>store.read(ref),{message:'PHOTO_UAT_READBACK_MISMATCH'})
  assert.equal(fake.stats.upload,2);assert.equal(fake.stats.removed,0)
+})
+await check('denied or invalid uploads fail closed without reading or claiming ownership',async()=>{
+ for(const mode of ['denied','invalid']){
+  const fake=fakeSdk(),ref=await photoRef(),store=await createUnifiedPrivatePhotoStore({runId:run,actorUid:uid,client:fake.client,env})
+  fake.fail(mode)
+  await assert.rejects(()=>store.putImmutable(ref,png),{message:'PHOTO_UAT_UPLOAD_DENIED'})
+  assert.equal(fake.stats.download,0)
+  assert.deepEqual(store.inspectTouched(),[ref.objectPath])
+  assert.deepEqual(store.inspectOwned(),[])
+  assert.equal(fake.objects.size,0)
+ }
 })
 await check('lost successful upload response recovers by readback only',async()=>{
  const fake=fakeSdk(),ref=await photoRef(),store=await createUnifiedPrivatePhotoStore({runId:run,actorUid:uid,client:fake.client,env})
