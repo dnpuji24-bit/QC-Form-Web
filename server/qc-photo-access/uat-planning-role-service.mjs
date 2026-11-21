@@ -21,6 +21,7 @@ import {issueCodes,evidenceFingerprint,reviewRequest,verifyReview,nextReview} fr
 import {manualActualId,manualRequest,nextManualActual,verifyManualActual,manualProjection} from '../../src/qcUatPlanningManualActual.mjs'
 import {planningWeek} from '../../src/qcUatPlanningProgressContract.mjs'
 import {summaryRequest,actualProjection,summarizeActualPlan} from '../../src/qcUatPlanningActualSummary.mjs'
+import {operationalCalendarRequest,operationalCalendarProjection} from '../../src/qcUatOperationalPeriod.mjs'
 import {qcSourceRequest,projectQcSource} from '../../src/qcUatPlanningQcSource.mjs'
 import {groupHeaderIds,validateGroupState,groupMutationRequest,nextDailyGroup,groupReorderRequest,nextGroupOrder} from '../../src/qcUatDailyGroupLifecycle.mjs'
 
@@ -88,7 +89,26 @@ export function createPlanningService(deps){
  })
 }
 
- // Separate factory: verified read-only API remains unchanged. Never mounted in HTTP or production.
+ // Isolated read-only calendar: same live role revision and token guard as Planning.
+// No raw Actual/QC/photo objects are returned to browser clients.
+export function createPlanningCalendarService(deps){
+ const {adb}=deps,authorize=createAuthorizer(deps)
+ return Object.freeze({
+  async readPeriod(raw,input){
+   const q=operationalCalendarRequest(input)
+   const scope=q.source==='daily'?'daily':'actual'
+   return authorize(raw,scope,'view',async tx=>{
+    const collection=q.source==='daily'?'daily_plans':'daily_reports'
+    const snap=await tx.get(adb.collection(prefix+'/'+collection)
+     .where('date','>=',q.startDate).where('date','<=',q.endDate).limit(51))
+    if(snap.size>50)fail('CALENDAR_SCOPE_LIMIT')
+    return operationalCalendarProjection(q,snap.docs.map(d=>({id:d.id,row:d.data()})))
+   })
+  }
+ })
+}
+
+// Separate factory: verified read-only API remains unchanged. Never mounted in HTTP or production.
 export function createPlanningWriteService(deps){
  const {adb}=deps,authorize=createAuthorizer(deps)
  const ref=(collection,id)=>adb.doc(prefix+'/'+collection+'/'+id)
