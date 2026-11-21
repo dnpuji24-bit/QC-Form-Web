@@ -3,6 +3,7 @@ import React,{useEffect,useRef,useState} from 'react'
 import {buildUnifiedFullQc} from './qcUatUnifiedFullQcFormBuilder.mjs'
 import {stageUatPhoto} from './qcUatUnifiedPhotoPreflight.mjs'
 import {compressUatPhoto} from './qcUatPhotoCompression.mjs'
+import {buildUnifiedPhotoCommitEnvelope} from './qcUatUnifiedPhotoCommitEnvelope.mjs'
 const fresh=()=>({
  unit:'',noUnit:'',assistant:'',startTime:'',endTime:'',notes:'',holds:[],
  areaHa:'',dropper:'',nozzle:'',waterQuality:'',weatherCondition:'',windSpeed:'',
@@ -18,6 +19,8 @@ export default function UatUnifiedFullOperationalForm({user,kind,api}){
  const ticket=useRef(0),locked=useRef(false)
  useEffect(()=>()=>{ticket.current++},[])
  const active=()=>api.isCurrent(user)
+ // Remains DISABLED in the default UAT portal until a separate emulator browser pilot.
+ const photoEnabled=api.photoCommitEnabled===true&&typeof api.fullQcPhotoCommit==='function'
  const put=(key,value)=>setForm(v=>({...v,[key]:value}))
  const putMeasured=(i,value)=>setForm(v=>({...v,measuredUsage:v.measuredUsage.map((x,j)=>i===j?value:x)}))
  const putFill=(i,key,value)=>setForm(v=>({...v,fillings:v.fillings.map((f,j)=>i===j?{...f,[key]:value}:f)}))
@@ -40,25 +43,36 @@ export default function UatUnifiedFullOperationalForm({user,kind,api}){
  }
  async function submit(saveType){
   if(locked.current||!source||pending||!active())return
-  if(stagedPhotos.length){setStatus('foto hanya staging lokal; hapus lampiran atau tunggu integrasi upload terverifikasi sebelum menyimpan');return}
+  if(stagedPhotos.length&&!photoEnabled){setStatus('foto hanya staging lokal; hapus lampiran atau tunggu integrasi upload terverifikasi sebelum menyimpan');return}
   let request
   try{
    request=buildUnifiedFullQc(source,form,{uid:user.uid,nonce:nonce(),saveType,createdAt:new Date().toISOString()})
   }catch(e){setStatus('validasi formulir: '+String(e?.message||'DATA_TIDAK_LENGKAP'));return}
-  setPending(request)
-  await send(request)
+  let envelope=request
+  try{if(stagedPhotos.length)envelope=buildUnifiedPhotoCommitEnvelope(request,stagedPhotos)}
+  catch(e){setStatus('validasi foto: '+String(e?.message||'PHOTO_STAGE_INVALID'));return}
+  setPending(envelope)
+  await send(envelope)
  }
- async function send(request){
+ async function send(envelope){
   if(locked.current||!active())return
+  const photoSubmit=Array.isArray(envelope?.photos)
+  if(photoSubmit&&!photoEnabled)return
+  const request=photoSubmit?envelope.request:envelope
   locked.current=true;setBusy(true);const current=++ticket.current
-  setStatus('menyimpan DTO lengkap dan audit...')
+  setStatus(photoSubmit?'memverifikasi foto, menyimpan QC dan audit secara atomik...':'menyimpan DTO lengkap dan audit...')
   try{
-   const result=await api.fullQcCommit(kind,request)
+   const result=photoSubmit?await api.fullQcPhotoCommit(kind,envelope):await api.fullQcCommit(kind,request)
+   const receipt=photoSubmit?result?.qc:result
    if(current!==ticket.current||!active())return
    const expectedId=request.record.id.slice('qc-v2-'.length)
-   if(result?.record?.id!==expectedId||result?.record?.formType!==kind)throw Error('INVALID_RECEIPT')
-   setStatus('QC lengkap '+request.record.saveType+' tersimpan: '+expectedId+' (foto belum terintegrasi)')
+   if(receipt?.record?.id!==expectedId||receipt?.record?.formType!==kind||
+     photoSubmit&&(result?.photo?.status!=='committed'||result?.photo?.recordId!==request.record.id||
+      result?.photo?.count!==envelope.photos.length))throw Error('INVALID_RECEIPT')
+   setStatus('QC lengkap '+request.record.saveType+' tersimpan: '+expectedId+
+     (photoSubmit?' ('+result.photo.count+' foto tercatat pada manifest)':' (tanpa foto)'))
    setPending(null)
+   if(photoSubmit)setStagedPhotos([])
   }catch{
    if(current===ticket.current&&active())setStatus('hasil belum terkonfirmasi; ulangi request yang SAMA untuk mencegah duplikasi')
   }finally{locked.current=false;if(current===ticket.current&&active())setBusy(false)}
@@ -84,8 +98,8 @@ export default function UatUnifiedFullOperationalForm({user,kind,api}){
   <input type={type} aria-label={'Full '+kind+' '+name} value={form[key]} disabled={busy||!!pending}
    onChange={e=>put(key,e.target.value)}/></label>
  return <section data-testid={'uat-full-'+kind} aria-label={'Form lengkap '+kind+' UAT'}>
-  <h3>{kind==='spray'?'Full QC Spray':'Full QC Fertilizer'} — UAT photo-free</h3>
-  <p>Editor sintetis untuk validasi DTO penuh; bukan formulir produksi dan tidak mengunggah foto.</p>
+  <h3>{kind==='spray'?'Full QC Spray':'Full QC Fertilizer'} — {photoEnabled?'UAT photo pilot':'UAT photo-free'}</h3>
+  <p>Editor sintetis untuk validasi DTO penuh; bukan formulir produksi. Upload foto hanya tersedia jika pilot emulator tepercaya diaktifkan.</p>
   <label>ID Daily Plan
    <input aria-label={'Full '+kind+' Daily Plan ID'} value={dailyId} disabled={busy||!!pending}
     onChange={e=>{setDailyId(e.target.value);setSource(null);setForm(fresh());setCarryover(false);setActualForemanId('');setStagedPhotos([]);setPhotoSlot('main');setStatus('belum memilih sumber')}}/>
@@ -153,8 +167,8 @@ export default function UatUnifiedFullOperationalForm({user,kind,api}){
     <button disabled={busy||!!pending||form.holds.length>=20} onClick={()=>{clearHoldPhotos();setPhotoSlot('main');put('holds',[...form.holds,{start:'',end:'',reason:'',note:''}])}}>Tambah hold</button>
    </div>
    <div data-testid={'uat-full-'+kind+'-photo-staging'}>
-    <h4>Foto QC (hanya staging lokal, tanpa upload)</h4>
-    <p>JPEG/PNG/WebP asli maksimal 6 MB. Kompresi otomatis jika diperlukan: sisi maksimal 1.280 piksel, target hasil 800 KB, batas staging 2 MB. Format JPEG/PNG/WebP dipertahankan, termasuk transparansi PNG/WebP. Foto tetap lokal (belum diunggah); simpan QC dinonaktifkan selama ada lampiran.</p>
+    <h4>Foto QC ({photoEnabled?'pilot emulator, upload saat simpan':'hanya staging lokal, tanpa upload'})</h4>
+    <p>JPEG/PNG/WebP asli maksimal 6 MB. Kompresi otomatis jika diperlukan: sisi maksimal 1.280 piksel, target hasil 800 KB, batas staging 2 MB. Format JPEG/PNG/WebP dipertahankan, termasuk transparansi PNG/WebP. Foto tetap lokal sampai server mengembalikan receipt atomik; tanpa pilot, simpan QC dinonaktifkan selama ada lampiran.</p>
     <label>Slot foto
      <select aria-label={'Full '+kind+' slot foto'} value={photoSlot} disabled={busy||!!pending} onChange={e=>setPhotoSlot(e.target.value)}>
       <option value="main">Foto utama</option>
@@ -173,8 +187,8 @@ export default function UatUnifiedFullOperationalForm({user,kind,api}){
      <button disabled={busy||!!pending} onClick={()=>setStagedPhotos(v=>v.filter(x=>x.slot!==p.slot))}>Hapus foto lokal {p.slot}</button>
     </div>)}
    </div>
-   <button disabled={busy||!!pending||stagedPhotos.length>0} onClick={()=>void submit('draft')}>Full {kind} simpan draft</button>
-   <button disabled={busy||!!pending||stagedPhotos.length>0} onClick={()=>void submit('ready')}>Full {kind} simpan ready</button>
+   <button disabled={busy||!!pending||(stagedPhotos.length>0&&!photoEnabled)} onClick={()=>void submit('draft')}>Full {kind} simpan draft</button>
+   <button disabled={busy||!!pending||(stagedPhotos.length>0&&!photoEnabled)} onClick={()=>void submit('ready')}>Full {kind} simpan ready</button>
    {pending&&<button disabled={busy} onClick={()=>void send(pending)}>Full {kind} ulang request identik</button>}
   </div>}
  </section>
