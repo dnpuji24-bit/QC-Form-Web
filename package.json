@@ -22,7 +22,8 @@
     "test:uat:photo-transport": "node scripts/test-qc-uat-unified-photo-transport-contract.mjs && npm run test:uat:photo-commit",
     "test:uat:photo-browser": "node scripts/run-qc-uat-gates.mjs photo-browser",
     "test:uat:photo-correction": "node scripts/run-qc-uat-gates.mjs photo-correction",
-    "test:uat:photo-recovery": "node --check server/qc-photo-access/uat-unified-photo-failure-assessment.mjs && node --check server/qc-photo-access/uat-unified-browser-photo-cleanup.mjs && node --check scripts/test-qc-uat-unified-full-qc-ui.mjs && node scripts/test-qc-uat-photo-failure-delta.mjs"
+    "test:uat:photo-recovery": "node --check server/qc-photo-access/uat-unified-photo-failure-assessment.mjs && node --check server/qc-photo-access/uat-unified-browser-photo-cleanup.mjs && node --check scripts/test-qc-uat-unified-full-qc-ui.mjs && node scripts/test-qc-uat-photo-failure-delta.mjs",
+    "test:uat:portal-integration": "node scripts/run-qc-uat-gates.mjs portal-integration"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
