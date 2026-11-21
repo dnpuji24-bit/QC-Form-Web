@@ -9,6 +9,7 @@ export const shellOrigin='http://'+unifiedHost+':'+shellPort
 export const ownerPrefix='/api/owner'
 export const planningPrefix='/api/planning'
 const expandedRoutes=new Set([planningPrefix+unifiedPaths.fullSprayCommit,planningPrefix+unifiedPaths.fullFertilizerCommit])
+const photoRoute=planningPrefix+unifiedPaths.fullPhotoCommit
 export function shellRoute(path){
  if(typeof path!=='string'||path.includes('?')||path.includes('#'))return null
  const owner=Object.values(ownerPaths).find(p=>path===ownerPrefix+p)
@@ -53,8 +54,8 @@ export function createUnifiedBrowserShell(assets){
    if(req.headers['content-type']!=='application/json')problem(415,'JSON_REQUIRED')
    const token=/^Bearer ([^\s]+)$/.exec(req.headers.authorization??'')
    if(!token||token[1].length>16384)problem(401,'AUTH_REQUIRED')
-   const extended=expandedRoutes.has(req.url)
-   const body=await bytes(req,extended?65536:8192)
+   const extended=expandedRoutes.has(req.url),photoUpload=req.url===photoRoute
+   const body=await bytes(req,photoUpload?9437184:extended?65536:8192)
    if(unifiedGuard()!==project)problem(503,'WRONG_PROJECT')
    // URL is a fixed exact allowlisted loopback destination, not a client-supplied proxy URL.
    const upstream=await fetch(mapped.target,{
@@ -63,7 +64,7 @@ export function createUnifiedBrowserShell(assets){
     body,redirect:'error',signal:AbortSignal.timeout(5000)
    })
    const data=await upstream.text()
-   if(data.length>(extended?196608:65536))problem(502,'UPSTREAM_TOO_LARGE')
+   if(data.length>(extended||photoUpload?196608:65536))problem(502,'UPSTREAM_TOO_LARGE')
    res.writeHead(upstream.status)
    res.end(data)
   }catch(e){
