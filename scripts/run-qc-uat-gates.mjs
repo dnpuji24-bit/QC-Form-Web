@@ -38,11 +38,15 @@ function quick(){
  for(const s of [
   'server/qc-photo-access/uat-planning-role-service.mjs',
   'server/qc-photo-access/uat-unified-planning-http.mjs',
+  'server/qc-photo-access/uat-unified-browser-shell.mjs',
   'src/qcUatUnifiedOperationalForm.mjs',
+  'src/qcUatUnifiedFullQcTransport.mjs',
+  'scripts/test-qc-uat-unified-full-qc-http.mjs',
   'scripts/test-qc-uat-unified-operational-form-contract.mjs',
   'scripts/test-qc-uat-unified-operational-form-smoke.mjs'
  ])run('syntax '+s,process.execPath,['--check',s])
  node('form contract (10 cases)','scripts/test-qc-uat-unified-operational-form-contract.mjs')
+ node('full form HTTP route and data loss guard','scripts/test-qc-uat-unified-full-qc-http.mjs','--self-test')
  node('unified source guard','scripts/test-qc-uat-unified-role-planning.mjs','--self-test')
  node('browser source guard','scripts/test-qc-uat-unified-portal-ui.mjs','--self-test')
  run('TypeScript', 'npm',['run','typecheck'])
@@ -51,6 +55,9 @@ function smoke(){
  emu('operational QC emulator smoke (8 cases)','demo-qc-uat-unified-role-planning',
   'firebase.uat-unified-role-planning-emulator.json',9285,10099,
   'scripts/test-qc-uat-unified-operational-form-smoke.mjs','--emulator',true)
+ emu('full Spray/Fertilizer HTTP smoke (8 cases)','demo-qc-uat-unified-role-planning',
+  'firebase.uat-unified-role-planning-emulator.json',9285,10099,
+  'scripts/test-qc-uat-unified-full-qc-http.mjs','--emulator',true)
 }
 function full(){
  quick()
@@ -69,8 +76,8 @@ function full(){
    'firebase.uat-planning-role-emulator.json',9085,9899,
    'scripts/test-qc-uat-'+s+'.mjs','--emulator')
  }
- console.log('\nSUCCESS: release-gate baseline 122 emulator/browser checks plus quick contract and TypeScript. This is NOT all repository tests.')
+ console.log('\nSUCCESS: release-gate baseline 130 emulator/browser checks plus quick contract and TypeScript. This is NOT all repository tests.')
 }
 if(mode==='quick'){quick();console.log('\nSUCCESS: Quick Test contract and typecheck passed (no emulator)')}
-if(mode==='smoke'){smoke();console.log('\nSUCCESS: targeted 8-case emulator smoke passed')}
+if(mode==='smoke'){smoke();console.log('\nSUCCESS: targeted 16-case Spray/Fertilizer emulator smoke passed')}
 if(mode==='full')full()
