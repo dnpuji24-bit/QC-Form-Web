@@ -124,6 +124,93 @@ if(['--browser','--browser-photo'].includes(process.argv[2])){
   const spray=page.getByTestId('uat-full-spray'),fert=page.getByTestId('uat-full-fertilizer')
   if(photoMode){
    // Only the dedicated --browser-photo mode enables the trusted MOCK store.
+   const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGM0atryn4GBgYGJAQoAJCYCa4s7a6wAAAAASUVORK5CYII=','base64')
+   const fill=async(panel,kind,label,value)=>panel.getByLabel('Full '+kind+' '+label,{exact:true}).fill(value)
+   async function attach(panel,kind,slot){
+    await panel.getByRole('combobox',{name:'Full '+kind+' slot foto'}).selectOption(slot)
+    await panel.getByLabel('Full '+kind+' file foto',{exact:true}).setInputFiles({name:'uat-photo.png',mimeType:'image/png',buffer:png})
+   }
+   await check('isolated photo browser login and trusted Spray/Fertilizer sources',async()=>{
+    assert.ok(photoStore,'MOCK_STORE_REQUIRED')
+    await page.getByRole('button',{name:'Login uat-field',exact:true}).click()
+    await expected(page.getByTestId('session-state'),/^confirmed$/)
+    assert.match(await spray.getByRole('heading',{name:/Full QC Spray/}).innerText(),/UAT photo pilot/)
+    for(const [panel,kind,daily] of [[spray,'spray','uat-ds'],[fert,'fertilizer','uat-df']]){
+     await panel.getByRole('textbox',{name:'Full '+kind+' Daily Plan ID'}).fill(daily)
+     await panel.getByRole('button',{name:'Full '+kind+' periksa sumber'}).click()
+     await expected(panel.getByTestId('uat-full-'+kind+'-status'),/sumber lengkap terverifikasi/)
+    }
+   })
+   await check('React Spray main+HOLD -> trusted HTTP atomic QC, lost reply -> exact photo retry',async()=>{
+    for(const [label,value] of [['Nama asisten','Asisten UAT'],['Unit','Boom Sprayer'],['Nomor unit','BS-PHOTO'],['Jam mulai','08:00'],['Jam selesai','17:00'],['Luas aktual Ha','9.00'],['Water rate L/Ha','350']])
+     await fill(spray,'spray',label,value)
+    await spray.getByRole('textbox',{name:'Full spray measured Synthetic Herbicide'}).fill('10.2')
+    await spray.getByRole('button',{name:'Tambah hold'}).click()
+    for(const [name,value] of [['start','12:00'],['end','13:00'],['reason','Weather']])
+     await spray.getByLabel('Full spray hold '+name+' 1',{exact:true}).fill(value)
+    await attach(spray,'spray','main')
+    await attach(spray,'spray','hold_uat-h1')
+    await expected(spray.getByTestId('uat-full-spray-photo-status'),/2 foto diverifikasi lokal/)
+    assert.equal(await spray.getByRole('button',{name:'Full spray simpan ready'}).isDisabled(),false)
+    const url='**/api/planning/uat/unified/qc/full/photo/commit'
+    let completed=false
+    await page.route(url,async route=>{
+     const response=await route.fetch()
+     if(response.status()===200){completed=true;await route.abort('failed')}
+     else await route.fulfill({response})
+    })
+    await spray.getByRole('button',{name:'Full spray simpan ready'}).click()
+    await expected(spray.getByTestId('uat-full-spray-status'),/hasil belum terkonfirmasi/)
+    await page.unroute(url)
+    assert.equal(completed,true,'ATOMIC_REQUEST_MUST_COMMIT')
+    assert.equal(photoStore.stats.puts,2)
+    await spray.getByRole('button',{name:'Full spray ulang request identik'}).click()
+    await expected(spray.getByTestId('uat-full-spray-status'),/2 foto tercatat pada manifest/)
+    assert.equal(photoStore.stats.puts,2,'RETRY_NO_DUPLICATE_UPLOAD')
+    const records=(await adb.collection(base+'/qc_photo_manifests').get()).docs
+    assert.equal(records.length,1)
+    const doc=records[0],ledger=doc.data()
+    assert.deepEqual(Object.keys(ledger.manifest).sort(),['hold_uat-h1','main'])
+    assert.equal((await ref('qc_photo_manifest_audit',doc.id+':'+ledger.clientRevision).get()).exists,true)
+    assert.equal((await ref('qc_spray_full',doc.id).get()).data().form.actualAreaHa,9)
+    assert.equal((await adb.collection(base+'/daily_reports').get()).size,1)
+   })
+   await check('React Fertilizer main+scan -> one QC and independent NK/DAP Actual',async()=>{
+    for(const [label,value] of [['Nama asisten','Asisten UAT'],['Unit','Stool Splitter'],['Nomor unit','SS-PHOTO'],['Jam mulai','08:00'],['Jam selesai','17:00']])
+     await fill(fert,'fertilizer',label,value)
+    for(const [key,value] of [['productName','Synthetic NK'],['kg','3500.00'],['areaHa','8.00'],['statusHose','Lancar'],['distribution','2']])
+     await fert.getByLabel('Full fertilizer '+key+' 1',{exact:true}).fill(value)
+    await fert.getByRole('button',{name:'Tambah pengisian'}).click()
+    await fert.getByRole('combobox',{name:'Full fertilizer komponen 2'}).selectOption('uat-dap')
+    for(const [key,value] of [['productName','Synthetic DAP'],['kg','750.00'],['areaHa','5.00'],['statusHose','Lancar'],['distribution','2']])
+     await fert.getByLabel('Full fertilizer '+key+' 2',{exact:true}).fill(value)
+    await attach(fert,'fertilizer','main')
+    await attach(fert,'fertilizer','scan')
+    await expected(fert.getByTestId('uat-full-fertilizer-photo-status'),/2 foto diverifikasi lokal/)
+    await fert.getByRole('button',{name:'Full fertilizer simpan ready'}).click()
+    await expected(fert.getByTestId('uat-full-fertilizer-status'),/2 foto tercatat pada manifest/)
+    assert.equal(photoStore.stats.puts,4)
+    const docs=(await adb.collection(base+'/qc_fertilizer_full').get()).docs
+    assert.equal(docs.length,1)
+    const id=docs[0].id,actual=(await ref('daily_reports','qcactual_'+id).get()).data()
+    assert.deepEqual(actual.fertilizerComponents.map(x=>x.actualArea100),[800,500])
+    assert.equal(actual.applicationArea100,1300)
+    assert.ok(!Object.hasOwn(actual,'actualArea100'))
+    const ledger=(await ref('qc_photo_manifests',id).get()).data()
+    assert.deepEqual(Object.keys(ledger.manifest).sort(),['main','scan'])
+    assert.deepEqual((await ref('qc_photo_manifest_audit',id+':'+ledger.clientRevision).get()).data(),ledger)
+   })
+   await check('browser keeps root isolated and never contacts Supabase or browser storage',async()=>{
+    assert.equal((await adb.collection(base+'/qc_records').get()).size,2)
+    assert.equal((await adb.collection(base+'/daily_reports').get()).size,2)
+    assert.deepEqual((await adb.doc('users/root-sentinel').get()).data(),{protected:true})
+    assert.deepEqual((await adb.doc('monthly_plans/root-sentinel').get()).data(),{protected:true})
+    assert.deepEqual(await page.evaluate(()=>[localStorage.length,sessionStorage.length]),[0,0])
+    assert.deepEqual(await page.evaluate(()=>cspViolations),[])
+    assert.deepEqual(errors,[])
+    assert.equal(photoStore.inspect().length,4)
+   })
+   console.log('SUCCESS: '+n+' isolated photo React -> trusted HTTP -> MOCK bytes + atomic QC/Actual emulator checks passed (NO Supabase upload)')
   }else{
   await check('real Auth login, permission-gated full editors and trusted complete Planning source',async()=>{
    await page.getByRole('button',{name:'Login uat-field',exact:true}).click()
