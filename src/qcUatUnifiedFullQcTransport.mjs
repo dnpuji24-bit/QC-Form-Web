@@ -30,15 +30,16 @@ export function prepareUnifiedFullQc(input){
   source.dailyRevision===input.expectedDailyRevision&&
   source.executionShift===r.shift&&source.executionForemanId===input.foremanId,'QC_FULL_SOURCE_MISMATCH')
  need(typeof input.expectedDailyRevision==='number'&&Number.isSafeInteger(input.expectedDailyRevision)&&input.expectedDailyRevision>=0&&input.expectedDailyRevision<1000000,'INVALID_DAILY_REVISION')
+ const request={record:r,baseRevision:input.baseRevision,jobId:input.jobId,
+  uploaderUid:input.uploaderUid,expectedDailyRevision:input.expectedDailyRevision,foremanId:input.foremanId}
  if(source.kind==='spray'){
   validateSprayDto(r,sprayFormSource(source))
-  sprayCommitRequest(input)
+  sprayCommitRequest(request)
  }else{
   validateFertilizerDtoForComponents(r,fertilizerFormSource(source))
-  fertilizerCommitRequest(input)
+  fertilizerCommitRequest(request)
  }
  // Deliberately carry the ENTIRE validated form. No scalar conversion, flattening, rounding,
  // reordering, and never replace the server's authoritative current source.
- return {record:r,baseRevision:input.baseRevision,jobId:input.jobId,
-  uploaderUid:input.uploaderUid,expectedDailyRevision:input.expectedDailyRevision,foremanId:input.foremanId}
+ return request
 }
