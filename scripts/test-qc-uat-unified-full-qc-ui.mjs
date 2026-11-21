@@ -11,11 +11,13 @@ import {permissionsForIdentity} from '../src/qcUatCustomRoles.mjs'
 import {unifiedGuard,unifiedProjectId,unifiedHost,unifiedAuthPort} from '../server/qc-photo-access/uat-unified-identity-guard.mjs'
 import {createOwnerHttp,createOwnerService} from '../server/qc-photo-access/uat-owner-permission-http.mjs'
 import {createPlanningMasterSnapshotService} from '../server/qc-photo-access/uat-planning-role-service.mjs'
+import {createMemoryPhotoObjectStore} from '../server/qc-photo-access/uat-unified-photo-trusted-stage.mjs'
 import {createUnifiedPlanningHttp} from '../server/qc-photo-access/uat-unified-planning-http.mjs'
 import {createUnifiedBrowserShell,shellPort,shellOrigin,shellRoute} from '../server/qc-photo-access/uat-unified-browser-shell.mjs'
 const root=fileURLToPath(new URL('../',import.meta.url)),read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8')
 assert.equal(process.argv.length,3)
-assert.ok(['--self-test','--browser'].includes(process.argv[2]))
+assert.ok(['--self-test','--browser','--browser-photo'].includes(process.argv[2]))
+const photoMode=process.argv[2]==='--browser-photo'
 assert.doesNotMatch(read('src/App.tsx'),/UatUnifiedFullOperationalForm|uat-unified-portal-lab/)
 assert.doesNotMatch(read('src/main.tsx'),/UatUnifiedFullOperationalForm|uat-unified-portal-lab/)
 assert.match(read('uat-unified-portal-lab/main.jsx'),/UatUnifiedFullOperationalForm/)
@@ -24,7 +26,7 @@ for(const p of ['/api/planning/uat/unified/qc/full/source','/api/planning/uat/un
  assert.equal(shellRoute(p+'?x=1'),null)
 }
 console.log('SUCCESS: focused full QC browser test isolation and explicit routes passed (offline)')
-if(process.argv[2]==='--browser'){
+if(['--browser','--browser-photo'].includes(process.argv[2])){
  unifiedGuard()
  const pw=process.env.QC_UAT_PLAYWRIGHT_DIR
  assert.ok(pw?.startsWith('/'),'QC_UAT_PLAYWRIGHT_DIR_REQUIRED')
@@ -38,7 +40,7 @@ if(process.argv[2]==='--browser'){
   for(const p of allow)assert.ok(paths.includes(p),'MISSING_SOURCE '+p)
   assert.ok(!ids.some(x=>/node_modules\/(?:@firebase\/firestore|firebase\/firestore|@supabase)\//.test(x)),'UNEXPECTED_DATA_SDK')
  }}
- const bundle=await build({root,configFile:false,envDir:false,publicDir:false,base:'/',logLevel:'warn',plugins:[plugin],build:{write:false,emptyOutDir:false,minify:false,modulePreload:false,rollupOptions:{input:root+'uat-unified-portal-lab/main.jsx'}}})
+ const bundle=await build({root,configFile:false,envDir:false,publicDir:false,base:'/',logLevel:'warn',define:{__QC_UAT_BROWSER_PHOTO_PILOT__:JSON.stringify(photoMode)},plugins:[plugin],build:{write:false,emptyOutDir:false,minify:false,modulePreload:false,rollupOptions:{input:root+'uat-unified-portal-lab/main.jsx'}}})
  const chunks=(Array.isArray(bundle)?bundle:[bundle]).flatMap(b=>b.output??[]),assets=new Map(),entries=[]
  for(const c of chunks){
   assert.equal(c.type,'chunk');assert.match(c.fileName,/\.m?js$/)
@@ -56,7 +58,8 @@ if(process.argv[2]==='--browser'){
  const {initializeAuth,inMemoryPersistence,connectAuthEmulator,signInWithEmailAndPassword,signOut}=await import('firebase/auth')
  const admin=adminInit({projectId:unifiedProjectId},'uat-full-ui-browser'),adb=getFirestore(admin),authAdmin=getAuth(admin)
  const ownerHttp=createOwnerHttp(createOwnerService({adb,authAdmin}))
- const planningHttp=createUnifiedPlanningHttp({adb,authAdmin})
+ const photoStore=photoMode?createMemoryPhotoObjectStore():null
+ const planningHttp=createUnifiedPlanningHttp({adb,authAdmin,photoStore})
  const shell=createUnifiedBrowserShell(assets)
  const base='qc_uat_workspaces/cutover',ref=(c,id)=>adb.doc(base+'/'+c+'/'+id)
  const mark=uid=>adb.doc('qc_uat_identities/'+uid),uid='uat-field'
@@ -119,6 +122,9 @@ if(process.argv[2]==='--browser'){
   page.on('pageerror',e=>errors.push(e.message))
   await page.goto(shellOrigin)
   const spray=page.getByTestId('uat-full-spray'),fert=page.getByTestId('uat-full-fertilizer')
+  if(photoMode){
+   // Only the dedicated --browser-photo mode enables the trusted MOCK store.
+  }else{
   await check('real Auth login, permission-gated full editors and trusted complete Planning source',async()=>{
    await page.getByRole('button',{name:'Login uat-field',exact:true}).click()
    await expected(page.getByTestId('session-state'),/^confirmed$/)
@@ -410,6 +416,7 @@ if(process.argv[2]==='--browser'){
    assert.deepEqual(errors,[])
   })
   console.log('SUCCESS: '+n+' focused full QC React browser -> trusted Planning HTTP -> actual/audit emulator checks passed')
+  }
  }finally{
   for(const c of contexts)await c.close()
   if(browser)await browser.close()
