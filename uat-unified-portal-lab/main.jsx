@@ -69,6 +69,7 @@ function adapterFor(user){
   read:async(scope,id)=>(await planning('/uat/unified/planning/read',{scope,id})).plan,
   operationalSummary:async(request)=>(await planning('/uat/unified/portal/summary',{request})).summary,
   operationalCalendar:async(request)=>(await planning('/uat/unified/portal/calendar',{request})).calendar,
+  operationalRecords:async(request)=>(await planning('/uat/unified/portal/qc-records',{request})).records,
   lifecycle:{
    list:async()=>{
     const {roles}=await owner('/uat/owner/permissions/roles-list',{})
@@ -91,6 +92,8 @@ function App(){
  const [summaryResult,setSummaryResult]=useState(null),[summaryState,setSummaryState]=useState('idle')
  const [calendarMonth,setCalendarMonth]=useState(()=>new Date().toISOString().slice(0,7)),[calendarSource,setCalendarSource]=useState('daily')
  const [calendarResult,setCalendarResult]=useState(null),[calendarState,setCalendarState]=useState('idle')
+ const [qcMonth,setQcMonth]=useState(()=>new Date().toISOString().slice(0,7)),[qcKind,setQcKind]=useState('all')
+ const [qcRecords,setQcRecords]=useState(null),[qcRecordsState,setQcRecordsState]=useState('idle')
  const seq=useRef(0),identity=useRef(null),refreshRef=useRef(()=>{})
  useEffect(()=>{
   let active=true
@@ -168,6 +171,27 @@ function App(){
    setCalendarResult(data);setCalendarState('ready')
   }catch{if(ticket===seq.current&&auth.currentUser===current){setCalendarResult(null);setCalendarState('denied')}}
  }
+ async function loadQcRecords(){
+  if(!user||!session||!api||!['view','edit'].includes(session.permissions.qc_records??'none'))return
+  const current=user,ticket=seq.current,request={monthKey:qcMonth,kind:qcKind}
+  setQcRecords(null);setQcRecordsState('loading')
+  try{
+   const data=await api.operationalRecords(request)
+   if(ticket!==seq.current||auth.currentUser!==current)return
+   if(data?.testOnly!==true||data.readOnly!==true||
+      data.monthKey!==request.monthKey||data.kind!==request.kind||
+      !Array.isArray(data.records)||data.records.length>50||
+      data.recordCount!==data.records.length||
+      data.records.some(r=>!['spray','fertilizer'].includes(r.formType)||
+       !['draft','ready','uploaded'].includes(r.saveType)||
+       !/^(?:uat-[a-z0-9-]{1,60})$/.test(r.id)||
+       r.actual?.semantics==='COMPONENT_APPLICATION_SUM'&&
+        !Array.isArray(r.actual.components)))throw Error('INVALID_QC_RECORDS_RECEIPT')
+   setQcRecords(data);setQcRecordsState('ready')
+  }catch{if(ticket===seq.current&&auth.currentUser===current){
+   setQcRecords(null);setQcRecordsState('denied')
+  }}
+ }
  const mode=key=>session?.permissions[key]??'none'
  useEffect(()=>{
   if(!operationalPortalPilot||!session)return
@@ -176,7 +200,7 @@ function App(){
   if(!daily&&actual&&calendarSource==='daily')setCalendarSource('actual')
   if(!actual&&daily&&calendarSource==='actual')setCalendarSource('daily')
  },[session?.policyRevision,session?.uid,calendarSource])
- useEffect(()=>{if(operationalPortalPilot){setPortalArea('home');setSummaryResult(null);setSummaryState('idle');setCalendarResult(null);setCalendarState('idle');setCalendarSource('daily')}},[user?.uid,session?.policyRevision])
+ useEffect(()=>{if(operationalPortalPilot){setPortalArea('home');setSummaryResult(null);setSummaryState('idle');setCalendarResult(null);setCalendarState('idle');setCalendarSource('daily');setQcRecords(null);setQcRecordsState('idle')}},[user?.uid,session?.policyRevision])
  const areas=operationalPortalPilot?allowedUatOperationalAreas(session):[]
  const area=operationalPortalPilot?resolveUatOperationalArea(session,portalArea):'home'
  const showData=!operationalPortalPilot||area==='data-unm'
@@ -258,6 +282,32 @@ function App(){
    {showQc&&visible('qc_fertilizer')&&<span data-testid="menu-fertilizer">QC Fertilizer · {mode('qc_fertilizer')}</span>}
   </nav>
   {showData&&<p data-testid="read-result">{result}</p>}
+  {operationalPortalPilot&&showQc&&user&&api&&visible('qc_records')&&<section
+   aria-label="Data QC UAT" data-testid="uat-operational-qc-records">
+   <h3>Data QC dan Actual Plan — UAT</h3>
+   <p>Ringkasan record yang memiliki audit valid. Maksimum 50 record per bulan, tanpa foto atau DTO mentah.</p>
+   <label>Bulan Data QC <input type="month" aria-label="Bulan Data QC" value={qcMonth}
+    onChange={e=>{setQcMonth(e.target.value);setQcRecords(null);setQcRecordsState('idle')}}/></label>
+   <label>Jenis QC <select aria-label="Jenis Data QC" value={qcKind}
+    onChange={e=>{setQcKind(e.target.value);setQcRecords(null);setQcRecordsState('idle')}}>
+    <option value="all">Semua</option><option value="spray">Spray</option><option value="fertilizer">Fertilizer</option>
+   </select></label>
+   <button type="button" onClick={()=>void loadQcRecords()}>Muat Data QC UAT</button>
+   <p data-testid="uat-operational-qc-records-state">{qcRecordsState}</p>
+   {qcRecords&&<div data-testid="uat-operational-qc-records-result">
+    <p>{qcRecords.recordCount} record QC</p>
+    <ul>{qcRecords.records.map(r=><li key={r.id} data-testid={'uat-qc-row-'+r.id}>
+     <strong>{r.id}</strong> — {r.formType} — {r.saveType} — {r.date} Shift {r.shift} — {r.pid}
+     <div>Daily Plan: {r.dailyPlanId} · Mandor: {r.foreman}</div>
+     {r.actual?.semantics==='PHYSICAL_APPLICATION'&&<div>Actual: {r.actual.area100/100} Ha lahan</div>}
+     {r.actual?.semantics==='COMPONENT_APPLICATION_SUM'&&<div>
+      Aplikasi komponen: {r.actual.applicationArea100/100} Ha-aplikasi (bukan luas fisik)
+      <ul>{r.actual.components.map(c=><li key={c.componentId}>{c.componentId}: {c.area100/100} Ha-aplikasi</li>)}</ul>
+     </div>}
+     {!r.actual&&<div>Belum ada Actual terkonfirmasi</div>}
+    </li>)}</ul>
+   </div>}
+  </section>}
   {showQc&&user&&api&&mode('qc_spraying')==='edit'&&<UatUnifiedOperationalForm key={'spray-'+user.uid+'-'+session.policyRevision} user={user} kind="spray" api={api}/>}
   {showQc&&user&&api&&mode('qc_spraying')==='edit'&&<UatUnifiedFullOperationalForm key={'full-spray-'+user.uid+'-'+session.policyRevision} user={user} kind="spray" api={api}/>}
   {showQc&&user&&api&&mode('qc_fertilizer')==='edit'&&<UatUnifiedOperationalForm key={'fertilizer-'+user.uid+'-'+session.policyRevision} user={user} kind="fertilizer" api={api}/>}
