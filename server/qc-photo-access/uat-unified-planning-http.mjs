@@ -1,6 +1,7 @@
 // 11D.5b: isolated same-project Planning+QC HTTP adapter, never mounted in production.
 // Owner HTTP stays on 4497; this trusted Planning adapter listens only on 127.0.0.1:4697.
 import {createServer} from 'node:http'
+import {createPlanningPhotoReadService} from './uat-unified-private-photo-read.mjs'
 import {unifiedGuard,unifiedHost} from './uat-unified-identity-guard.mjs'
 import {createPlanningService,createPlanningWriteService,createPlanningQcService,createPlanningQcSelectionService,createPlanningQcSourceService,createPlanningSprayCommitService,createPlanningFertilizerCommitService,createPlanningPhotoCommitService} from './uat-planning-role-service.mjs'
 export const unifiedPlanningPort=4697
@@ -15,7 +16,9 @@ export const unifiedPaths=Object.freeze({
  fullSprayCommit:'/uat/unified/qc/full/spray/commit',
  fullFertilizerCommit:'/uat/unified/qc/full/fertilizer/commit',
  // Only mounted when the isolated emulator server is explicitly injected with a trusted store.
- fullPhotoCommit:'/uat/unified/qc/full/photo/commit'
+ fullPhotoCommit:'/uat/unified/qc/full/photo/commit',
+ // Signed reads are available ONLY in the explicitly injected real UAT browser pilot.
+ photoSign:'/uat/unified/qc/photo/sign'
 })
 const exact=(v,ks)=>v&&Object.getPrototypeOf(v)===Object.prototype&&Reflect.ownKeys(v).length===ks.length&&ks.every(k=>Object.hasOwn(v,k))
 function error(status,code){throw Object.assign(Error(code),{status})}
@@ -35,11 +38,13 @@ export function classifyUnifiedPlanningError(e){
  if(typeof code==='string'&&/^(?:INVALID_|MISSING_|PLAN_|PLANNING_|MONTHLY_|DAILY_|QC_|GROUP_|FULL_|SPRAY_|FERTILIZER_|SOURCE_|MATERIAL_|PHOTO_|PRODUCT_|UNMAPPED_)/.test(code))return [409,'CONTRACT_REJECTED']
  return [500,'SERVICE_UNAVAILABLE']
 }
-export function createUnifiedPlanningHttp({adb,authAdmin,photoStore=null}){
+export function createUnifiedPlanningHttp({adb,authAdmin,photoStore=null,photoSigner=null}){
  const boundProject=unifiedGuard()
  if(adb.projectId!==boundProject||authAdmin.app.options.projectId!==boundProject)error(503,'WRONG_PROJECT')
  const planner=createPlanningService({adb,authAdmin}),writer=createPlanningWriteService({adb,authAdmin}),qc=createPlanningQcService({adb,authAdmin}),selector=createPlanningQcSelectionService({adb,authAdmin}),fullSource=createPlanningQcSourceService({adb,authAdmin}),fullSpray=createPlanningSprayCommitService({adb,authAdmin}),fullFertilizer=createPlanningFertilizerCommitService({adb,authAdmin})
  const photos=photoStore?createPlanningPhotoCommitService({adb,authAdmin,photoStore}):null
+ if(photoSigner&&photoStore?.mode!=='supabase-private-uat')error(503,'PHOTO_SIGNER_REQUIRES_REAL_UAT_STORE')
+ const reader=photoSigner?createPlanningPhotoReadService({adb,authAdmin,signer:photoSigner}):null
  return createServer(async(req,res)=>{
   res.setHeader('Content-Type','application/json; charset=utf-8')
   res.setHeader('Cache-Control','no-store')
@@ -55,6 +60,7 @@ export function createUnifiedPlanningHttp({adb,authAdmin,photoStore=null}){
    const photoSubmit=req.url===unifiedPaths.fullPhotoCommit
    // Fail before reading multi-megabyte payloads unless a trusted emulator-only store exists.
    if(photoSubmit&&!photos)error(404,'ROUTE_DENIED')
+   if(req.url===unifiedPaths.photoSign&&!reader)error(404,'ROUTE_DENIED')
    const fullSubmit=[unifiedPaths.fullSprayCommit,unifiedPaths.fullFertilizerCommit].includes(req.url)
    const input=await parseJson(req,photoSubmit?9437184:fullSubmit?65536:8192)
    if(req.url===unifiedPaths.check){
@@ -88,6 +94,10 @@ export function createUnifiedPlanningHttp({adb,authAdmin,photoStore=null}){
    if(req.url===unifiedPaths.fullPhotoCommit){
     if(!exact(input,['sourceRequest','request','photos']))error(400,'INVALID_REQUEST')
     return send(200,await photos.commit(auth[1],input))
+   }
+   if(req.url===unifiedPaths.photoSign){
+    if(!exact(input,['request']))error(400,'INVALID_REQUEST')
+    return send(200,{preview:await reader.sign(auth[1],input.request)})
    }
    if(req.url===unifiedPaths.qcCommit){
     if(!exact(input,['request']))error(400,'INVALID_REQUEST')
