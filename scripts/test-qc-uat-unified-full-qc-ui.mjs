@@ -138,9 +138,19 @@ if(['--browser','--browser-photo','--browser-photo-real'].includes(process.argv[
    // Only the dedicated --browser-photo mode enables the trusted MOCK store.
    const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGM0atryn4GBgYGJAQoAJCYCa4s7a6wAAAAASUVORK5CYII=','base64')
    const fill=async(panel,kind,label,value)=>panel.getByLabel('Full '+kind+' '+label,{exact:true}).fill(value)
-   async function attach(panel,kind,slot){
+   async function attach(panel,kind,slot,mime='image/png'){
+    const ext={'image/png':'png','image/jpeg':'jpg','image/webp':'webp'}[mime]
+    assert.ok(ext,'UNEXPECTED_IMAGE_MIME')
+    const bytes=mime==='image/png'?png:Buffer.from((await page.evaluate(type=>{
+     const canvas=document.createElement('canvas')
+     canvas.width=2;canvas.height=2
+     const ctx=canvas.getContext('2d')
+     ctx.fillStyle='#b09e7a';ctx.fillRect(0,0,2,2)
+     return canvas.toDataURL(type,0.85)
+    },mime)).split(',')[1],'base64')
+    assert.ok(bytes.length>20&&bytes.length<2097152,'INVALID_GENERATED_IMAGE')
     await panel.getByRole('combobox',{name:'Full '+kind+' slot foto'}).selectOption(slot)
-    await panel.getByLabel('Full '+kind+' file foto',{exact:true}).setInputFiles({name:'uat-photo.png',mimeType:'image/png',buffer:png})
+    await panel.getByLabel('Full '+kind+' file foto',{exact:true}).setInputFiles({name:'uat-photo.'+ext,mimeType:mime,buffer:bytes})
    }
    await check('isolated photo browser login and trusted Spray/Fertilizer sources',async()=>{
     assert.ok(photoStore,'PHOTO_STORE_REQUIRED')
@@ -162,7 +172,7 @@ if(['--browser','--browser-photo','--browser-photo-real'].includes(process.argv[
     for(const [name,value] of [['start','12:00'],['end','13:00'],['reason','Weather']])
      await spray.getByLabel('Full spray hold '+name+' 1',{exact:true}).fill(value)
     await attach(spray,'spray','main')
-    await attach(spray,'spray','hold_uat-h1')
+    await attach(spray,'spray','hold_uat-h1','image/jpeg')
     await expected(spray.getByTestId('uat-full-spray-photo-status'),/2 foto diverifikasi lokal/)
     assert.equal(await spray.getByRole('button',{name:'Full spray simpan ready'}).isDisabled(),false)
     const url='**/api/planning/uat/unified/qc/full/photo/commit'
@@ -197,7 +207,7 @@ if(['--browser','--browser-photo','--browser-photo-real'].includes(process.argv[
     await fert.getByRole('combobox',{name:'Full fertilizer komponen 2'}).selectOption('uat-dap')
     for(const [key,value] of [['productName','Synthetic DAP'],['kg','750.00'],['areaHa','5.00'],['statusHose','Lancar'],['distribution','2']])
      await fert.getByLabel('Full fertilizer '+key+' 2',{exact:true}).fill(value)
-    await attach(fert,'fertilizer','main')
+    await attach(fert,'fertilizer','main','image/webp')
     await attach(fert,'fertilizer','scan')
     await expected(fert.getByTestId('uat-full-fertilizer-photo-status'),/2 foto diverifikasi lokal/)
     await fert.getByRole('button',{name:'Full fertilizer simpan ready'}).click()
@@ -214,8 +224,8 @@ if(['--browser','--browser-photo','--browser-photo-real'].includes(process.argv[
     assert.deepEqual((await ref('qc_photo_manifest_audit',id+':'+ledger.clientRevision).get()).data(),ledger)
    })
    if(realPhotoMode){
-    await check('private 60-second signed photo preview loads committed Spray and Fertilizer image bytes',async()=>{
-     for(const [panel,kind,slot] of [[spray,'spray','main'],[spray,'spray','hold_uat-h1'],[fert,'fertilizer','scan']]){
+    await check('private 60-second signed previews load PNG/JPEG/WebP committed bytes',async()=>{
+     for(const [panel,kind,slot] of [[spray,'spray','main'],[spray,'spray','hold_uat-h1'],[fert,'fertilizer','main'],[fert,'fertilizer','scan']]){
       await panel.getByRole('button',{name:'Pratinjau tersimpan '+slot,exact:true}).click()
       await expected(panel.getByTestId('uat-full-'+kind+'-private-status'),/berlaku 60 detik/)
       const image=panel.getByTestId('uat-full-'+kind+'-private-image')
@@ -241,7 +251,7 @@ if(['--browser','--browser-photo','--browser-photo-real'].includes(process.argv[
      assert.equal(await spray.getByTestId('uat-full-spray-private-image').count(),0)
     })
    }
-   await check('browser keeps root isolated and never contacts Supabase or browser storage',async()=>{
+   await check('browser keeps root isolated, only approved signed image requests and no browser storage',async()=>{
     assert.equal((await adb.collection(base+'/qc_records').get()).size,2)
     assert.equal((await adb.collection(base+'/daily_reports').get()).size,2)
     assert.deepEqual((await adb.doc('users/root-sentinel').get()).data(),{protected:true})
