@@ -145,6 +145,8 @@ if(process.argv[2]==='--browser'){
    assert.equal(await field.getByTestId('menu-monthly').count(),1)
    assert.equal(await field.getByTestId('menu-daily').count(),0)
    assert.equal(await field.getByTestId('menu-spray').count(),0)
+   assert.equal(await field.getByTestId('uat-full-spray').count(),0)
+   assert.equal(await field.getByTestId('uat-full-fertilizer').count(),0)
    assert.equal(await viewer.getByTestId('menu-monthly').count(),0)
    await expected(field.getByTestId('revision'),'1')
   })
@@ -173,6 +175,8 @@ if(process.argv[2]==='--browser'){
    assert.equal(await field.getByTestId('menu-spray').count(),1)
    assert.match(await field.getByTestId('menu-spray').innerText(),/edit/)
    assert.equal(await field.getByTestId('menu-fertilizer').count(),1)
+   assert.equal(await field.getByTestId('uat-full-spray').count(),1)
+   assert.equal(await field.getByTestId('uat-full-fertilizer').count(),1)
   })
   await check('worker reads actual Daily via Planning HTTP with updated role but cannot read Monthly',async()=>{
    await field.getByRole('button',{name:'Baca Daily UAT'}).click()
