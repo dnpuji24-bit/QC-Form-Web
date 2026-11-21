@@ -13,6 +13,10 @@ const origin='http://'+host+':'+port,authOrigin='http://'+host+':9099'
 const firestoreOrigin='http://'+host+':8085'
 const mode=process.argv[2]
 assert.ok(['--self-test','--browser'].includes(mode)&&process.argv.length===3,'NATIVE_BROWSER_MODE')
+const emulatorConfig=JSON.parse(read('firebase.native-cutover-browser-emulator.json'))
+assert.equal(emulatorConfig.firestore?.rules,'firestore.rules','FIRESTORE_RULES_MUST_STAY_INSIDE_REPO')
+assert.deepEqual(emulatorConfig.emulators?.firestore,{host:'127.0.0.1',port:8085})
+assert.deepEqual(emulatorConfig.emulators?.auth,{host:'127.0.0.1',port:9099})
 assert.match(read('src/main.tsx'),/nativePortalEnabled \? <NativePortalSession>/)
 assert.match(read('src/firebase.ts'),/connectAuthEmulator\(firebaseAuth, 'http:\/\/127\.0\.0\.1:9099'\)/)
 assert.match(read('src/firebase.ts'),/connectFirestoreEmulator\(firestoreDb, '127\.0\.0\.1', 8085\)/)
