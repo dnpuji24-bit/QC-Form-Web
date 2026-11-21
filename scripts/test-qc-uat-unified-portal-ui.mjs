@@ -23,23 +23,24 @@ assert.match(read(entry),/inMemoryPersistence/)
 assert.match(read(entry),/http:\/\/127\.0\.0\.1:10099/)
 assert.doesNotMatch(read(entry),/firebase\/firestore|localStorage|sessionStorage|supabase|fetch\(['"]https?:/)
 assert.doesNotMatch(read('server/qc-photo-access/uat-unified-browser-shell.mjs'),/Access-Control-Allow-Origin|https:\/\/|supabase/)
-assert.ok(process.argv.length===3&&['--self-test','--browser'].includes(process.argv[2]))
+assert.ok(process.argv.length===3&&['--self-test','--browser','--browser-portal'].includes(process.argv[2]))
+const portalMode=process.argv[2]==='--browser-portal'
 console.log('SUCCESS: Unified portal-shell UI source, exact proxy routing and production isolation guards passed (offline)')
-if(process.argv[2]==='--browser'){
+if(['--browser','--browser-portal'].includes(process.argv[2])){
  unifiedGuard()
  const directory=process.env.QC_UAT_PLAYWRIGHT_DIR
  assert.ok(directory?.startsWith('/'),'QC_UAT_PLAYWRIGHT_DIR_REQUIRED')
  const {chromium}=createRequire(directory+'/package.json')('playwright')
  const {build}=await import('vite')
- const allow=['UatRoleLifecyclePanel.tsx','accessControl.ts','qcUatSessionPermissions.mjs','qcUatRolePermissions.mjs','qcUatCustomRoles.mjs','UatUnifiedOperationalForm.jsx','qcUatUnifiedOperationalForm.mjs','UatUnifiedFullOperationalForm.jsx','qcUatUnifiedFullQcFormBuilder.mjs','qcUatSprayFullDto.mjs', 'qcUatFertilizerFullDto.mjs','qcUatUnifiedCarryoverSelection.mjs','qcUatUnifiedPhotoPreflight.mjs','qcUatPhotoCompression.mjs','qcUatUnifiedPhotoCommitEnvelope.mjs','qcOperationalPhotoManifest.mjs']
+ const allow=['UatRoleLifecyclePanel.tsx','accessControl.ts','qcUatSessionPermissions.mjs','qcUatRolePermissions.mjs','qcUatCustomRoles.mjs','UatUnifiedOperationalForm.jsx','qcUatUnifiedOperationalForm.mjs','UatUnifiedFullOperationalForm.jsx','qcUatUnifiedFullQcFormBuilder.mjs','qcUatSprayFullDto.mjs', 'qcUatFertilizerFullDto.mjs','qcUatUnifiedCarryoverSelection.mjs','qcUatUnifiedPhotoPreflight.mjs','qcUatPhotoCompression.mjs','qcUatUnifiedPhotoCommitEnvelope.mjs','qcOperationalPhotoManifest.mjs','qcUatOperationalPortalNavigation.mjs']
  const plugin={name:'unified-portal-shell-source-allowlist',enforce:'pre',generateBundle(_opts,bundle){
   const ids=Object.values(bundle).filter(x=>x.type==='chunk').flatMap(x=>Object.keys(x.modules))
   const src=ids.filter(x=>x.startsWith(root+'src/')).map(x=>x.slice((root+'src/').length))
   for(const x of src)assert.ok(allow.includes(x),'UNEXPECTED_SOURCE '+x)
-  for(const x of allow)assert.ok(src.includes(x),'MISSING_SOURCE '+x)
+  for(const x of allow)if(portalMode||x!=='qcUatOperationalPortalNavigation.mjs')assert.ok(src.includes(x),'MISSING_SOURCE '+x)
   assert.ok(!ids.some(x=>/node_modules\/(?:@firebase\/firestore|firebase\/firestore|@supabase)\//.test(x)),'UNEXPECTED_DATA_SDK')
  }}
- const bundle=await build({root,configFile:false,envDir:false,publicDir:false,base:'/',logLevel:'warn',plugins:[plugin],build:{write:false,emptyOutDir:false,minify:false,modulePreload:false,rollupOptions:{input:root+entry}}})
+ const bundle=await build({root,configFile:false,envDir:false,publicDir:false,base:'/',logLevel:'warn',define:{__QC_UAT_OPERATIONAL_PORTAL__:JSON.stringify(portalMode)},plugins:[plugin],build:{write:false,emptyOutDir:false,minify:false,modulePreload:false,rollupOptions:{input:root+entry}}})
  const chunks=(Array.isArray(bundle)?bundle:[bundle]).flatMap(b=>b.output??[])
  const assets=new Map(),entries=[]
  for(const chunk of chunks){
@@ -127,6 +128,62 @@ if(process.argv[2]==='--browser'){
   await listen(ownerHttp,4497);await listen(planHttp,4697);await listen(browserHttp,shellPort)
   browser=await chromium.launch({headless:true})
   const owner=await page(),field=await page(),viewer=await page()
+  if(portalMode){
+   await check('portal navigation hidden until Firebase server session is confirmed',async()=>{
+    for(const p of [owner,field,viewer]){
+     assert.equal(await p.getByTestId('uat-operational-portal-pilot').count(),0)
+     assert.equal(await p.locator('[data-testid^="uat-operational-card-"]').count(),0)
+     assert.equal(await p.getByTestId('uat-full-spray').count(),0)
+    }
+   })
+   await check('Owner, custom Monthly and viewer see role-specific operational entry routes',async()=>{
+    await login(owner,'uat-owner')
+    await login(field,'uat-field')
+    await login(viewer,'uat-viewer')
+    for(const area of ['qc','data-unm','summary','calendar','users'])
+     assert.equal(await owner.getByTestId('uat-operational-card-'+area).count(),1)
+    assert.equal(await field.getByTestId('uat-operational-card-data-unm').count(),1)
+    assert.equal(await field.locator('[data-testid^="uat-operational-card-"]').count(),1)
+    assert.equal(await viewer.getByTestId('uat-operational-card-qc').count(),1)
+    assert.equal(await viewer.locator('[data-testid^="uat-operational-card-"]').count(),1)
+    assert.equal(await owner.getByRole('region',{name:'Edit dan hapus custom role UAT'}).count(),0)
+    await owner.getByTestId('uat-operational-card-users').click()
+    await expected(owner.getByTestId('uat-operational-active-area'),'users')
+    assert.equal(await owner.getByRole('region',{name:'Edit dan hapus custom role UAT'}).count(),1)
+    assert.equal(await owner.getByTestId('uat-full-spray').count(),0)
+    await field.getByTestId('uat-operational-card-data-unm').click()
+    await expected(field.getByTestId('uat-operational-active-area'),'data-unm')
+    await field.getByRole('button',{name:'Baca Monthly UAT'}).click()
+    await expected(field.getByTestId('read-result'),'monthly: uat-m1 / 900')
+    assert.equal(await field.getByTestId('uat-full-spray').count(),0)
+    await viewer.getByTestId('uat-operational-card-qc').click()
+    await expected(viewer.getByTestId('uat-operational-active-area'),'qc')
+    assert.equal(await viewer.getByTestId('uat-full-spray').count(),0)
+   })
+   await check('permission change and account switch reset navigation without root mutations',async()=>{
+    await mark('uat-field').set({...marker('mandor_spraying'),policyRevision:2,roleOverrides:{},manualOverrides:{}})
+    await field.getByRole('button',{name:'Refresh permission'}).click()
+    await expected(field.getByTestId('session-state'),'confirmed')
+    await expected(field.getByTestId('revision'),'2')
+    await expected(field.getByTestId('uat-operational-active-area'),'home')
+    assert.equal(await field.getByTestId('uat-operational-card-data-unm').count(),0)
+    assert.equal(await field.getByTestId('uat-operational-card-qc').count(),1)
+    await field.getByTestId('uat-operational-card-qc').click()
+    await expected(field.getByTestId('uat-operational-active-area'),'qc')
+    assert.equal(await field.getByTestId('uat-full-spray').count(),1)
+    assert.equal(await field.getByTestId('uat-full-fertilizer').count(),0)
+    await field.getByRole('button',{name:'Login uat-viewer',exact:true}).click()
+    await expected(field.getByTestId('actor'),'uat-viewer')
+    await expected(field.getByTestId('session-state'),'confirmed')
+    await expected(field.getByTestId('uat-operational-active-area'),'home')
+    assert.equal(await field.getByTestId('uat-full-spray').count(),0)
+    assert.equal(await field.getByTestId('uat-operational-card-users').count(),0)
+    assert.deepEqual(errors,[])
+    assert.deepEqual((await adb.doc('users/root-sentinel').get()).data(),{protected:true})
+    assert.deepEqual((await adb.doc('monthly_plans/root-sentinel').get()).data(),{protected:true})
+   })
+   console.log('SUCCESS: '+n+' isolated operational portal navigation browser delta checks passed (demo Firebase only)')
+  }else{
   await check('signed out has zero menus and Owner role editor',async()=>{
    for(const p of [owner,field,viewer]){
     assert.equal(await p.locator('[data-testid^="menu-"]').count(),0)
@@ -266,6 +323,7 @@ if(process.argv[2]==='--browser'){
    assert.equal(await field.locator('[data-testid^="menu-"]').count(),0)
   })
   console.log('SUCCESS: '+n+' unified UAT portal-shell React browser checks passed (real Auth, Owner UI and Planning HTTP, same token)')
+  }
  }finally{
   for(const c of contexts)await c.close()
   if(browser)await browser.close()
