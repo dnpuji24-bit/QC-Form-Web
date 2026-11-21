@@ -29,8 +29,8 @@ if(mode==='--browser'){
  assert.equal(process.env.FIRESTORE_EMULATOR_HOST,'127.0.0.1:8085','FIRESTORE_DEMO_REQUIRED')
  assert.equal(process.env.FIREBASE_AUTH_EMULATOR_HOST,'127.0.0.1:9099','AUTH_DEMO_REQUIRED')
  assert.equal(process.env.QC_UAT_MODE??'','', 'UNEXPECTED_UAT_MODE')
- const dir=process.env.QC_UAT_PLAYWRIGHT_DIR
- assert.ok(dir?.startsWith('/'),'QC_UAT_PLAYWRIGHT_DIR_REQUIRED')
+ const dir=process.env.QC_UAT_PLAYWRIGHT_DIR||((process.env.HOME||'')+'/qc-uat-playwright')
+ assert.ok(dir.startsWith('/')&&!dir.includes('..'),'QC_UAT_PLAYWRIGHT_DIR_REQUIRED')
  const {chromium}=createRequire(dir+'/package.json')('playwright')
  const require=createRequire(new URL('../server/qc-photo-access/package.json',import.meta.url))
  const {initializeApp,deleteApp}=require('firebase-admin/app')
