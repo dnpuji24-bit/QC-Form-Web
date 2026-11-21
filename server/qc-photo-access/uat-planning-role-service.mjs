@@ -885,3 +885,34 @@ export function createPlanningLegacyMappingService(deps){
   }
  })
 }
+
+
+// 11D.5c.2 synthetic form selection: fresh trusted Daily source, independent QC Edit permission.
+// This read does not require the user's Planning menu grant, nor return full Planning documents.
+// Production form data and material snapshots remain on their existing isolated paths.
+export function createPlanningQcSelectionService(deps){
+ const {adb}=deps,authorize=createAuthorizer(deps)
+ return Object.freeze({
+  async readSource(raw,input){
+   if(!input||Object.getPrototypeOf(input)!==Object.prototype||
+      Reflect.ownKeys(input).length!==2||
+      !Object.hasOwn(input,'dailyPlanId')||!Object.hasOwn(input,'formType')||
+      !sid(input.dailyPlanId)||!['spray','fertilizer'].includes(input.formType))fail('INVALID_QC_SOURCE_REQUEST')
+   return authorize(raw,input.formType,'edit',async tx=>{
+    const row=(await tx.get(adb.doc(prefix+'/daily_plans/'+input.dailyPlanId))).data()
+    if(!row)fail('MISSING_DAILY_PLAN')
+    currentPlanningRow('daily',input.dailyPlanId,row)
+    if(row.status!=='open')fail('PLAN_CLOSED')
+    if(row.formType!==input.formType)fail('QC_FORM_MISMATCH')
+    if(row.sourceType==='MONTHLY'){
+     const parent=(await tx.get(adb.doc(prefix+'/monthly_plans/'+row.monthlyPlanLineId))).data()
+     if(!parent)fail('MONTHLY_PARENT_NOT_FOUND')
+     currentPlanningRow('monthly',row.monthlyPlanLineId,parent)
+     if(parent.status!=='open'||parent.pid!==row.pid||parent.activityId!==row.activityId)fail('MONTHLY_PARENT_CLOSED')
+    }
+    const {dailyPlanId,monthlyPlanLineId,pid,date,shift,foreman,formType,area100,revision}=row
+    return {testOnly:true,dailyPlanId,monthlyPlanLineId,pid,date,shift,foreman,formType,area100,revision,readOnly:true}
+   },true)
+  }
+ })
+}

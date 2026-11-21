@@ -2,14 +2,15 @@
 // Owner HTTP stays on 4497; this trusted Planning adapter listens only on 127.0.0.1:4697.
 import {createServer} from 'node:http'
 import {unifiedGuard,unifiedHost} from './uat-unified-identity-guard.mjs'
-import {createPlanningService,createPlanningWriteService,createPlanningQcService} from './uat-planning-role-service.mjs'
+import {createPlanningService,createPlanningWriteService,createPlanningQcService,createPlanningQcSelectionService} from './uat-planning-role-service.mjs'
 export const unifiedPlanningPort=4697
 export const unifiedPlanningOrigin='http://'+unifiedHost+':'+unifiedPlanningPort
 export const unifiedPaths=Object.freeze({
  check:'/uat/unified/planning/check',
  read:'/uat/unified/planning/read',
  mutate:'/uat/unified/planning/mutate',
- qcCommit:'/uat/unified/qc/commit'
+ qcCommit:'/uat/unified/qc/commit',
+ qcSource:'/uat/unified/qc/source'
 })
 const exact=(v,ks)=>v&&Object.getPrototypeOf(v)===Object.prototype&&Reflect.ownKeys(v).length===ks.length&&ks.every(k=>Object.hasOwn(v,k))
 function error(status,code){throw Object.assign(Error(code),{status})}
@@ -31,7 +32,7 @@ function classify(e){
 export function createUnifiedPlanningHttp({adb,authAdmin}){
  const boundProject=unifiedGuard()
  if(adb.projectId!==boundProject||authAdmin.app.options.projectId!==boundProject)error(503,'WRONG_PROJECT')
- const planner=createPlanningService({adb,authAdmin}),writer=createPlanningWriteService({adb,authAdmin}),qc=createPlanningQcService({adb,authAdmin})
+ const planner=createPlanningService({adb,authAdmin}),writer=createPlanningWriteService({adb,authAdmin}),qc=createPlanningQcService({adb,authAdmin}),selector=createPlanningQcSelectionService({adb,authAdmin})
  return createServer(async(req,res)=>{
   res.setHeader('Content-Type','application/json; charset=utf-8')
   res.setHeader('Cache-Control','no-store')
@@ -56,6 +57,10 @@ export function createUnifiedPlanningHttp({adb,authAdmin}){
    if(req.url===unifiedPaths.mutate){
     if(!exact(input,['scope','request']))error(400,'INVALID_REQUEST')
     return send(200,{plan:await writer.mutate(auth[1],input.scope,input.request)})
+   }
+   if(req.url===unifiedPaths.qcSource){
+    if(!exact(input,['request']))error(400,'INVALID_REQUEST')
+    return send(200,{source:await selector.readSource(auth[1],input.request)})
    }
    if(req.url===unifiedPaths.qcCommit){
     if(!exact(input,['request']))error(400,'INVALID_REQUEST')
