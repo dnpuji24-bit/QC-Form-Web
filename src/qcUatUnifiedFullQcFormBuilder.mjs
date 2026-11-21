@@ -16,7 +16,7 @@ const identity=v=>{need(v&&/^uat-[a-z0-9-]{1,60}$/.test(v.uid)&&/^[a-z0-9-]{1,40
  ['draft','ready'].includes(v.saveType)&&typeof v.createdAt==='string'&&!Number.isNaN(Date.parse(v.createdAt)),'INVALID_FORM_IDENTITY');return v}
 function timeline(editor,ready){
  if(!ready&&!editor.startTime&&!editor.endTime)return {workingDurationMinutes:0,holdTotalMinutes:0,effectiveWorkingMinutes:0,holdIntervals:[]}
- const a=clock(editor.startTime),raw=clock(editor.endTime),b=raw<=a?raw+1440:raw
+ const a=clock(editor.startTime),raw=clock(editor.endTime),b=raw<a?raw+1440:raw
  need(b>a&&b-a<=1440,'INVALID_FORM_DURATION')
  const day=t=>{let x=clock(t);return raw<a&&x<a?x+1440:x}
  const holds=editor.holds.map((h,i)=>{
