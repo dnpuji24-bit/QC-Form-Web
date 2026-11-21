@@ -14,7 +14,8 @@
     "test:uat:ui": "node scripts/run-qc-uat-gates.mjs ui",
     "test:uat:full-ui": "node scripts/run-qc-uat-gates.mjs full-ui",
     "test:uat:carryover": "node scripts/run-qc-uat-gates.mjs carryover",
-    "test:uat:photo-stage": "node scripts/run-qc-uat-gates.mjs photo-stage"
+    "test:uat:photo-stage": "node scripts/run-qc-uat-gates.mjs photo-stage",
+    "test:uat:photo-trust": "node scripts/test-qc-uat-unified-photo-trusted-stage.mjs && npm run typecheck"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
