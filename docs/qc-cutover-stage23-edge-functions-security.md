@@ -40,3 +40,9 @@ Status: **kode tersimpan pada branch pengembangan; eksekusi gate Cloud Shell bel
 - Perlu uji integrasi nyata terhadap satu foto QC **baru** melalui akses edit, signed-read Viewer, revocation, dan retry, dengan prosedur pembatalan/rollback; dokumen foto Drive lama sama sekali tidak tersentuh.
 - Preview Hosting, izin Firestore produksi, alur form, ekspor Excel, offline queue, rollback data dan hosting masih perlu dipastikan sebelum rilis penuh.
 - **Tidak ada deployment atau perubahan layanan produksi pada tahap ini.**
+
+## Koreksi skrip pengujian Cloud Shell (2026-11-22)
+
+Eksekusi awal `npm run test:cutover:photo-edge-readiness` berhenti sebelum tiga kontrak dijalankan dengan `TypeError: Cannot read properties of undefined (reading 'ES2022')` pada `ts.ScriptTarget.ES2022`. Project memakai TypeScript `latest` yang tidak menjamin API compiler JavaScript lama. Untuk Cloud Shell Node.js 26.13.0, skrip kini memakai `stripTypeScriptTypes` bawaan `node:module` untuk menghapus hanya type annotations pada `manifest.ts`, lalu memuat JS melalui data URI. Tidak mengubah fungsi Supabase maupun TypeScript aplikasi.
+
+Jalankan ulang command yang sama. Perbaikan sintaks lokal diperiksa, tetapi hasil tiga kontrak dan typecheck dari Cloud Shell belum diketahui. Fungsi operasional tetap belum dideploy.
