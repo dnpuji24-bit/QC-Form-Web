@@ -31,7 +31,7 @@ if(process.argv[2]==='--browser'){
  assert.ok(directory?.startsWith('/'),'QC_UAT_PLAYWRIGHT_DIR_REQUIRED')
  const {chromium}=createRequire(directory+'/package.json')('playwright')
  const {build}=await import('vite')
- const allow=['UatRoleLifecyclePanel.tsx','accessControl.ts','qcUatSessionPermissions.mjs','qcUatRolePermissions.mjs','qcUatCustomRoles.mjs','UatUnifiedOperationalForm.jsx','qcUatUnifiedOperationalForm.mjs']
+ const allow=['UatRoleLifecyclePanel.tsx','accessControl.ts','qcUatSessionPermissions.mjs','qcUatRolePermissions.mjs','qcUatCustomRoles.mjs','UatUnifiedOperationalForm.jsx','qcUatUnifiedOperationalForm.mjs','UatUnifiedFullOperationalForm.jsx','qcUatUnifiedFullQcFormBuilder.mjs','qcUatSprayFullDto.mjs','qcUatFertilizerFullDto.mjs']
  const plugin={name:'unified-portal-shell-source-allowlist',enforce:'pre',generateBundle(_opts,bundle){
   const ids=Object.values(bundle).filter(x=>x.type==='chunk').flatMap(x=>Object.keys(x.modules))
   const src=ids.filter(x=>x.startsWith(root+'src/')).map(x=>x.slice((root+'src/').length))

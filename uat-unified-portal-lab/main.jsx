@@ -6,6 +6,7 @@ import {initializeApp} from 'firebase/app'
 import {initializeAuth,inMemoryPersistence,connectAuthEmulator,onAuthStateChanged,signInWithEmailAndPassword,signOut} from 'firebase/auth'
 import RoleLifecycle from '../src/UatRoleLifecyclePanel'
 import UatUnifiedOperationalForm from '../src/UatUnifiedOperationalForm.jsx'
+import UatUnifiedFullOperationalForm from '../src/UatUnifiedFullOperationalForm.jsx'
 import {validateCustomRole} from '../src/qcUatCustomRoles.mjs'
 import {validateSession} from '../src/qcUatSessionPermissions.mjs'
 if(location.origin!=='http://127.0.0.1:4797')throw Error('UNIFIED_BROWSER_ORIGIN')
@@ -35,6 +36,19 @@ function adapterFor(user){
   isCurrent:u=>auth.currentUser===u,
   qcSource:async(formType,dailyPlanId)=>(await planning('/uat/unified/qc/source',{request:{formType,dailyPlanId}})).source,
   qcCommit:async(request)=>(await planning('/uat/unified/qc/commit',{request})).qc,
+  fullQcSource:async(formType,dailyPlanId)=>{
+   const scalar=(await planning('/uat/unified/qc/source',{request:{formType,dailyPlanId}})).source
+   if(scalar?.readOnly!==true||scalar?.dailyPlanId!==dailyPlanId||scalar?.formType!==formType)throw Error('INVALID_SCALAR_SOURCE')
+   const request={dailyPlanId,expectedDailyRevision:scalar.revision,formType,date:scalar.date,shift:scalar.shift,foreman:scalar.foreman}
+   const source=(await planning('/uat/unified/qc/full/source',{request})).source
+   if(source?.dailyPlanId!==dailyPlanId||source?.kind!==formType||source?.dailyRevision!==scalar.revision)throw Error('INVALID_FULL_SOURCE')
+   return source
+  },
+  fullQcCommit:async(formType,request)=>{
+   if(formType!==request.record?.formType||!['spray','fertilizer'].includes(formType))throw Error('FORM_KIND_DENIED')
+   const route=formType==='spray'?'/uat/unified/qc/full/spray/commit':'/uat/unified/qc/full/fertilizer/commit'
+   return (await planning(route,{request})).qc
+  },
   session:async()=>validateSession((await owner('/uat/session/permissions',{})).session,user.uid),
   read:async(scope,id)=>(await planning('/uat/unified/planning/read',{scope,id})).plan,
   lifecycle:{
@@ -128,7 +142,9 @@ function App(){
   </nav>
   <p data-testid="read-result">{result}</p>
   {user&&api&&mode('qc_spraying')==='edit'&&<UatUnifiedOperationalForm key={'spray-'+user.uid+'-'+session.policyRevision} user={user} kind="spray" api={api}/>}
-  {user&&api&&mode('qc_fertilizer')==='edit'&&<UatUnifiedOperationalForm key={'fertilizer-'+user.uid+'-'+session.policyRevision} user={user} kind="fertilizer" api={api}/>} 
+  {user&&api&&mode('qc_spraying')==='edit'&&<UatUnifiedFullOperationalForm key={'full-spray-'+user.uid+'-'+session.policyRevision} user={user} kind="spray" api={api}/>}
+  {user&&api&&mode('qc_fertilizer')==='edit'&&<UatUnifiedOperationalForm key={'fertilizer-'+user.uid+'-'+session.policyRevision} user={user} kind="fertilizer" api={api}/>}
+  {user&&api&&mode('qc_fertilizer')==='edit'&&<UatUnifiedFullOperationalForm key={'full-fertilizer-'+user.uid+'-'+session.policyRevision} user={user} kind="fertilizer" api={api}/>} 
   {owner&&api&&<RoleLifecycle key={'owner-'+user.uid} adapter={api.lifecycle}/>}
  </main>
 }
