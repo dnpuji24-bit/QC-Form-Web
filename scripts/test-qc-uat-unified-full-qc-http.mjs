@@ -163,6 +163,8 @@ if(process.argv[2]==='--emulator'){
   await check('photo payload is rejected; no silent scanner or URL state; direct browser writes denied',async()=>{
    assert.throws(()=>prepareUnifiedFullQc({...sj,source:ss,record:{...spray,photoBase64:'data:image/jpeg;base64,AA=='}}),{message:'PHOTO_GATE_PENDING'})
    assert.throws(()=>prepareUnifiedFullQc({...fj,source:fs,record:{...fert,scanReportDriveUrl:'https://photo.example'}}),{message:'PHOTO_GATE_PENDING'})
+   const huge=await post(operator.token,unifiedPaths.fullSprayCommit,{request:sj,padding:'x'.repeat(70000)})
+   assert.equal(huge.status,413,'ONLY_BOUNDED_FULL_DTO')
    await assert.rejects(setDoc(doc(operator.db,base+'/qc_spray_full/uat-injected'),{testOnly:true}),{code:'permission-denied'})
    assert.deepEqual((await adb.doc('users/root-sentinel').get()).data(),{protected:true})
   })
