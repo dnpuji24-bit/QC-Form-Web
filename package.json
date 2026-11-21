@@ -29,7 +29,7 @@
     "test:uat:portal-browse": "node scripts/run-qc-uat-gates.mjs portal-browse",
     "test:cutover:drive-retention": "node --check scripts/test-qc-cutover-drive-retention-delta.mjs && node scripts/test-qc-cutover-drive-retention-delta.mjs",
     "test:cutover:native-boundary": "node --check scripts/test-qc-native-boundary-delta.mjs && node scripts/test-qc-native-boundary-delta.mjs && npm run typecheck",
-    "test:cutover:native-browser": "node scripts/test-qc-native-cutover-browser.mjs --self-test && firebase emulators:exec --only firestore,auth --project demo-qc-photo-test --config scripts/firebase.native-cutover-browser-emulator.json \"env -u GOOGLE_CLOUD_PROJECT -u FIREBASE_PROJECT_ID -u QC_UAT_MODE GCLOUD_PROJECT=demo-qc-photo-test FIRESTORE_EMULATOR_HOST=127.0.0.1:8085 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 node scripts/test-qc-native-cutover-browser.mjs --browser\""
+    "test:cutover:native-browser": "node scripts/test-qc-native-cutover-browser.mjs --self-test && firebase emulators:exec --only firestore,auth --project demo-qc-photo-test --config firebase.native-cutover-browser-emulator.json \"env -u GOOGLE_CLOUD_PROJECT -u FIREBASE_PROJECT_ID -u QC_UAT_MODE GCLOUD_PROJECT=demo-qc-photo-test FIRESTORE_EMULATOR_HOST=127.0.0.1:8085 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 node scripts/test-qc-native-cutover-browser.mjs --browser\""
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
