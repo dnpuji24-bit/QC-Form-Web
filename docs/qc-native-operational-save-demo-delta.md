@@ -11,6 +11,12 @@ Screenshot Cloud Shell terbaru: 4/4 `test:cutover:native-browser` PASS, exit 0. 
 - **Ini tes form bridge + save adapter**, belum simulasi klik/mengisi semua input QC di UI manual, dan bukan konfirmasi upload Supabase asli.
 - Script tidak mengubah file Rules, akun, proyek atau data produksi. Foto historis Drive **tidak disalin, ditimpa, dihapus, atau ditulis ulang**.
 
+## Koreksi setelah log Cloud Shell (22 November 2026)
+- Gate awal tidak mencapai transaksi QC. Browser gagal melakukan `import('/src/qcOperationalFormBridge.ts')` karena Vite dikonfigurasi dengan `base:'/react/'`; URL modul yang benar adalah `/react/src/qcOperationalFormBridge.ts`. Pemanggilan modul adaptor dan cache foto dalam skrip pengujian juga telah diperbaiki ke root `/react/src/`.
+- Tambahan preflight mengambil URL modul yang sudah ditransformasi Vite, menolak HTTP gagal/HTML fallback, dan memberi error `VITE_NATIVE_BRIDGE_MODULE_UNAVAILABLE` bila jalur berubah.
+- Perbaikan hanya menyentuh skrip browser UAT, tidak mengubah kode aplikasi utama, Firestore Rules, database, akses foto Google Drive, bucket Supabase, atau data produksi.
+- **Belum ada klaim empat tes lulus** sampai gate di bawah dijalankan ulang di Cloud Shell.
+
 ## Satu perintah Cloud Shell
 ```bash
 cd ~/QC-Form-Web
