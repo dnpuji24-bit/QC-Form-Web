@@ -2,7 +2,7 @@
 // Owner HTTP stays on 4497; this trusted Planning adapter listens only on 127.0.0.1:4697.
 import {createServer} from 'node:http'
 import {unifiedGuard,unifiedHost} from './uat-unified-identity-guard.mjs'
-import {createPlanningService,createPlanningWriteService,createPlanningQcService,createPlanningQcSelectionService,createPlanningQcSourceService,createPlanningSprayCommitService,createPlanningFertilizerCommitService} from './uat-planning-role-service.mjs'
+import {createPlanningService,createPlanningWriteService,createPlanningQcService,createPlanningQcSelectionService,createPlanningQcSourceService,createPlanningSprayCommitService,createPlanningFertilizerCommitService,createPlanningPhotoCommitService} from './uat-planning-role-service.mjs'
 export const unifiedPlanningPort=4697
 export const unifiedPlanningOrigin='http://'+unifiedHost+':'+unifiedPlanningPort
 export const unifiedPaths=Object.freeze({
@@ -13,7 +13,9 @@ export const unifiedPaths=Object.freeze({
  qcSource:'/uat/unified/qc/source',
  fullSource:'/uat/unified/qc/full/source',
  fullSprayCommit:'/uat/unified/qc/full/spray/commit',
- fullFertilizerCommit:'/uat/unified/qc/full/fertilizer/commit'
+ fullFertilizerCommit:'/uat/unified/qc/full/fertilizer/commit',
+ // Only mounted when the isolated emulator server is explicitly injected with a trusted store.
+ fullPhotoCommit:'/uat/unified/qc/full/photo/commit'
 })
 const exact=(v,ks)=>v&&Object.getPrototypeOf(v)===Object.prototype&&Reflect.ownKeys(v).length===ks.length&&ks.every(k=>Object.hasOwn(v,k))
 function error(status,code){throw Object.assign(Error(code),{status})}
@@ -33,10 +35,11 @@ export function classifyUnifiedPlanningError(e){
  if(typeof code==='string'&&/^(?:INVALID_|MISSING_|PLAN_|PLANNING_|MONTHLY_|DAILY_|QC_|GROUP_|FULL_|SPRAY_|FERTILIZER_|SOURCE_|MATERIAL_|PHOTO_|PRODUCT_|UNMAPPED_)/.test(code))return [409,'CONTRACT_REJECTED']
  return [500,'SERVICE_UNAVAILABLE']
 }
-export function createUnifiedPlanningHttp({adb,authAdmin}){
+export function createUnifiedPlanningHttp({adb,authAdmin,photoStore=null}){
  const boundProject=unifiedGuard()
  if(adb.projectId!==boundProject||authAdmin.app.options.projectId!==boundProject)error(503,'WRONG_PROJECT')
  const planner=createPlanningService({adb,authAdmin}),writer=createPlanningWriteService({adb,authAdmin}),qc=createPlanningQcService({adb,authAdmin}),selector=createPlanningQcSelectionService({adb,authAdmin}),fullSource=createPlanningQcSourceService({adb,authAdmin}),fullSpray=createPlanningSprayCommitService({adb,authAdmin}),fullFertilizer=createPlanningFertilizerCommitService({adb,authAdmin})
+ const photos=photoStore?createPlanningPhotoCommitService({adb,authAdmin,photoStore}):null
  return createServer(async(req,res)=>{
   res.setHeader('Content-Type','application/json; charset=utf-8')
   res.setHeader('Cache-Control','no-store')
@@ -49,8 +52,11 @@ export function createUnifiedPlanningHttp({adb,authAdmin}){
    if(req.method!=='POST')error(405,'METHOD_DENIED')
    const auth=/^Bearer ([^\s]+)$/.exec(req.headers.authorization??'')
    if(!auth)error(401,'AUTH_REQUIRED')
+   const photoSubmit=req.url===unifiedPaths.fullPhotoCommit
+   // Fail before reading multi-megabyte payloads unless a trusted emulator-only store exists.
+   if(photoSubmit&&!photos)error(404,'ROUTE_DENIED')
    const fullSubmit=[unifiedPaths.fullSprayCommit,unifiedPaths.fullFertilizerCommit].includes(req.url)
-   const input=await parseJson(req,fullSubmit?65536:8192)
+   const input=await parseJson(req,photoSubmit?9437184:fullSubmit?65536:8192)
    if(req.url===unifiedPaths.check){
     if(!exact(input,['scope','operation']))error(400,'INVALID_REQUEST')
     return send(200,{capability:await planner.check(auth[1],input.scope,input.operation)})
@@ -78,6 +84,10 @@ export function createUnifiedPlanningHttp({adb,authAdmin}){
    if(req.url===unifiedPaths.fullFertilizerCommit){
     if(!exact(input,['request']))error(400,'INVALID_REQUEST')
     return send(200,{qc:await fullFertilizer.commit(auth[1],input.request)})
+   }
+   if(req.url===unifiedPaths.fullPhotoCommit){
+    if(!exact(input,['sourceRequest','request','photos']))error(400,'INVALID_REQUEST')
+    return send(200,await photos.commit(auth[1],input))
    }
    if(req.url===unifiedPaths.qcCommit){
     if(!exact(input,['request']))error(400,'INVALID_REQUEST')
