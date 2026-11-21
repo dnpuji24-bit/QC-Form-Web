@@ -7,6 +7,7 @@ import {planningRequest,nextPlanningRow,verifyMonthlyParent,currentPlanningRow} 
 import {planningQcInput,planningQcSnapshot,planningCarryoverSnapshot} from '../../src/qcUatPlanningQcBridge.mjs'
 import {commitSyntheticQc} from '../../src/qcUatQcLifecycleContract.mjs'
 import {verifiedPhotoLedger,verifyPhotoLedgerPair} from '../../src/qcUatVerifiedPhotoLedger.mjs'
+import {requirePhotoOnlyCorrection} from '../../src/qcUatPhotoCorrectionPolicy.mjs'
 import {createTrustedPhotoStage,mockBucket,privateUatBucket} from './uat-unified-photo-trusted-stage.mjs'
 import {dailyGroupCreate} from '../../src/qcUatDailyGroupContract.mjs'
 import {activityComponents,monthlySnapshotRequest,monthlySnapshot,dailySnapshot,validateGroupResources,aggregateGroupMaterials,materialTotals,readMonthlySnapshot,readGroupSnapshot,reviseDailySnapshot} from '../../src/qcUatPlanningMasterSnapshot.mjs'
@@ -473,8 +474,14 @@ function createPlanningSprayCommitInternal(deps){
     if(!ledger&&(photoRow||photoAudit))fail('PHOTO_AWARE_COMMIT_REQUIRED')
     if(ledger){
      if(old){
-      if(current?.clientRevision!==input.record.clientRevision)fail('PHOTO_CORRECTION_NOT_ENABLED')
-      verifyPhotoLedgerPair(photoRow,photoAudit,ledger)
+      if(current?.clientRevision===input.record.clientRevision){
+       verifyPhotoLedgerPair(photoRow,photoAudit,ledger)
+      }else{
+       const previousAudit=current?await read('qc_photo_manifest_audit',id+':'+current.clientRevision):null
+       requirePhotoOnlyCorrection({currentQc:current,oldFull:old,oldLedger:photoRow,
+        oldPhotoAudit:previousAudit,request:input,newLedger:ledger})
+       if(photoAudit)fail('QC_REVISION_REUSED')
+      }
      }else if(photoRow||photoAudit)fail('PHOTO_LEDGER_ORPHAN')
     }
     if(current&&(current.ownerUid!==uid||current.inputtedBy!==uid))fail('QC_OWNER_ONLY')
@@ -550,8 +557,14 @@ function createPlanningFertilizerCommitInternal(deps){
     if(!ledger&&(photoRow||photoAudit))fail('PHOTO_AWARE_COMMIT_REQUIRED')
     if(ledger){
      if(old){
-      if(current?.clientRevision!==input.record.clientRevision)fail('PHOTO_CORRECTION_NOT_ENABLED')
-      verifyPhotoLedgerPair(photoRow,photoAudit,ledger)
+      if(current?.clientRevision===input.record.clientRevision){
+       verifyPhotoLedgerPair(photoRow,photoAudit,ledger)
+      }else{
+       const previousAudit=current?await read('qc_photo_manifest_audit',id+':'+current.clientRevision):null
+       requirePhotoOnlyCorrection({currentQc:current,oldFull:old,oldLedger:photoRow,
+        oldPhotoAudit:previousAudit,request:input,newLedger:ledger})
+       if(photoAudit)fail('QC_REVISION_REUSED')
+      }
      }else if(photoRow||photoAudit)fail('PHOTO_LEDGER_ORPHAN')
     }
     if(current&&(current.ownerUid!==uid||current.inputtedBy!==uid))fail('QC_OWNER_ONLY')
