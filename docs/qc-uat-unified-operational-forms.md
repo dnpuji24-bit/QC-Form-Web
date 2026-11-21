@@ -32,3 +32,6 @@ Run `npm run test:uat:full` only at the release gate; it requires preinstalled P
 
 ## Next scope
 11D.5c.2b: carry existing actual SprayForm/FertilizerForm full fields (no lossy DTO), group and source snapshots, photo/outage metadata and corrective revisions through the trusted UAT backend; validate actual React UI end-to-end. Only after that can 11D.5c.2 be called fully integrated, and 11D.5c.3 photos/reports proceed safely.
+
+## Operator verification — 21 Nov 2026
+User-provided Cloud Shell screenshots show Quick Test **PASS** (10 contract checks, source/browser guards and TypeScript), and Smoke Test **PASS 8/8** with code 0 and correct permission-denied negative case. 11D.5c.2a is verified on the emulator. The trusted full DTO gateway was then authored at [11D.5c.2b.1](qc-uat-unified-full-qc-http.md), whose runtime is **pending**, and the actual production SprayForm/FertilizerForm are still not mounted in the unified UAT shell.
