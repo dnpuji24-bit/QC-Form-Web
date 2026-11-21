@@ -58,7 +58,7 @@ function full(){
  emu('existing unified Owner/Planning/QC (21)','demo-qc-uat-unified-role-planning',
   'firebase.uat-unified-role-planning-emulator.json',9285,10099,
   'scripts/test-qc-uat-unified-role-planning.mjs','--emulator',true)
- emu('React role/Planning/QC portal (15)','demo-qc-uat-unified-role-planning',
+ emu('React role/Planning/QC operational portal (17)','demo-qc-uat-unified-role-planning',
   'firebase.uat-unified-role-planning-emulator.json',9285,10099,
   'scripts/test-qc-uat-unified-portal-ui.mjs','--browser',true)
  emu('Owner role lifecycle regression (16)','demo-qc-uat-owner-http',
@@ -69,7 +69,7 @@ function full(){
    'firebase.uat-planning-role-emulator.json',9085,9899,
    'scripts/test-qc-uat-'+s+'.mjs','--emulator')
  }
- console.log('\nSUCCESS: release-gate baseline 120 emulator/browser checks plus quick contract and TypeScript. This is NOT all repository tests.')
+ console.log('\nSUCCESS: release-gate baseline 122 emulator/browser checks plus quick contract and TypeScript. This is NOT all repository tests.')
 }
 if(mode==='quick'){quick();console.log('\nSUCCESS: Quick Test contract and typecheck passed (no emulator)')}
 if(mode==='smoke'){smoke();console.log('\nSUCCESS: targeted 8-case emulator smoke passed')}
