@@ -10,7 +10,7 @@ import {planningSprayFixture} from './qc-uat-planning-spray-fixture.mjs'
 import {planningFertilizerFixture} from './qc-uat-planning-fertilizer-fixture.mjs'
 import {unifiedGuard,unifiedProjectId,unifiedHost,unifiedAuthPort,unifiedFirestorePort} from '../server/qc-photo-access/uat-unified-identity-guard.mjs'
 import {createPlanningMasterSnapshotService} from '../server/qc-photo-access/uat-planning-role-service.mjs'
-import {createUnifiedPlanningHttp,unifiedPaths,unifiedPlanningOrigin,unifiedPlanningPort} from '../server/qc-photo-access/uat-unified-planning-http.mjs'
+import {createUnifiedPlanningHttp,unifiedPaths,unifiedPlanningOrigin,unifiedPlanningPort,classifyUnifiedPlanningError} from '../server/qc-photo-access/uat-unified-planning-http.mjs'
 import {shellRoute,planningPrefix} from '../server/qc-photo-access/uat-unified-browser-shell.mjs'
 
 assert.ok(['--self-test','--emulator'].includes(process.argv[2])&&process.argv.length===3)
@@ -21,6 +21,10 @@ for(const route of fullRoutes){
  assert.equal(shellRoute(planningPrefix+route+'?query=evil'),null)
 }
 assert.equal(new Set(Object.values(unifiedPaths)).size,Object.values(unifiedPaths).length)
+assert.deepEqual(classifyUnifiedPlanningError(Error('PLANNING_FORM_MISMATCH')),[409,'CONTRACT_REJECTED'])
+assert.deepEqual(classifyUnifiedPlanningError(Error('MISSING_DAILY_PLAN')),[409,'CONTRACT_REJECTED'])
+assert.deepEqual(classifyUnifiedPlanningError(Error('QC_PERMISSION_DENIED')),[403,'ACCESS_DENIED'])
+assert.deepEqual(classifyUnifiedPlanningError(Error('UNEXPECTED_SERVER_FAILURE')),[500,'SERVICE_UNAVAILABLE'])
 assert.equal(shellRoute('/api/owner'+unifiedPaths.fullSprayCommit),null)
 for(const p of ['src/main.tsx','src/App.tsx','server/qc-photo-access/index.mjs']){
  assert.doesNotMatch(src(p),/UatUnifiedOperationalForm|uat-unified-planning-http|qcUatUnifiedFullQcTransport/)

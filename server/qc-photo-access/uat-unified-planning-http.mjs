@@ -24,13 +24,13 @@ async function parseJson(req,maxBytes=8192){
  if(overflow)error(413,'BODY_TOO_LARGE')
  try{return JSON.parse(Buffer.concat(chunks).toString('utf8'))}catch{error(400,'INVALID_JSON')}
 }
-function classify(e){
+export function classifyUnifiedPlanningError(e){
  const code=e?.message
  if(e?.status)return [e.status,code]
  if(code==='INVALID_TOKEN')return [401,'AUTH_REQUIRED']
  if(['UAT_IDENTITY_DENIED','PLANNING_PERMISSION_DENIED','QC_PERMISSION_DENIED','QC_OWNER_ONLY'].includes(code))return [403,'ACCESS_DENIED']
  if(code==='WRONG_PROJECT'||code==='UNIFIED_DEMO_EMULATORS_REQUIRED')return [503,'EMULATOR_GUARD_DENIED']
- if(typeof code==='string'&&/^(?:INVALID_|MISSING_|PLAN_|MONTHLY_|DAILY_|QC_|GROUP_|FULL_|SPRAY_|FERTILIZER_|SOURCE_|MATERIAL_|PHOTO_|PRODUCT_|UNMAPPED_)/.test(code))return [409,'CONTRACT_REJECTED']
+ if(typeof code==='string'&&/^(?:INVALID_|MISSING_|PLAN_|PLANNING_|MONTHLY_|DAILY_|QC_|GROUP_|FULL_|SPRAY_|FERTILIZER_|SOURCE_|MATERIAL_|PHOTO_|PRODUCT_|UNMAPPED_)/.test(code))return [409,'CONTRACT_REJECTED']
  return [500,'SERVICE_UNAVAILABLE']
 }
 export function createUnifiedPlanningHttp({adb,authAdmin}){
@@ -85,7 +85,7 @@ export function createUnifiedPlanningHttp({adb,authAdmin}){
    }
    error(404,'ROUTE_DENIED')
   }catch(e){
-   const [status,code]=classify(e)
+   const [status,code]=classifyUnifiedPlanningError(e)
    send(status,{error:code})
   }
  })
