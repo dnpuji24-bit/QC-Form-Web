@@ -70,6 +70,8 @@ await check('MIME spoofing, noncanonical base64 and disallowed SVG rejected',asy
  for(const bad of ['data:image/jpeg;base64,'+png.split(',')[1],png.replace('image/png','image/svg+xml'),png+'A']){
   await assert.rejects(()=>stage.stage('valid',mk({photos:[{...change,dataUrl:bad}]})))
  }
+ const invalidIdatCrc='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4//8/AwAI/AL+PcCaAAAAAElFTkSuQmCC'
+ await assert.rejects(()=>stage.stage('valid',mk({photos:[{...change,dataUrl:invalidIdatCrc}]})),{message:'PHOTO_BYTES_INVALID'})
  assert.equal(store.stats.puts,0)
 })
 await check('staged bytes never accepted after corrupted storage readback',async()=>{

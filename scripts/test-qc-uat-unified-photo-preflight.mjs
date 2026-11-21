@@ -30,6 +30,11 @@ await check('foreign or unknown hold reference rejected',async()=>{
 await check('wrong declared MIME, signature and empty data fail before manifest',async()=>{
  await assert.rejects(()=>stageUatPhoto({...args,file:file(png,'image/svg+xml','x.svg')}),{message:'PHOTO_MIME_DENIED'})
  await assert.rejects(()=>stageUatPhoto({...args,file:file(png,'image/jpeg','x.jpg')}),{message:'PHOTO_SIGNATURE_INVALID'})
+ const invalidIdatCrc=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4//8/AwAI/AL+PcCaAAAAAElFTkSuQmCC','base64'))
+ await assert.rejects(()=>stageUatPhoto({...args,file:file(invalidIdatCrc,'image/png','bad-crc.png')}),{message:'PHOTO_SIGNATURE_INVALID'})
+ const damaged=Uint8Array.from(png)
+ damaged[28]^=1 // flip IHDR without updating CRC
+ await assert.rejects(()=>stageUatPhoto({...args,file:file(damaged,'image/png','tampered.png')}),{message:'PHOTO_SIGNATURE_INVALID'})
  await assert.rejects(()=>stageUatPhoto({...args,file:file(new Uint8Array(0))}),{message:'PHOTO_SIZE_LIMIT'})
 })
 await check('over 2 MiB aborts before reading file bytes',async()=>{

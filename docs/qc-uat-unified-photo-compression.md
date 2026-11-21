@@ -45,3 +45,10 @@ npm run test:uat:photo-compress
 ```
 
 This is test-fixture and decoder-CSP compatibility repair only. The original UAT compression limits, SHA-256-after-compression behavior, write protection while photos are staged, and production isolation remain unchanged.
+
+## 21 Nov 2026 follow-up: decoder tolerance and deterministic PNG CRC validation
+The next operator Cloud Shell log confirmed all offline checks and TypeScript passed, as did the first six browser QC cases. Failure shifted to the previously-added negative PNG test at `scripts/test-qc-uat-unified-full-qc-ui.mjs:292`: it waited for `PHOTO_DECODE_FAILED` after submitting the former corrupt-IDAT fixture. The old PNG has objectively invalid IDAT CRC (stored hexadecimal `3dc09a00`, computed `e60cffab`), but Chromium may still decode it. Therefore the prior assumption that browser decode always rejects CRC corruption was incorrect. This error does not establish a failure in operational QC or large-photo compression.
+
+Fixed with explicit PNG structural and every-chunk CRC32 validation in `src/qcUatUnifiedPhotoPreflight.mjs`, strict IHDR-first / IDAT-present / terminal IEND, bounded image dimensions, chunk lengths and count. This produces a deterministic `PHOTO_SIGNATURE_INVALID` before image decode. The same signature helper is used by `validateUatOriginalPhoto()`, `stageUatPhoto()`, and the trusted staging service so damaged CRCs cannot be uploaded. The browser negative test now requires that code, plus zero staged items. Two existing offline tests were extended, not counted as new tests, to reject corrupt PNG CRC and IHDR tampering without any upload or QC write.
+
+Rerun `npm run test:uat:photo-compress` on this commit. Runtime confirmation is pending. No live Supabase, production, browser scanner, or original QC service changed.
