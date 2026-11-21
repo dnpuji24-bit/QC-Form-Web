@@ -41,11 +41,15 @@ function quick(){
   'server/qc-photo-access/uat-unified-browser-shell.mjs',
   'src/qcUatUnifiedOperationalForm.mjs',
   'src/qcUatUnifiedFullQcTransport.mjs',
+  'src/qcUatUnifiedFullQcFormBuilder.mjs',
+  'src/qcUatFertilizerFullDto.mjs',
+  'scripts/test-qc-uat-unified-full-qc-form.mjs',
   'scripts/test-qc-uat-unified-full-qc-http.mjs',
   'scripts/test-qc-uat-unified-operational-form-contract.mjs',
   'scripts/test-qc-uat-unified-operational-form-smoke.mjs'
  ])run('syntax '+s,process.execPath,['--check',s])
  node('form contract (10 cases)','scripts/test-qc-uat-unified-operational-form-contract.mjs')
+ node('full operational editor DTO contract (10 cases)','scripts/test-qc-uat-unified-full-qc-form.mjs')
  node('full form HTTP route and data loss guard','scripts/test-qc-uat-unified-full-qc-http.mjs','--self-test')
  node('unified source guard','scripts/test-qc-uat-unified-role-planning.mjs','--self-test')
  node('browser source guard','scripts/test-qc-uat-unified-portal-ui.mjs','--self-test')
