@@ -46,7 +46,7 @@ if(process.argv[2]==='--emulator'){
  const authAdmin=getAuth(admin),adb=getFirestore(admin),clients=[],base='qc_uat_workspaces/cutover'
  const root=(c,id)=>adb.doc(base+'/'+c+'/'+id)
  const mark=uid=>adb.doc('qc_uat_identities/'+uid)
- const server=createUnifiedPlanningHttp({adb,authAdmin}),uid='uat-fullop'
+ const store=createMemoryPhotoObjectStore(),server=createUnifiedPlanningHttp({adb,authAdmin,photoStore:store}),uid='uat-fullop'
  let n=0
  const check=async(label,fn)=>{try{await fn()}catch(cause){throw Error('FAIL: '+label,{cause})}n++;console.log('PASS: '+label)}
  const baseMarker=(role,manual={})=>{const m={...marker(role),policyRevision:0,roleOverrides:{},manualOverrides:manual};return {...m,permissions:permissionsForIdentity(m)}}
@@ -113,7 +113,7 @@ if(process.argv[2]==='--emulator'){
   const revised={...baseMarker('asisten',{data_plan_monthly:'none',data_plan_daily:'none'}),policyRevision:1}
   await mark(uid).set(revised)
 
-   const store=createMemoryPhotoObjectStore(),service=createPlanningPhotoCommitService({adb,authAdmin,photoStore:store})
+   const service=createPlanningPhotoCommitService({adb,authAdmin,photoStore:store})
    const ss=(await readSource(operator.token,'uat-ds','spray')).body.source
    const fs=(await readSource(operator.token,'uat-df','fertilizer')).body.source
    const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGM0atryn4GBgYGJAQoAJCYCa4s7a6wAAAAASUVORK5CYII='
@@ -139,6 +139,14 @@ if(process.argv[2]==='--emulator'){
     assert.equal(store.stats.puts,1)
     assert.equal((await post(operator.token,unifiedPaths.fullSprayCommit,{request:sr})).status,409)
     assert.equal((await adb.collection(base+'/qc_photo_manifest_audit').get()).size,1)
+   })
+   await check('emulator HTTP photo endpoint returns exact immutable Spray replay receipt',async()=>{
+    const before=store.stats.puts
+    const res=await post(operator.token,unifiedPaths.fullPhotoCommit,si)
+    assert.equal(res.status,200)
+    assert.equal(res.body.photo.status,'committed')
+    assert.equal(res.body.photo.count,1)
+    assert.equal(store.stats.puts,before)
    })
    await check('Fertilizer main+scan produces independent NK/DAP Actual and photo ledger',async()=>{
     const out=await service.commit(operator.token,fi)
