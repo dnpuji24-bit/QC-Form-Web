@@ -9,8 +9,11 @@ import UatUnifiedOperationalForm from '../src/UatUnifiedOperationalForm.jsx'
 import UatUnifiedFullOperationalForm from '../src/UatUnifiedFullOperationalForm.jsx'
 import {validateCustomRole} from '../src/qcUatCustomRoles.mjs'
 import {validateSession} from '../src/qcUatSessionPermissions.mjs'
+import {allowedUatOperationalAreas,resolveUatOperationalArea} from '../src/qcUatOperationalPortalNavigation.mjs'
 import {fullQcExecutionRequest,validateFullQcExecutionSource} from '../src/qcUatUnifiedCarryoverSelection.mjs'
 if(location.origin!=='http://127.0.0.1:4797')throw Error('UNIFIED_BROWSER_ORIGIN')
+// This isolated navigation is enabled ONLY in a dedicated UAT browser bundle.
+const operationalPortalPilot=typeof __QC_UAT_OPERATIONAL_PORTAL__!=='undefined'&&__QC_UAT_OPERATIONAL_PORTAL__===true
 const app=initializeApp({projectId:'demo-qc-uat-unified-role-planning',apiKey:'demo-only-not-a-real-key'})
 const auth=initializeAuth(app,{persistence:inMemoryPersistence})
 connectAuthEmulator(auth,'http://127.0.0.1:10099',{disableWarnings:true})
@@ -80,6 +83,7 @@ function App(){
  const [user,setUser]=useState(null),[session,setSession]=useState(null)
  const [state,setState]=useState('signed-out'),[busy,setBusy]=useState(false)
  const [result,setResult]=useState('')
+ const [portalArea,setPortalArea]=useState('home')
  const seq=useRef(0),identity=useRef(null),refreshRef=useRef(()=>{})
  useEffect(()=>{
   let active=true
@@ -127,6 +131,12 @@ function App(){
   }
  }
  const mode=key=>session?.permissions[key]??'none'
+ useEffect(()=>{if(operationalPortalPilot)setPortalArea('home')},[user?.uid,session?.policyRevision])
+ const areas=operationalPortalPilot?allowedUatOperationalAreas(session):[]
+ const area=operationalPortalPilot?resolveUatOperationalArea(session,portalArea):'home'
+ const showData=!operationalPortalPilot||area==='data-unm'
+ const showQc=!operationalPortalPilot||area==='qc'
+ const showUsers=!operationalPortalPilot||area==='users'
  const visible=key=>['view','edit'].includes(mode(key))
  const owner=!!session&&session.role==='owner'&&session.uid===user?.uid
  return <main>
@@ -139,26 +149,40 @@ function App(){
   {fixtures.map(uid=><button key={uid} disabled={busy} onClick={()=>void login(uid)}>Login {uid}</button>)}
   <button disabled={!user||busy} onClick={()=>void signOut(auth)}>Logout</button>
   <button disabled={!user||busy} onClick={()=>void refreshRef.current()}>Refresh permission</button>
+  {operationalPortalPilot&&state==='confirmed'&&session&&<section data-testid="uat-operational-portal-pilot" aria-label="Portal Operasional UAT">
+   <h2>Operational Portal — UAT terisolasi</h2>
+   <p>Menu mengikuti permission Firebase terverifikasi. Modul produksi belum terhubung.</p>
+   <p data-testid="uat-operational-active-area">{area}</p>
+   {area!=='home'&&<button type="button" onClick={()=>setPortalArea('home')}>Menu Utama</button>}
+   {area==='home'&&<nav aria-label="Pilih area kerja UAT">
+    {areas.map(item=><button type="button" key={item.id}
+     data-testid={'uat-operational-card-'+item.id}
+     onClick={()=>setPortalArea(item.id)}>{item.label}</button>)}
+   </nav>}
+   {area==='summary'&&<p data-testid="uat-operational-summary">Summary: izin terverifikasi; dashboard produksi belum diaktifkan dalam pilot ini.</p>}
+   {area==='calendar'&&<p data-testid="uat-operational-calendar">Calendar Rekap: izin terverifikasi; kalender produksi belum diaktifkan dalam pilot ini.</p>}
+   {area==='users'&&<p data-testid="uat-operational-users">Users & Access: editor role UAT, bukan data produksi.</p>}
+  </section>}
   <nav aria-label="Menu berdasarkan permission server">
-   {visible('data_plan_monthly')&&<section data-testid="menu-monthly">
+   {showData&&visible('data_plan_monthly')&&<section data-testid="menu-monthly">
     <strong>Monthly Plan · {mode('data_plan_monthly')}</strong>
     <button onClick={()=>void read('monthly','uat-m1')}>Baca Monthly UAT</button>
    </section>}
-   {visible('data_plan_daily')&&<section data-testid="menu-daily">
+   {showData&&visible('data_plan_daily')&&<section data-testid="menu-daily">
     <strong>Daily Plan · {mode('data_plan_daily')}</strong>
     <button onClick={()=>void read('daily','uat-d1')}>Baca Daily UAT</button>
    </section>}
-   {visible('data_plan_summary')&&<span data-testid="menu-summary">Summary · {mode('data_plan_summary')}</span>}
-   {visible('data_plan_actual')&&<span data-testid="menu-actual">Actual · {mode('data_plan_actual')}</span>}
-   {visible('qc_spraying')&&<span data-testid="menu-spray">QC Spray · {mode('qc_spraying')}</span>}
-   {visible('qc_fertilizer')&&<span data-testid="menu-fertilizer">QC Fertilizer · {mode('qc_fertilizer')}</span>}
+   {showData&&visible('data_plan_summary')&&<span data-testid="menu-summary">Summary · {mode('data_plan_summary')}</span>}
+   {showData&&visible('data_plan_actual')&&<span data-testid="menu-actual">Actual · {mode('data_plan_actual')}</span>}
+   {showQc&&visible('qc_spraying')&&<span data-testid="menu-spray">QC Spray · {mode('qc_spraying')}</span>}
+   {showQc&&visible('qc_fertilizer')&&<span data-testid="menu-fertilizer">QC Fertilizer · {mode('qc_fertilizer')}</span>}
   </nav>
-  <p data-testid="read-result">{result}</p>
-  {user&&api&&mode('qc_spraying')==='edit'&&<UatUnifiedOperationalForm key={'spray-'+user.uid+'-'+session.policyRevision} user={user} kind="spray" api={api}/>}
-  {user&&api&&mode('qc_spraying')==='edit'&&<UatUnifiedFullOperationalForm key={'full-spray-'+user.uid+'-'+session.policyRevision} user={user} kind="spray" api={api}/>}
-  {user&&api&&mode('qc_fertilizer')==='edit'&&<UatUnifiedOperationalForm key={'fertilizer-'+user.uid+'-'+session.policyRevision} user={user} kind="fertilizer" api={api}/>}
-  {user&&api&&mode('qc_fertilizer')==='edit'&&<UatUnifiedFullOperationalForm key={'full-fertilizer-'+user.uid+'-'+session.policyRevision} user={user} kind="fertilizer" api={api}/>} 
-  {owner&&api&&<RoleLifecycle key={'owner-'+user.uid} adapter={api.lifecycle}/>}
+  {showData&&<p data-testid="read-result">{result}</p>}
+  {showQc&&user&&api&&mode('qc_spraying')==='edit'&&<UatUnifiedOperationalForm key={'spray-'+user.uid+'-'+session.policyRevision} user={user} kind="spray" api={api}/>}
+  {showQc&&user&&api&&mode('qc_spraying')==='edit'&&<UatUnifiedFullOperationalForm key={'full-spray-'+user.uid+'-'+session.policyRevision} user={user} kind="spray" api={api}/>}
+  {showQc&&user&&api&&mode('qc_fertilizer')==='edit'&&<UatUnifiedOperationalForm key={'fertilizer-'+user.uid+'-'+session.policyRevision} user={user} kind="fertilizer" api={api}/>}
+  {showQc&&user&&api&&mode('qc_fertilizer')==='edit'&&<UatUnifiedFullOperationalForm key={'full-fertilizer-'+user.uid+'-'+session.policyRevision} user={user} kind="fertilizer" api={api}/>} 
+  {showUsers&&owner&&api&&<RoleLifecycle key={'owner-'+user.uid} adapter={api.lifecycle}/>}
  </main>
 }
 createRoot(document.getElementById('root')).render(<App/>)
