@@ -1,0 +1,19 @@
+{
+  "firestore": {
+    "rules": "scripts/firestore.uat-planning-role-demo.rules"
+  },
+  "emulators": {
+    "firestore": {
+      "host": "127.0.0.1",
+      "port": 9285
+    },
+    "auth": {
+      "host": "127.0.0.1",
+      "port": 10099
+    },
+    "ui": {
+      "enabled": false
+    },
+    "singleProjectMode": true
+  }
+}

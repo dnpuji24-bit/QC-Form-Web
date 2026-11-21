@@ -1,5 +1,6 @@
 // Dedicated synthetic Planning authorization lab. Never mount in production.
 import {keys,roles} from '../../src/qcUatRolePermissions.mjs'
+import {unifiedGuard} from './uat-unified-identity-guard.mjs'
 import {permissionsForIdentity} from '../../src/qcUatCustomRoles.mjs'
 import {operationalPermissions} from './uat-operational-permissions.mjs'
 import {planningRequest,nextPlanningRow,verifyMonthlyParent,currentPlanningRow} from '../../src/qcUatPlanningWriteContract.mjs'
@@ -27,8 +28,10 @@ const scopes=Object.freeze({monthly:'data_plan_monthly',daily:'data_plan_daily',
 const collections=Object.freeze({monthly:'monthly_plans',daily:'daily_plans'})
 const fail=code=>{throw Error(code)}
 export function guard(e=process.env){
+ if(e.QC_UAT_MODE!==undefined)return unifiedGuard(e)
  if(e.GCLOUD_PROJECT!==projectId||e.FIRESTORE_EMULATOR_HOST!==host+':'+firestorePort||e.FIREBASE_AUTH_EMULATOR_HOST!==host+':'+authPort)fail('DEMO_EMULATORS_REQUIRED')
  for(const k of ['GOOGLE_CLOUD_PROJECT','FIREBASE_PROJECT_ID'])if(e[k]&&e[k]!==projectId)fail('WRONG_PROJECT')
+ return projectId
 }
 export function planningMode(permissions,scope,operation){
  if(!Object.hasOwn(scopes,scope)||!['view','edit'].includes(operation))fail('INVALID_PLANNING_OPERATION')
@@ -37,10 +40,10 @@ export function planningMode(permissions,scope,operation){
  return mode
 }
 function createAuthorizer({adb,authAdmin}){
- guard()
- if(authAdmin.app.options.projectId!==projectId||adb.projectId!==projectId)fail('WRONG_PROJECT')
+ const boundProject=guard()
+ if(authAdmin.app.options.projectId!==boundProject||adb.projectId!==boundProject)fail('WRONG_PROJECT')
  async function authorize(raw,scope,operation,read,internalQc=false){
-  guard()
+  if(guard()!==boundProject)fail('WRONG_PROJECT')
   if(typeof raw!=='string'||!raw||raw.length>16384)fail('INVALID_TOKEN')
   let token
   try{token=await authAdmin.verifyIdToken(raw,true)}catch{fail('INVALID_TOKEN')}

@@ -1,5 +1,6 @@
 // Dedicated demo only. Never mount in production HTTP service.
 import {createServer} from 'node:http'
+import {unifiedGuard} from './uat-unified-identity-guard.mjs'
 import {createRoleLifecycleService} from './uat-role-lifecycle-service.mjs'
 import {ownerPermissionChange} from '../../src/qcUatOwnerPermissionContract.mjs'
 import {registrationSubmit,registrationReview,registrationActivate,registrationPending,registrationDecide,registrationComplete,verifyRegistrationRow} from '../../src/qcUatCustomRoleRegistration.mjs'
@@ -12,8 +13,10 @@ const sid=v=>typeof v==='string'&&/^uat-[a-z0-9-]{1,60}$/.test(v)
 const exact=(v,keys)=>v&&Object.getPrototypeOf(v)===Object.prototype&&Object.keys(v).length===keys.length&&keys.every(k=>Object.hasOwn(v,k))
 function fail(status,code){throw Object.assign(Error(code),{status})}
 export function guard(e=process.env){
+ if(e.QC_UAT_MODE!==undefined)return unifiedGuard(e)
  if(e.GCLOUD_PROJECT!==projectId||e.FIRESTORE_EMULATOR_HOST!==host+':'+firestorePort||e.FIREBASE_AUTH_EMULATOR_HOST!==host+':'+authPort)throw Error('DEMO_EMULATORS_REQUIRED')
  for(const key of ['GOOGLE_CLOUD_PROJECT','FIREBASE_PROJECT_ID'])if(e[key]&&e[key]!==projectId)throw Error('WRONG_PROJECT')
+ return projectId
 }
 function ownerAllowed(token,m,profile){
  return sid(token.uid)&&token.qcUat===true&&m?.testOnly===true&&m.workspace==='cutover'&&m.enabled===true&&m.role==='owner'&&!profile
@@ -25,10 +28,11 @@ function row(uid,m,allowOwner=false,definition){
  return {uid,role:m.role,enabled:m.enabled,policyRevision:m.policyRevision,manualOverrides:m.manualOverrides,permissions}
 }
 export function createOwnerService({adb,authAdmin}){
- guard()
+ const boundProject=guard()
+ if(authAdmin.app.options.projectId!==boundProject||adb.projectId!==boundProject)throw Error('WRONG_PROJECT')
  const mark=uid=>adb.doc('qc_uat_identities/'+uid),profile=uid=>adb.doc('users/'+uid)
  async function tokenFor(raw){
-  guard()
+  if(guard()!==boundProject)throw Error('WRONG_PROJECT')
   let token;try{token=await authAdmin.verifyIdToken(raw,true)}catch{fail(401,'INVALID_TOKEN')}
   if(!sid(token.uid)||token.qcUat!==true)fail(403,'OWNER_REQUIRED')
   return token
@@ -229,12 +233,12 @@ async function json(req){
  try{return JSON.parse(Buffer.concat(chunks).toString('utf8'))}catch{fail(400,'INVALID_JSON')}
 }
 export function createOwnerHttp(service,labAssets=null){
- guard()
+ const boundProject=guard()
  return createServer(async(req,res)=>{
   res.setHeader('Cache-Control','no-store');res.setHeader('Content-Type','application/json');res.setHeader('X-Content-Type-Options','nosniff')
   const send=(status,data)=>{res.writeHead(status);res.end(JSON.stringify(data))}
   try{
-   guard()
+   if(guard()!==boundProject)throw Error('WRONG_PROJECT')
    if(req.headers.host!==host+':'+httpPort||(req.headers.origin!==undefined&&req.headers.origin!==origin))fail(403,'ORIGIN_DENIED')
    // Optional in-memory browser bundle for the dedicated emulator runner only.
    if(labAssets&&req.method==='GET'&&labAssets.has(req.url)){
