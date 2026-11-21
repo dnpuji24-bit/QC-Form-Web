@@ -26,7 +26,8 @@
     "test:uat:portal-integration": "node scripts/run-qc-uat-gates.mjs portal-integration",
     "test:uat:portal-modules": "node scripts/run-qc-uat-gates.mjs portal-modules",
     "test:uat:portal-records": "node scripts/run-qc-uat-gates.mjs portal-records",
-    "test:uat:portal-browse": "node scripts/run-qc-uat-gates.mjs portal-browse"
+    "test:uat:portal-browse": "node scripts/run-qc-uat-gates.mjs portal-browse",
+    "test:cutover:drive-retention": "node --check scripts/test-qc-cutover-drive-retention-delta.mjs && node scripts/test-qc-cutover-drive-retention-delta.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
