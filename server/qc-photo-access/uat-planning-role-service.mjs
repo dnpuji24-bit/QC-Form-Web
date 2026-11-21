@@ -132,7 +132,7 @@ export function createPlanningOperationalRecordsService(deps){
     if(q.mode==='recent'){
      // A fixed, bounded 100-latest listing across all QC; kind selection applies
      // within this top-100 window, never masquerades as global kind pagination.
-     const snap=await tx.get(col.orderBy('date','desc').orderBy('__name__','asc').limit(101))
+     const snap=await tx.get(col.orderBy('date','desc').limit(101))
      const records=operationalRecordsProjection(q,
       await verifiedPairs(tx,snap.docs.slice(0,100),q.kind))
      return Object.freeze({...records,window:'LATEST_100_ALL_KINDS',
