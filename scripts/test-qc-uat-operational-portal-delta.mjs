@@ -39,6 +39,11 @@ check('invalid/missing server session and production-bootstrap paths cannot enab
  for(const f of ['src/main.tsx','src/App.tsx','src/PortalRouter.tsx','server/qc-photo-access/index.mjs'])
   assert.doesNotMatch(path(f),/qcUatOperationalPortalNavigation|__QC_UAT_OPERATIONAL_PORTAL__|uat-unified-portal-lab/)
  assert.match(path('uat-unified-portal-lab/main.jsx'),/typeof __QC_UAT_OPERATIONAL_PORTAL__!=='undefined'/)
- assert.doesNotMatch(path('src/qcUatOperationalPortalNavigation.mjs'),/firebase\/|localStorage|sessionStorage|@supabase/)
+ const activeLines=source=>source.split(/\r?\n/).filter(line=>!/^\s*\/\//.test(line)).join('\n')
+ const forbidden=/firebase\/|localStorage|sessionStorage|@supabase/
+ // Security check scans executable source/imports, not explanatory comments.
+ assert.doesNotMatch(activeLines(path('src/qcUatOperationalPortalNavigation.mjs')),forbidden)
+ assert.doesNotMatch(activeLines('// localStorage is forbidden\nconst safe=true'),forbidden)
+ assert.match(activeLines("const unsafe=localStorage.getItem('x')"),forbidden)
 })
 console.log('SUCCESS: '+n+' isolated operational portal permission and route contracts passed (OFFLINE)')
