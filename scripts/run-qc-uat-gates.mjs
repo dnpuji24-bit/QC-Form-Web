@@ -4,8 +4,8 @@ import {fileURLToPath} from 'node:url'
 import path from 'node:path'
 const root=fileURLToPath(new URL('../',import.meta.url))
 const mode=process.argv[2]
-if(!['quick','smoke','ui','full-ui','carryover','photo-stage','photo-compress','full'].includes(mode)||process.argv.length!==3){
- console.error('Usage: node scripts/run-qc-uat-gates.mjs quick|smoke|ui|full-ui|carryover|photo-stage|photo-compress|full')
+if(!['quick','smoke','ui','full-ui','carryover','photo-stage','photo-compress','photo-commit','full'].includes(mode)||process.argv.length!==3){
+ console.error('Usage: node scripts/run-qc-uat-gates.mjs quick|smoke|ui|full-ui|carryover|photo-stage|photo-compress|photo-commit|full')
  process.exit(2)
 }
 const env={...process.env}
@@ -49,6 +49,9 @@ function quick(){
   'src/qcOperationalPhotoManifest.mjs',
   'scripts/test-qc-uat-unified-photo-preflight.mjs',
   'server/qc-photo-access/uat-unified-photo-trusted-stage.mjs',
+  'src/qcUatVerifiedPhotoLedger.mjs',
+  'scripts/test-qc-uat-unified-photo-ledger-contract.mjs',
+  'scripts/test-qc-uat-unified-photo-atomic.mjs',
   'scripts/test-qc-uat-unified-photo-trusted-stage.mjs',
   'scripts/test-qc-uat-unified-carryover-contract.mjs',
   'src/qcUatFertilizerFullDto.mjs',
@@ -64,6 +67,7 @@ function quick(){
  node('photo staging preflight contract (10 cases)','scripts/test-qc-uat-unified-photo-preflight.mjs')
  node('automatic photo compression policy (10 cases)','scripts/test-qc-uat-photo-compression-contract.mjs')
  node('server-side immutable photo readback and fresh authorization (15 cases)','scripts/test-qc-uat-unified-photo-trusted-stage.mjs')
+ node('immutable QC photo ledger contract (11 cases)','scripts/test-qc-uat-unified-photo-ledger-contract.mjs')
  node('full form HTTP route and data loss guard','scripts/test-qc-uat-unified-full-qc-http.mjs','--self-test')
  node('unified source guard','scripts/test-qc-uat-unified-role-planning.mjs','--self-test')
  node('browser source guard','scripts/test-qc-uat-unified-portal-ui.mjs','--self-test')
@@ -86,6 +90,13 @@ function fullUi(){
  emu('focused Spray/Fertilizer QC browser, carryover and all image formats (11 cases)','demo-qc-uat-unified-role-planning',
   'firebase.uat-unified-role-planning-emulator.json',9285,10099,
   'scripts/test-qc-uat-unified-full-qc-ui.mjs','--browser',true)
+}
+function photoCommit(){
+ node('immutable QC photo ledger (11 quick checks)','scripts/test-qc-uat-unified-photo-ledger-contract.mjs')
+ emu('photo-inclusive QC+Actual atomic emulator (9 checks)','demo-qc-uat-unified-role-planning',
+  'firebase.uat-unified-role-planning-emulator.json',9285,10099,
+  'scripts/test-qc-uat-unified-photo-atomic.mjs','--emulator',true)
+ run('TypeScript','npm',['run','typecheck'])
 }
 function full(){
  quick()
@@ -112,4 +123,5 @@ if(mode==='full-ui'){fullUi();console.log('\nSUCCESS: focused 11-case full QC Re
 if(mode==='carryover'){quick();fullUi();console.log('\nSUCCESS: 10 explicit carryover contract checks, TypeScript and 11 focused full QC browser checks passed')}
 if(mode==='photo-stage'){quick();fullUi();console.log('\nSUCCESS: 10 photo preflight + 10 compression contracts, TypeScript and 11 focused QC React browser checks passed (no photo upload)')}
 if(mode==='photo-compress'){quick();fullUi();console.log('\nSUCCESS: 10 compression contracts, TypeScript and 11 focused browser QC cases passed (JPEG/PNG/WebP compression before SHA256, no upload)')}
+if(mode==='photo-commit'){photoCommit();console.log('\nSUCCESS: 11 photo ledger contracts, 9 atomic photo emulator checks, and TypeScript passed (MOCK storage only)')}
 if(mode==='full')full()
