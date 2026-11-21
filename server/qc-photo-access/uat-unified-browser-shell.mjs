@@ -29,7 +29,8 @@ async function bytes(req,maxBytes=8192){
  }
  return Buffer.concat(chunks)
 }
-export function createUnifiedBrowserShell(assets){
+export function createUnifiedBrowserShell(assets,{privatePhotoPreview=false}={}){
+ if(typeof privatePhotoPreview!=='boolean')throw Error('INVALID_PREVIEW_FLAG')
  const project=unifiedGuard()
  if(!(assets instanceof Map)||!assets.has('/'))throw Error('SHELL_ASSETS_REQUIRED')
  return createServer(async(req,res)=>{
@@ -44,7 +45,7 @@ export function createUnifiedBrowserShell(assets){
    const asset=assets.get(req.url)
    if(req.method==='GET'&&asset){
     res.setHeader('Content-Type',asset.type)
-    res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; connect-src 'self' http://127.0.0.1:"+unifiedAuthPort+"; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
+    res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; connect-src 'self' http://127.0.0.1:"+unifiedAuthPort+"; style-src 'unsafe-inline'; img-src data:"+(privatePhotoPreview?' https://tcmtqgbpafwciaflgsaa.supabase.co':'')+"+"; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
     res.writeHead(200)
     return res.end(asset.body)
    }
