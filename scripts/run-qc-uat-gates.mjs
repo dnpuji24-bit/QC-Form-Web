@@ -4,8 +4,8 @@ import {fileURLToPath} from 'node:url'
 import path from 'node:path'
 const root=fileURLToPath(new URL('../',import.meta.url))
 const mode=process.argv[2]
-if(!['quick','smoke','ui','full-ui','carryover','photo-stage','photo-compress','photo-commit','full'].includes(mode)||process.argv.length!==3){
- console.error('Usage: node scripts/run-qc-uat-gates.mjs quick|smoke|ui|full-ui|carryover|photo-stage|photo-compress|photo-commit|full')
+if(!['quick','smoke','ui','full-ui','carryover','photo-stage','photo-compress','photo-commit','photo-browser','full'].includes(mode)||process.argv.length!==3){
+ console.error('Usage: node scripts/run-qc-uat-gates.mjs quick|smoke|ui|full-ui|carryover|photo-stage|photo-compress|photo-commit|photo-browser|full')
  process.exit(2)
 }
 const env={...process.env}
@@ -91,6 +91,13 @@ function fullUi(){
   'firebase.uat-unified-role-planning-emulator.json',9285,10099,
   'scripts/test-qc-uat-unified-full-qc-ui.mjs','--browser',true)
 }
+function photoBrowser(){
+ node('browser-to-HTTP photo envelope (7 offline cases)','scripts/test-qc-uat-unified-photo-transport-contract.mjs')
+ run('TypeScript','npm',['run','typecheck'])
+ emu('React photo-inclusive HTTP to atomic QC/Actual (4 browser checks, MOCK only)',
+  'demo-qc-uat-unified-role-planning','firebase.uat-unified-role-planning-emulator.json',
+  9285,10099,'scripts/test-qc-uat-unified-full-qc-ui.mjs','--browser-photo',true)
+}
 function photoCommit(){
  node('immutable QC photo ledger (11 quick checks)','scripts/test-qc-uat-unified-photo-ledger-contract.mjs')
  emu('photo-inclusive QC+Actual+HTTP atomic emulator (10 checks)','demo-qc-uat-unified-role-planning',
@@ -123,5 +130,6 @@ if(mode==='full-ui'){fullUi();console.log('\nSUCCESS: focused 11-case full QC Re
 if(mode==='carryover'){quick();fullUi();console.log('\nSUCCESS: 10 explicit carryover contract checks, TypeScript and 11 focused full QC browser checks passed')}
 if(mode==='photo-stage'){quick();fullUi();console.log('\nSUCCESS: 10 photo preflight + 10 compression contracts, TypeScript and 11 focused QC React browser checks passed (no photo upload)')}
 if(mode==='photo-compress'){quick();fullUi();console.log('\nSUCCESS: 10 compression contracts, TypeScript and 11 focused browser QC cases passed (JPEG/PNG/WebP compression before SHA256, no upload)')}
+if(mode==='photo-browser'){photoBrowser();console.log('\nSUCCESS: 7 offline photo transport checks, TypeScript and 4 focused MOCK photo browser-emulator checks passed (NO Supabase upload)')}
 if(mode==='photo-commit'){photoCommit();console.log('\nSUCCESS: 11 photo ledger contracts, 10 atomic photo and HTTP emulator checks, and TypeScript passed (MOCK storage only)')}
 if(mode==='full')full()
