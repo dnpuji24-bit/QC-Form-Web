@@ -1,0 +1,81 @@
+name: Deploy QC React to Firebase Hosting production
+
+on:
+  push:
+    branches:
+      - feature/firebase-auth-claims-supabase
+
+permissions:
+  contents: read
+
+concurrency:
+  group: form-qc-unm-live-hosting
+  cancel-in-progress: false
+
+jobs:
+  verify-and-deploy-hosting:
+    if: github.repository == 'dnpuji24-bit/QC-Form-Web'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      VITE_QC_NATIVE_PORTAL: 'true'
+      VITE_FIRESTORE_ENABLED: 'true'
+      VITE_QC_FIRESTORE_ONLY: 'true'
+      VITE_QC_MASTER_FIRESTORE: 'true'
+      VITE_QC_OPERATIONAL_SAVE: 'true'
+      VITE_QC_NATIVE_REGISTRATION: 'true'
+      VITE_QC_PHOTO_SIGN_PREVIEW: 'true'
+      VITE_QC_HOSTED_UAT: 'false'
+      VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY }}
+    steps:
+      - name: Checkout production application branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install React dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Validate production build configuration
+        run: |
+          test -n "$VITE_RECAPTCHA_ENTERPRISE_SITE_KEY"
+          test "$VITE_QC_NATIVE_PORTAL" = 'true'
+          test "$VITE_QC_FIRESTORE_ONLY" = 'true'
+          test "$VITE_QC_OPERATIONAL_SAVE" = 'true'
+          test "$VITE_QC_PHOTO_SIGN_PREVIEW" = 'true'
+
+      - name: Report photo pagination regression
+        run: npm run test:cutover:report-photo-pagination
+
+      - name: Check TypeScript types
+        run: npm run typecheck
+
+      - name: Build production React application
+        run: |
+          npm run build
+          test -s public/react/index.html
+          test -s public/react/sw.js
+
+      - name: Confirm Firebase hosting credential configured
+        env:
+          FIREBASE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_FORM_QC_UNM }}
+        run: |
+          test -n "$FIREBASE_ACCOUNT_JSON"
+          echo "Firebase Hosting service account is configured."
+
+      - name: Deploy only Hosting to form-qc-unm LIVE
+        id: hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_FORM_QC_UNM }}
+          projectId: form-qc-unm
+          channelId: live
+
+      - name: Report deployment target
+        run: |
+          echo "### Production QC Form Web" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://form-qc-unm.web.app/react/" >> "$GITHUB_STEP_SUMMARY"
+          echo "Deployed commit: ${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
