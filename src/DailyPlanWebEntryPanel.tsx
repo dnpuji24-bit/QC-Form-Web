@@ -11,6 +11,7 @@ import { loadAllOperationalResources } from './masterOperationalResources'
 import YinYangRefreshButton from './YinYangRefreshButton'
 import { getPlanDocsWithCache } from './planOfflineReads'
 import DailyWoSmartSearch from './DailyWoSmartSearch'
+import './daily-wo-layout.css'
 import {dailyWoSnapshot,shiftIsCrossOver,normalizeWo,type DailyWoChoice} from './dailyWoPlanning'
 
 type Props={user:User;selectedDate?:string;onDateChange?:(date:string)=>void;onSaved?:()=>void;composerRequest?:DailyComposerRequest;onComposerRequestHandled?:()=>void}
@@ -477,7 +478,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
         <div className="daily-form-group-title"><span>01</span><div><strong>WO, Jadwal & Activity</strong><small>Pilih WO → data pekerjaan otomatis → tentukan Shift Aktual</small></div></div>
         <div className="plan-grid daily-schedule-grid">
           <label className="daily-date-field"><span>Tanggal</span><input type="date" value={state.date} onChange={e=>setState(current=>({...current,date:e.target.value}))}/></label>
-          <label><span>Shift</span><input list="daily-resource-shifts" value={state.active.shift} onChange={e=>patchActive({shift:e.target.value})} placeholder="Ketik shift"/><datalist id="daily-resource-shifts">{resourceShifts.map(x=><option key={x} value={x}/>)}</datalist></label>
+          <label><span>Shift Aktual</span><input list="daily-resource-shifts" value={state.active.shift} onChange={e=>patchActive({shift:e.target.value})} placeholder="Ketik shift"/><datalist id="daily-resource-shifts">{resourceShifts.map(x=><option key={x} value={x}/>)}</datalist></label>
           <label><span>Mandor / Foreman</span><input list="daily-resource-foremen" value={state.active.foreman} onChange={e=>patchActive({foreman:e.target.value})} placeholder="Ketik nama mandor"/><datalist id="daily-resource-foremen">{resourceForemen.map(x=><option key={x} value={x}/>)}</datalist></label>
           <label><span>Sumber</span><select value={state.active.sourceType} disabled={!!persistedEdit}
   onChange={e=>patchActive({sourceType:e.target.value as WorkDraft['sourceType'],activitySearch:'',pids:[blankPid()]})}>
@@ -510,7 +511,7 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
 
       <div className="daily-pid-section">
         <div className="daily-pid-head"><div><strong>Multiple PID</strong><span>{state.active.sourceType==='MONTHLY'?'Pilih WO untuk setiap PID. PID, Activity dan Operation mengikuti Monthly; beberapa WO bisa digabung bila Activity sama.':'Pilih paddock dan luas rencana. Kegiatan & bahan tidak diperlukan untuk ADHOC / SUPPORT.'}</span></div><button type="button" onClick={addActivePid}>+ Tambah PID</button></div>
-        <div className="daily-pid-list">{activeInfo.pids.map((row,index)=><div className="daily-pid-row" key={row.pid.id}>
+        <div className="daily-pid-list">{activeInfo.pids.map((row,index)=><div className={'daily-pid-row'+(state.active.sourceType==='MONTHLY'&&index>0?' has-daily-wo':'')} key={row.pid.id}>
           <span className="daily-pid-number">{index+1}</span>
   {state.active.sourceType==='MONTHLY'&&index>0&&<DailyWoSmartSearch
     value={row.pid.woSearch||''} selectedId={row.pid.monthlyId} rows={woChoices}
