@@ -1,6 +1,6 @@
 import {doc,runTransaction,serverTimestamp} from 'firebase/firestore'
 import {firebaseAuth,firestoreDb} from './firebase'
-import {buildQcActualPayload} from './firestoreStore'
+import {buildQcActualPayload,buildQcMultiActualPayloads} from './firestoreStore'
 import {commitQcAndActual} from './qcAtomicCommit.mjs'
 import type {QcRecord} from './types'
 
@@ -15,6 +15,7 @@ export async function commitOperationalQc(input:AtomicQcInput){
   return commitQcAndActual(input,{
     currentUid,
     buildActual:(record:AtomicRecord)=>buildQcActualPayload(record),
+    buildActualItems:(record:AtomicRecord)=>buildQcMultiActualPayloads(record),
     transaction:fn=>runTransaction(db,async tx=>fn({
       readQc:async id=>{const s=await tx.get(doc(db,'qc_records',id));return s.exists()?s.data():null},
       readActual:async id=>{const s=await tx.get(doc(db,'daily_reports',id));return s.exists()?s.data():null},
