@@ -1,0 +1,9 @@
+.qc-work-order-search{min-width:0;max-width:100%;width:100%}
+.qc-work-order-search .activity-smartsearch-control input{min-height:45px!important}
+.qc-wo-workflow{display:flex;flex-direction:column;gap:10px;margin:8px 0 14px;padding:12px;border:1px solid #bdd2ec;border-radius:13px;background:rgba(230,238,250,.28)}
+.qc-wo-workflow .qc-wo-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px;margin:0;font-size:.81rem;line-height:1.5}
+.qc-wo-workflow .qc-wo-summary span{overflow-wrap:anywhere}
+.qc-wo-workflow .qc-wo-summary strong{color:var(--text,#102035)}
+.qc-wo-workflow .qc-wo-shift-notice{font-size:.83rem;color:#26548e}
+.qc-wo-workflow .activity-smartsearch-results{top:calc(100% + 6px);max-height:min(325px,42vh)}
+@media(max-width:640px){.qc-wo-workflow .qc-wo-summary{grid-template-columns:1fr}.qc-wo-workflow{padding:10px}}
