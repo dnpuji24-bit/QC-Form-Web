@@ -2,6 +2,7 @@ import { collection, deleteDoc, doc, limit, onSnapshot, orderBy, query, serverTi
 import { firebaseAuth, firebaseConfigured, firestoreDb, firestoreFeatureEnabled } from './firebase'
 import { hydrateReportPhotoPreviews, makeReportPhotoPreview } from './reportPhoto'
 import type { QcRecord, User } from './types'
+import {validateQcMultiPaddock,qcActualWorkId,qcMultiMaterialRows} from './qcMultiPaddock.mjs'
 
 export type FirestoreMode = 'disabled'|'configured'|'active'
 
@@ -60,7 +61,7 @@ function qcActualEligible(record:QcRecord){
 function qcActualReportId(recordId:string){return 'qcactual_'+recordId}
 function qcActualMaterials(record:QcRecord){return Array.isArray(record.actualPlanMaterials)?record.actualPlanMaterials:[]}
 export function buildQcActualPayload(record:QcRecord,user?:User){
-  if(!qcActualEligible(record))return null
+  if(record.multiPaddockMode||!qcActualEligible(record))return null
   const actualAreaHa=qcActualArea(record),plannedDailyAreaHa=Number(record.plannedDailyAreaHa||0)||0,actualReportId=qcActualReportId(record.id)
   return {
     actualReportId,
@@ -115,6 +116,38 @@ export function buildQcActualPayload(record:QcRecord,user?:User){
   }
 }
 
+/** One parent QC Unit Record, many individually linked Actual entries.
+ * No duplicate parent Actual is created, and only Ready/Uploaded may create Actual.
+ */
+export function buildQcMultiActualPayloads(record:QcRecord,user?:User){
+  if(!record.multiPaddockMode)return []
+  const status=String(record.saveType||'').toLowerCase()
+  if(!['ready','uploaded','upload_queued'].includes(status))return []
+  const works=record.paddockWorks||[],sources=record.multiMaterialSources||[]
+  const problem=validateQcMultiPaddock(works,sources,{ready:true,totalArea:Number(record.actualAreaHa)})
+  if(problem)throw Error('QC_MULTI_INVALID: '+problem)
+  return works.map((work,index)=>{
+    const updated:QcRecord={...record,multiPaddockMode:false,
+      dailyPlanId:work.dailyPlanId,monthlyPlanLineId:work.monthlyPlanLineId,
+      woNumber:work.woNumber,paddock:work.pid,
+      activity:work.activity,deskripsi:work.description,
+      plannedShift:work.plannedShift,dailyShift:work.dailyShift,dailyForeman:work.dailyForeman,
+      operationCode:work.operationCode,coaCode:work.coaCode,department:work.department,
+      plannedDailyAreaHa:work.plannedDailyAreaHa,actualAreaHa:work.areaHa,
+      actualPlanMaterials:qcMultiMaterialRows(work,sources)}
+    const base=buildQcActualPayload(updated,user)
+    if(!base)throw Error('QC_MULTI_ACTUAL_NOT_ELIGIBLE')
+    const actualReportId=qcActualWorkId(record.id,work.workId)
+    return{...base,actualReportId,
+      qcWorkId:work.workId,workGroupId:'QCA-'+record.id,
+      unitReady:index===0?base.unitReady:0,
+      sharedUnitSecondary:index>0,
+      sharedQcParentId:record.id,
+      notes:'AUTO QC · MULTI-PADDOCK · '+(index+1)+'/'+works.length+
+        (record.noted?' · '+record.noted:'')}
+  })
+}
+
 export async function mirrorQcActualToFirestore(record:QcRecord,user?:User):Promise<boolean>{
   if(!firestoreDb||!firebaseAuth?.currentUser)return false
   const payload=buildQcActualPayload(record,user)
@@ -124,6 +157,8 @@ export async function mirrorQcActualToFirestore(record:QcRecord,user?:User):Prom
 }
 
 export async function mirrorRecordToFirestore(record:QcRecord,user?:User):Promise<boolean>{
+  // Multi-Paddock writes must be an atomic QC + all Actuals transaction.
+  if(record.multiPaddockMode)throw Error('QC_MULTI_ATOMIC_REQUIRED')
   if(!firestoreDb||!firebaseAuth?.currentUser) return false
   const db=requireDb(),payload=await stripLargePayload(record)
   await setDoc(doc(db,'qc_records',record.id),{

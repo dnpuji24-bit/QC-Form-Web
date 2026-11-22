@@ -72,6 +72,32 @@ export interface MaterialMaster {
   unit?: string
 }
 
+export interface QcMultiPaddockWork {
+  workId: string
+  dailyPlanId: string
+  monthlyPlanLineId: string
+  woNumber: string
+  pid: string
+  activity: string
+  description: string
+  coaCode: string
+  operationCode: string
+  department: string
+  plannedShift: string
+  dailyShift: string
+  dailyForeman: string
+  plannedDailyAreaHa: number
+  areaHa: number
+  completed: boolean
+  materialAllocations: Record<string,number>
+}
+export interface QcMultiMaterialSource {
+  id: string
+  material: string
+  unit: string
+  quantity: number
+}
+
 export interface QcRecord {
   id: string
   sessionId?: string
@@ -82,6 +108,10 @@ export interface QcRecord {
   nameOfAssistan?: string
   paddock: string
   dailyPlanId?: string
+  multiPaddockMode?: boolean
+  paddockWorks?: QcMultiPaddockWork[]
+  paddockWorkById?: Record<string,{dailyPlanId:string;monthlyPlanLineId:string;woNumber:string;pid:string;areaHa:number}>
+  multiMaterialSources?: QcMultiMaterialSource[]
   monthlyPlanLineId?: string
   woNumber?: string
   plannedShift?: string
