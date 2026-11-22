@@ -1,7 +1,7 @@
 export type UnitCondition='READY'|'BREAKDOWN'|'MAINTENANCE'|'PENDING_INSPECTION'|'OUT_OF_SERVICE'
 export type UnitEventType='BREAKDOWN'|'MAINTENANCE'|'OUT_OF_SERVICE'|'READY'|'PENDING_INSPECTION'|'READY_APPROVED'
 export type UnitNumber={id:string;code:string;kind:string;parentUnitId:string;active:boolean;brand:string;model:string;implement:string;notes:string;year:string;serialNo:string;importNeedsInspection:boolean}
-export type UnitEvent={id:string;unitId:string;type:UnitEventType;effectiveMinute:number;note:string;actorUid:string;date:string;shift:string}
+export type UnitEvent={id:string;unitId:string;type:UnitEventType;effectiveMinute:number;note:string;actorUid:string;date:string;shift:string;createdAtMs?:number}
 export type UnitAssignment={id:string;unitId:string;unitCode:string;workGroupId:string;date:string;shift:string;startTime:string;endTime:string;startMinute:number;endMinute:number;activity:string;woNumber:string;pids:string[];status:string;notes:string;replacesAssignmentId?:string}
 export type UnitRequirement={id:string;date:string;shift:string;workGroupId:string;activity:string;woNumber:string;pids:string[];unitName:string;quantity:number;preferred:string[]}
 export const clean=(value:unknown)=>String(value??'').trim()
@@ -28,7 +28,7 @@ export function conditionAt(events:UnitEvent[],unitId:string,minute:number,initi
   let latest:UnitEvent|undefined
   for(const event of events){
     if(event.unitId!==unitId||event.effectiveMinute>minute)continue
-    if(!latest||event.effectiveMinute>latest.effectiveMinute||(event.effectiveMinute===latest.effectiveMinute&&event.id>latest.id))latest=event
+    if(!latest||event.effectiveMinute>latest.effectiveMinute||(event.effectiveMinute===latest.effectiveMinute&&((event.createdAtMs||0)>(latest.createdAtMs||0)||((event.createdAtMs||0)===(latest.createdAtMs||0)&&event.id>latest.id))))latest=event
   }
   if(!latest)return initial
   if(latest.type==='BREAKDOWN')return'BREAKDOWN'
@@ -56,5 +56,7 @@ export function normalizeAssignment(id:string,raw:Record<string,unknown>):UnitAs
   return{id,unitId:clean(raw.unitId),unitCode:clean(raw.unitCode),workGroupId:clean(raw.workGroupId),date:clean(raw.date),shift:clean(raw.shift),startTime:clean(raw.startTime),endTime:clean(raw.endTime),startMinute:Number(raw.startMinute)||0,endMinute:Number(raw.endMinute)||0,activity:clean(raw.activity),woNumber:clean(raw.woNumber),pids:Array.isArray(raw.pids)?raw.pids.map(clean):[],status:clean(raw.status)||'ASSIGNED',notes:clean(raw.notes),replacesAssignmentId:clean(raw.replacesAssignmentId)}
 }
 export function normalizeEvent(id:string,raw:Record<string,unknown>):UnitEvent{
- return{id,unitId:clean(raw.unitId),type:clean(raw.type) as UnitEventType,effectiveMinute:Number(raw.effectiveMinute)||0,note:clean(raw.note),actorUid:clean(raw.actorUid),date:clean(raw.date),shift:clean(raw.shift)}
+ const timestamp=raw.createdAt as {toMillis?:()=>number}|undefined
+ const createdAtMs=typeof timestamp?.toMillis==='function'?timestamp.toMillis():0
+ return{id,unitId:clean(raw.unitId),type:clean(raw.type) as UnitEventType,effectiveMinute:Number(raw.effectiveMinute)||0,note:clean(raw.note),actorUid:clean(raw.actorUid),date:clean(raw.date),shift:clean(raw.shift),createdAtMs}
 }
