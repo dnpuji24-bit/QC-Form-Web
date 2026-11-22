@@ -65,6 +65,9 @@ jobs:
       - name: Validate Master Activity CoA and Monthly WO contracts
         run: npm run test:plan:wo-coa
 
+      - name: Verify unified Activity register and historical safety
+        run: npm run test:master:activity-unified
+
       - name: Check TypeScript types
         run: npm run typecheck
 
