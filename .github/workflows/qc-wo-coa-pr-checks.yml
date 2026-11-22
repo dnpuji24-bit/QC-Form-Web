@@ -46,6 +46,9 @@ jobs:
       - name: Check Monthly WO input, Operation matching, and export
         run: npm run test:plan:monthly-wo-smartsearch
 
+      - name: Validate Daily WO-first and cross-shift planning
+        run: npm run test:plan:daily-wo-first
+
       - name: Verify TypeScript
         run: npm run typecheck
       - name: Build React safely
