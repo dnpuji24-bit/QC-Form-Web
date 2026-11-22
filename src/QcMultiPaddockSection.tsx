@@ -31,7 +31,7 @@ export default function QcMultiPaddockSection({kind,rows,works,sources,disabled=
     const allocated=works.reduce((sum,w)=>sum+(Number(w.materialAllocations?.[source.id])||0),0)
     return {...source,allocated,remaining:round(source.quantity-allocated)}
   }),[works,sources])
-  const problem=validateQcMultiPaddock(works,sources,{ready:false,totalArea})
+  const problem=validateQcMultiPaddock(works,sources,{ready:true,totalArea})
   const update=(id:string,patch:Partial<QcMultiPaddockWork>)=>
     onChange(works.map(w=>w.workId===id?{...w,...patch}:w))
   const selectWo=(id:string,row:QcDailyPlan)=>{
@@ -69,6 +69,10 @@ export default function QcMultiPaddockSection({kind,rows,works,sources,disabled=
     update(id,{materialAllocations:{...item.materialAllocations,[sourceId]:Math.max(0,Number(value)||0)}})
   }
   return <section className="qc-multi-panel" aria-label="Multi-Paddock QC">
+    <nav className="qc-multi-stage-strip" aria-label="Tahapan input QC">
+      <span>1 · Unit</span><span>2 · WO/Paddock</span><span>3 · Filling</span>
+      <span>4 · Working/HOLD</span><span>5 · Review</span>
+    </nav>
     <div className="qc-multi-heading">
       <div><small>LANGKAH 2 · WORK ORDER</small><h4>Pekerjaan per WO / Paddock</h4>
         <p>Isi satu paddock, pilih Selesai Paddock, kemudian tambahkan WO berikutnya. Waktu dan foto tetap milik unit.</p>
@@ -124,6 +128,11 @@ export default function QcMultiPaddockSection({kind,rows,works,sources,disabled=
     <section className="qc-multi-alloc">
       <h4>LANGKAH 3 · Pengisian dan Alokasi Bahan</h4>
       <p>Jumlah fisik diisi sekali pada bagian Material/Filling unit. Di sini bagi ke paddock yang menerima bahan. Saran otomatis mengikuti proporsi luas dan masih bisa dikoreksi.</p>
+      <button type="button" className="qc-multi-goto-filling" disabled={disabled}
+        onClick={()=>document.querySelector(kind==='fertilizer'?'.fertilizer-working-time':'.material-grid')
+          ?.scrollIntoView({behavior:'smooth',block:'start'})}>
+        Isi {kind==='fertilizer'?'Pengisian / Filling':'Bahan Kimia Aktual'} pada Unit
+      </button>
       {!sources.length&&<small>Isi jumlah material pada form unit terlebih dahulu, kemudian kembali untuk mengalokasikan. Jika tidak ada material aktual, bagian ini boleh kosong.</small>}
       {allocations.map(source=><div className="qc-multi-source" key={source.id}>
         <div className="qc-multi-source-head">
@@ -152,7 +161,8 @@ export default function QcMultiPaddockSection({kind,rows,works,sources,disabled=
     <div className="qc-multi-review">
       <h4>LANGKAH 5 · Review</h4>
       <p>Unit: <b>{unitName||'-'}</b> · {works.length} paddock · {money(totalArea)} Ha · {complete} selesai</p>
-      <p>{problem||'Data dasar paddock valid.'} Ready hanya dapat disimpan setelah seluruh paddock selesai dan alokasi setiap filling seimbang.</p>
+      <p className={problem?'qc-multi-warn':'qc-multi-ok'}>{problem||'✓ Seluruh paddock dan alokasi siap untuk status Ready.'}</p>
+      <p>Ready hanya dapat disimpan setelah seluruh paddock selesai dan alokasi setiap filling seimbang.</p>
       <small>Simpan Draft tidak membuat Actual. Saat Ready, satu QC Unit disimpan bersama Actual terpisah untuk masing-masing Daily ID/WO.</small>
     </div>
   </section>
