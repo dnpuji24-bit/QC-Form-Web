@@ -45,6 +45,7 @@
     "test:plan:daily-wa-layout": "node --test scripts/test-daily-whatsapp-layout.mjs",
     "test:plan:actual-wo-first": "node --test scripts/test-actual-wo-first.mjs",
     "test:plan:actual-wa-layout": "node --test scripts/test-actual-wa-layout.mjs",
+    "test:qc:wo-shift-parity": "node --test scripts/test-qc-wo-shift-parity.mjs",
     "test:cutover:qc-retry-diagnostics": "node --check src/qcOperationalQueue.mjs && node --check scripts/test-qc-operational-sync-diagnostics.mjs && node scripts/test-qc-operational-sync-diagnostics.mjs && npm run typecheck",
     "test:cutover:actual-archive-rules": "node --check scripts/test-qc-actual-archive-rules.mjs && node scripts/test-qc-actual-archive-rules.mjs --self-test && firebase emulators:exec --only firestore,auth --project demo-qc-photo-test --config firebase.native-cutover-browser-emulator.json \"env -u GOOGLE_CLOUD_PROJECT -u FIREBASE_PROJECT_ID -u QC_UAT_MODE GCLOUD_PROJECT=demo-qc-photo-test FIRESTORE_EMULATOR_HOST=127.0.0.1:8085 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 node scripts/test-qc-actual-archive-rules.mjs --emulator\""
   },
