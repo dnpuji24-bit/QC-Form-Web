@@ -6,6 +6,10 @@ export type DailyPlanTransfer={
   shift:string
   sourceType:string
   monthlyPlanLineId:string
+  woNumber?:string
+  plannedShift?:string
+  coaCode?:string
+  operationCode?:string
   companyCode:string
   farm:string
   pid:string
@@ -49,6 +53,7 @@ export function dailyPlansToWhatsApp(rows:DailyPlanTransfer[]){
       lines.push(`*${number}. ${title} (${n(area)} Ha)*`)
       for(const row of groupRows){
         lines.push(`📍 Pdk: ${row.pid||'-'} (${n(row.areaHa)} Ha)`)
+        if(row.woNumber)lines.push(`   📋 WO: ${row.woNumber} · Operation: ${row.operationCode||'-'} · CoA: ${row.coaCode||'-'}${row.plannedShift?' · Shift Rencana: '+row.plannedShift:''}`)
         lines.push(`   🧾 Kegiatan: ${row.description||row.activity||'-'}`)
         lines.push('   🧪 Bahan & Dosis:')
         if(row.materials.length)lines.push(...row.materials.map(materialLine))

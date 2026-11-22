@@ -16,6 +16,13 @@ export type SavedDailyRow={
   sourceType:string
   monthlyLinkStatus:string
   monthlyPlanLineId:string
+  woNumber:string
+  plannedShift:string
+  coaCode:string
+  operationCode:string
+  department:string
+  catalogActivityId:string
+  activityCode:string
   date:string
   monthKey:string
   shift:string
