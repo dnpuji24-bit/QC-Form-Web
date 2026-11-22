@@ -83,6 +83,15 @@ export interface QcRecord {
   paddock: string
   dailyPlanId?: string
   monthlyPlanLineId?: string
+  woNumber?: string
+  plannedShift?: string
+  dailyShift?: string
+  dailyForeman?: string
+  operationCode?: string
+  coaCode?: string
+  department?: string
+  catalogActivityId?: string
+  activityCode?: string
   dailyPlanLinkStatus?: string
   plannedDailyAreaHa?: number | string
   dailyPlanSourceType?: string
