@@ -3,6 +3,7 @@ import {readFileSync} from 'node:fs'
 import {test} from 'node:test'
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8')
 const catalog=read('src/MasterActivityCatalogPanel.tsx')
+const model=read('src/activityCatalogModel.ts')
 const master=read('src/MasterOperationalResourcePanel.tsx')
 const validation=read('src/MasterActivityManagePanel.tsx')
 const monthly=read('src/MonthlyPlanWebEntryPanel.tsx')
@@ -10,11 +11,11 @@ const list=read('src/MonthlyPlanListPanel.tsx')
 const rules=read('firestore.rules')
 
 test('Master Resource contains CoA catalog, separate from ACT validation code',()=>{
- assert.match(master,/Master Activity &amp; CoA/)
- assert.match(catalog,/master_activity_catalog/)
+ assert.match(master,/Daftar Activity \(5 kolom\)/)
+ assert.match(model,/master_activity_catalog/)
  assert.match(catalog,/coaCode/)
  assert.match(catalog,/inputMode="numeric"/)
- assert.match(catalog,/\^\\d\{1,20\}\$/)
+ assert.match(model,/\^\\d\{1,20\}\$/)
  assert.match(validation,/catalogActivityId/)
  assert.match(validation,/selectedCatalog/)
  assert.match(validation,/CoA \(otomatis\)/)
