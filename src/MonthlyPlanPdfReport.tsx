@@ -218,7 +218,7 @@ export default function MonthlyPlanPdfReport({monthKey}:{monthKey:string}){
     {error&&<p role="alert" className="alert danger">{error}</p>}
     {qcError&&<p role="alert" className="alert">QC belum lengkap: {qcError}. PDF tetap dapat dibuat dengan penanda data parsial.</p>}
     {!loading&&loadedMonth===monthKey&&<>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:8,marginBottom:14}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(145px,1fr))',gap:8,marginBottom:14}}>
         {([{label:'Pekerjaan',value:String(chosen.length)}, {label:'Target',value:fmt(summary.target)+' Ha'}, {label:'Actual',value:fmt(summary.actual)+' Ha'}, {label:'Balance',value:fmt(summary.target-summary.actual)+' Ha'}]).map(item=><div key={item.label} style={{padding:'10px 12px',background:'var(--bg-muted, #f1f5f9)',borderRadius:10,minWidth:0}}><small style={{display:'block',color:'#64748b'}}>{item.label}</small><strong style={{fontSize:16,overflowWrap:'anywhere'}}>{item.value}</strong></div>)}
       </div>
       <div style={{border:'1px solid #e2e8f0',borderRadius:12,marginBottom:12,overflow:'hidden'}}>
