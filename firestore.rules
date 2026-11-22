@@ -30,16 +30,38 @@ service cloud.firestore {
     function isFertMandor() { return role() == 'mandor_fertilizer'; }
     function ownsExisting() { return resource.data.inputtedBy == username(); }
     function ownsIncoming() { return request.resource.data.inputtedBy == username(); }
+    function validQcMultiActualWrite(qc) {
+      let workId = request.resource.data.get('qcWorkId','');
+      let works = qc.get('paddockWorkById',{});
+      let work = works.get(workId,{});
+      return qc.get('multiPaddockMode',false) == true
+        && workId is string && workId.matches('^[A-Za-z0-9_-]{1,64}$')
+        && works is map && works.keys().hasAny([workId])
+        && request.resource.data.actualReportId ==
+          'qcactual_' + request.resource.data.qcRecordId + '__' + workId
+        && request.resource.data.get('sharedQcParentId','') == request.resource.data.qcRecordId
+        && request.resource.data.dailyPlanId == work.get('dailyPlanId','')
+        && request.resource.data.monthlyPlanLineId == work.get('monthlyPlanLineId','')
+        && request.resource.data.woNumber == work.get('woNumber','')
+        && request.resource.data.pid == work.get('pid','')
+        && request.resource.data.actualAreaHa == work.get('areaHa',-1);
+    }
+
     function validQcActualWrite() {
+      let qc = getAfter(/databases/$(database)/documents/qc_records/$(request.resource.data.qcRecordId)).data;
       return request.resource.data.keys().hasAll(['sourceOrigin','qcRecordId','dailyPlanId','actualAreaHa','inputtedBy'])
         && request.resource.data.sourceOrigin == 'QC'
         && request.resource.data.inputtedBy == username()
         && request.resource.data.qcRecordId is string
         && existsAfter(/databases/$(database)/documents/qc_records/$(request.resource.data.qcRecordId))
-        && getAfter(/databases/$(database)/documents/qc_records/$(request.resource.data.qcRecordId)).data.inputtedBy == username()
-        && getAfter(/databases/$(database)/documents/qc_records/$(request.resource.data.qcRecordId)).data.dailyPlanId == request.resource.data.dailyPlanId
-        && getAfter(/databases/$(database)/documents/qc_records/$(request.resource.data.qcRecordId)).data.actualAreaHa == request.resource.data.actualAreaHa
-        && getAfter(/databases/$(database)/documents/qc_records/$(request.resource.data.qcRecordId)).data.saveType in ['ready','uploaded','upload_queued'];
+        && qc.inputtedBy == username()
+        && qc.saveType in ['ready','uploaded','upload_queued']
+        && (
+          (qc.get('multiPaddockMode',false) != true
+            && qc.dailyPlanId == request.resource.data.dailyPlanId
+            && qc.actualAreaHa == request.resource.data.actualAreaHa)
+          || validQcMultiActualWrite(qc)
+        );
     }
 
     match /users/{uid} {
