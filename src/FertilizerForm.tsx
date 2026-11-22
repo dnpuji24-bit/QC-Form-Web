@@ -344,8 +344,8 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
           onQuery={value=>typeExplicitWo(card,value)}
           onSelect={row=>chooseExplicitWo(card,row)}
           onClear={()=>typeExplicitWo(card,'')}/>
-          {matchingPlan?.woNumber&&<div className="qc-wo-summary">
-            <span><strong>WO:</strong> {matchingPlan.woNumber}</span>
+          {matchingPlan&&<div className="qc-wo-summary">
+            <span><strong>WO:</strong> {matchingPlan.woNumber||'Tanpa WO (Daily lama)'}</span>
             <span><strong>Daily ID:</strong> {matchingPlan.dailyPlanId}</span>
             <span><strong>PID:</strong> {matchingPlan.pid}</span>
             <span><strong>Activity:</strong> {matchingPlan.description||matchingPlan.activity}</span>
@@ -355,7 +355,7 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
             <span><strong>Shift Daily:</strong> {matchingPlan.shift||'-'} · {matchingPlan.foreman||'-'}</span>
             <span><strong>Shift QC Aktual:</strong> {shift} · {mandor||'-'}</span>
           </div>}
-          {matchingPlan?.woNumber&&qcShiftValue(matchingPlan.shift)!==qcShiftValue(shift)&&
+          {matchingPlan&&qcShiftValue(matchingPlan.shift)!==qcShiftValue(shift)&&
             <small className="qc-wo-shift-notice">Lintas shift: sumber Daily Shift {matchingPlan.shift} → QC Aktual Shift {shift}. Periksa ulang produk dan dosis pengisian.</small>}
         </div>
         <div className="form-grid qc-daily-program-grid"><label>Jenis Unit<input list="fert-resource-units" value={card.unit} onChange={e=>patchCard(card.id,{unit:e.target.value,noUnit:''})} placeholder="Ketik S untuk Stool Splitter"/><datalist id="fert-resource-units">{unitTypes.map(x=><option key={x} value={x}/>)}</datalist></label><label>No. Unit<select value={card.noUnit} onChange={e=>patchCard(card.id,{noUnit:e.target.value})}><option value="">Pilih…</option>{numbers.map(x=><option key={x}>{x}</option>)}</select></label><label hidden={card.multiPaddockMode}>Paddock<select value={card.paddock} onChange={e=>{const pid=e.target.value,nextActivities=unique(fertDailyPlans.filter(p=>p.pid===pid).map(p=>p.activity)),activity=nextActivities.length===1?nextActivities[0]:'';if(activity)linkDailyPlan(card.id,pid,activity);else linkDailyPlan(card.id,pid,'')}}><option value="">Pilih dari Daily Plan…</option>{paddocks.map(x=><option key={x}>{x}</option>)}</select></label><label hidden={card.multiPaddockMode}>Activity<select value={card.activity} onChange={e=>linkDailyPlan(card.id,card.paddock,e.target.value)}><option value="">Pilih…</option>{activities.map(x=><option key={x}>{x}</option>)}</select></label><label hidden={card.multiPaddockMode}>Type<input readOnly value={card.type||matchingPlan?.type||matchingPlan?.activityCategory||''}/></label><label hidden={card.multiPaddockMode}>Daily Plan ID<input readOnly value={matchingPlan?.dailyPlanId||''} placeholder="Pilih Daily Plan"/></label><label hidden={card.multiPaddockMode}>Monthly Plan ID<input readOnly value={matchingPlan?.monthlyPlanLineId||''} placeholder="Otomatis dari Daily Plan"/></label>{matchingPlan?.pidNotes&&<div className="qc-daily-pid-note form-grid-note">ℹ️ {matchingPlan.pidNotes}</div>}</div>
