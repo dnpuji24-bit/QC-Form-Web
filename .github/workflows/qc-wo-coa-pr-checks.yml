@@ -69,7 +69,7 @@ jobs:
           npm install --no-save --no-package-lock @firebase/rules-unit-testing@5
           npx --yes firebase-tools@14 emulators:exec --only firestore --project demo-qc-multi-paddock --config firebase.native-cutover-browser-emulator.json "node scripts/test-qc-multi-paddock-rules-emulator.mjs"
 
-      - name: Verify Unit Dispatch role and approval rules in emulator
+      - name: Verify Unit Dispatch role and direct-condition rules in emulator
         run: |
           npm install --no-save --no-package-lock @firebase/rules-unit-testing@5
           npx --yes firebase-tools@14 emulators:exec --only firestore --project demo-qc-unit-dispatch --config firebase.native-cutover-browser-emulator.json "node scripts/test-unit-dispatch-rules-emulator.mjs"
@@ -86,6 +86,9 @@ jobs:
         run: |
           npm install --no-save --no-package-lock @firebase/rules-unit-testing@5
           npx --yes firebase-tools@14 emulators:exec --only firestore --project demo-qc-resource-import --config firebase.native-cutover-browser-emulator.json "node scripts/test-resource-master-import-rules-emulator.mjs"
+
+      - name: Validate Excel-style Unit Grid and both shifts without approval
+        run: node --experimental-strip-types --test scripts/test-unit-sheet-no-approval.mjs
 
       - name: Verify TypeScript
         run: npm run typecheck
