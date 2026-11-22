@@ -13,6 +13,13 @@ export type QcDailyPlan={
   id:string
   dailyPlanId:string
   monthlyPlanLineId:string
+  woNumber:string
+  plannedShift:string
+  operationCode:string
+  coaCode:string
+  department:string
+  catalogActivityId:string
+  activityCode:string
   companyCode:string
   farm:string
   date:string
@@ -83,6 +90,13 @@ export async function loadQcDailyPlans(date:string):Promise<QcDailyPlan[]>{
       id:item.id,
       dailyPlanId:text(row.dailyPlanId||item.id),
       monthlyPlanLineId:text(row.monthlyPlanLineId),
+      woNumber:text(row.woNumber),
+      plannedShift:text(row.plannedShift),
+      operationCode:text(row.operationCode),
+      coaCode:text(row.coaCode),
+      department:text(row.department),
+      catalogActivityId:text(row.catalogActivityId),
+      activityCode:text(row.activityCode),
       companyCode:text(row.companyCode).toUpperCase(),
       farm:text(row.farm),
       date:text(row.date),
@@ -148,4 +162,57 @@ export function resolveQcSessionPlan(rows:QcDailyPlan[],pid:string,activity:stri
 export function qcShiftOneCarryoverCandidates(rows:QcDailyPlan[],kind:'spray'|'fertilizer',date:string,actualShift:string,actualForeman:string){
   if(shiftKey(actualShift)!=='2'||!text(date)||!sessionKey(actualForeman))return[]
   return rows.filter(row=>qcDailyKind(row)===kind&&row.date===text(date)&&shiftKey(row.shift)==='1'&&Boolean(sessionKey(row.foreman))&&Boolean(row.dailyPlanId))
+}
+
+
+/** WO is selected explicitly by Daily ID; planned shift never constrains
+ * execution shift. Only Daily records for the QC session date and form kind
+ * are eligible. Legacy records without WO remain in the existing picker.
+ */
+export function qcWorkOrderPlans(rows:QcDailyPlan[],kind:'spray'|'fertilizer',date:string):QcDailyPlan[]{
+  return rows.filter(row=>row.date===date&&qcDailyKind(row)===kind
+    &&Boolean(row.woNumber.trim())&&Boolean(row.dailyPlanId))
+}
+
+function searchToken(value:unknown):string{
+  return text(value).normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('id-ID').trim()
+}
+export function qcSearchWorkOrders(rows:QcDailyPlan[],query:string,limit=12):QcDailyPlan[]{
+  const tokens=searchToken(query).split(/\s+/).filter(Boolean)
+  const whole=tokens.join(' ')
+  return rows.map(row=>{
+    const wo=searchToken(row.woNumber)
+    const hay=[row.woNumber,row.pid,row.dailyPlanId,row.operationCode,
+      row.coaCode,row.activity,row.description,row.department,row.shift]
+      .map(searchToken).join(' ')
+    if(!row.woNumber||!tokens.every(t=>hay.includes(t)))return null
+    const rank=!whole?4:wo===whole?0:wo.startsWith(whole)?1:
+      searchToken(row.dailyPlanId)===whole?2:3
+    return {row,rank}
+  }).filter((entry):entry is {row:QcDailyPlan;rank:number}=>entry!==null)
+    .sort((a,b)=>a.rank-b.rank
+      ||a.row.woNumber.localeCompare(b.row.woNumber,'id',{numeric:true})
+      ||a.row.shift.localeCompare(b.row.shift,'id',{numeric:true})
+      ||a.row.dailyPlanId.localeCompare(b.row.dailyPlanId,'id'))
+    .slice(0,Math.max(1,limit)).map(item=>item.row)
+}
+export function qcExplicitWorkOrderPlan(
+  allRows:QcDailyPlan[],kind:'spray'|'fertilizer',date:string,selectedId:string
+):QcDailyPlan|null{
+  if(!selectedId)return null
+  const matches=qcWorkOrderPlans(allRows,kind,date)
+    .filter(row=>row.dailyPlanId===selectedId)
+  return matches.length===1?matches[0]:null
+}
+/** Preserve existing same-shift and legacy carry-over results, then include
+ * only explicitly linked WO rows. Deduplicate by Daily ID before QC validates.
+ */
+export function qcMergeEligiblePlans(
+  current:QcDailyPlan[],carryover:QcDailyPlan[],explicit:QcDailyPlan[]
+):QcDailyPlan[]{
+  const byId=new Map<string,QcDailyPlan>()
+  for(const row of [...current,...carryover,...explicit]){
+    if(row.dailyPlanId&&!byId.has(row.dailyPlanId))byId.set(row.dailyPlanId,row)
+  }
+  return [...byId.values()]
 }
