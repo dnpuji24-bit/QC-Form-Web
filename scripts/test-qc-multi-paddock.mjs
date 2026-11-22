@@ -127,3 +127,20 @@ test('Firestore rules verify each child Actual against transactional QC parent',
  assert.match(firestore,/sharedUnitSecondary:index>0/)
  assert.match(firestore,/if\(record\.multiPaddockMode\)throw Error\('QC_MULTI_ATOMIC_REQUIRED'\)/)
 })
+
+test('Data QC report, search and Excel export retain all PIDs without double-counting unit/material',()=>{
+ const app=read('src/App.tsx')
+ for(const needle of ['QC Multi-Paddock','buildMultiPaddockExportRows(filtered)',
+   'record.paddockWorks?.map','Rincian Multi-Paddock',
+   'workIndex===0&&sourceIndex===0?1:0',
+   'sourceIndex===0?work.areaHa:0',
+   'firstSource?item?.quantity||0:0',
+   "record.multiPaddockMode?'Multi-Paddock ('",
+   "...(Array.isArray(record.paddockWorks)?record.paddockWorks:[])"]){
+  assert.ok(app.includes(needle),'Missing QC Multi-Paddock report/export contract '+needle)
+ }
+ const fert=read('src/FertilizerForm.tsx')
+ assert.match(fert,/sourceFillingId:f\.id/)
+ assert.match(fert,/id:text\(f\.sourceFillingId\)\|\|uid\(\)/)
+ assert.match(fert,/card\.multiPaddockMode\?multiArea:totalHaForDose/)
+})
