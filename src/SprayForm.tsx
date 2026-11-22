@@ -112,7 +112,7 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
       dailyPlanId:source?.dailyPlanId||'',monthlyPlanLineId:source?.monthlyPlanLineId||'',
       paddock:source?.pid||'',activity:source?.activity||'',deskripsi:source?.description||'',
       variety:source?.masterVariety||'',type:source?(source.type||source.activityCategory||'SPRAY'):'',
-      woSearch:source?.woNumber||''})
+      woSearch:source?(source.woNumber||`${source.pid} ${source.activity} ${source.dailyPlanId}`):''})
   }
   function toggleMultiPaddock(c:SprayCard,enabled:boolean){
     if(c.recordId){setMessage('Mode Multi-Paddock tidak dapat diubah setelah record QC tersimpan.');return}
@@ -123,16 +123,16 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
     else patchCard(c.id,{multiPaddockMode:false,paddockWorks:[],dailyPlanId:'',monthlyPlanLineId:'',
       area:'',paddock:'',activity:'',deskripsi:'',variety:'',type:'',woSearch:''})
   }
-  const planStatus=dailyPlanLoading||loadedPlanDate!==date&&!dailyPlanMessage?'Memuat Daily Plan…':dailyPlanMessage||(!mandor.trim()?'Pilih Mandor aktual terlebih dahulu.':sprayDailyPlans.length?sprayDailyPlans.length+' Daily Plan Spraying pada shift dan mandor ini.':'Tidak ada Daily Plan untuk kombinasi shift dan mandor ini.')+' · '+woOptions.length+' WO tersedia pada tanggal ini (pilih Daily ID secara eksplisit).'
+  const planStatus=dailyPlanLoading||loadedPlanDate!==date&&!dailyPlanMessage?'Memuat Daily Plan…':dailyPlanMessage||(!mandor.trim()?'Pilih Mandor aktual terlebih dahulu.':sprayDailyPlans.length?sprayDailyPlans.length+' Daily Plan Spraying pada shift dan mandor ini.':'Tidak ada Daily Plan untuk kombinasi shift dan mandor ini.')+' · '+woOptions.length+' sumber Daily tersedia (termasuk yang belum memiliki WO; pilih Daily ID secara eksplisit).'
   function planProblem(c:SprayCard){
     if(c.multiPaddockMode){
       if(!operationalSaveEnabled)return'Multi-Paddock memerlukan simpan QC atomik.'
       for(const work of c.paddockWorks||[]){
         if(!work.dailyPlanId)continue
         const source=qcExplicitWorkOrderPlan(dailyPlanRows,'spray',date,work.dailyPlanId)
-        if(!source||source.pid!==work.pid||source.woNumber!==work.woNumber||
+        if(!source||source.pid!==work.pid||source.activity!==work.activity||source.woNumber!==work.woNumber||
             source.monthlyPlanLineId!==work.monthlyPlanLineId)
-          return'WO/PID Multi-Paddock tidak sesuai sumber Daily tanggal ini.'
+          return'PID/Activity/Daily ID Multi-Paddock tidak sesuai sumber Daily pada tanggal QC.'
       }
       const sourceProducts=(id:string)=>woOptions.find(row=>row.dailyPlanId===id)?.materials
         .slice(0,4).map(m=>m.material+'|'+m.dosePerHa+'|'+(m.unit||m.doseUnit)).join(';')
@@ -148,11 +148,11 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
     return ''
   }
   function choosePlan(c:SprayCard,pid:string,selected:QcDailyPlan|null){
-    patchCard(c.id,{paddock:pid,activity:selected?.activity||c.activity,deskripsi:selected?.description||c.deskripsi,variety:selected?.masterVariety||'',type:selected?(selected.type||selected.activityCategory||'SPRAY'):'',dailyPlanId:selected?.dailyPlanId||'',monthlyPlanLineId:selected?.monthlyPlanLineId||'',woSearch:selected?.woNumber||'',actualMaterials:{}})
+    patchCard(c.id,{paddock:pid,activity:selected?.activity||c.activity,deskripsi:selected?.description||c.deskripsi,variety:selected?.masterVariety||'',type:selected?(selected.type||selected.activityCategory||'SPRAY'):'',dailyPlanId:selected?.dailyPlanId||'',monthlyPlanLineId:selected?.monthlyPlanLineId||'',woSearch:selected?(selected.woNumber||`${selected.pid} ${selected.activity} ${selected.dailyPlanId}`):'',actualMaterials:{}})
   }
   function selectExplicitWo(c:SprayCard,row:QcDailyPlan){
     const source=qcExplicitWorkOrderPlan(dailyPlanRows,'spray',date,row.dailyPlanId)
-    if(!source){setMessage('WO tidak sesuai tanggal atau jenis QC. Pilih ulang Daily Plan.');return}
+    if(!source){setMessage('Sumber Daily tidak cocok dengan tanggal, jenis QC, PID atau Activity. Pilih ulang Daily ID.');return}
     choosePlan(c,source.pid,source)
   }
   function typeExplicitWo(c:SprayCard,value:string){
