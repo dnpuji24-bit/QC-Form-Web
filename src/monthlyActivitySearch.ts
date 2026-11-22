@@ -40,13 +40,13 @@ export function searchMonthlyActivities(
   return ranked.slice(0,Math.max(1,limit)).map(x=>x.row)
 }
 /** Duplicate work rows are only duplicates if the same activity identity,
- * paddock, planned shift and variety selection repeat. A different WO can
+ * paddock, planned date, planned shift and variety selection repeat. A different WO can
  * legitimately schedule the same paddock/activity on another shift.
  */
 export function monthlyWorkIdentity(row:{
-  pid:string;masterActivityId:string;catalogActivityId:string;plannedShift:string;varieties:string[]
+  pid:string;masterActivityId:string;catalogActivityId:string;plannedShift:string;plannedDate?:string;varieties:string[]
 }):string{
   return [normalize(row.pid),normalize(row.catalogActivityId||row.masterActivityId),
-    row.plannedShift==='2'?'2':'1',
-    row.varieties.map(normalize).sort().join(',')].join('|')
+    row.plannedShift==='2'?'2':row.plannedShift==='ALL'?'ALL':'1',
+    row.plannedDate||'',row.varieties.map(normalize).sort().join(',')].join('|')
 }
