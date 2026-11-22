@@ -1,8 +1,9 @@
-name: Keep React Test Preview Available
+name: Keep QC React Test Preview Synced With LIVE
 
-# Firebase preview URLs expire (maximum 30 days). GitHub schedules only run
-# from the default branch, so this workflow lives on main but explicitly builds
-# the React migration branch. This only deploys Hosting, not Firestore rules.
+# GitHub scheduled workflows run from main. Always check out the operational
+# Firebase/Supabase React branch, never the old migrate/react-typescript-vite.
+# A production merge already publishes its exact build to LIVE and react-test.
+# This weekly job only renews react-test before its preview URL expires.
 on:
   schedule:
     - cron: '0 3 * * 1'
@@ -13,15 +14,32 @@ permissions:
   checks: write
   pull-requests: write
 
+concurrency:
+  group: form-qc-unm-hosting-release
+  cancel-in-progress: false
+
 jobs:
   refresh-preview:
+    if: github.repository == 'dnpuji24-bit/QC-Form-Web'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    env:
+      VITE_QC_NATIVE_PORTAL: 'true'
+      VITE_FIRESTORE_ENABLED: 'true'
+      VITE_QC_FIRESTORE_ONLY: 'true'
+      VITE_QC_MASTER_FIRESTORE: 'true'
+      VITE_QC_OPERATIONAL_SAVE: 'true'
+      VITE_QC_NATIVE_REGISTRATION: 'true'
+      VITE_QC_PHOTO_SIGN_PREVIEW: 'true'
+      VITE_QC_HOSTED_UAT: 'false'
+      VITE_QC_SOURCE_BRANCH: 'feature/firebase-auth-claims-supabase'
+      VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY }}
+
     steps:
-      - name: Checkout React migration application
+      - name: Checkout active LIVE application source
         uses: actions/checkout@v4
         with:
-          ref: migrate/react-typescript-vite
+          ref: feature/firebase-auth-claims-supabase
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -31,29 +49,39 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Check TypeScript
-        run: npm run typecheck
-
-      - name: Build React for Firebase Hosting
-        env:
-          VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: '${{ vars.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY }}'
+      - name: Capture actual checkout revision (not default branch SHA)
         run: |
-          test -n "$VITE_RECAPTCHA_ENTERPRISE_SITE_KEY"
-          npm run build
-          test -f public/react/index.html
-          test -f public/react/sw.js
+          echo "VITE_QC_BUILD_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "VITE_QC_APP_VERSION=$(node -p "require('./package.json').version")" >> "$GITHUB_ENV"
 
-      - name: Refresh Firebase Hosting preview (30 days)
+      - name: Validate source and print version
+        run: |
+          test "$VITE_QC_SOURCE_BRANCH" = 'feature/firebase-auth-claims-supabase'
+          test -n "$VITE_RECAPTCHA_ENTERPRISE_SITE_KEY"
+          npm run test:cutover:release-identity
+          npm run test:cutover:native-report-print
+          npm run typecheck
+
+      - name: Build exact current React application
+        run: |
+          npm run build
+          node scripts/write-qc-release-manifest.mjs
+          test -s public/react/index.html
+          test -s public/react/release.json
+
+      - name: Refresh existing react-test preview (30 days)
         id: preview
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_FORM_QC_UNM }}'
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_FORM_QC_UNM }}
           projectId: form-qc-unm
           channelId: react-test
           expires: 30d
 
-      - name: Report current preview URL
+      - name: Report exact preview build
         run: |
-          echo "### React Preview URL" >> "$GITHUB_STEP_SUMMARY"
-          echo "${{ steps.preview.outputs.details_url }}/react/" >> "$GITHUB_STEP_SUMMARY"
+          echo "### QC React react-test (production backend)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Source branch: feature/firebase-auth-claims-supabase" >> "$GITHUB_STEP_SUMMARY"
+          echo "Built SHA: $VITE_QC_BUILD_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "Preview: ${{ steps.preview.outputs.details_url }}/react/" >> "$GITHUB_STEP_SUMMARY"
