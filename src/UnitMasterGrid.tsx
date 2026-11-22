@@ -3,7 +3,7 @@ import {collection,doc,getDoc,getDocsFromServer,serverTimestamp,setDoc,writeBatc
 import {firebaseAuth,firebaseAuthPersistenceReady,firestoreDb} from './firebase'
 import {canEditAccess} from './accessControl'
 import type {User} from './types'
-import {conditionAt,dateMinute,key,type UnitCondition,type UnitEvent,type UnitNumber} from './unitDispatchModel'
+import {conditionAt,dateMinute,key,normalizeEvent,type UnitCondition,type UnitEvent,type UnitNumber} from './unitDispatchModel'
 
 type Kind={id:string;name:string}
 type Status='READY'|'BREAKDOWN'|'MAINTENANCE'|'OUT_OF_SERVICE'
@@ -59,12 +59,7 @@ export default function UnitMasterGrid({user,units,kinds,events,onSaved}:Props){
     try{
       const {db,uid,name}=await actor(),now=siteNow()
       const latest=await getDocsFromServer(collection(db,'unit_events'))
-      const latestEvents=latest.docs.map(d=>{
-        const x=d.data()
-        return{id:d.id,unitId:String(x.unitId||''),type:x.type as UnitEvent['type'],
-          effectiveMinute:Number(x.effectiveMinute)||0,note:String(x.note||''),actorUid:String(x.actorUid||''),
-          date:String(x.date||''),shift:String(x.shift||'')} satisfies UnitEvent
-      })
+      const latestEvents=latest.docs.map(d=>normalizeEvent(d.id,d.data()))
       const batch=writeBatch(db)
       let ops=0
       for(const u of rows){
