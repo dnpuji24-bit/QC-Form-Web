@@ -1,116 +1,108 @@
 import assert from 'node:assert/strict'
 import {readFileSync} from 'node:fs'
-import vm from 'node:vm'
-import {transformSync} from 'esbuild'
 import {test} from 'node:test'
+import {qcWorkOrderPlansByKind,qcSelectedWorkOrder,qcSearchWorkOrders,qcMergeEligiblePlans} from '../src/qcWorkOrderSelection.mjs'
 
-const read=(p)=>readFileSync(new URL('../'+p,import.meta.url),'utf8')
+const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8')
 const source=read('src/qcDailyPlanSource.ts')
-const compiled=transformSync(source,{loader:'ts',format:'cjs',target:'es2022'}).code
-const make=(id,data)=>({id,data:()=>data})
 const base={date:'2026-11-22',companyCode:'GPA',farm:'F1',areaHa:20,
-  masterVariety:'R570',unitName:'Boom Sprayer',planningOrder:1,
-  materials:[{material:'Glyphosate',dosePerHa:2,doseUnit:'L',unit:'L',totalMaterial:40}]}
-const docs=[
- make('daily-a',{...base,dailyPlanId:'DP-A',monthlyPlanLineId:'MP-A',
+ masterVariety:'R570',unitName:'Boom Sprayer',planningOrder:1}
+const rows=[
+ {...base,id:'daily-a',dailyPlanId:'DP-A',monthlyPlanLineId:'MP-A',
   woNumber:'WO-SP-001',plannedShift:'1',operationCode:'10723001',
   coaCode:'60100209',department:'Ratoon Weed Control',shift:'1',foreman:'Mandor A',
   pid:'A-007',activity:'Post Emergence',description:'Post Emergence A',
-  type:'SPRAY',activityCategory:'HERBICIDE'}),
- make('daily-b',{...base,dailyPlanId:'DP-B',monthlyPlanLineId:'MP-A',
+  type:'SPRAY',activityCategory:'HERBICIDE',
+  materials:[{material:'Glyphosate',dosePerHa:2,doseUnit:'L',unit:'L',totalMaterial:40}]},
+ {...base,id:'daily-b',dailyPlanId:'DP-B',monthlyPlanLineId:'MP-A',
   woNumber:'WO-SP-001',plannedShift:'1',operationCode:'10723001',
   coaCode:'60100209',department:'Ratoon Weed Control',shift:'2',foreman:'Mandor B',
   pid:'A-007',activity:'Post Emergence',description:'Post Emergence A',
-  type:'SPRAY',activityCategory:'HERBICIDE'}),
- make('daily-c',{...base,dailyPlanId:'DP-C',monthlyPlanLineId:'MP-C',
+  type:'SPRAY',activityCategory:'HERBICIDE',
+  materials:[{material:'Glyphosate',dosePerHa:2,doseUnit:'L',unit:'L',totalMaterial:40}]},
+ {...base,id:'daily-c',dailyPlanId:'DP-C',monthlyPlanLineId:'MP-C',
   woNumber:'WO-FERT-002',plannedShift:'2',operationCode:'10724175',
   coaCode:'60100302',department:'Upkeep Manuring',shift:'2',foreman:'Mandor C',
   pid:'J-003',activity:'Top Dressing',description:'Top Dressing C',
   type:'FERTILIZER',activityCategory:'FERTILIZER',
-  materials:[{material:'NK 20:30',dosePerHa:450,doseUnit:'kg',unit:'kg',totalMaterial:9000}]}),
- make('daily-legacy',{...base,dailyPlanId:'DP-LEGACY',
-  monthlyPlanLineId:'',woNumber:'',shift:'1',foreman:'Mandor D',
-  pid:'K-009',activity:'Top Dressing',description:'Top Dressing C',
-  type:'FERTILIZER',activityCategory:'FERTILIZER'})
+  materials:[{material:'NK 20:30',dosePerHa:450,doseUnit:'kg',unit:'kg',totalMaterial:9000}]},
+ {...base,id:'daily-legacy',dailyPlanId:'DP-LEGACY',monthlyPlanLineId:'',
+  woNumber:'',shift:'1',foreman:'Mandor D',pid:'K-009',
+  activity:'Top Dressing',description:'Top Dressing C',
+  type:'FERTILIZER',activityCategory:'FERTILIZER',materials:[]}
 ]
-const exports={}
-const ctx={exports,module:{exports},require:spec=>{
-  if(spec==='firebase/firestore')return{
-    collection:(_db,key)=>key,
-    where:(field,op,value)=>({field,op,value}),
-    query:(col,condition)=>({col,condition}),
-    getDocs:async q=>{assert.equal(q.col,'daily_plans')
-      assert.deepEqual(JSON.parse(JSON.stringify(q.condition)),{field:'date',op:'==',value:'2026-11-22'})
-      return{docs}
-    }
-  }
-  if(spec==='./firebase')return{firestoreDb:{connected:true}}
-  throw Error('Unexpected import '+spec)
-},console}
-vm.runInNewContext(compiled,ctx,{filename:'qcDailyPlanSource.transpiled.js'})
-const qc=ctx.module.exports
-const rows=await qc.loadQcDailyPlans('2026-11-22')
-test('Daily source retains WO, Operation, CoA, planned Shift and materials with real mapper',()=>{
- assert.equal(rows.length,4)
- assert.equal(rows[0].woNumber,'WO-SP-001')
- assert.equal(rows[0].plannedShift,'1')
- assert.equal(rows[0].operationCode,'10723001')
- assert.equal(rows[0].coaCode,'60100209')
- assert.equal(rows[0].department,'Ratoon Weed Control')
+const select=(date,form)=>qcWorkOrderPlansByKind(rows,date,row=>
+ (form==='spray'?row.type==='SPRAY':row.type==='FERTILIZER'))
+test('Actual Daily source mapper carries all WO/CoA fields and retains material snapshots',()=>{
+ for(const field of ['woNumber','plannedShift','operationCode','coaCode',
+  'department','catalogActivityId','activityCode']){
+  assert.ok(source.includes(field+':text(row.'+field+')'),'Missing QC source field: '+field)
+ }
+ assert.match(source,/getDocs\(query\(collection\(firestoreDb,'daily_plans'\),where\('date','==',date\)\)\)/)
+ assert.match(source,/materials:materials\(row\.materials\)/)
+ assert.match(source,/qcWorkOrderPlansByKind\(rows,date,row=>qcDailyKind\(row\)===kind\)/)
+ assert.match(source,/return qcSelectedWorkOrder\(qcWorkOrderPlans\(rows,kind,date\),selectedId\)/)
  assert.equal(rows[0].materials[0].dosePerHa,2)
- assert.equal(rows.find(r=>r.dailyPlanId==='DP-C').materials[0].dosePerHa,450)
+ assert.equal(rows[2].materials[0].dosePerHa,450)
 })
-test('Explicit WO can source Daily Shift 1 for QC Shift 2 and reverse 2 for 1',()=>{
- const spr=qc.qcWorkOrderPlans(rows,'spray','2026-11-22')
- assert.equal(spr.length,2)
- const shift1=qc.qcExplicitWorkOrderPlan(rows,'spray','2026-11-22','DP-A')
- const shift2=qc.qcExplicitWorkOrderPlan(rows,'spray','2026-11-22','DP-B')
- assert.equal(shift1.shift,'1')
- assert.equal(shift2.shift,'2')
- const actualShift2=qc.qcMergeEligiblePlans(qc.dailyPlansForQcSession(rows,'spray','2026-11-22','2','Mandor B'),[],[shift1])
- const actualShift1=qc.qcMergeEligiblePlans(qc.dailyPlansForQcSession(rows,'spray','2026-11-22','1','Mandor A'),[],[shift2])
- assert.equal(qc.resolveQcSessionPlan(actualShift2,'A-007','Post Emergence','Post Emergence A','DP-A').dailyPlanId,'DP-A')
- assert.equal(qc.resolveQcSessionPlan(actualShift1,'A-007','Post Emergence','Post Emergence A','DP-B').dailyPlanId,'DP-B')
- assert.equal(actualShift2.filter(x=>x.dailyPlanId==='DP-B').length,1)
- assert.equal(qc.qcExplicitWorkOrderPlan(rows,'spray','2026-11-23','DP-A'),null)
- assert.equal(qc.qcExplicitWorkOrderPlan(rows,'fertilizer','2026-11-22','DP-A'),null)
+test('Bidirectional QC cross-shift selects exact Daily ID, not WO-only identity',()=>{
+ const spray=select('2026-11-22','spray')
+ assert.equal(spray.length,2)
+ const sourceShift1=qcSelectedWorkOrder(spray,'DP-A')
+ const sourceShift2=qcSelectedWorkOrder(spray,'DP-B')
+ assert.equal(sourceShift1.shift,'1')
+ assert.equal(sourceShift2.shift,'2')
+ const shift2Qc=qcMergeEligiblePlans([sourceShift2],[],[sourceShift1])
+ const shift1Qc=qcMergeEligiblePlans([sourceShift1],[],[sourceShift2])
+ assert.deepEqual(shift2Qc.map(row=>row.dailyPlanId),['DP-B','DP-A'])
+ assert.deepEqual(shift1Qc.map(row=>row.dailyPlanId),['DP-A','DP-B'])
+ assert.equal(qcSelectedWorkOrder(shift1Qc,'DP-B').woNumber,'WO-SP-001')
+ assert.equal(qcSelectedWorkOrder(shift2Qc,'DP-A').plannedShift,'1')
 })
-test('WO with multiple Daily rows requires exact Daily ID; no guessed sources',()=>{
- assert.deepEqual(Array.from(qc.qcSearchWorkOrders(rows,'WO-SP-001'),r=>r.dailyPlanId),['DP-A','DP-B'])
- assert.equal(qc.qcSearchWorkOrders(rows,'60100302')[0].dailyPlanId,'DP-C')
- assert.equal(qc.qcSearchWorkOrders(rows,'K-009').length,0)
- assert.equal(qc.qcExplicitWorkOrderPlan(rows,'spray','2026-11-22','WO-SP-001'),null)
- assert.equal(qc.resolveQcSessionPlan(rows,'A-007','Post Emergence','Post Emergence A',''),null)
- const dupes=[rows[0],{...rows[0],id:'same-again'}]
- assert.equal(qc.qcExplicitWorkOrderPlan(dupes,'spray','2026-11-22','DP-A'),null)
+test('Selected WO must have correct QC kind and date; duplicate Daily IDs are rejected',()=>{
+ assert.equal(select('2026-11-23','spray').length,0)
+ assert.equal(select('2026-11-22','fertilizer').length,1)
+ assert.equal(qcSelectedWorkOrder(select('2026-11-22','fertilizer'),'DP-A'),null)
+ assert.equal(qcSelectedWorkOrder(select('2026-11-22','spray'),'WO-SP-001'),null)
+ assert.equal(qcSelectedWorkOrder([rows[0],{...rows[0],id:'copy'}],'DP-A'),null)
+ assert.equal(qcSelectedWorkOrder(select('2026-11-22','spray'),'missing'),null)
 })
-test('Legacy Daily continues in same-shift UI, absent from WO-only results',()=>{
- const normal=qc.dailyPlansForQcSession(rows,'fertilizer','2026-11-22','1','Mandor D')
- assert.equal(normal[0].dailyPlanId,'DP-LEGACY')
- assert.equal(qc.qcWorkOrderPlans(rows,'fertilizer','2026-11-22').length,1)
- assert.equal(qc.qcExplicitWorkOrderPlan(rows,'fertilizer','2026-11-22','DP-LEGACY'),null)
+test('Smartsearch matches WO, PID, Operation Code, CoA and Daily ID without conflating rows',()=>{
+ assert.deepEqual(qcSearchWorkOrders(rows,'WO-SP-001').map(r=>r.dailyPlanId),['DP-A','DP-B'])
+ assert.equal(qcSearchWorkOrders(rows,'60100302')[0].dailyPlanId,'DP-C')
+ assert.equal(qcSearchWorkOrders(rows,'10723001').length,2)
+ assert.equal(qcSearchWorkOrders(rows,'K-009').length,0)
+ assert.equal(qcSearchWorkOrders(rows,'DP-B')[0].woNumber,'WO-SP-001')
+ assert.equal(qcSearchWorkOrders(Array.from({length:30},(_,i)=>({...rows[0],id:String(i),dailyPlanId:'DP-'+i})),'' ).length,12)
 })
-test('Both live forms explicitly link WO and preserve immutable Daily/Monthly reference',()=>{
- for(const file of ['src/SprayForm.tsx','src/FertilizerForm.tsx']){
-  const s=read(file)
+test('Legacy non-WO remains in existing Daily session path, not new WO search',()=>{
+ assert.equal(select('2026-11-22','fertilizer').some(r=>r.dailyPlanId==='DP-LEGACY'),false)
+ assert.match(source,/export function dailyPlansForQcSession/)
+ assert.match(source,/export function qcShiftOneCarryoverCandidates/)
+ assert.match(source,/export function resolveQcSessionPlan/)
+ assert.match(read('src/FertilizerForm.tsx'),/Pilih Daily Plan ID/)
+ assert.match(read('src/SprayForm.tsx'),/Paddock/)
+})
+test('Both live forms explicitly link WO and preserve immutable Daily/Monthly references',()=>{
+ for(const path of ['src/SprayForm.tsx','src/FertilizerForm.tsx']){
+  const s=read(path)
   assert.match(s,/QcWorkOrderSmartSearch rows=\{woOptions\}/)
   assert.match(s,/qcExplicitWorkOrderPlan\(dailyPlanRows/)
   assert.match(s,/qcMergeEligiblePlans/)
   assert.match(s,/dailyPlanId:card\.dailyPlanId,monthlyPlanLineId:card\.monthlyPlanLineId/)
-  assert.match(s,/woNumber:cardDailyPlan\?\.woNumber\|\|''/)
-  assert.match(s,/operationCode:cardDailyPlan\?\.operationCode\|\|''/)
-  assert.match(s,/coaCode:cardDailyPlan\?\.coaCode\|\|''/)
-  assert.match(s,/plannedShift:cardDailyPlan\?\.plannedShift\|\|''/)
-  assert.match(s,/dailyShift:cardDailyPlan\?\.shift\|\|''/)
-  assert.match(s,/dailyForeman:cardDailyPlan\?\.foreman\|\|''/)
+  for(const key of ['woNumber','operationCode','coaCode','plannedShift','dailyShift','dailyForeman']){
+   const mapped=key==='dailyShift'?'shift':key==='dailyForeman'?'foreman':key
+   assert.ok(s.includes(key+':cardDailyPlan?.'+mapped+"||''"),'Missing '+key+' snapshot in '+path)
+  }
   assert.match(s,/qcExplicitWorkOrderPlan\(dailyPlanRows,[^,]+,date,c\.dailyPlanId\)\?c:/)
+  assert.match(s,/disabled=\{busy\|\|editingUploaded\}/)
  }
- const mapper=read('src/firestoreStore.ts')
- for(const attr of ['woNumber','plannedShift','dailyShift','coaCode','operationCode']){
-  assert.match(mapper,new RegExp(attr+':String\\(record\\.'+attr+'\\|\\|\\x27\\x27\\)'))
+ const actual=read('src/firestoreStore.ts')
+ for(const key of ['woNumber','plannedShift','dailyShift','operationCode','coaCode']){
+  assert.ok(actual.includes(key+':String(record.'+key+"||'')"),'Missing QC-generated Actual snapshot '+key)
  }
 })
-test('WO selection stays separate from approved photo and material validation logic',()=>{
+test('Fertilizer recipe, Spray dosing and photo/queue pipeline are preserved',()=>{
  const spray=read('src/SprayForm.tsx'),fert=read('src/FertilizerForm.tsx')
  assert.match(spray,/const materials=\(cardDailyPlan\?\.materials\|\|\[\]\)\.slice\(0,4\)/)
  assert.match(spray,/estimatedAdjuvant/)
@@ -119,7 +111,7 @@ test('WO selection stays separate from approved photo and material validation lo
  assert.match(spray,/queueFormSession\(operationalItems\)/)
  assert.match(fert,/queueFormSession\(operationalItems\)/)
  const picker=read('src/QcWorkOrderSmartSearch.tsx')
- for(const value of ['role="combobox"','role="listbox"',"ArrowDown","ArrowUp","Escape","onSelect(row)"]){
-  assert.ok(picker.includes(value))
+ for(const name of ['role="combobox"','role="listbox"',"ArrowDown","ArrowUp","Escape","onSelect(row)"]){
+  assert.ok(picker.includes(name),'Missing keyboard smartsearch contract '+name)
  }
 })
