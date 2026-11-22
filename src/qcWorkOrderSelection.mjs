@@ -6,8 +6,10 @@ const normalize=v=>text(v).normalize('NFKD')
   .replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('id-ID')
 export function qcWorkOrderPlansByKind(rows,date,matchesKind){
   if(!date)return[]
+  // Historical Daily Plans may predate WO assignment. Preserve exact source
+  // selection, but only for a real PID + Activity on the requested date.
   return rows.filter(row=>row.date===date&&matchesKind(row)
-    &&Boolean(text(row.woNumber))&&Boolean(text(row.dailyPlanId)))
+    &&Boolean(text(row.pid))&&Boolean(text(row.activity))&&Boolean(text(row.dailyPlanId)))
 }
 export function qcSelectedWorkOrder(rows,selectedId){
   if(!selectedId)return null
@@ -22,9 +24,13 @@ export function qcSearchWorkOrders(rows,query,limit=12){
     const hay=[row.woNumber,row.pid,row.dailyPlanId,row.operationCode,
       row.coaCode,row.activity,row.description,row.department,row.shift]
       .map(normalize).join(' ')
-    if(!text(row.woNumber)||!terms.every(term=>hay.includes(term)))return null
-    const rank=!whole?4:wo===whole?0:wo.startsWith(whole)?1:
-      normalize(row.dailyPlanId)===whole?2:3
+    if(!text(row.pid)||!text(row.activity)||!text(row.dailyPlanId)
+      ||!terms.every(term=>hay.includes(term)))return null
+    // WO-first ordering. Legacy sources only appear from this dated, type-
+    // filtered Daily set; choosing a suggestion is required, never free text.
+    const rank=!whole?(wo?4:5):wo&&wo===whole?0:
+      wo&&wo.startsWith(whole)?1:normalize(row.dailyPlanId)===whole?2:
+      wo?3:5
     return{row,rank}
   }).filter(Boolean)
     .sort((a,b)=>a.rank-b.rank
