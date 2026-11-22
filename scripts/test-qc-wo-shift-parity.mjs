@@ -1,14 +1,12 @@
 import assert from 'node:assert/strict'
 import {readFileSync} from 'node:fs'
 import vm from 'node:vm'
-import ts from 'typescript'
+import {transformSync} from 'esbuild'
 import {test} from 'node:test'
 
 const read=(p)=>readFileSync(new URL('../'+p,import.meta.url),'utf8')
 const source=read('src/qcDailyPlanSource.ts')
-const compiled=ts.transpileModule(source,{compilerOptions:{
-  module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true
-}}).outputText
+const compiled=transformSync(source,{loader:'ts',format:'cjs',target:'es2022'}).code
 const make=(id,data)=>({id,data:()=>data})
 const base={date:'2026-11-22',companyCode:'GPA',farm:'F1',areaHa:20,
   masterVariety:'R570',unitName:'Boom Sprayer',planningOrder:1,
