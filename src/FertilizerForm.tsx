@@ -130,7 +130,7 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
       dailyPlanId:source?.dailyPlanId||'',monthlyPlanLineId:source?.monthlyPlanLineId||'',
       paddock:source?.pid||'',activity:source?.activity||'',
       type:source?(source.type||source.activityCategory||'FERTILIZER'):'',
-      woSearch:source?.woNumber||''})
+      woSearch:source?(source.woNumber||`${source.pid} ${source.activity} ${source.dailyPlanId}`):''})
   }
   function toggleMultiPaddock(c:UnitCard,enabled:boolean){
     if(c.recordId){setMessage('Mode Multi-Paddock tidak dapat diganti setelah record disimpan.');return}
@@ -140,16 +140,16 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
     else patchCard(c.id,{multiPaddockMode:false,paddockWorks:[],
       dailyPlanId:'',monthlyPlanLineId:'',paddock:'',activity:'',type:'',woSearch:''})
   }
-  const planStatus=dailyPlanLoading||(!dailyPlanMessage&&loadedPlanDate!==date)?'Memuat Daily Plan…':dailyPlanMessage||(!mandor.trim()?'Pilih Mandor aktual terlebih dahulu.':fertDailyPlans.length?fertDailyPlans.length+' Daily Plan Fertilizer pada shift dan mandor ini.':'Tidak ada Daily Plan untuk kombinasi shift dan mandor ini.')+' · '+woOptions.length+' WO tersedia pada tanggal ini (pilih Daily ID secara eksplisit).'
+  const planStatus=dailyPlanLoading||(!dailyPlanMessage&&loadedPlanDate!==date)?'Memuat Daily Plan…':dailyPlanMessage||(!mandor.trim()?'Pilih Mandor aktual terlebih dahulu.':fertDailyPlans.length?fertDailyPlans.length+' Daily Plan Fertilizer pada shift dan mandor ini.':'Tidak ada Daily Plan untuk kombinasi shift dan mandor ini.')+' · '+woOptions.length+' sumber Daily tersedia (termasuk yang belum memiliki WO; pilih Daily ID secara eksplisit).'
   function planProblem(c:UnitCard){
     if(c.multiPaddockMode){
       if(!operationalSaveEnabled)return'Multi-Paddock memerlukan simpan QC atomik.'
       for(const work of c.paddockWorks||[]){
         if(!work.dailyPlanId)continue
         const selected=qcExplicitWorkOrderPlan(dailyPlanRows,'fertilizer',date,work.dailyPlanId)
-        if(!selected||selected.pid!==work.pid||selected.woNumber!==work.woNumber||
+        if(!selected||selected.pid!==work.pid||selected.activity!==work.activity||selected.woNumber!==work.woNumber||
             selected.monthlyPlanLineId!==work.monthlyPlanLineId)
-          return'Sumber WO/PID Multi-Paddock tidak cocok dengan Daily Plan.'
+          return'Sumber PID/Activity/Daily ID tidak cocok dengan Daily Plan pada tanggal QC.'
       }
       return ''
     }
@@ -189,15 +189,15 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
     const matched=selected&&norm(selected.pid)===norm(pid)&&norm(selected.activity)===norm(activity)?selected:null
     setCards(old=>old.map(c=>{
       if(c.id!==cardId)return c
-      if(matched&&c.dailyPlanId===matched.dailyPlanId)return c.woSearch===matched.woNumber?c:{...c,woSearch:matched.woNumber}
+      if(matched&&c.dailyPlanId===matched.dailyPlanId)return c.woSearch===(matched.woNumber||`${matched.pid} ${matched.activity} ${matched.dailyPlanId}`)?c:{...c,woSearch:matched.woNumber||`${matched.pid} ${matched.activity} ${matched.dailyPlanId}`}
       const first=matched?.materials[0],choices=fertilizerChoices(matched,masterProducts,productsLoaded)
       const fillings=c.fillings.map((f,i)=>({...f,jenisPupuk:i===0?suggestedFertilizerName(first,choices,productsLoaded):'',dosis:i===0&&first?String(first.dosePerHa||''):''}))
-      return {...c,paddock:pid,activity,dailyPlanId:matched?.dailyPlanId||'',monthlyPlanLineId:matched?.monthlyPlanLineId||'',woSearch:matched?.woNumber||'',type:matched?(matched.type||matched.activityCategory||'FERTILIZER'):'',fillings}
+      return {...c,paddock:pid,activity,dailyPlanId:matched?.dailyPlanId||'',monthlyPlanLineId:matched?.monthlyPlanLineId||'',woSearch:matched?(matched.woNumber||`${matched.pid} ${matched.activity} ${matched.dailyPlanId}`):'',type:matched?(matched.type||matched.activityCategory||'FERTILIZER'):'',fillings}
     }))
   }
   function chooseExplicitWo(c:UnitCard,row:QcDailyPlan){
     const source=qcExplicitWorkOrderPlan(dailyPlanRows,'fertilizer',date,row.dailyPlanId)
-    if(!source){setMessage('WO tidak sesuai tanggal atau jenis QC. Pilih ulang Daily Plan.');return}
+    if(!source){setMessage('Sumber Daily tidak cocok dengan tanggal, jenis QC, PID atau Activity. Pilih ulang Daily ID.');return}
     linkDailyPlan(c.id,source.pid,source.activity,source.dailyPlanId,source)
   }
   function typeExplicitWo(c:UnitCard,value:string){
