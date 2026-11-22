@@ -1,4 +1,4 @@
-import {supportUnitRows,type SupportUnitRequirement} from './dailyUnitSupport'
+import type {SupportUnitRequirement} from './dailyUnitSupport'
 
 export type DispatchUnitForWA={requirementId:string;unitCode:string;unitName:string}
 export type DailyPlanTransfer={
@@ -169,7 +169,7 @@ export function dailyPlansToWhatsApp(rows:DailyPlanTransfer[]){
       }
       lines.push('🚜 *DAFTAR UNIT & EQUIPMENT*')
       describe('Utama',first.unitName,first.unitRequired||0,'primary',first.unitPreferredCodes||[])
-      for(const support of supportUnitRows(first.supportUnits)){
+      for(const support of first.supportUnits||[]){
         describe('Support',support.unitName,support.unitRequired,'support:'+support.id,
           support.unitPreferredCodes,support.notes)
       }
