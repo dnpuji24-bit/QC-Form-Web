@@ -84,3 +84,39 @@ test('Different material units are not combined',()=>{
  assert.match(output,/NK 20:30 : \*1\.575 kg\*/)
  assert.match(output,/NK 20:30 : \*15 L\*/)
 })
+
+test('WA copy includes actual primary and support unit codes once for multi-PID work',()=>{
+ const primary={...base,activity:'Stool Splitting',description:'Stool Splitter',
+   unitName:'STOOL SPLITTER',unitRequired:2,unitPreferredCodes:['SS001','SS002'],
+   supportUnits:[{id:'dt-support',unitName:'DUMP TRUCK',unitRequired:1,
+     unitPreferredCodes:['DT123T'],notes:'Angkut material ke paddock'}],
+   dispatchUnits:[
+     {requirementId:'primary',unitName:'STOOL SPLITTER',unitCode:'SS001'},
+     {requirementId:'primary',unitName:'STOOL SPLITTER',unitCode:'SS002'},
+     {requirementId:'support:dt-support',unitName:'DUMP TRUCK',unitCode:'DT123T'}
+   ],materials:[],notes:''}
+ const wa=dailyPlansToWhatsApp([primary,{...primary,dailyPlanId:'DP-003',pid:'JAGF-2-K-005'}])
+ assert.match(wa,/DAFTAR UNIT & EQUIPMENT/)
+ assert.match(wa,/Utama: STOOL SPLITTER — 2 unit/)
+ assert.match(wa,/Kode: SS001, SS002/)
+ assert.match(wa,/Support: DUMP TRUCK — 1 unit/)
+ assert.match(wa,/Kode: DT123T/)
+ assert.match(wa,/Keterangan: Angkut material ke paddock/)
+ assert.doesNotMatch(wa,/Kode usulan: SS001|Kode usulan: DT123T/)
+ assert.equal((wa.match(/Support: DUMP TRUCK/g)||[]).length,1)
+})
+test('WA copy labels proposed codes separately when Unit Dispatch has no confirmed assignment',()=>{
+ const row={...base,unitName:'STOOL SPLITTER',unitRequired:1,unitPreferredCodes:['SS003'],
+   supportUnits:[{id:'dt-support',unitName:'DUMP TRUCK',unitRequired:1,
+     unitPreferredCodes:['DT124T'],notes:''}],materials:[]}
+ const wa=dailyPlansToWhatsApp([row])
+ assert.match(wa,/Kode usulan: SS003/)
+ assert.match(wa,/Kode usulan: DT124T/)
+ assert.doesNotMatch(wa,/Kode: SS003/)
+})
+test('WA copy remains readable for legacy records without selected codes',()=>{
+ const wa=dailyPlansToWhatsApp([base])
+ assert.match(wa,/Unit: Fertilizer/)
+ assert.match(wa,/DAFTAR UNIT & EQUIPMENT/)
+ assert.match(wa,/Kode: belum ditentukan/)
+})
