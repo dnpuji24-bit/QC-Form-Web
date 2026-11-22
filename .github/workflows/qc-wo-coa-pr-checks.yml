@@ -37,6 +37,9 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Validate CoA and WO contracts
         run: npm run test:plan:wo-coa
+      - name: Verify unified Activity register and historical safety
+        run: npm run test:master:activity-unified
+
       - name: Verify TypeScript
         run: npm run typecheck
       - name: Build React safely
