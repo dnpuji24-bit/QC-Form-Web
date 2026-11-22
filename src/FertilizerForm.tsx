@@ -177,7 +177,7 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
   const activeCard=cards.find(c=>c.id===activeCardId)||cards[0],activeIndex=Math.max(0,cards.findIndex(c=>c.id===activeCard?.id))
   function invalidateLinks(preserveWo=false){setCards(old=>old.map(c=>preserveWo&&qcExplicitWorkOrderPlan(dailyPlanRows,'fertilizer',date,c.dailyPlanId)?c:{...c,dailyPlanId:'',monthlyPlanLineId:'',type:'',woSearch:''}))}
   function changeShift(value:string){const next=qcShiftValue(value)||value;if(next!==qcShiftValue(shift))invalidateLinks(true);setShift(next)}
-  function changeDate(value:string){if(value!==date){
+  function changeDate(value:string){if(value!==date&&cards.some(c=>c.multiPaddockMode&&c.recordId)){setMessage('Tanggal Multi-Paddock tersimpan tidak boleh diubah. Buat sesi QC baru.');return}if(value!==date){
     setCards(old=>old.map(c=>({...c,dailyPlanId:'',monthlyPlanLineId:'',woSearch:'',paddock:'',activity:'',
       type:'',paddockWorks:c.multiPaddockMode?[blankQcPaddockWork()]:c.paddockWorks})))
     }setDate(value)}
