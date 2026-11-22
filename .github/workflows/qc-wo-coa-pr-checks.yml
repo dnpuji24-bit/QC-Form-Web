@@ -1,0 +1,43 @@
+name: QC CoA and WO Pull Request Verification
+
+on:
+  pull_request:
+    branches:
+      - feature/firebase-auth-claims-supabase
+    paths:
+      - 'src/**'
+      - 'scripts/**'
+      - 'firestore.rules'
+      - 'package.json'
+      - '.github/workflows/**'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-coa-wo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VITE_QC_NATIVE_PORTAL: 'true'
+      VITE_FIRESTORE_ENABLED: 'true'
+      VITE_QC_FIRESTORE_ONLY: 'true'
+      VITE_QC_MASTER_FIRESTORE: 'true'
+      VITE_QC_OPERATIONAL_SAVE: 'true'
+      VITE_QC_NATIVE_REGISTRATION: 'true'
+      VITE_QC_PHOTO_SIGN_PREVIEW: 'true'
+      VITE_QC_HOSTED_UAT: 'false'
+      VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate CoA and WO contracts
+        run: npm run test:plan:wo-coa
+      - name: Verify TypeScript
+        run: npm run typecheck
+      - name: Build React safely
+        run: npm run build

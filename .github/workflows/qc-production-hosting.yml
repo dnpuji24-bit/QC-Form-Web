@@ -62,6 +62,9 @@ jobs:
       - name: Check release identity and source alignment
         run: npm run test:cutover:release-identity
 
+      - name: Validate Master Activity CoA and Monthly WO contracts
+        run: npm run test:plan:wo-coa
+
       - name: Check TypeScript types
         run: npm run typecheck
 
@@ -79,6 +82,18 @@ jobs:
         run: |
           test -n "$FIREBASE_ACCOUNT_JSON"
           echo "Firebase Hosting service account is configured."
+
+      # New Firestore collections must be authorized before any frontend using them goes live.
+      # If this step fails, LIVE/preview Hosting are not deployed.
+      - name: Deploy CoA and WO Firestore security rules
+        env:
+          FIREBASE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_FORM_QC_UNM }}
+        run: |
+          printf '%s' "$FIREBASE_ACCOUNT_JSON" > "$RUNNER_TEMP/qc-firebase-service-account.json"
+          chmod 600 "$RUNNER_TEMP/qc-firebase-service-account.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/qc-firebase-service-account.json"
+          npx --yes firebase-tools@14 deploy --only firestore:rules --project form-qc-unm --non-interactive
+          rm -f "$RUNNER_TEMP/qc-firebase-service-account.json"
 
       - name: Deploy only Hosting to form-qc-unm LIVE
         id: hosting

@@ -345,6 +345,17 @@ service cloud.firestore {
       allow delete: if activeUser() && role() == 'owner';
     }
 
+    // Activity/CoA catalog is independent from validation ACT codes and material recipes.
+    match /master_activity_catalog/{catalogId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.coaCode is string
+        && request.resource.data.coaCode.matches('^[0-9]{1,20}$');
+      allow delete: if false;
+    }
+
     match /master_activity_types/{typeId} {
       allow read: if activeUser();
       allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
@@ -396,6 +407,20 @@ service cloud.firestore {
     match /master_activity_import_logs/{batchId} {
       allow read: if activeUser();
       allow create: if activeUser() && canEditKey('data_master_activity_import',['owner','asisten']);
+      allow update, delete: if false;
+    }
+
+    // Manual WO is allocated once and remains immutable. Actual shift is independent.
+    match /work_orders/{woKey} {
+      allow read: if activeUser();
+      allow create: if activeUser() && canEditKey('data_plan_monthly',['owner','asisten'])
+        && request.resource.data.keys().hasAll(['woNumber','planLineId','pid','activity','coaCode','plannedShift'])
+        && request.resource.data.woNumber is string
+        && request.resource.data.coaCode is string
+        && request.resource.data.coaCode.matches('^[0-9]{1,20}$')
+        && request.resource.data.plannedShift in ['1','2']
+        && existsAfter(/databases/$(database)/documents/monthly_plans/$(request.resource.data.planLineId))
+        && getAfter(/databases/$(database)/documents/monthly_plans/$(request.resource.data.planLineId)).data.woNumber == request.resource.data.woNumber;
       allow update, delete: if false;
     }
 
