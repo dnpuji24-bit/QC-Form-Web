@@ -72,15 +72,20 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
   function reset(){if(!window.confirm('Kosongkan draft input Monthly Plan ini?'))return;clearPlanDraft(draftKey);setDraft({month:new Date().toISOString().slice(0,7),week:'W1',company:draft.company||'GPA',farm:'',lines:[blankLine()]});setMessage('Draft Monthly Plan dikosongkan.')}
 
   function duplicateKeys(){
-    const keys=new Map<string,number>(),dupes:{label:string;index:number}[]=[]
+    const seen:Array<{identity:string;shift:string}>=[]
+    const dupes:{label:string;index:number}[]=[]
     lineInfo.forEach((info,index)=>{
       if(!info.line.pid||!info.activity)return
-      const key=monthlyWorkIdentity({pid:info.line.pid,masterActivityId:info.activity.id,
-        catalogActivityId:info.catalogActivityId,plannedShift:info.line.plannedShift||'1',
-        varieties:info.selectedVarieties})
-      if(keys.has(key))dupes.push({label:info.line.pid+' · '+info.activity.description+
-        ' · Shift '+(info.line.plannedShift||'1'),index})
-      else keys.set(key,index)
+      // Same WO may occur on many lines. Only reject indistinguishable work
+      // rows; ALL overlaps either individual shift on the same date.
+      const identity=monthlyWorkIdentity({pid:info.line.pid,masterActivityId:info.activity.id,
+        catalogActivityId:info.catalogActivityId,plannedShift:'ALL',
+        plannedDate:info.line.plannedDate||'',varieties:info.selectedVarieties})
+      const shift=info.line.plannedShift||'1'
+      if(seen.some(x=>x.identity===identity&&(x.shift===shift||x.shift==='ALL'||shift==='ALL')))
+        dupes.push({label:info.line.pid+' · '+info.activity.description+' · '+
+          (info.line.plannedDate||'tanpa tanggal')+' · '+(shift==='ALL'?'Semua Shift':'Shift '+shift),index})
+      else seen.push({identity,shift})
     })
     return dupes
   }
@@ -100,16 +105,17 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
     const dupes=duplicateKeys();if(dupes.length){setMessage('BELUM TERSIMPAN · Baris pekerjaan identik (PID, Activity, Tanggal, Shift, varietas): '+dupes.map(x=>x.label).join(', '));return}
     const duplicates=lineInfo.filter(x=>existing.some(row=>{
       if(row.monthKey!==draft.month||row.week!==draft.week||row.pid!==x.line.pid.toUpperCase())return false
-      // Shift 1 and Shift 2 are distinct planned work even when execution later
-      // crosses shifts. Old plans without shift identity are not blockers.
-      if(!row.plannedShift||row.plannedShift!==(x.line.plannedShift||'1'))return false
+      // Distinct scheduled dates do not collide; ALL overlaps Shift 1 and 2.
+      if(row.plannedDate&&x.line.plannedDate&&row.plannedDate!==x.line.plannedDate)return false
+      if(!row.plannedShift)return false
+      if(row.plannedShift!==(x.line.plannedShift||'1')&&row.plannedShift!=='ALL'&&x.line.plannedShift!=='ALL')return false
       return row.catalogActivityId&&x.catalogActivityId
         ?row.catalogActivityId===x.catalogActivityId
         :row.masterActivityId&&x.activity
           ?row.masterActivityId===x.activity.id
           :row.activity===x.activity?.activity
     }))
-    if(duplicates.length&&!window.confirm(duplicates.length+' pasangan Month/Week/PID/Activity sudah ada. Tetap buat WO baru?'))return
+    if(duplicates.length&&!window.confirm(duplicates.length+' baris pekerjaan serupa sudah ada dalam periode ini. Tetap simpan? Pastikan target luas tidak dihitung dua kali.'))return
     setBusy(true);setMessage('Memeriksa WO dan menyimpan setiap baris Monthly Plan…')
     try{
       const {db,username}=await writer(user)
