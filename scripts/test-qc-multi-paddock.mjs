@@ -67,6 +67,8 @@ test('Single QC parent and N child Actuals commit in one transaction with determ
  await commitQcAndActual({record:revised,baseRevision:'rev1',jobId:'job-2',uploaderUid:'user'},deps)
  assert.equal(actuals.size,2)
  assert.equal(actuals.get('qcactual_qc-v2-session-001__w2').actualAreaHa,8)
+ await assert.rejects(()=>commitQcAndActual({record:{...revised,clientRevision:'rev3',saveType:'draft'},
+   baseRevision:'rev2',jobId:'rollback-job',uploaderUid:'user'},deps),/STATUS_REGRESSION/)
  const rejected={...revised,clientRevision:'rev3',paddockWorks:[works[0],work('w3','DP-3',7)]}
  await assert.rejects(()=>commitQcAndActual({record:rejected,baseRevision:'rev2',jobId:'job-3',uploaderUid:'user'},deps),/MEMBERSHIP_LOCKED/)
 })
