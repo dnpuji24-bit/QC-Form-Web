@@ -7,6 +7,7 @@ import type { User } from './types'
 import { canEditAccess } from './accessControl'
 import YinYangRefreshButton from './YinYangRefreshButton'
 import {ACTIVITY_COA_COLLECTION,parseCoaActivity,type CoaActivity} from './MasterActivityCatalogPanel'
+import {findCatalogForValidation} from './activityCatalogModel'
 
 type Props={user:User;selectedMonth?:string;selectedWeek?:string;onPeriodChange?:(month:string,week:string)=>void;onSaved?:()=>void}
 type VarietyArea={variety:string;areaHa:number}
@@ -46,7 +47,7 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
   const farms=useMemo(()=>[...new Set(paddocks.filter(x=>!draft.company||x.companyCode===draft.company).map(x=>x.farm).filter(Boolean))].sort(),[paddocks,draft.company])
   const pidOptions=useMemo(()=>paddocks.filter(x=>(!draft.company||x.companyCode===draft.company)&&(!draft.farm||x.farm===draft.farm)).sort((a,b)=>a.pid.localeCompare(b.pid,undefined,{numeric:true})),[paddocks,draft.company,draft.farm])
   const activityOptions=useMemo(()=>activities.filter(x=>x.active&&(x.companyScope==='GLOBAL'||x.companyScope===draft.company)).sort((a,b)=>a.description.localeCompare(b.description)),[activities,draft.company])
-  const lineInfo=useMemo(()=>draft.lines.map(line=>{const paddock=paddocks.find(x=>x.pid===line.pid.toUpperCase())||null,activity=activityOptions.find(x=>x.id===line.activityId)||null,target=planNum(line.target),materials=materialLinesFromComponents(activity?.components||[],target),varietyOptions=paddock?(paddock.varietyBreakdown.length?paddock.varietyBreakdown:(paddock.variety?[{variety:paddock.variety,areaHa:paddock.plantAreaHa}]:[])):[],requested=(line.varieties||[]).filter(name=>varietyOptions.some(option=>option.variety===name)),selectedVarieties=requested.length?requested:(varietyOptions.length===1?[varietyOptions[0].variety]:[]),selectedVarietyDetails=varietyOptions.filter(option=>selectedVarieties.includes(option.variety)),selectedPlantArea=selectedVarietyDetails.reduce((sum,item)=>sum+item.areaHa,0);const mapped=coaCatalog.find(x=>x.active&&(activity?.catalogActivityId===x.id||x.name.toLocaleLowerCase('id-ID')===activity?.activity.toLocaleLowerCase('id-ID')));return{line,paddock,activity,coaCode:mapped?.coaCode||activity?.coaCode||'',catalogActivityId:mapped?.id||activity?.catalogActivityId||'',target,materials,varietyOptions,selectedVarieties,selectedVarietyDetails,selectedPlantArea}}),[draft.lines,paddocks,activityOptions,coaCatalog])
+  const lineInfo=useMemo(()=>draft.lines.map(line=>{const paddock=paddocks.find(x=>x.pid===line.pid.toUpperCase())||null,activity=activityOptions.find(x=>x.id===line.activityId)||null,target=planNum(line.target),materials=materialLinesFromComponents(activity?.components||[],target),varietyOptions=paddock?(paddock.varietyBreakdown.length?paddock.varietyBreakdown:(paddock.variety?[{variety:paddock.variety,areaHa:paddock.plantAreaHa}]:[])):[],requested=(line.varieties||[]).filter(name=>varietyOptions.some(option=>option.variety===name)),selectedVarieties=requested.length?requested:(varietyOptions.length===1?[varietyOptions[0].variety]:[]),selectedVarietyDetails=varietyOptions.filter(option=>selectedVarieties.includes(option.variety)),selectedPlantArea=selectedVarietyDetails.reduce((sum,item)=>sum+item.areaHa,0);const mapped=activity?findCatalogForValidation(coaCatalog,{catalogActivityId:activity.catalogActivityId,activity:activity.activity,coaCode:activity.coaCode}):undefined;return{line,paddock,activity,coaCode:mapped?.coaCode||(!activity?.catalogActivityId?activity?.coaCode:'')||'',catalogActivityId:mapped?.id||activity?.catalogActivityId||'',operationCode:mapped?.operationCode||'',department:mapped?.department||'',target,materials,varietyOptions,selectedVarieties,selectedVarietyDetails,selectedPlantArea}}),[draft.lines,paddocks,activityOptions,coaCatalog])
   const totalArea=lineInfo.reduce((s,x)=>s+x.target,0)
   const totalMaterials=aggregateMaterials(lineInfo.map(x=>x.materials))
 
@@ -108,7 +109,7 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
             activity:a.activity,notes:info.line.notes,companyCode:draft.company,farm:p.farm||draft.farm,stage:p.stage,
             areaPaddockHa:p.areaPaddockHa,plantAreaHa:p.plantAreaHa,selectedPlantAreaHa:info.selectedPlantArea,
             masterVariety:p.variety,masterVarietyBreakdown:p.varietyBreakdown,masterActivityId:a.id,activityCode:a.activityCode,
-            coaCode:info.coaCode,catalogActivityId:info.catalogActivityId,woNumber,plannedShift,
+            coaCode:info.coaCode,catalogActivityId:info.catalogActivityId,operationCode:info.operationCode,department:info.department,woNumber,plannedShift,
             type:a.type,activityCategory:a.activityCategory,componentsSnapshot:a.components,materialsPreview:info.materials,
             sourceOrigin:'WEB',lastModifiedSource:'WEB',createdAt:serverTimestamp(),createdBy:username,
             updatedAt:serverTimestamp(),updatedBy:username
@@ -116,7 +117,7 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
           transaction.set(woRefs[index],{
             woNumber,planLineId,companyCode:draft.company,pid:p.pid,
             masterActivityId:a.id,activity:a.activity,description:a.description,
-            activityCode:a.activityCode,coaCode:info.coaCode,catalogActivityId:info.catalogActivityId,
+            activityCode:a.activityCode,coaCode:info.coaCode,catalogActivityId:info.catalogActivityId,operationCode:info.operationCode,department:info.department,
             plannedShift,monthKey:draft.month,week:draft.week,targetAreaHa:info.target,
             status:'PLANNED',createdAt:serverTimestamp(),createdBy:username
           })
