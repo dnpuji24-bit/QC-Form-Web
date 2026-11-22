@@ -15,13 +15,36 @@ export async function commitQcAndActual(input,deps){
     if(current?.saveType==='uploaded'&&record.saveType!=='uploaded')throw Error('QC_STATUS_REGRESSION');
     const next={...current,...record,operationalSaveId:jobId,firestoreSaveState:'confirmed'};
     delete next.photoBase64;delete next.scanReportPhotoBase64;
-    const actual=deps.buildActual(next);
+    const multi=next.multiPaddockMode===true
+    if(current&&current.multiPaddockMode!==next.multiPaddockMode)
+      throw Error('QC_MULTI_MODE_IMMUTABLE')
+    if(multi&&current&&['ready','uploaded'].includes(current.saveType)){
+      const oldIds=(current.paddockWorks||[]).map(w=>w.workId+':'+w.dailyPlanId).sort()
+      const newIds=(next.paddockWorks||[]).map(w=>w.workId+':'+w.dailyPlanId).sort()
+      if(JSON.stringify(oldIds)!==JSON.stringify(newIds))throw Error('QC_MULTI_READY_MEMBERSHIP_LOCKED')
+    }
+    const actual=multi?null:deps.buildActual(next);
+    const multiple=multi?deps.buildActualItems?.(next):[]
+    if(multi&&!Array.isArray(multiple))throw Error('QC_MULTI_ATOMIC_ADAPTER_REQUIRED')
+    const actualIds=new Set()
+    for(const item of multiple){
+      if(!item?.actualReportId||actualIds.has(item.actualReportId))
+        throw Error('QC_MULTI_ACTUAL_DUPLICATE_ID')
+      actualIds.add(item.actualReportId)
+    }
     const oldActual=await tx.readActual('qcactual_'+record.id);
     if(oldActual&&(oldActual.sourceOrigin!=='QC'||oldActual.qcRecordId!==record.id))throw Error('QC_ACTUAL_ID_CONFLICT');
     if(!actual&&oldActual)throw Error('QC_ACTUAL_REMOVAL_REQUIRES_REVIEW');
+    // Transactional Firestore: read every per-paddock Actual before *any* write.
+    for(const item of multiple){
+      const existing=await tx.readActual(item.actualReportId)
+      if(existing&&(existing.sourceOrigin!=='QC'||existing.qcRecordId!==record.id||
+          existing.qcWorkId!==item.qcWorkId))throw Error('QC_MULTI_ACTUAL_ID_CONFLICT')
+    }
     if(await deps.currentUid()!==uploaderUid)throw Error('QC_QUEUE_ACCOUNT_MISMATCH');
     tx.writeQc(record.id,next);
     if(actual)tx.writeActual('qcactual_'+record.id,actual);
+    for(const item of multiple)tx.writeActual(item.actualReportId,item);
     return next;
   });
 }
