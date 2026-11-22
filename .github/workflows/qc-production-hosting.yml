@@ -71,6 +71,9 @@ jobs:
       - name: Validate Activity smartsearch matching and keyboard navigation
         run: npm run test:master:activity-smartsearch
 
+      - name: Check Monthly WO input, Operation matching, and export
+        run: npm run test:plan:monthly-wo-smartsearch
+
       - name: Check TypeScript types
         run: npm run typecheck
 
