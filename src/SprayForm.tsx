@@ -126,6 +126,7 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
     if(c.multiPaddockMode){
       if(!operationalSaveEnabled)return'Multi-Paddock memerlukan simpan QC atomik.'
       for(const work of c.paddockWorks||[]){
+        if(!work.dailyPlanId)continue
         const source=qcExplicitWorkOrderPlan(dailyPlanRows,'spray',date,work.dailyPlanId)
         if(!source||source.pid!==work.pid||source.woNumber!==work.woNumber||
             source.monthlyPlanLineId!==work.monthlyPlanLineId)
@@ -134,7 +135,7 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
       const sourceProducts=(id:string)=>woOptions.find(row=>row.dailyPlanId===id)?.materials
         .slice(0,4).map(m=>m.material+'|'+m.dosePerHa+'|'+(m.unit||m.doseUnit)).join(';')
       const identity=sourceProducts(c.paddockWorks?.[0]?.dailyPlanId)
-      if(c.paddockWorks?.some(w=>sourceProducts(w.dailyPlanId)!==identity))
+      if(c.paddockWorks?.filter(w=>w.dailyPlanId).some(w=>sourceProducts(w.dailyPlanId)!==identity))
         return'Produk/dosis berbeda antar-WO. Gunakan Unit Card lain untuk campuran bahan berbeda.'
       return ''
     }
@@ -218,8 +219,8 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
         const cardDailyPlan=planForCard(card)
         if(!cardDailyPlan||planProblem(card))throw Error('Daily Plan tidak cocok; pilih ulang pekerjaan sebelum menyimpan.')
         const multiSources=card.multiPaddockMode?sprayMultiSources(card):[]
-        const multiProblem=card.multiPaddockMode?validateQcMultiPaddock(card.paddockWorks,multiSources,
-          {ready:saveType==='ready',totalArea:n(card.area)}):''
+        const multiProblem=card.multiPaddockMode&&saveType==='ready'?
+          validateQcMultiPaddock(card.paddockWorks,multiSources,{ready:true,totalArea:n(card.area)}):''
         if(multiProblem)throw Error(multiProblem)
         const materials=(cardDailyPlan?.materials||[]).slice(0,4).map((m,i)=>({slot:'Pesticide '+(i+1),material:m.material,unit:m.doseUnit||m.unit,dosage:m.dosePerHa}))
         const timing=timingFor(card),productivityHaPerHour=timing.ready&&timing.effective>0?Math.round((n(card.area)/(timing.effective/60))*100)/100:0,holdIntervals:HoldInterval[]=await Promise.all(card.holds.map(async({id,file,removePhoto,...hold})=>({...hold,holdId:id,photoBase64:removePhoto?'':file?await photoData(file):text(hold.photoBase64),photoDriveUrl:removePhoto?'':text(hold.photoDriveUrl)})))
