@@ -47,7 +47,7 @@ function eventConditionLabel(value:UnitCondition){return value==='OUT_OF_SERVICE
 function dispatchBadge(value:string){return value==='READY'||value==='WORKING'?'success':value==='BREAKDOWN'?'danger':value==='MAINTENANCE'||value==='PENDING_INSPECTION'?'warning':'secondary'}
 
 export default function UnitDispatchWorkspace({user,initialDate}:Props){
-  const[tab,setTab]=useState<Tab>('dispatch')
+  const[tab,setTab]=useState<Tab>('units')
   const[date,setDate]=useState(initialDate||dateToday()),[shift,setShift]=useState('1')
   const[kinds,setKinds]=useState<Kind[]>([]),[units,setUnits]=useState<UnitNumber[]>([]),[events,setEvents]=useState<UnitEvent[]>([]),[assignments,setAssignments]=useState<UnitAssignment[]>([]),[requirements,setRequirements]=useState<UnitRequirement[]>([])
   const[loading,setLoading]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[search,setSearch]=useState('')
