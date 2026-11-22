@@ -1,3 +1,6 @@
+import {supportUnitRows,type SupportUnitRequirement} from './dailyUnitSupport'
+
+export type DispatchUnitForWA={requirementId:string;unitCode:string;unitName:string}
 export type DailyPlanTransfer={
   dailyPlanId:string
   workGroupId:string
@@ -20,6 +23,8 @@ export type DailyPlanTransfer={
   unitName:string
   unitRequired?:number
   unitPreferredCodes?:string[]
+  supportUnits?:SupportUnitRequirement[]
+  dispatchUnits?:DispatchUnitForWA[]
   unitReady:number
   unitStandby:number
   unitBreakdown:number
@@ -147,6 +152,27 @@ export function dailyPlansToWhatsApp(rows:DailyPlanTransfer[]){
         ...twoColumns('Unit: '+tidy(first.unitName),'Ready: '+n(first.unitReady)),
         ...twoColumns('Breakdown: '+n(first.unitBreakdown),'Standby: '+n(first.unitStandby)),
         mono)
+      // Display physical unit codes as well as equipment names. Dispatch-confirmed
+      // codes take priority; otherwise label Daily Plan selections as proposals.
+      const dispatch=first.dispatchUnits||[]
+      const selectedCodes=(requirementId:string,preferred:string[]=[])=>
+        [...new Set(dispatch.filter(x=>x.requirementId===requirementId).map(x=>x.unitCode).filter(Boolean))]
+          .sort((a,b)=>a.localeCompare(b,'id',{numeric:true}))
+      const describe=(role:string,type:string,quantity:number,requirementId:string,preferred:string[],notes='')=>{
+        if(!type.trim()&&quantity===0)return
+        lines.push('• '+role+': '+tidy(type)+' — '+n(quantity)+' unit')
+        const codes=selectedCodes(requirementId)
+        if(codes.length)lines.push('  Kode: '+codes.join(', '))
+        else if(preferred.length)lines.push('  Kode usulan: '+[...new Set(preferred)].join(', '))
+        else lines.push('  Kode: belum ditentukan')
+        if(notes.trim())lines.push('  Keterangan: '+tidy(notes))
+      }
+      lines.push('🚜 *DAFTAR UNIT & EQUIPMENT*')
+      describe('Utama',first.unitName,first.unitRequired||0,'primary',first.unitPreferredCodes||[])
+      for(const support of supportUnitRows(first.supportUnits)){
+        describe('Support',support.unitName,support.unitRequired,'support:'+support.id,
+          support.unitPreferredCodes,support.notes)
+      }
       if(first.notes?.trim())lines.push('📝 Catatan: '+tidy(first.notes))
       lines.push('')
     }
