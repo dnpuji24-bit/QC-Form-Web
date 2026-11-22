@@ -79,6 +79,14 @@ jobs:
           npm install --no-save --no-package-lock @firebase/rules-unit-testing@5
           npx --yes firebase-tools@14 emulators:exec --only firestore --project demo-qc-shared-wo --config firebase.native-cutover-browser-emulator.json "node scripts/test-monthly-shared-wo-rules-emulator.mjs"
 
+      - name: Validate Unit and Employee ODS import mapping
+        run: node --experimental-strip-types --test scripts/test-resource-master-import.mjs
+
+      - name: Verify Employee and Unit import Firestore permissions
+        run: |
+          npm install --no-save --no-package-lock @firebase/rules-unit-testing@5
+          npx --yes firebase-tools@14 emulators:exec --only firestore --project demo-qc-resource-import --config firebase.native-cutover-browser-emulator.json "node scripts/test-resource-master-import-rules-emulator.mjs"
+
       - name: Verify TypeScript
         run: npm run typecheck
       - name: Build React safely

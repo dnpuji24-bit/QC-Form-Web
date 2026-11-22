@@ -1,6 +1,6 @@
 export type UnitCondition='READY'|'BREAKDOWN'|'MAINTENANCE'|'PENDING_INSPECTION'|'OUT_OF_SERVICE'
 export type UnitEventType='BREAKDOWN'|'MAINTENANCE'|'PENDING_INSPECTION'|'READY_APPROVED'
-export type UnitNumber={id:string;code:string;kind:string;parentUnitId:string;active:boolean;brand:string;model:string;implement:string;notes:string}
+export type UnitNumber={id:string;code:string;kind:string;parentUnitId:string;active:boolean;brand:string;model:string;implement:string;notes:string;importNeedsInspection:boolean}
 export type UnitEvent={id:string;unitId:string;type:UnitEventType;effectiveMinute:number;note:string;actorUid:string;date:string;shift:string}
 export type UnitAssignment={id:string;unitId:string;unitCode:string;workGroupId:string;date:string;shift:string;startTime:string;endTime:string;startMinute:number;endMinute:number;activity:string;woNumber:string;pids:string[];status:string;replacesAssignmentId?:string}
 export type UnitRequirement={id:string;date:string;shift:string;workGroupId:string;activity:string;woNumber:string;pids:string[];unitName:string;quantity:number;preferred:string[]}
@@ -24,13 +24,13 @@ export function shiftWindow(date:string,shift:string){
 export function overlaps(a:{startMinute:number;endMinute:number},b:{startMinute:number;endMinute:number}){
   return a.startMinute<b.endMinute&&b.startMinute<a.endMinute
 }
-export function conditionAt(events:UnitEvent[],unitId:string,minute:number):UnitCondition{
+export function conditionAt(events:UnitEvent[],unitId:string,minute:number,initial:UnitCondition='READY'):UnitCondition{
   let latest:UnitEvent|undefined
   for(const event of events){
     if(event.unitId!==unitId||event.effectiveMinute>minute)continue
     if(!latest||event.effectiveMinute>latest.effectiveMinute||(event.effectiveMinute===latest.effectiveMinute&&event.id>latest.id))latest=event
   }
-  if(!latest)return'READY'
+  if(!latest)return initial
   if(latest.type==='BREAKDOWN')return'BREAKDOWN'
   if(latest.type==='MAINTENANCE')return'MAINTENANCE'
   if(latest.type==='PENDING_INSPECTION')return'PENDING_INSPECTION'
@@ -48,7 +48,7 @@ export function slotCoverage(requirement:UnitRequirement,assignments:UnitAssignm
   return Math.min(requirement.quantity,new Set(matching.map(a=>a.unitId)).size)
 }
 export function normalizeUnitNumber(id:string,raw:Record<string,unknown>):UnitNumber{
-  return{id,code:clean(raw.name||raw.code||id),kind:clean(raw.parentUnitName),parentUnitId:clean(raw.parentUnitId),active:raw.active!==false,brand:clean(raw.brand),model:clean(raw.model),implement:clean(raw.implement),notes:clean(raw.notes)}
+  return{id,code:clean(raw.name||raw.code||id),kind:clean(raw.parentUnitName),parentUnitId:clean(raw.parentUnitId),active:raw.active!==false,brand:clean(raw.brand),model:clean(raw.model),implement:clean(raw.implement),notes:clean(raw.notes),importNeedsInspection:raw.importNeedsInspection===true}
 }
 export function normalizeAssignment(id:string,raw:Record<string,unknown>):UnitAssignment{
   return{id,unitId:clean(raw.unitId),unitCode:clean(raw.unitCode),workGroupId:clean(raw.workGroupId),date:clean(raw.date),shift:clean(raw.shift),startTime:clean(raw.startTime),endTime:clean(raw.endTime),startMinute:Number(raw.startMinute)||0,endMinute:Number(raw.endMinute)||0,activity:clean(raw.activity),woNumber:clean(raw.woNumber),pids:Array.isArray(raw.pids)?raw.pids.map(clean):[],status:clean(raw.status)||'ASSIGNED',replacesAssignmentId:clean(raw.replacesAssignmentId)}
