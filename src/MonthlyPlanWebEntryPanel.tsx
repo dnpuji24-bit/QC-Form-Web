@@ -127,18 +127,24 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
         return {info,planLineId:prefix+String(seq).padStart(4,'0'),woNumber:normalizedWo(info.line.woNumber)}
       })
       await runTransaction(db,async transaction=>{
-        const woRefs=prepared.map(item=>doc(db,'work_orders',woDocId(item.woNumber)))
+        // A WO is a shared header. Every Monthly Plan row still has a distinct
+        // Plan ID and remains independently selectable in Daily/Actual/QC.
+        const uniqueWos=[...new Set(prepared.map(item=>item.woNumber))]
+        const woRefs=uniqueWos.map(wo=>doc(db,'work_orders',woDocId(wo)))
         const monthlyRefs=prepared.map(item=>doc(db,'monthly_plans',planDocId(item.planLineId)))
         const woSnaps=await Promise.all(woRefs.map(item=>transaction.get(item)))
         const monthlySnaps=await Promise.all(monthlyRefs.map(item=>transaction.get(item)))
-        const existingWo=woSnaps.findIndex(x=>x.exists())
-        if(existingWo>=0)throw new Error('Nomor WO '+prepared[existingWo].woNumber+' sudah terdaftar. Gunakan nomor WO lain.')
+        for(let index=0;index<woSnaps.length;index++){
+          const found=woSnaps[index]
+          if(found.exists()&&planText(found.data().companyCode)&&planText(found.data().companyCode).toUpperCase()!==draft.company)
+            throw new Error('WO '+uniqueWos[index]+' sudah digunakan oleh Company lain.')
+        }
         if(monthlySnaps.some(x=>x.exists()))throw new Error('Nomor MP berubah karena input pengguna lain. Refresh data Monthly lalu coba ulang.')
         prepared.forEach(({info,planLineId,woNumber},index)=>{
-          const p=info.paddock!,a=info.activity!,plannedShift=info.line.plannedShift||'1'
+          const p=info.paddock!,a=info.activity!,plannedShift=info.line.plannedShift||'1',plannedDate=info.line.plannedDate||''
           transaction.set(monthlyRefs[index],{
             planLineId,year,monthNumber,monthKey:draft.month,monthLabel:new Date(year,monthNumber-1,1).toLocaleString('id-ID',{month:'short'}),
-            inputDate:new Date().toISOString().slice(0,10),startDate:dates.start,endDate:dates.end,week:draft.week,
+            inputDate:new Date().toISOString().slice(0,10),startDate:dates.start,endDate:dates.end,week:draft.week,plannedDate,
             description:a.description,pid:p.pid,targetAreaHa:info.target,variety:info.selectedVarieties.join(', ')||p.variety,
             selectedVarieties:info.selectedVarieties,selectedVarietyDetails:info.selectedVarietyDetails,
             sourceStatus:'Belum dikerjakan',status:'PLANNED',actualAreaHa:0,balanceHa:info.target,calculatedBalanceHa:info.target,
@@ -150,18 +156,26 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
             sourceOrigin:'WEB',lastModifiedSource:'WEB',createdAt:serverTimestamp(),createdBy:username,
             updatedAt:serverTimestamp(),updatedBy:username
           })
+        })
+        // An existing WO header is never overwritten. It references its
+        // original first line; additional lines live in monthly_plans.
+        uniqueWos.forEach((wo,index)=>{
+          if(woSnaps[index].exists())return
+          const first=prepared.find(item=>item.woNumber===wo)!
+          const p=first.info.paddock!,a=first.info.activity!
           transaction.set(woRefs[index],{
-            woNumber,planLineId,companyCode:draft.company,pid:p.pid,
+            woNumber:wo,planLineId:first.planLineId,companyCode:draft.company,pid:p.pid,
             masterActivityId:a.id,activity:a.activity,description:a.description,
-            activityCode:a.activityCode,coaCode:info.coaCode,catalogActivityId:info.catalogActivityId,operationCode:info.operationCode,department:info.department,
-            plannedShift,monthKey:draft.month,week:draft.week,targetAreaHa:info.target,
+            activityCode:a.activityCode,coaCode:first.info.coaCode,catalogActivityId:first.info.catalogActivityId,
+            operationCode:first.info.operationCode,department:first.info.department,
+            plannedShift:first.info.line.plannedShift||'1',monthKey:draft.month,week:draft.week,targetAreaHa:first.info.target,
             status:'PLANNED',createdAt:serverTimestamp(),createdBy:username
           })
         })
       })
-      setExisting(rows=>[...rows,...prepared.map(x=>({planLineId:x.planLineId,monthKey:draft.month,week:draft.week,pid:x.info.paddock!.pid,activity:x.info.activity!.activity,catalogActivityId:x.info.catalogActivityId,masterActivityId:x.info.activity!.id,plannedShift:x.info.line.plannedShift||'1'}))])
+      setExisting(rows=>[...rows,...prepared.map(x=>({planLineId:x.planLineId,monthKey:draft.month,week:draft.week,pid:x.info.paddock!.pid,activity:x.info.activity!.activity,catalogActivityId:x.info.catalogActivityId,masterActivityId:x.info.activity!.id,plannedShift:x.info.line.plannedShift||'1',plannedDate:x.info.line.plannedDate||''}))])
       clearPlanDraft(draftKey);setDraft(current=>({...current,lines:[blankLine()]}))
-      setMessage(prepared.length+' Monthly Plan dan WO berhasil disimpan. Total target '+planHa(totalArea)+'.')
+      setMessage(prepared.length+' baris Monthly Plan tersimpan untuk '+new Set(prepared.map(item=>item.woNumber)).size+' nomor WO. Total target '+planHa(totalArea)+'.')
       onSaved?.()
     }catch(err){setMessage(err instanceof Error?err.message:'Gagal membuat WO/Monthly Plan.')}finally{setBusy(false)}
   }
