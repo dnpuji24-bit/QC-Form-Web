@@ -61,7 +61,7 @@ test('Bidirectional QC cross-shift selects exact Daily ID, not WO-only identity'
 })
 test('Selected WO must have correct QC kind and date; duplicate Daily IDs are rejected',()=>{
  assert.equal(select('2026-11-23','spray').length,0)
- assert.equal(select('2026-11-22','fertilizer').length,1)
+ assert.equal(select('2026-11-22','fertilizer').length,2)
  assert.equal(qcSelectedWorkOrder(select('2026-11-22','fertilizer'),'DP-A'),null)
  assert.equal(qcSelectedWorkOrder(select('2026-11-22','spray'),'WO-SP-001'),null)
  assert.equal(qcSelectedWorkOrder([rows[0],{...rows[0],id:'copy'}],'DP-A'),null)
@@ -71,12 +71,21 @@ test('Smartsearch matches WO, PID, Operation Code, CoA and Daily ID without conf
  assert.deepEqual(qcSearchWorkOrders(rows,'WO-SP-001').map(r=>r.dailyPlanId),['DP-A','DP-B'])
  assert.equal(qcSearchWorkOrders(rows,'60100302')[0].dailyPlanId,'DP-C')
  assert.equal(qcSearchWorkOrders(rows,'10723001').length,2)
- assert.equal(qcSearchWorkOrders(rows,'K-009').length,0)
+ assert.equal(qcSearchWorkOrders(rows,'K-009')[0].dailyPlanId,'DP-LEGACY')
  assert.equal(qcSearchWorkOrders(rows,'DP-B')[0].woNumber,'WO-SP-001')
  assert.equal(qcSearchWorkOrders(Array.from({length:30},(_,i)=>({...rows[0],id:String(i),dailyPlanId:'DP-'+i})),'' ).length,12)
 })
-test('Legacy non-WO remains in existing Daily session path, not new WO search',()=>{
- assert.equal(select('2026-11-22','fertilizer').some(r=>r.dailyPlanId==='DP-LEGACY'),false)
+test('Historical no-WO Daily is explicitly selectable by same date, type, PID and Activity',()=>{
+ assert.equal(select('2026-11-22','fertilizer').some(r=>r.dailyPlanId==='DP-LEGACY'),true)
+ assert.equal(qcSelectedWorkOrder(select('2026-11-22','fertilizer'),'DP-LEGACY').woNumber,'')
+ assert.equal(qcSelectedWorkOrder(select('2026-11-23','fertilizer'),'DP-LEGACY'),null)
+ assert.equal(qcSelectedWorkOrder(select('2026-11-22','spray'),'DP-LEGACY'),null)
+ assert.equal(qcSearchWorkOrders(select('2026-11-22','fertilizer'),'K-009 Top Dressing')[0].dailyPlanId,'DP-LEGACY')
+ assert.equal(qcSearchWorkOrders(select('2026-11-22','fertilizer'),'P-DOES-NOT-EXIST').length,0)
+ const withoutPid={...rows[3],dailyPlanId:'DP-NO-PID',pid:''}
+ const withoutActivity={...rows[3],dailyPlanId:'DP-NO-ACT',activity:''}
+ assert.deepEqual(qcWorkOrderPlansByKind([withoutPid,withoutActivity],'2026-11-22',()=>true),[])
+ assert.equal(qcSelectedWorkOrder([rows[3],{...rows[3],id:'duplicate'}],'DP-LEGACY'),null)
  assert.match(source,/export function dailyPlansForQcSession/)
  assert.match(source,/export function qcShiftOneCarryoverCandidates/)
  assert.match(source,/export function resolveQcSessionPlan/)
@@ -114,4 +123,20 @@ test('Fertilizer recipe, Spray dosing and photo/queue pipeline are preserved',()
  for(const name of ['role="combobox"','role="listbox"',"ArrowDown","ArrowUp","Escape","onSelect(row)"]){
   assert.ok(picker.includes(name),'Missing keyboard smartsearch contract '+name)
  }
+})
+
+test('WO-less Daily selection is not a free-text bypass in Spray or Fertilizer',()=>{
+ const picker=read('src/QcWorkOrderSmartSearch.tsx')
+ assert.ok(picker.includes('Tanpa WO · Daily Lama'))
+ for(const path of ['src/SprayForm.tsx','src/FertilizerForm.tsx']){
+  const code=read(path)
+  assert.match(code,/qcExplicitWorkOrderPlan\(dailyPlanRows/)
+  assert.match(code,/source\.activity!==work\.activity|selected\.activity!==work\.activity/)
+  assert.match(code,/Daily ID secara eksplisit/)
+ }
+ const multi=read('src/qcMultiPaddock.mjs')
+ assert.match(multi,/!trim\(work\.dailyPlanId\)\|\|!trim\(work\.pid\)\|\|!trim\(work\.activity\)/)
+ const section=read('src/QcMultiPaddockSection.tsx')
+ assert.match(section,/chosen\[0\]\.activity!==work\.activity/)
+ assert.ok(section.includes('Tanpa WO · Daily lama'))
 })

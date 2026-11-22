@@ -66,7 +66,7 @@ function cardFromRecord(record:QcRecord):UnitCard{
   const rawDowntime=Array.isArray(record.downtimeList)?record.downtimeList as Record<string,unknown>[]:[]
   const holdPhotos=Array.isArray(record.holdIntervals)?record.holdIntervals:[]
   const fillings=rawFills.length?rawFills.map((f,i)=>({id:text(f.sourceFillingId)||uid(),pengisianKe:Number(f.pengisianKe||i+1),dosis:text(f.dosis??record.dosis),statusHose:text(f.statusHose??record.statusHose)||'Lancar',jenisPupuk:text(f.jenisPupuk??record.jenisPupuk),jumlah:text(f.jumlah),hasilKerja:text(f.hasilKerja),pemerataanPupuk:text(f.pemerataanPupuk)})):[{id:uid(),pengisianKe:1,dosis:text(record.dosis),statusHose:text(record.statusHose)||'Lancar',jenisPupuk:text(record.jenisPupuk),jumlah:text(record.jumlah),hasilKerja:text(record.hasilKerja),pemerataanPupuk:text(record.pemerataanPupuk)}]
-  return{id:uid(),recordId:record.id,createdAt:text(record.createdAt),photoDriveUrl:text(record.photoDriveUrl),saveType:text(record.saveType),scanReportDriveUrl:text(record.scanReportDriveUrl),scanConfidence:Number(record.scanConfidence||0),scanRawText:text(record.scanRawText),scanSourceFileName:text(record.scanSourceFileName),scanAppliedAt:text(record.scanAppliedAt),legacyScanPhotoBase64:text(record.scanReportPhotoBase64),startTime:text(record.startTime),endTime:text(record.endTime),unit:text(record.unit),noUnit:text(record.noUnit),paddock:record.paddock||'',type:text(record.type),activity:text(record.activity),dailyPlanId:text(record.dailyPlanId),monthlyPlanLineId:text(record.monthlyPlanLineId),woSearch:text(record.woNumber),catatan:text(record.catatan||record.noted).replace(/\s*\|\s*\[UNIT BERHENTI\].*$/i,''),fillings,multiPaddockMode:Boolean(record.multiPaddockMode),paddockWorks:record.paddockWorks||[],downtime:rawDowntime.map((d,i)=>({id:holdPhotos[i]?.holdId||uid(),issue:text(d.issue),start:text(d.start),end:text(d.end),note:text(d.note),photoDriveUrl:text(d.photoDriveUrl||holdPhotos[i]?.photoDriveUrl)}))}
+  return{id:uid(),recordId:record.id,createdAt:text(record.createdAt),photoDriveUrl:text(record.photoDriveUrl),saveType:text(record.saveType),scanReportDriveUrl:text(record.scanReportDriveUrl),scanConfidence:Number(record.scanConfidence||0),scanRawText:text(record.scanRawText),scanSourceFileName:text(record.scanSourceFileName),scanAppliedAt:text(record.scanAppliedAt),legacyScanPhotoBase64:text(record.scanReportPhotoBase64),startTime:text(record.startTime),endTime:text(record.endTime),unit:text(record.unit),noUnit:text(record.noUnit),paddock:record.paddock||'',type:text(record.type),activity:text(record.activity),dailyPlanId:text(record.dailyPlanId),monthlyPlanLineId:text(record.monthlyPlanLineId),woSearch:text(record.woNumber)||(record.dailyPlanId?`${record.paddock||''} ${record.activity||''} ${record.dailyPlanId}`:''),catatan:text(record.catatan||record.noted).replace(/\s*\|\s*\[UNIT BERHENTI\].*$/i,''),fillings,multiPaddockMode:Boolean(record.multiPaddockMode),paddockWorks:record.paddockWorks||[],downtime:rawDowntime.map((d,i)=>({id:holdPhotos[i]?.holdId||uid(),issue:text(d.issue),start:text(d.start),end:text(d.end),note:text(d.note),photoDriveUrl:text(d.photoDriveUrl||holdPhotos[i]?.photoDriveUrl)}))}
 }
 function normalizePlans(master:MasterData){const raw=(master.plans||master.plan||[])as PlanMaster[];return raw.filter(p=>{const category=String(p.category||p.keterangan||'').trim().toLowerCase();if(category)return category==='fertilizer'||category==='fertiliser'||category==='pupuk';return Boolean(p.paddock&&(p.activity||p.type))})}
 async function loadImageElement(file:Blob):Promise<HTMLImageElement>{const url=URL.createObjectURL(file);try{return await new Promise<HTMLImageElement>((resolve,reject)=>{const x=new Image();x.onload=()=>resolve(x);x.onerror=()=>reject(new Error('decode'));x.src=url})}finally{window.setTimeout(()=>URL.revokeObjectURL(url),0)}}
@@ -130,7 +130,7 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
       dailyPlanId:source?.dailyPlanId||'',monthlyPlanLineId:source?.monthlyPlanLineId||'',
       paddock:source?.pid||'',activity:source?.activity||'',
       type:source?(source.type||source.activityCategory||'FERTILIZER'):'',
-      woSearch:source?.woNumber||''})
+      woSearch:source?(source.woNumber||`${source.pid} ${source.activity} ${source.dailyPlanId}`):''})
   }
   function toggleMultiPaddock(c:UnitCard,enabled:boolean){
     if(c.recordId){setMessage('Mode Multi-Paddock tidak dapat diganti setelah record disimpan.');return}
@@ -140,16 +140,16 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
     else patchCard(c.id,{multiPaddockMode:false,paddockWorks:[],
       dailyPlanId:'',monthlyPlanLineId:'',paddock:'',activity:'',type:'',woSearch:''})
   }
-  const planStatus=dailyPlanLoading||(!dailyPlanMessage&&loadedPlanDate!==date)?'Memuat Daily Plan…':dailyPlanMessage||(!mandor.trim()?'Pilih Mandor aktual terlebih dahulu.':fertDailyPlans.length?fertDailyPlans.length+' Daily Plan Fertilizer pada shift dan mandor ini.':'Tidak ada Daily Plan untuk kombinasi shift dan mandor ini.')+' · '+woOptions.length+' WO tersedia pada tanggal ini (pilih Daily ID secara eksplisit).'
+  const planStatus=dailyPlanLoading||(!dailyPlanMessage&&loadedPlanDate!==date)?'Memuat Daily Plan…':dailyPlanMessage||(!mandor.trim()?'Pilih Mandor aktual terlebih dahulu.':fertDailyPlans.length?fertDailyPlans.length+' Daily Plan Fertilizer pada shift dan mandor ini.':'Tidak ada Daily Plan untuk kombinasi shift dan mandor ini.')+' · '+woOptions.length+' sumber Daily tersedia (termasuk yang belum memiliki WO; pilih Daily ID secara eksplisit).'
   function planProblem(c:UnitCard){
     if(c.multiPaddockMode){
       if(!operationalSaveEnabled)return'Multi-Paddock memerlukan simpan QC atomik.'
       for(const work of c.paddockWorks||[]){
         if(!work.dailyPlanId)continue
         const selected=qcExplicitWorkOrderPlan(dailyPlanRows,'fertilizer',date,work.dailyPlanId)
-        if(!selected||selected.pid!==work.pid||selected.woNumber!==work.woNumber||
+        if(!selected||selected.pid!==work.pid||selected.activity!==work.activity||selected.woNumber!==work.woNumber||
             selected.monthlyPlanLineId!==work.monthlyPlanLineId)
-          return'Sumber WO/PID Multi-Paddock tidak cocok dengan Daily Plan.'
+          return'Sumber PID/Activity/Daily ID tidak cocok dengan Daily Plan pada tanggal QC.'
       }
       return ''
     }
@@ -189,15 +189,15 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
     const matched=selected&&norm(selected.pid)===norm(pid)&&norm(selected.activity)===norm(activity)?selected:null
     setCards(old=>old.map(c=>{
       if(c.id!==cardId)return c
-      if(matched&&c.dailyPlanId===matched.dailyPlanId)return c.woSearch===matched.woNumber?c:{...c,woSearch:matched.woNumber}
+      if(matched&&c.dailyPlanId===matched.dailyPlanId)return c.woSearch===(matched.woNumber||`${matched.pid} ${matched.activity} ${matched.dailyPlanId}`)?c:{...c,woSearch:matched.woNumber||`${matched.pid} ${matched.activity} ${matched.dailyPlanId}`}
       const first=matched?.materials[0],choices=fertilizerChoices(matched,masterProducts,productsLoaded)
       const fillings=c.fillings.map((f,i)=>({...f,jenisPupuk:i===0?suggestedFertilizerName(first,choices,productsLoaded):'',dosis:i===0&&first?String(first.dosePerHa||''):''}))
-      return {...c,paddock:pid,activity,dailyPlanId:matched?.dailyPlanId||'',monthlyPlanLineId:matched?.monthlyPlanLineId||'',woSearch:matched?.woNumber||'',type:matched?(matched.type||matched.activityCategory||'FERTILIZER'):'',fillings}
+      return {...c,paddock:pid,activity,dailyPlanId:matched?.dailyPlanId||'',monthlyPlanLineId:matched?.monthlyPlanLineId||'',woSearch:matched?(matched.woNumber||`${matched.pid} ${matched.activity} ${matched.dailyPlanId}`):'',type:matched?(matched.type||matched.activityCategory||'FERTILIZER'):'',fillings}
     }))
   }
   function chooseExplicitWo(c:UnitCard,row:QcDailyPlan){
     const source=qcExplicitWorkOrderPlan(dailyPlanRows,'fertilizer',date,row.dailyPlanId)
-    if(!source){setMessage('WO tidak sesuai tanggal atau jenis QC. Pilih ulang Daily Plan.');return}
+    if(!source){setMessage('Sumber Daily tidak cocok dengan tanggal, jenis QC, PID atau Activity. Pilih ulang Daily ID.');return}
     linkDailyPlan(c.id,source.pid,source.activity,source.dailyPlanId,source)
   }
   function typeExplicitWo(c:UnitCard,value:string){
@@ -344,8 +344,8 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
           onQuery={value=>typeExplicitWo(card,value)}
           onSelect={row=>chooseExplicitWo(card,row)}
           onClear={()=>typeExplicitWo(card,'')}/>
-          {matchingPlan?.woNumber&&<div className="qc-wo-summary">
-            <span><strong>WO:</strong> {matchingPlan.woNumber}</span>
+          {matchingPlan&&<div className="qc-wo-summary">
+            <span><strong>WO:</strong> {matchingPlan.woNumber||'Tanpa WO (Daily lama)'}</span>
             <span><strong>Daily ID:</strong> {matchingPlan.dailyPlanId}</span>
             <span><strong>PID:</strong> {matchingPlan.pid}</span>
             <span><strong>Activity:</strong> {matchingPlan.description||matchingPlan.activity}</span>
@@ -355,7 +355,7 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
             <span><strong>Shift Daily:</strong> {matchingPlan.shift||'-'} · {matchingPlan.foreman||'-'}</span>
             <span><strong>Shift QC Aktual:</strong> {shift} · {mandor||'-'}</span>
           </div>}
-          {matchingPlan?.woNumber&&qcShiftValue(matchingPlan.shift)!==qcShiftValue(shift)&&
+          {matchingPlan&&qcShiftValue(matchingPlan.shift)!==qcShiftValue(shift)&&
             <small className="qc-wo-shift-notice">Lintas shift: sumber Daily Shift {matchingPlan.shift} → QC Aktual Shift {shift}. Periksa ulang produk dan dosis pengisian.</small>}
         </div>
         <div className="form-grid qc-daily-program-grid"><label>Jenis Unit<input list="fert-resource-units" value={card.unit} onChange={e=>patchCard(card.id,{unit:e.target.value,noUnit:''})} placeholder="Ketik S untuk Stool Splitter"/><datalist id="fert-resource-units">{unitTypes.map(x=><option key={x} value={x}/>)}</datalist></label><label>No. Unit<select value={card.noUnit} onChange={e=>patchCard(card.id,{noUnit:e.target.value})}><option value="">Pilih…</option>{numbers.map(x=><option key={x}>{x}</option>)}</select></label><label hidden={card.multiPaddockMode}>Paddock<select value={card.paddock} onChange={e=>{const pid=e.target.value,nextActivities=unique(fertDailyPlans.filter(p=>p.pid===pid).map(p=>p.activity)),activity=nextActivities.length===1?nextActivities[0]:'';if(activity)linkDailyPlan(card.id,pid,activity);else linkDailyPlan(card.id,pid,'')}}><option value="">Pilih dari Daily Plan…</option>{paddocks.map(x=><option key={x}>{x}</option>)}</select></label><label hidden={card.multiPaddockMode}>Activity<select value={card.activity} onChange={e=>linkDailyPlan(card.id,card.paddock,e.target.value)}><option value="">Pilih…</option>{activities.map(x=><option key={x}>{x}</option>)}</select></label><label hidden={card.multiPaddockMode}>Type<input readOnly value={card.type||matchingPlan?.type||matchingPlan?.activityCategory||''}/></label><label hidden={card.multiPaddockMode}>Daily Plan ID<input readOnly value={matchingPlan?.dailyPlanId||''} placeholder="Pilih Daily Plan"/></label><label hidden={card.multiPaddockMode}>Monthly Plan ID<input readOnly value={matchingPlan?.monthlyPlanLineId||''} placeholder="Otomatis dari Daily Plan"/></label>{matchingPlan?.pidNotes&&<div className="qc-daily-pid-note form-grid-note">ℹ️ {matchingPlan.pidNotes}</div>}</div>

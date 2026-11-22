@@ -48,8 +48,8 @@ export function validateQcMultiPaddock(works,sources,{ready=false,totalArea}={})
     if(!/^[A-Za-z0-9_-]{1,64}$/.test(trim(work.workId))||ids.has(work.workId))
       return label+': ID segmen tidak valid atau duplikat.'
     ids.add(work.workId)
-    if(!trim(work.dailyPlanId)||!trim(work.woNumber)||!trim(work.pid))
-      return label+': pilih WO dari Daily Plan terlebih dahulu.'
+    if(!trim(work.dailyPlanId)||!trim(work.pid)||!trim(work.activity))
+      return label+': pilih Daily ID dengan PID dan Activity yang tercatat pada tanggal QC.'
     if(dailyIds.has(work.dailyPlanId))return label+': Daily Plan sudah digunakan. Edit pekerjaan sebelumnya.'
     dailyIds.add(work.dailyPlanId)
     if(!Number.isFinite(num(work.areaHa))||num(work.areaHa)<=0)

@@ -25,6 +25,12 @@ test('Multi-paddock validates physical NK and DAP exactly once',()=>{
  const pending=[works[0],{...works[1],completed:false}]
  assert.match(validateQcMultiPaddock(pending,sources,{ready:true,totalArea:12}),/Selesai Paddock/)
  assert.equal(MAX_QC_PADDOCKS,8)
+ const historical=[{...works[0],woNumber:''},works[1]]
+ assert.equal(validateQcMultiPaddock(historical,sources,{ready:true,totalArea:12}),'')
+ const missingActivity=[{...works[0],activity:''},works[1]]
+ assert.match(validateQcMultiPaddock(missingActivity,sources,{ready:true,totalArea:12}),/PID dan Activity/)
+ const missingDaily=[{...works[0],dailyPlanId:''},works[1]]
+ assert.match(validateQcMultiPaddock(missingDaily,sources,{ready:true,totalArea:12}),/Daily ID/)
 })
 test('Auto allocation conserves physical amount and preserves independent WO',()=>{
  const initial=[work('w1','DP-1',5),work('w2','DP-2',7)]
@@ -145,4 +151,11 @@ test('Data QC report, search and Excel export retain all PIDs without double-cou
  assert.match(fert,/sourceFillingId:f\.id/)
  assert.match(fert,/id:text\(f\.sourceFillingId\)\|\|uid\(\)/)
  assert.match(fert,/card\.multiPaddockMode\?multiArea:totalHaForDose/)
+})
+
+test('A completed historical WO-less paddock remains uniquely linked to its Daily ID',()=>{
+ const historical=[{...works[0],woNumber:''},works[1]]
+ assert.equal(qcWorkMap(historical).w1.woNumber,'')
+ assert.equal(qcWorkMap(historical).w1.dailyPlanId,'DP-1')
+ assert.equal(qcActualWorkId('qc-v2-history','w1'),'qcactual_qc-v2-history__w1')
 })

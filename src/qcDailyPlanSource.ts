@@ -168,8 +168,9 @@ export function qcShiftOneCarryoverCandidates(rows:QcDailyPlan[],kind:'spray'|'f
 
 
 
-/** Explicit WO source selection is independent of planned/actual shifts.
- * Only the matching QC kind and session date are eligible.
+/** Select from real Daily Plan sources of the QC type and date. Historical
+ * rows with no WO are allowed when PID, Activity and Daily ID are present.
+ * No arbitrary free-text PID/Activity is linked or saved as Actual.
  */
 export function qcWorkOrderPlans(rows:QcDailyPlan[],kind:'spray'|'fertilizer',date:string):QcDailyPlan[]{
   return qcWorkOrderPlansByKind(rows,date,row=>qcDailyKind(row)===kind)
