@@ -29,7 +29,7 @@ test('legacy validation composition and ACT code are retained',()=>{
  assert.match(validation,/catalogEntry\?\.coaCode\|\|existing\?\.coaCode\|\|''/)
 })
 
-test('Monthly plan uses manual WO per PID/activity/shift and saved CoA snapshot',()=>{
+test('Monthly plan supports one WO shared across dated lines and all shifts',()=>{
  assert.match(monthly,/woNumber:string;plannedShift:string/)
  assert.match(monthly,/Nomor WO \(manual\)/)
  assert.match(monthly,/CoA \(otomatis\)/)
@@ -37,8 +37,12 @@ test('Monthly plan uses manual WO per PID/activity/shift and saved CoA snapshot'
  assert.match(monthly,/coaCode:info.coaCode/)
  assert.match(monthly,/runTransaction\(db,async transaction/)
  assert.match(monthly,/const woSnaps=await Promise.all/)
- assert.match(monthly,/if\(existingWo>=0\)throw/)
+ assert.match(monthly,/const uniqueWos=\[\.\.\.new Set/)
+ assert.doesNotMatch(monthly,/Nomor WO duplikat dalam batch/)
+ assert.match(monthly,/if\(woSnaps\[index\]\.exists\(\)\)return/)
  assert.match(monthly,/transaction.set\(woRefs\[index\]/)
+ assert.match(monthly,/Semua Shift \(Shift 1 & 2\)/)
+ assert.match(monthly,/plannedDate/)
  assert.match(list,/WO \/ CoA \/ Shift/)
 })
 
