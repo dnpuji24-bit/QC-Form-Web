@@ -8,13 +8,15 @@ import { canEditAccess } from './accessControl'
 import YinYangRefreshButton from './YinYangRefreshButton'
 import {ACTIVITY_COA_COLLECTION,parseCoaActivity,type CoaActivity} from './MasterActivityCatalogPanel'
 import {findCatalogForValidation} from './activityCatalogModel'
+import MonthlyActivitySmartSearch from './MonthlyActivitySmartSearch'
+import {monthlyWorkIdentity,type MonthlyActivityChoice} from './monthlyActivitySearch'
 
 type Props={user:User;selectedMonth?:string;selectedWeek?:string;onPeriodChange?:(month:string,week:string)=>void;onSaved?:()=>void}
 type VarietyArea={variety:string;areaHa:number}
 type Paddock={pid:string;companyCode:string;farm:string;variety:string;varietyBreakdown:VarietyArea[];stage:string;areaPaddockHa:number;plantAreaHa:number}
 type Component={sequence:number;label:string;activeIngredient:string;dosePerHa:number;unit:string}
 type Activity={id:string;activityCode:string;description:string;activity:string;coaCode:string;catalogActivityId:string;type:string;activityCategory:string;companyScope:string;active:boolean;components:Component[]}
-type Existing={planLineId:string;monthKey:string;week:string;pid:string;activity:string}
+type Existing={planLineId:string;monthKey:string;week:string;pid:string;activity:string;catalogActivityId:string;masterActivityId:string;plannedShift:string}
 type LineDraft={id:string;pid:string;activityId:string;woNumber:string;plannedShift:string;target:string;notes:string;varieties?:string[]}
 type Draft={month:string;week:string;company:string;farm:string;lines:LineDraft[]}
 
@@ -38,7 +40,7 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
   const[draft,setDraft]=useState<Draft>(()=>({...initial,lines:initial.lines?.length?initial.lines:[blankLine()]})),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
 
   async function loadMasters(){if(!firestoreDb)return;setBusy(true);try{const[c,p,a,coaSnap]=await Promise.all([getDocs(collection(firestoreDb,'master_companies')),getDocs(collection(firestoreDb,'master_paddocks')),getDocs(collection(firestoreDb,'master_activities')),getDocs(collection(firestoreDb,ACTIVITY_COA_COLLECTION))]);setCoaCatalog(coaSnap.docs.map(x=>parseCoaActivity(x.id,x.data() as Record<string,unknown>)));setCompanies(c.empty?FALLBACK_COMPANIES:c.docs.map(x=>companyFromData(x.id,x.data() as Record<string,unknown>)).filter(x=>x.active));setPaddocks(p.docs.map(x=>{const d=x.data() as Record<string,unknown>,varietyBreakdown=varietyBreakdownFromData(d.varietyBreakdown);return{pid:planText(d.pid||x.id).toUpperCase(),companyCode:planText(d.companyCode).toUpperCase(),farm:planText(d.farm),variety:planText(d.variety),varietyBreakdown,stage:planText(d.currentStage||d.stage),areaPaddockHa:planNum(d.areaPlantedHa||d.areaPaddockHa),plantAreaHa:plantAreaFromData(d)}}));setActivities(a.docs.map(x=>{const d=x.data() as Record<string,unknown>;return{id:x.id,activityCode:planText(d.activityCode),description:planText(d.description),activity:planText(d.activity),coaCode:planText(d.coaCode),catalogActivityId:planText(d.catalogActivityId),type:planText(d.type),activityCategory:planText(d.activityCategory),companyScope:planText(d.companyScope||'GLOBAL').toUpperCase(),active:d.active===true,components:components(d.components)}}))}catch(e){setMessage(e instanceof Error?e.message:'Master data gagal dimuat.')}finally{setBusy(false)}}
-  async function loadPeriod(month=draft.month){if(!firestoreDb||!month)return;try{const m=await getDocs(fsQuery(collection(firestoreDb,'monthly_plans'),where('monthKey','==',month)));setExisting(m.docs.map(x=>{const d=x.data() as Record<string,unknown>;return{planLineId:planText(d.planLineId||x.id),monthKey:planText(d.monthKey),week:planText(d.week),pid:planText(d.pid).toUpperCase(),activity:planText(d.activity)}}))}catch(e){setMessage(e instanceof Error?e.message:'Monthly periode gagal dimuat.')}}
+  async function loadPeriod(month=draft.month){if(!firestoreDb||!month)return;try{const m=await getDocs(fsQuery(collection(firestoreDb,'monthly_plans'),where('monthKey','==',month)));setExisting(m.docs.map(x=>{const d=x.data() as Record<string,unknown>;return{planLineId:planText(d.planLineId||x.id),monthKey:planText(d.monthKey),week:planText(d.week),pid:planText(d.pid).toUpperCase(),activity:planText(d.activity),catalogActivityId:planText(d.catalogActivityId),masterActivityId:planText(d.masterActivityId),plannedShift:planText(d.plannedShift)}}))}catch(e){setMessage(e instanceof Error?e.message:'Monthly periode gagal dimuat.')}}
   useEffect(()=>{void loadMasters()},[])
   useEffect(()=>{void loadPeriod(draft.month);onPeriodChange?.(draft.month,draft.week)},[draft.month,draft.week])
   useEffect(()=>{if((selectedMonth&&selectedMonth!==draft.month)||(selectedWeek&&selectedWeek!==draft.week))setDraft(current=>({...current,month:selectedMonth||current.month,week:selectedWeek||current.week}))},[selectedMonth,selectedWeek])
@@ -47,6 +49,14 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
   const farms=useMemo(()=>[...new Set(paddocks.filter(x=>!draft.company||x.companyCode===draft.company).map(x=>x.farm).filter(Boolean))].sort(),[paddocks,draft.company])
   const pidOptions=useMemo(()=>paddocks.filter(x=>(!draft.company||x.companyCode===draft.company)&&(!draft.farm||x.farm===draft.farm)).sort((a,b)=>a.pid.localeCompare(b.pid,undefined,{numeric:true})),[paddocks,draft.company,draft.farm])
   const activityOptions=useMemo(()=>activities.filter(x=>x.active&&(x.companyScope==='GLOBAL'||x.companyScope===draft.company)).sort((a,b)=>a.description.localeCompare(b.description)),[activities,draft.company])
+  const activityChoices=useMemo<MonthlyActivityChoice[]>(()=>activityOptions.map(item=>{
+    const mapped=findCatalogForValidation(coaCatalog,{
+      catalogActivityId:item.catalogActivityId,activity:item.activity,coaCode:item.coaCode
+    })
+    return {id:item.id,description:item.description,activity:item.activity,activityCode:item.activityCode,
+      coaCode:mapped?.coaCode||'',operationCode:mapped?.operationCode||'',
+      department:mapped?.department||'',activityCategory:item.activityCategory}
+  }),[activityOptions,coaCatalog])
   const lineInfo=useMemo(()=>draft.lines.map(line=>{const paddock=paddocks.find(x=>x.pid===line.pid.toUpperCase())||null,activity=activityOptions.find(x=>x.id===line.activityId)||null,target=planNum(line.target),materials=materialLinesFromComponents(activity?.components||[],target),varietyOptions=paddock?(paddock.varietyBreakdown.length?paddock.varietyBreakdown:(paddock.variety?[{variety:paddock.variety,areaHa:paddock.plantAreaHa}]:[])):[],requested=(line.varieties||[]).filter(name=>varietyOptions.some(option=>option.variety===name)),selectedVarieties=requested.length?requested:(varietyOptions.length===1?[varietyOptions[0].variety]:[]),selectedVarietyDetails=varietyOptions.filter(option=>selectedVarieties.includes(option.variety)),selectedPlantArea=selectedVarietyDetails.reduce((sum,item)=>sum+item.areaHa,0);const mapped=activity?findCatalogForValidation(coaCatalog,{catalogActivityId:activity.catalogActivityId,activity:activity.activity,coaCode:activity.coaCode}):undefined;return{line,paddock,activity,coaCode:mapped?.coaCode||'',catalogActivityId:mapped?.id||activity?.catalogActivityId||'',operationCode:mapped?.operationCode||'',department:mapped?.department||'',target,materials,varietyOptions,selectedVarieties,selectedVarietyDetails,selectedPlantArea}}),[draft.lines,paddocks,activityOptions,coaCatalog])
   const totalArea=lineInfo.reduce((s,x)=>s+x.target,0)
   const totalMaterials=aggregateMaterials(lineInfo.map(x=>x.materials))
@@ -60,7 +70,19 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
   function removeLine(id:string){setDraft(current=>({...current,lines:current.lines.length>1?current.lines.filter(line=>line.id!==id):[blankLine()]}))}
   function reset(){if(!window.confirm('Kosongkan draft input Monthly Plan ini?'))return;clearPlanDraft(draftKey);setDraft({month:new Date().toISOString().slice(0,7),week:'W1',company:draft.company||'GPA',farm:'',lines:[blankLine()]});setMessage('Draft Monthly Plan dikosongkan.')}
 
-  function duplicateKeys(){const keys=new Map<string,number>(),dupes:{label:string;index:number}[]=[];lineInfo.forEach((info,index)=>{const k=[info.line.pid.toUpperCase(),info.activity?.activity||'',info.selectedVarieties.slice().sort().join(',')].join('|').toLowerCase();if(!info.line.pid||!info.activity)return;if(keys.has(k))dupes.push({label:info.line.pid+' · '+info.activity.description,index});else keys.set(k,index)});return dupes}
+  function duplicateKeys(){
+    const keys=new Map<string,number>(),dupes:{label:string;index:number}[]=[]
+    lineInfo.forEach((info,index)=>{
+      if(!info.line.pid||!info.activity)return
+      const key=monthlyWorkIdentity({pid:info.line.pid,masterActivityId:info.activity.id,
+        catalogActivityId:info.catalogActivityId,plannedShift:info.line.plannedShift||'1',
+        varieties:info.selectedVarieties})
+      if(keys.has(key))dupes.push({label:info.line.pid+' · '+info.activity.description+
+        ' · Shift '+(info.line.plannedShift||'1'),index})
+      else keys.set(key,index)
+    })
+    return dupes
+  }
   function focusLine(index:number){requestAnimationFrame(()=>document.getElementById('monthly-work-'+index)?.scrollIntoView({behavior:'smooth',block:'center'}))}
 
   async function save(e:FormEvent){
@@ -77,8 +99,18 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
     const woSet=new Set<string>()
     const duplicateWo=lineInfo.findIndex(x=>{const key=normalizedWo(x.line.woNumber);if(woSet.has(key))return true;woSet.add(key);return false})
     if(duplicateWo>=0){setMessage('BELUM TERSIMPAN · Nomor WO duplikat dalam batch. Setiap WO harus unik.');focusLine(duplicateWo);return}
-    const dupes=duplicateKeys();if(dupes.length){setMessage('BELUM TERSIMPAN · Paddock dan Activity duplikat: '+dupes.map(x=>x.label).join(', '));return}
-    const duplicates=lineInfo.filter(x=>existing.some(row=>row.monthKey===draft.month&&row.week===draft.week&&row.pid===x.line.pid.toUpperCase()&&row.activity===x.activity?.activity))
+    const dupes=duplicateKeys();if(dupes.length){setMessage('BELUM TERSIMPAN · Kombinasi PID, Activity, Shift Rencana, dan varietas duplikat: +dupes.map(x=>x.label).join(', '));return}
+    const duplicates=lineInfo.filter(x=>existing.some(row=>{
+      if(row.monthKey!==draft.month||row.week!==draft.week||row.pid!==x.line.pid.toUpperCase())return false
+      // Shift 1 and Shift 2 are distinct planned work even when execution later
+      // crosses shifts. Old plans without shift identity are not blockers.
+      if(!row.plannedShift||row.plannedShift!==(x.line.plannedShift||'1'))return false
+      return row.catalogActivityId&&x.catalogActivityId
+        ?row.catalogActivityId===x.catalogActivityId
+        :row.masterActivityId&&x.activity
+          ?row.masterActivityId===x.activity.id
+          :row.activity===x.activity?.activity
+    }))
     if(duplicates.length&&!window.confirm(duplicates.length+' pasangan Month/Week/PID/Activity sudah ada. Tetap buat WO baru?'))return
     setBusy(true);setMessage('Memeriksa keunikan WO dan menyimpan Monthly Plan…')
     try{
@@ -123,7 +155,7 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
           })
         })
       })
-      setExisting(rows=>[...rows,...prepared.map(x=>({planLineId:x.planLineId,monthKey:draft.month,week:draft.week,pid:x.info.paddock!.pid,activity:x.info.activity!.activity}))])
+      setExisting(rows=>[...rows,...prepared.map(x=>({planLineId:x.planLineId,monthKey:draft.month,week:draft.week,pid:x.info.paddock!.pid,activity:x.info.activity!.activity,catalogActivityId:x.info.catalogActivityId,masterActivityId:x.info.activity!.id,plannedShift:x.info.line.plannedShift||'1'}))])
       clearPlanDraft(draftKey);setDraft(current=>({...current,lines:[blankLine()]}))
       setMessage(prepared.length+' Monthly Plan dan WO berhasil disimpan. Total target '+planHa(totalArea)+'.')
       onSaved?.()
@@ -144,14 +176,14 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
 
       <section className="panel plan-section monthly-work-section"><div className="plan-section-title"><div><span className="eyebrow">PEKERJAAN</span><h3>PID & Activity</h3><p className="muted">Tambahkan beberapa pekerjaan dalam satu batch Monthly Plan.</p></div><span className="status-pill">{draft.lines.length} pekerjaan</span></div>
         <div className="plan-work-list monthly-work-list">{lineInfo.map((info,index)=><div id={'monthly-work-'+index} className="plan-work-card monthly-work-card" key={info.line.id}><div className="plan-work-head"><div><span className="eyebrow">PEKERJAAN {String(index+1).padStart(2,'0')}</span><strong>{info.line.pid||'Pilih PID'}{info.activity?' · '+info.activity.description:''}{info.line.woNumber?' · WO '+info.line.woNumber:''}</strong></div><div className="row-actions">{index>0&&<button type="button" onClick={()=>addLine(info.line)}>Duplikat</button>}<button type="button" className="danger" onClick={()=>removeLine(info.line.id)}>Hapus</button></div></div><div className="plan-grid">
-          <label><span>PID / Paddock</span><input list={'monthly-pids-'+info.line.id} value={info.line.pid} onChange={e=>patchLine(info.line.id,{pid:e.target.value.toUpperCase(),varieties:[]})} placeholder="Pilih PID"/><datalist id={'monthly-pids-'+info.line.id}>{pidOptions.map(x=><option key={x.pid} value={x.pid}>{x.farm} · {x.variety}</option>)}</datalist></label>
-          <label><span>Activity</span><select value={info.line.activityId} onChange={e=>patchLine(info.line.id,{activityId:e.target.value})}><option value="">Pilih Activity</option>{activityOptions.map(x=><option key={x.id} value={x.id}>{x.description} — {x.activity}</option>)}</select></label>
-          <label><span>Nomor WO (manual)</span><input value={info.line.woNumber||''} onChange={e=>patchLine(info.line.id,{woNumber:e.target.value.toUpperCase()})} placeholder="Nomor WO unik" autoComplete="off" maxLength={80}/></label>
-          <label><span>Shift Rencana WO</span><select value={info.line.plannedShift||'1'} onChange={e=>patchLine(info.line.id,{plannedShift:e.target.value})}><option value="1">Shift 1</option><option value="2">Shift 2</option></select><small>Shift Aktual nantinya boleh berbeda di Actual dan QC.</small></label>
-          <label><span>CoA (otomatis)</span><input readOnly value={info.coaCode||'Belum tersedia'} title="CoA berasal dari Master Activity"/></label>
+          <label><span>Nomor WO (manual)</span><input value={info.line.woNumber||''} onChange={e=>patchLine(info.line.id,{woNumber:e.target.value.toUpperCase()})} placeholder="Nomor WO unik" autoComplete="off" maxLength={80}/></label><label><span>PID / Paddock</span><input list={'monthly-pids-'+info.line.id} value={info.line.pid} onChange={e=>patchLine(info.line.id,{pid:e.target.value.toUpperCase(),varieties:[]})} placeholder="Pilih PID"/><datalist id={'monthly-pids-'+info.line.id}>{pidOptions.map(x=><option key={x.pid} value={x.pid}>{x.farm} · {x.variety}</option>)}</datalist></label>
+          <MonthlyActivitySmartSearch options={activityChoices} value={info.line.activityId} disabled={busy} onSelect={id=>patchLine(info.line.id,{activityId:id})}/><label><span>Shift Rencana WO</span><select value={info.line.plannedShift||'1'} onChange={e=>patchLine(info.line.id,{plannedShift:e.target.value})}><option value="1">Shift 1</option><option value="2">Shift 2</option></select><small>Shift Aktual nantinya boleh berbeda di Actual dan QC.</small></label>
+          
+          
+          <label><span>CoA (otomatis)</span><input readOnly value={info.coaCode||'Belum tersedia'} title="CoA berasal dari Master Activity"/></label><label><span>Operation Code (otomatis)</span><input readOnly value={info.operationCode||'Belum dipetakan'} title="Kode Operation mengikuti Master Activity"/></label>
           <label><span>Target Luas (Ha)</span><input type="text" inputMode="decimal" value={info.line.target} onChange={e=>patchLine(info.line.id,{target:e.target.value.replace(/[^0-9.,]/g,'')})} placeholder="Contoh: 72,8"/></label>
           <label className="plan-span-2"><span>Keterangan</span><input value={info.line.notes} onChange={e=>patchLine(info.line.id,{notes:e.target.value})} placeholder="Opsional"/></label>
-        </div>{info.paddock&&<><div className="plan-inline-info"><span>Farm <strong>{info.paddock.farm||'-'}</strong></span><span>Plant Area Total <strong>{planHa(info.paddock.plantAreaHa)}</strong></span><span>Stage <strong>{info.paddock.stage||'-'}</strong></span><span>Target <strong>{planHa(info.target)}</strong>{info.target>info.paddock.plantAreaHa&&<small className="monthly-over-area-note"> · boleh &gt; Plant Area</small>}</span></div><div className="monthly-variety-selector"><div className="monthly-variety-head"><div><span className="eyebrow">VARIETAS APLIKASI</span><strong>{info.selectedVarieties.length?info.selectedVarieties.join(', '):'Pilih varietas'}</strong><small>Bisa memilih lebih dari satu varietas. Target plan tidak dibatasi oleh luas plant.</small></div>{info.varietyOptions.length>1&&<div className="row-actions"><button type="button" onClick={()=>selectAllVarieties(info.line.id,info.varietyOptions.map(x=>x.variety))}>Pilih Semua</button><button type="button" onClick={()=>clearVarieties(info.line.id)}>Kosongkan</button></div>}</div><div className="monthly-variety-chips">{info.varietyOptions.map(option=>{const selected=info.selectedVarieties.includes(option.variety);return <button type="button" key={option.variety} className={'monthly-variety-chip '+(selected?'selected':'')} aria-pressed={selected} onClick={()=>toggleVariety(info.line.id,option.variety,info.varietyOptions.map(x=>x.variety))}><span>{selected?'✓':'+'}</span><strong>{option.variety}</strong><small>{planHa(option.areaHa)}</small></button>})}{!info.varietyOptions.length&&<span className="muted">Varietas belum tersedia pada Master Paddock.</span>}</div>{info.selectedVarieties.length>0&&<div className="monthly-selected-variety-total">Luas varietas dipilih <strong>{planHa(info.selectedPlantArea)}</strong>{info.target>info.selectedPlantArea&&<span>Target lebih besar dari luas varietas dipilih tetap diperbolehkan.</span>}</div>}</div></>}{info.activity&&<div className="plan-material-mini"><strong>{info.activity.description}</strong><span>{info.materials.length} material · target {planHa(info.target)}</span>{info.materials.map(m=><small key={m.material}>{m.material}: {m.dosePerHa} {m.unit}/Ha → <b>{m.totalMaterial.toLocaleString('id-ID',{maximumFractionDigits:4})} {m.unit}</b></small>)}</div>}</div>)}</div>
+        </div>{info.paddock&&<><div className="plan-inline-info"><span>Farm <strong>{info.paddock.farm||'-'}</strong></span><span>Plant Area Total <strong>{planHa(info.paddock.plantAreaHa)}</strong></span><span>Stage <strong>{info.paddock.stage||'-'}</strong></span><span>Target <strong>{planHa(info.target)}</strong>{info.target>info.paddock.plantAreaHa&&<small className="monthly-over-area-note"> · boleh &gt; Plant Area</small>}</span></div><div className="monthly-variety-selector"><div className="monthly-variety-head"><div><span className="eyebrow">VARIETAS APLIKASI</span><strong>{info.selectedVarieties.length?info.selectedVarieties.join(', '):'Pilih varietas'}</strong><small>Bisa memilih lebih dari satu varietas. Target plan tidak dibatasi oleh luas plant.</small></div>{info.varietyOptions.length>1&&<div className="row-actions"><button type="button" onClick={()=>selectAllVarieties(info.line.id,info.varietyOptions.map(x=>x.variety))}>Pilih Semua</button><button type="button" onClick={()=>clearVarieties(info.line.id)}>Kosongkan</button></div>}</div><div className="monthly-variety-chips">{info.varietyOptions.map(option=>{const selected=info.selectedVarieties.includes(option.variety);return <button type="button" key={option.variety} className={'monthly-variety-chip '+(selected?'selected':'')} aria-pressed={selected} onClick={()=>toggleVariety(info.line.id,option.variety,info.varietyOptions.map(x=>x.variety))}><span>{selected?'✓':'+'}</span><strong>{option.variety}</strong><small>{planHa(option.areaHa)}</small></button>})}{!info.varietyOptions.length&&<span className="muted">Varietas belum tersedia pada Master Paddock.</span>}</div>{info.selectedVarieties.length>0&&<div className="monthly-selected-variety-total">Luas varietas dipilih <strong>{planHa(info.selectedPlantArea)}</strong>{info.target>info.selectedPlantArea&&<span>Target lebih besar dari luas varietas dipilih tetap diperbolehkan.</span>}</div>}</div></>}{info.activity&&<div className="plan-material-mini"><strong>{info.activity.description}</strong><span>WO {info.line.woNumber||'(belum diisi)'} · Shift Rencana {info.line.plannedShift||'1'} · Operation {info.operationCode||'belum dipetakan'} · CoA {info.coaCode||'belum dipetakan'}</span><span>{info.materials.length} material · target {planHa(info.target)}</span>{info.materials.map(m=><small key={m.material}>{m.material}: {m.dosePerHa} {m.unit}/Ha → <b>{m.totalMaterial.toLocaleString('id-ID',{maximumFractionDigits:4})} {m.unit}</b></small>)}</div>}</div>)}</div>
         <div className="monthly-add-work-footer"><button type="button" className="monthly-add-work-button" onClick={()=>addLine()}><span>＋</span><strong>Tambah Pekerjaan</strong><small>Tambahkan PID / Activity berikutnya</small></button></div>
       </section>
 
