@@ -9,6 +9,9 @@ import QcSavedPhotoPicker from './QcSavedPhotoPicker'
 import type { HoldInterval, MasterData, MaterialMaster, PlanMaster, QcRecord, User } from './types'
 import { loadAllOperationalResources, mergeResourceNames, unitNumbersForUnit, type OperationalResource } from './masterOperationalResources'
 import QcWorkOrderSmartSearch from './QcWorkOrderSmartSearch'
+import QcMultiPaddockSection,{blankQcPaddockWork} from './QcMultiPaddockSection'
+import {validateQcMultiPaddock,qcWorkMap} from './qcMultiPaddock.mjs'
+import type {QcMultiPaddockWork,QcMultiMaterialSource} from './types'
 import { dailyPlansForQcSession, qcShiftOneCarryoverCandidates, loadQcDailyPlans, qcShiftValue, qcSessionPlanMatches, resolveQcSessionPlan, qcWorkOrderPlans, qcExplicitWorkOrderPlan, qcMergeEligiblePlans, type QcDailyPlan } from './qcDailyPlanSource'
 
 type Props={token:string;user:User;master:MasterData;initialRecords?:QcRecord[];onSaved:(records:QcRecord[])=>void;onCancelEdit?:()=>void}
@@ -19,7 +22,7 @@ type SprayCard={
   dropper:string;nozzle:string;dropletSize:string;height:string;rowSpacing:string;speed:string
   adjuvant:string;adjuvantDosage:string;actUsageAdjuvant:string;waterRate:string;waterQuality:string;actualUsage:string
   windSpeed:string;temperature:string;humidity:string;deltaT:string;weatherCondition:string;noted:string
-  actualMaterials:Record<number,string>;holds:HoldDraft[]
+  actualMaterials:Record<number,string>;holds:HoldDraft[];multiPaddockMode:boolean;paddockWorks:QcMultiPaddockWork[]
 }
 type SprayDraft={sessionId:string;date:string;shift:string;mandor:string;assistant:string;cards:SprayCard[];activeCardId:string}
 type LegacySprayDraft={form?:Record<string,string>;holds?:Array<HoldInterval&{file?:File;removePhoto?:boolean}>;actualMaterials?:Record<number,string>;mainPhoto?:File}
@@ -31,9 +34,9 @@ const n=(value:unknown)=>Number(String(value??'').replace(',','.'))||0
 const text=(value:unknown)=>value===undefined||value===null?'':String(value)
 const unique=(values:unknown[])=>[...new Set(values.map(String).map(x=>x.trim()).filter(Boolean))]
 
-function emptyCard():SprayCard{return{id:uid(),startTime:'',endTime:'',unit:'',noUnit:'',area:'',activity:'',deskripsi:'',paddock:'',variety:'',type:'',dailyPlanId:'',monthlyPlanLineId:'',woSearch:'',dropper:'No',nozzle:'',dropletSize:'',height:'',rowSpacing:'',speed:'',adjuvant:'',adjuvantDosage:'',actUsageAdjuvant:'',waterRate:'',waterQuality:'',actualUsage:'',windSpeed:'',temperature:'',humidity:'',deltaT:'',weatherCondition:'',noted:'',actualMaterials:{},holds:[]}}
-function hasCardInput(card:SprayCard){return Boolean(card.recordId||card.unit||card.noUnit||card.area||card.activity||card.deskripsi||card.paddock||card.variety||card.type||card.startTime||card.endTime||card.noted||card.photo||card.photoDriveUrl||card.holds.length||Object.values(card.actualMaterials).some(Boolean))}
-function cardFromRecord(record:QcRecord):SprayCard{return{id:uid(),recordId:record.id,createdAt:text(record.createdAt),saveType:text(record.saveType),photoDriveUrl:text(record.photoDriveUrl),startTime:text(record.startTime),endTime:text(record.endTime),unit:text(record.unit),noUnit:text(record.noUnit),area:text(record.area),activity:text(record.activity),deskripsi:text(record.deskripsi),paddock:record.paddock||'',variety:text(record.variety),type:text(record.type),dailyPlanId:text(record.dailyPlanId),monthlyPlanLineId:text(record.monthlyPlanLineId),woSearch:text(record.woNumber),dropper:text(record.dropper)||'No',nozzle:text(record.nozzle),dropletSize:text(record.dropletSize),height:text(record.height),rowSpacing:text(record.rowSpacing),speed:text(record.speed),adjuvant:text(record.adjuvant),adjuvantDosage:text(record.adjuvantDosage),actUsageAdjuvant:text(record.actUsageAdjuvant),waterRate:text(record.waterRate),waterQuality:text(record.waterQuality),actualUsage:text(record.actualUsage),windSpeed:text(record.windSpeed),temperature:text(record.temperature),humidity:text(record.humidity),deltaT:text(record.deltaT),weatherCondition:text(record.weatherCondition),noted:text(record.noted),actualMaterials:Object.fromEntries([0,1,2,3].map(i=>[i,text(record[`actUsagePesticide${i+1}`])]).filter(([,v])=>v)),holds:(record.holdIntervals||[]).map(h=>({...h,id:h.holdId||uid()}))}}
+function emptyCard():SprayCard{return{id:uid(),startTime:'',endTime:'',unit:'',noUnit:'',area:'',activity:'',deskripsi:'',paddock:'',variety:'',type:'',dailyPlanId:'',monthlyPlanLineId:'',woSearch:'',dropper:'No',nozzle:'',dropletSize:'',height:'',rowSpacing:'',speed:'',adjuvant:'',adjuvantDosage:'',actUsageAdjuvant:'',waterRate:'',waterQuality:'',actualUsage:'',windSpeed:'',temperature:'',humidity:'',deltaT:'',weatherCondition:'',noted:'',actualMaterials:{},holds:[],multiPaddockMode:false,paddockWorks:[]}}
+function hasCardInput(card:SprayCard){return Boolean(card.recordId||card.unit||card.noUnit||card.area||card.activity||card.deskripsi||card.paddock||card.variety||card.type||card.startTime||card.endTime||card.noted||card.photo||card.photoDriveUrl||card.holds.length||Object.values(card.actualMaterials).some(Boolean)||card.paddockWorks?.length>0)}
+function cardFromRecord(record:QcRecord):SprayCard{return{id:uid(),recordId:record.id,createdAt:text(record.createdAt),saveType:text(record.saveType),photoDriveUrl:text(record.photoDriveUrl),startTime:text(record.startTime),endTime:text(record.endTime),unit:text(record.unit),noUnit:text(record.noUnit),area:text(record.area),activity:text(record.activity),deskripsi:text(record.deskripsi),paddock:record.paddock||'',variety:text(record.variety),type:text(record.type),dailyPlanId:text(record.dailyPlanId),monthlyPlanLineId:text(record.monthlyPlanLineId),woSearch:text(record.woNumber),dropper:text(record.dropper)||'No',nozzle:text(record.nozzle),dropletSize:text(record.dropletSize),height:text(record.height),rowSpacing:text(record.rowSpacing),speed:text(record.speed),adjuvant:text(record.adjuvant),adjuvantDosage:text(record.adjuvantDosage),actUsageAdjuvant:text(record.actUsageAdjuvant),waterRate:text(record.waterRate),waterQuality:text(record.waterQuality),actualUsage:text(record.actualUsage),windSpeed:text(record.windSpeed),temperature:text(record.temperature),humidity:text(record.humidity),deltaT:text(record.deltaT),weatherCondition:text(record.weatherCondition),noted:text(record.noted),actualMaterials:Object.fromEntries([0,1,2,3].map(i=>[i,text(record[`actUsagePesticide${i+1}`])]).filter(([,v])=>v)),holds:(record.holdIntervals||[]).map(h=>({...h,id:h.holdId||uid()})),multiPaddockMode:Boolean(record.multiPaddockMode),paddockWorks:record.paddockWorks||[]}}
 function legacyCard(saved:LegacySprayDraft):SprayCard{const form=saved.form||{},card=emptyCard();for(const key of Object.keys(card)){if(key in form&&(typeof card[key as keyof SprayCard]==='string'))(card as unknown as Record<string,unknown>)[key]=text(form[key])}card.actualMaterials=saved.actualMaterials||{};card.holds=(saved.holds||[]).map(h=>({...h,id:uid()}));card.photo=saved.mainPhoto;return card}
 function normalizePlans(master:MasterData):PlanMaster[]{const raw=(master.plans||master.plan||[])as PlanMaster[];return raw.filter(p=>{const category=String(p.category||p.keterangan||'').trim().toLowerCase();if(category)return category==='spray';return Boolean(p.type||p.activity||p.description||p.deskripsi)})}
 function Choice({values,value,onChange}:{values:string[];value:string;onChange:(value:string)=>void}){return <div className="choice-group">{values.length?values.map(item=><button key={item} type="button" className={value===item?'selected':''} onClick={()=>onChange(item)}>{item}</button>):<span className="muted">Tidak ada pilihan</span>}</div>}
@@ -92,8 +95,49 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
   const eligiblePlans=qcMergeEligiblePlans(sprayDailyPlans,carryoverPlans,selectedExplicitWoPlans)
   // Never infer a cross-shift source from PID alone. Resolve the exact selected Daily ID.
   const planForCard=(c:SprayCard)=>resolveQcSessionPlan(eligiblePlans,c.paddock,c.activity,c.deskripsi,c.dailyPlanId)
+  const sprayMultiSources=(c:SprayCard):QcMultiMaterialSource[]=>{
+    const first=c.paddockWorks?.[0],source=woOptions.find(row=>row.dailyPlanId===first?.dailyPlanId)
+    const materialSources=(source?.materials||[]).slice(0,4).flatMap((m,i)=>{
+      const quantity=n(c.actualMaterials[i])
+      return quantity>0?[{id:'p'+(i+1),material:m.material,unit:m.unit||m.doseUnit||'L',quantity}]:[]
+    })
+    const adjuvant=n(c.actUsageAdjuvant)
+    if(adjuvant>0&&c.adjuvant.trim())materialSources.push({id:'adjuvant',material:c.adjuvant,unit:'L',quantity:adjuvant})
+    return materialSources
+  }
+  function changeMultiWorks(c:SprayCard,works:QcMultiPaddockWork[]){
+    const first=works[0],source=woOptions.find(row=>row.dailyPlanId===first?.dailyPlanId)
+    const total=works.reduce((sum,work)=>sum+n(work.areaHa),0)
+    patchCard(c.id,{paddockWorks:works,multiPaddockMode:true,area:total?String(Number(total.toFixed(4))):'',
+      dailyPlanId:source?.dailyPlanId||'',monthlyPlanLineId:source?.monthlyPlanLineId||'',
+      paddock:source?.pid||'',activity:source?.activity||'',deskripsi:source?.description||'',
+      variety:source?.masterVariety||'',type:source?(source.type||source.activityCategory||'SPRAY'):'',
+      woSearch:source?.woNumber||''})
+  }
+  function toggleMultiPaddock(c:SprayCard,enabled:boolean){
+    if(c.recordId){setMessage('Mode Multi-Paddock tidak dapat diubah setelah record QC tersimpan.');return}
+    if(enabled&&!operationalSaveEnabled){setMessage('Multi-Paddock memerlukan penyimpanan QC atomik.');return}
+    if(enabled){const initial=blankQcPaddockWork();patchCard(c.id,{multiPaddockMode:true,paddockWorks:[initial]})}
+    else patchCard(c.id,{multiPaddockMode:false,paddockWorks:[],dailyPlanId:'',monthlyPlanLineId:'',
+      area:'',paddock:'',activity:'',deskripsi:'',variety:'',type:'',woSearch:''})
+  }
   const planStatus=dailyPlanLoading||loadedPlanDate!==date&&!dailyPlanMessage?'Memuat Daily Plan…':dailyPlanMessage||(!mandor.trim()?'Pilih Mandor aktual terlebih dahulu.':sprayDailyPlans.length?sprayDailyPlans.length+' Daily Plan Spraying pada shift dan mandor ini.':'Tidak ada Daily Plan untuk kombinasi shift dan mandor ini.')+' · '+woOptions.length+' WO tersedia pada tanggal ini (pilih Daily ID secara eksplisit).'
   function planProblem(c:SprayCard){
+    if(c.multiPaddockMode){
+      if(!operationalSaveEnabled)return'Multi-Paddock memerlukan simpan QC atomik.'
+      for(const work of c.paddockWorks||[]){
+        const source=qcExplicitWorkOrderPlan(dailyPlanRows,'spray',date,work.dailyPlanId)
+        if(!source||source.pid!==work.pid||source.woNumber!==work.woNumber||
+            source.monthlyPlanLineId!==work.monthlyPlanLineId)
+          return'WO/PID Multi-Paddock tidak sesuai sumber Daily tanggal ini.'
+      }
+      const sourceProducts=(id:string)=>woOptions.find(row=>row.dailyPlanId===id)?.materials
+        .slice(0,4).map(m=>m.material+'|'+m.dosePerHa+'|'+(m.unit||m.doseUnit)).join(';')
+      const identity=sourceProducts(c.paddockWorks?.[0]?.dailyPlanId)
+      if(c.paddockWorks?.some(w=>sourceProducts(w.dailyPlanId)!==identity))
+        return'Produk/dosis berbeda antar-WO. Gunakan Unit Card lain untuk campuran bahan berbeda.'
+      return ''
+    }
     const selected=planForCard(c)
     if(!selected||selected.monthlyPlanLineId!==c.monthlyPlanLineId||selected.masterVariety!==c.variety||(selected.type||selected.activityCategory||'SPRAY')!==c.type)return 'pilih ulang Daily Plan yang cocok dengan tanggal, shift, dan mandor.'
     const previous=c.recordId?initialRecords.find(r=>r.id===c.recordId):undefined
@@ -138,7 +182,7 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
     setActiveCardId(fresh.id)
     setMessage('Draft/input Spraying sudah dibersihkan. Form baru siap digunakan.')
   }
-  function validateReady(activeCards:SprayCard[]){if(!date||!mandor)return{message:'Tanggal dan Mandor wajib diisi.',cardId:activeCards[0]?.id||''};if(!activeCards.length)return{message:'Isi minimal satu Unit Card sebelum disimpan.',cardId:''};const seen=new Set<string>();for(let i=0;i<activeCards.length;i++){const c=activeCards[i];if(!c.unit||!c.noUnit||!c.paddock)return{message:`Unit ${i+1}: lengkapi Jenis Unit, No. Unit, dan Paddock.`,cardId:c.id};const key=`${c.unit}|${c.noUnit}`.toLowerCase();if(seen.has(key))return{message:`Unit ${i+1}: ${c.noUnit} sudah digunakan pada unit lain.`,cardId:c.id};seen.add(key);const problem=planProblem(c);if(problem)return{message:`Unit ${c.noUnit}: ${problem}`,cardId:c.id};if(!c.activity||!c.deskripsi||!c.variety||!c.type)return{message:`Unit ${c.noUnit}: lengkapi Activity, Deskripsi, Variety, dan Type.`,cardId:c.id};if(n(c.area)<=0)return{message:`Unit ${c.noUnit}: Luas aktual wajib lebih dari 0.`,cardId:c.id};const timing=timingFor(c);if(!timing.ready)return{message:`Unit ${c.noUnit}: ${timing.error}`,cardId:c.id}}return null}
+  function validateReady(activeCards:SprayCard[]){if(!date||!mandor)return{message:'Tanggal dan Mandor wajib diisi.',cardId:activeCards[0]?.id||''};if(!activeCards.length)return{message:'Isi minimal satu Unit Card sebelum disimpan.',cardId:''};const seen=new Set<string>();for(let i=0;i<activeCards.length;i++){const c=activeCards[i];if(!c.unit||!c.noUnit||!c.paddock)return{message:`Unit ${i+1}: lengkapi Jenis Unit, No. Unit, dan Paddock.`,cardId:c.id};const key=`${c.unit}|${c.noUnit}`.toLowerCase();if(seen.has(key))return{message:`Unit ${i+1}: ${c.noUnit} sudah digunakan pada unit lain.`,cardId:c.id};seen.add(key);const problem=planProblem(c);if(problem)return{message:`Unit ${c.noUnit}: ${problem}`,cardId:c.id};if(c.multiPaddockMode){const multi=validateQcMultiPaddock(c.paddockWorks,sprayMultiSources(c),{ready:true,totalArea:n(c.area)});if(multi)return{message:`Unit ${c.noUnit}: ${multi}`,cardId:c.id}}if(!c.activity||!c.deskripsi||!c.variety||!c.type)return{message:`Unit ${c.noUnit}: lengkapi Activity, Deskripsi, Variety, dan Type.`,cardId:c.id};if(n(c.area)<=0)return{message:`Unit ${c.noUnit}: Luas aktual wajib lebih dari 0.`,cardId:c.id};const timing=timingFor(c);if(!timing.ready)return{message:`Unit ${c.noUnit}: ${timing.error}`,cardId:c.id}}return null}
   function showProblem(problem:{message:string;cardId:string}){if(problem.cardId)setActiveCardId(problem.cardId);setMessage(problem.message);window.setTimeout(()=>document.querySelector('.active-unit-card')?.scrollIntoView({behavior:'smooth',block:'start'}),60)}
   async function testSelectedPhotos(){
     if(editing||busy)return
@@ -161,6 +205,9 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
     const serverCards=saveType==='draft'?activeCards.filter(c=>Boolean(date&&mandor&&c.paddock)):activeCards
     if(saveType==='draft'&&!serverCards.length){setMessage('Draft Spraying tersimpan di perangkat. Isi Tanggal, Mandor, dan Paddock agar Draft juga muncul di Data QC.');return}
     if(saveType==='draft'){const invalid=serverCards.find(c=>planProblem(c));if(invalid){showProblem({message:(editing?'Draft belum diperbarui. ':'Draft lokal tersimpan. ')+planProblem(invalid),cardId:invalid.id});return}}
+    if(serverCards.some(c=>c.multiPaddockMode)&&!operationalSaveEnabled){
+      setMessage('Multi-Paddock memerlukan simpan QC atomik. Pilih mode normal jika layanan belum aktif.');return
+    }
     const operational=operationalSaveEnabled&&serverCards.every(c=>!c.recordId||isOperationalQcId(c.recordId))
     if(serverCards.some(c=>c.recordId&&isOperationalQcId(c.recordId))&&!operational){setMessage('Sesi QC baru tidak boleh dicampur dengan QC lama.');return}
     const operationalItems:OperationalFormItem[]=[]
@@ -170,10 +217,17 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
       for(const card of serverCards){
         const cardDailyPlan=planForCard(card)
         if(!cardDailyPlan||planProblem(card))throw Error('Daily Plan tidak cocok; pilih ulang pekerjaan sebelum menyimpan.')
+        const multiSources=card.multiPaddockMode?sprayMultiSources(card):[]
+        const multiProblem=card.multiPaddockMode?validateQcMultiPaddock(card.paddockWorks,multiSources,
+          {ready:saveType==='ready',totalArea:n(card.area)}):''
+        if(multiProblem)throw Error(multiProblem)
         const materials=(cardDailyPlan?.materials||[]).slice(0,4).map((m,i)=>({slot:'Pesticide '+(i+1),material:m.material,unit:m.doseUnit||m.unit,dosage:m.dosePerHa}))
         const timing=timingFor(card),productivityHaPerHour=timing.ready&&timing.effective>0?Math.round((n(card.area)/(timing.effective/60))*100)/100:0,holdIntervals:HoldInterval[]=await Promise.all(card.holds.map(async({id,file,removePhoto,...hold})=>({...hold,holdId:id,photoBase64:removePhoto?'':file?await photoData(file):text(hold.photoBase64),photoDriveUrl:removePhoto?'':text(hold.photoDriveUrl)})))
         const uploaded=card.saveType==='uploaded',recordId=card.recordId||(operational?newOperationalQcId(sessionId,card.id):`qc_${Date.now()}_${Math.random().toString(36).slice(2,8)}`),estimatedAdjuvant=((n(card.adjuvantDosage)*n(card.waterRate)*n(card.area))/1000).toFixed(2)
-        const record:QcRecord={id:recordId,sessionId,formType:'spray',date,shift,status:'Working',name:mandor,nameOfAssistan:assistant,dailyPlanId:card.dailyPlanId,monthlyPlanLineId:card.monthlyPlanLineId,dailyPlanLinkStatus:card.dailyPlanId?'LINKED':'NOT_FOUND',plannedDailyAreaHa:cardDailyPlan?.areaHa||0,dailyPlanSourceType:cardDailyPlan?.sourceType||'',woNumber:cardDailyPlan?.woNumber||'',plannedShift:cardDailyPlan?.plannedShift||'',dailyShift:cardDailyPlan?.shift||'',dailyForeman:cardDailyPlan?.foreman||'',operationCode:cardDailyPlan?.operationCode||'',coaCode:cardDailyPlan?.coaCode||'',department:cardDailyPlan?.department||'',catalogActivityId:cardDailyPlan?.catalogActivityId||'',activityCode:cardDailyPlan?.activityCode||'',actualAreaHa:n(card.area),companyCode:cardDailyPlan?.companyCode||'',farm:cardDailyPlan?.farm||'',dailyPlanningOrder:cardDailyPlan?.planningOrder||0,actualPlanMaterials:(cardDailyPlan?.materials||[]).map(m=>({...m,totalMaterial:Number((m.dosePerHa*n(card.area)).toFixed(4))})),startTime:card.startTime,endTime:card.endTime,unit:card.unit,noUnit:card.noUnit,area:card.area,activity:card.activity,deskripsi:card.deskripsi,paddock:card.paddock,variety:card.variety,type:card.type,dropper:card.dropper,nozzle:card.nozzle,dropletSize:card.dropletSize,height:card.height,rowSpacing:card.rowSpacing,speed:card.speed,adjuvant:card.adjuvant,adjuvantDosage:card.adjuvantDosage,actUsageAdjuvant:card.actUsageAdjuvant,waterRate:card.waterRate,waterQuality:card.waterQuality,actualUsage:card.actualUsage,windSpeed:card.windSpeed,temperature:card.temperature,humidity:card.humidity,deltaT:card.deltaT,weatherCondition:card.weatherCondition,noted:card.noted,saveType:uploaded?'uploaded':saveType,inputtedBy:user.username,...(!card.recordId&&firebaseAuth?.currentUser?.uid?{ownerUid:firebaseAuth.currentUser.uid}:{}),createdAt:card.createdAt||new Date().toISOString(),clientRevision:crypto.randomUUID(),photoBase64:card.removePhoto?'':card.photo?await photoData(card.photo):'',photoDriveUrl:card.removePhoto?'':card.photoDriveUrl||'',estUsageAdjuvant:estimatedAdjuvant,holdIntervals,workingDurationMinutes:timing.ready?timing.working:0,holdTotalMinutes:timing.ready?timing.total:0,effectiveWorkingMinutes:timing.ready?timing.effective:0,productivityHaPerHour}
+        const record:QcRecord={id:recordId,sessionId,formType:'spray',date,shift,status:'Working',name:mandor,nameOfAssistan:assistant,dailyPlanId:card.dailyPlanId,monthlyPlanLineId:card.monthlyPlanLineId,dailyPlanLinkStatus:card.dailyPlanId?'LINKED':'NOT_FOUND',plannedDailyAreaHa:cardDailyPlan?.areaHa||0,dailyPlanSourceType:cardDailyPlan?.sourceType||'',woNumber:cardDailyPlan?.woNumber||'',plannedShift:cardDailyPlan?.plannedShift||'',dailyShift:cardDailyPlan?.shift||'',dailyForeman:cardDailyPlan?.foreman||'',operationCode:cardDailyPlan?.operationCode||'',coaCode:cardDailyPlan?.coaCode||'',department:cardDailyPlan?.department||'',catalogActivityId:cardDailyPlan?.catalogActivityId||'',activityCode:cardDailyPlan?.activityCode||'',actualAreaHa:n(card.area),multiPaddockMode:card.multiPaddockMode,
+          paddockWorks:card.multiPaddockMode?card.paddockWorks:[],
+          paddockWorkById:card.multiPaddockMode?qcWorkMap(card.paddockWorks):{},
+          multiMaterialSources:multiSources,companyCode:cardDailyPlan?.companyCode||'',farm:cardDailyPlan?.farm||'',dailyPlanningOrder:cardDailyPlan?.planningOrder||0,actualPlanMaterials:(cardDailyPlan?.materials||[]).map(m=>({...m,totalMaterial:Number((m.dosePerHa*n(card.area)).toFixed(4))})),startTime:card.startTime,endTime:card.endTime,unit:card.unit,noUnit:card.noUnit,area:card.area,activity:card.activity,deskripsi:card.deskripsi,paddock:card.paddock,variety:card.variety,type:card.type,dropper:card.dropper,nozzle:card.nozzle,dropletSize:card.dropletSize,height:card.height,rowSpacing:card.rowSpacing,speed:card.speed,adjuvant:card.adjuvant,adjuvantDosage:card.adjuvantDosage,actUsageAdjuvant:card.actUsageAdjuvant,waterRate:card.waterRate,waterQuality:card.waterQuality,actualUsage:card.actualUsage,windSpeed:card.windSpeed,temperature:card.temperature,humidity:card.humidity,deltaT:card.deltaT,weatherCondition:card.weatherCondition,noted:card.noted,saveType:uploaded?'uploaded':saveType,inputtedBy:user.username,...(!card.recordId&&firebaseAuth?.currentUser?.uid?{ownerUid:firebaseAuth.currentUser.uid}:{}),createdAt:card.createdAt||new Date().toISOString(),clientRevision:crypto.randomUUID(),photoBase64:card.removePhoto?'':card.photo?await photoData(card.photo):'',photoDriveUrl:card.removePhoto?'':card.photoDriveUrl||'',estUsageAdjuvant:estimatedAdjuvant,holdIntervals,workingDurationMinutes:timing.ready?timing.working:0,holdTotalMinutes:timing.ready?timing.total:0,effectiveWorkingMinutes:timing.ready?timing.effective:0,productivityHaPerHour}
         for(let i=0;i<4;i++){const item=materials[i];record[`pesticide${i+1}`]=item?.material||'';record[`dosage${i+1}`]=item?.dosage||'';record[`estUsagePesticide${i+1}`]=item?(n(item.dosage)*n(card.area)).toFixed(2):'';record[`actUsagePesticide${i+1}`]=card.actualMaterials[i]||''}
         if(operational){
           const previous=card.recordId?initialRecords.find(r=>r.id===card.recordId):undefined
