@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: form-qc-unm-live-hosting
+  group: form-qc-unm-hosting-release
   cancel-in-progress: false
 
 jobs:
@@ -26,6 +26,7 @@ jobs:
       VITE_QC_NATIVE_REGISTRATION: 'true'
       VITE_QC_PHOTO_SIGN_PREVIEW: 'true'
       VITE_QC_HOSTED_UAT: 'false'
+      VITE_QC_SOURCE_BRANCH: 'feature/firebase-auth-claims-supabase'
       VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY }}
     steps:
       - name: Checkout production application branch
@@ -38,6 +39,11 @@ jobs:
 
       - name: Install React dependencies
         run: npm install --no-audit --no-fund
+
+      - name: Capture exact checkout revision and package version
+        run: |
+          echo "VITE_QC_BUILD_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "VITE_QC_APP_VERSION=$(node -p "require('./package.json').version")" >> "$GITHUB_ENV"
 
       - name: Validate production build configuration
         run: |
@@ -53,14 +59,19 @@ jobs:
       - name: Native A4 report printing regression
         run: npm run test:cutover:native-report-print
 
+      - name: Check release identity and source alignment
+        run: npm run test:cutover:release-identity
+
       - name: Check TypeScript types
         run: npm run typecheck
 
       - name: Build production React application
         run: |
           npm run build
+          node scripts/write-qc-release-manifest.mjs
           test -s public/react/index.html
           test -s public/react/sw.js
+          test -s public/react/release.json
 
       - name: Confirm Firebase hosting credential configured
         env:
@@ -77,8 +88,20 @@ jobs:
           projectId: form-qc-unm
           channelId: live
 
+      - name: Publish identical React build to react-test preview
+        id: preview
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_FORM_QC_UNM }}
+          projectId: form-qc-unm
+          channelId: react-test
+          expires: 30d
+
       - name: Report deployment target
         run: |
           echo "### Production QC Form Web" >> "$GITHUB_STEP_SUMMARY"
           echo "https://form-qc-unm.web.app/react/" >> "$GITHUB_STEP_SUMMARY"
+          echo "Preview channel: react-test (same build as LIVE)" >> "$GITHUB_STEP_SUMMARY"
           echo "Deployed commit: ${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Release metadata: https://form-qc-unm.web.app/react/release.json" >> "$GITHUB_STEP_SUMMARY"

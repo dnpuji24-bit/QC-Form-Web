@@ -1,12 +1,54 @@
 {
   "hosting": {
     "public": "public",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [{"source": "/react/**", "destination": "/react/index.html"}],
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/react/**",
+        "destination": "/react/index.html"
+      }
+    ],
     "headers": [
-      {"source": "/react/index.html", "headers": [{"key": "Cache-Control", "value": "no-cache, no-store, must-revalidate"}]},
-      {"source": "/react/sw.js", "headers": [{"key": "Cache-Control", "value": "no-cache, no-store, must-revalidate"}]},
-      {"source": "**/*.@(js|css)", "headers": [{"key": "Cache-Control", "value": "public,max-age=3600"}]}
+      {
+        "source": "/react/release.json",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/react/index.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/react/sw.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "**/*.@(js|css)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public,max-age=3600"
+          }
+        ]
+      }
     ]
   },
   "firestore": {
