@@ -48,7 +48,7 @@ const ctx={exports,module:{exports},require:spec=>{
   throw Error('Unexpected import '+spec)
 },console}
 vm.runInNewContext(compiled,ctx,{filename:'qcDailyPlanSource.transpiled.js'})
-const qc=ctx.exports
+const qc=ctx.module.exports
 const rows=await qc.loadQcDailyPlans('2026-11-22')
 test('Daily source retains WO, Operation, CoA, planned Shift and materials with real mapper',()=>{
  assert.equal(rows.length,4)
