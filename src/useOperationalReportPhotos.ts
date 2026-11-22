@@ -6,10 +6,10 @@ import {photoSignEndpoint as endpoint, operationalPhotoOrigin as origin, operati
 type Slot={slot:string;photoId:string;contentType:string;size:number;sha256:string}
 type State={key:string;status:'loading'|'ready'|'error';photos:Record<string,string>;message:string}
 const enabled=import.meta.env.VITE_QC_PHOTO_SIGN_PREVIEW==='true'
-export function useOperationalReportPhotos(record:QcRecord){
+export function useOperationalReportPhotos(record:QcRecord,selectedSlot?:string){
   const manifest=record.operationalPhotoManifest
   const operational=record.id.startsWith('qc-v2-')
-  const key=record.id+':'+String(record.clientRevision||'')
+  const key=record.id+':'+String(record.clientRevision||'')+':'+(selectedSlot||'all')
   const [state,setState]=useState<State>({key:'',status:'loading',photos:{},message:''})
   useEffect(()=>{
     if(!operational)return
@@ -20,7 +20,7 @@ export function useOperationalReportPhotos(record:QcRecord){
     async function load(){
       try{
         if(!manifest||typeof manifest!=='object'||Array.isArray(manifest))throw Error('Manifest foto belum tersedia.')
-        const slots=Object.entries(manifest).map(([slot,value])=>{
+        const slots=Object.entries(manifest).filter(([slot])=>!selectedSlot||slot===selectedSlot).map(([slot,value])=>{
           const p=value as Partial<Slot>|null
           if(!p||! /^(main|scan|hold_[A-Za-z0-9_-]+)$/.test(slot)||typeof p.photoId!=='string'||! /^[a-f0-9]{24}_[a-f0-9]{64}$/.test(p.photoId)||!['image/jpeg','image/png','image/webp'].includes(String(p.contentType))||typeof p.size!=='number'||!Number.isInteger(p.size)||p.size<1||p.size>2097152||typeof p.sha256!=='string'||! /^[a-f0-9]{64}$/.test(p.sha256))throw Error('Referensi foto tidak valid.')
           return {...p,slot} as Slot
