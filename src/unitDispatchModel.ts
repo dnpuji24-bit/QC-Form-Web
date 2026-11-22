@@ -1,5 +1,5 @@
 export type UnitCondition='READY'|'BREAKDOWN'|'MAINTENANCE'|'PENDING_INSPECTION'|'OUT_OF_SERVICE'
-export type UnitEventType='BREAKDOWN'|'MAINTENANCE'|'PENDING_INSPECTION'|'READY_APPROVED'
+export type UnitEventType='BREAKDOWN'|'MAINTENANCE'|'OUT_OF_SERVICE'|'READY'|'PENDING_INSPECTION'|'READY_APPROVED'
 export type UnitNumber={id:string;code:string;kind:string;parentUnitId:string;active:boolean;brand:string;model:string;implement:string;notes:string;importNeedsInspection:boolean}
 export type UnitEvent={id:string;unitId:string;type:UnitEventType;effectiveMinute:number;note:string;actorUid:string;date:string;shift:string}
 export type UnitAssignment={id:string;unitId:string;unitCode:string;workGroupId:string;date:string;shift:string;startTime:string;endTime:string;startMinute:number;endMinute:number;activity:string;woNumber:string;pids:string[];status:string;replacesAssignmentId?:string}
@@ -33,7 +33,9 @@ export function conditionAt(events:UnitEvent[],unitId:string,minute:number,initi
   if(!latest)return initial
   if(latest.type==='BREAKDOWN')return'BREAKDOWN'
   if(latest.type==='MAINTENANCE')return'MAINTENANCE'
-  if(latest.type==='PENDING_INSPECTION')return'PENDING_INSPECTION'
+  if(latest.type==='OUT_OF_SERVICE')return'OUT_OF_SERVICE'
+  // Legacy inspection/approval events remain readable but no longer block dispatch.
+  // Imported units are also available in both shifts by default.
   return'READY'
 }
 export function assignmentConflict(assignments:UnitAssignment[],unitId:string,range:{startMinute:number;endMinute:number},skipId=''){
@@ -44,7 +46,7 @@ export function unitMatches(u:UnitNumber,requirement:UnitRequirement){
 }
 export function slotCoverage(requirement:UnitRequirement,assignments:UnitAssignment[],events:UnitEvent[]){
   const matching=assignments.filter(a=>a.workGroupId===requirement.workGroupId&&a.date===requirement.date&&a.shift===requirement.shift&&a.status!=='CANCELLED'&&a.status!=='REPLACED'&&conditionAt(events,a.unitId,a.startMinute)==='READY'&&
-    !events.some(e=>e.unitId===a.unitId&&e.effectiveMinute>a.startMinute&&e.effectiveMinute<a.endMinute&&e.type!=='READY_APPROVED'))
+    !events.some(e=>e.unitId===a.unitId&&e.effectiveMinute>a.startMinute&&e.effectiveMinute<a.endMinute&&['BREAKDOWN','MAINTENANCE','OUT_OF_SERVICE'].includes(e.type)))
   return Math.min(requirement.quantity,new Set(matching.map(a=>a.unitId)).size)
 }
 export function normalizeUnitNumber(id:string,raw:Record<string,unknown>):UnitNumber{
