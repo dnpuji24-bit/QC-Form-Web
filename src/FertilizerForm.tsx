@@ -135,7 +135,8 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
   function toggleMultiPaddock(c:UnitCard,enabled:boolean){
     if(c.recordId){setMessage('Mode Multi-Paddock tidak dapat diganti setelah record disimpan.');return}
     if(enabled&&!operationalSaveEnabled){setMessage('Multi-Paddock memerlukan simpan QC atomik.');return}
-    if(enabled)patchCard(c.id,{multiPaddockMode:true,paddockWorks:[blankQcPaddockWork()]})
+    if(enabled)patchCard(c.id,{multiPaddockMode:true,paddockWorks:[blankQcPaddockWork()],
+      dailyPlanId:'',monthlyPlanLineId:'',paddock:'',activity:'',type:'',woSearch:''})
     else patchCard(c.id,{multiPaddockMode:false,paddockWorks:[],
       dailyPlanId:'',monthlyPlanLineId:'',paddock:'',activity:'',type:'',woSearch:''})
   }
@@ -176,7 +177,10 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
   const activeCard=cards.find(c=>c.id===activeCardId)||cards[0],activeIndex=Math.max(0,cards.findIndex(c=>c.id===activeCard?.id))
   function invalidateLinks(preserveWo=false){setCards(old=>old.map(c=>preserveWo&&qcExplicitWorkOrderPlan(dailyPlanRows,'fertilizer',date,c.dailyPlanId)?c:{...c,dailyPlanId:'',monthlyPlanLineId:'',type:'',woSearch:''}))}
   function changeShift(value:string){const next=qcShiftValue(value)||value;if(next!==qcShiftValue(shift))invalidateLinks(true);setShift(next)}
-  function changeDate(value:string){if(value!==date)invalidateLinks();setDate(value)}
+  function changeDate(value:string){if(value!==date){
+    setCards(old=>old.map(c=>({...c,dailyPlanId:'',monthlyPlanLineId:'',woSearch:'',paddock:'',activity:'',
+      type:'',paddockWorks:c.multiPaddockMode?[blankQcPaddockWork()]:c.paddockWorks})))
+    }setDate(value)}
   function changeMandor(value:string){if(norm(value)!==norm(mandor))invalidateLinks(true);setMandor(value)}
   function patchCard(id:string,patch:Partial<UnitCard>){setCards(old=>old.map(c=>c.id===id?{...c,...patch}:c))}
   function linkDailyPlan(cardId:string,pid:string,activity:string,sourceId?:string,explicitSource?:QcDailyPlan){
@@ -204,7 +208,7 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
   function addFilling(cardId:string){setCards(old=>old.map(c=>c.id===cardId?{...c,fillings:[...c.fillings,newFilling(c.fillings.length+1,c.fillings[c.fillings.length-1])]}:c))}
   function removeFilling(cardId:string,fillingId:string){setCards(old=>old.map(c=>c.id===cardId?{...c,fillings:c.fillings.filter(f=>f.id!==fillingId).map((f,i)=>({...f,pengisianKe:i+1}))}:c))}
   function addUnit(){const card=newCard();setCards(old=>[...old,card]);setActiveCardId(card.id)}
-  function duplicateCard(card:UnitCard){const copy:UnitCard={...card,id:uid(),recordId:undefined,createdAt:undefined,saveType:undefined,noUnit:'',photo:undefined,photoDriveUrl:undefined,removePhoto:false,scanReportFile:undefined,scanReportDriveUrl:undefined,scanConfidence:undefined,scanRawText:undefined,scanSourceFileName:undefined,scanAppliedAt:undefined,legacyScanPhotoBase64:undefined,fillings:card.fillings.map((f,i)=>({...f,id:uid(),pengisianKe:i+1,jumlah:'',hasilKerja:'',pemerataanPupuk:''})),downtime:[],catatan:''};setCards(old=>[...old,copy]);setActiveCardId(copy.id)}
+  function duplicateCard(card:UnitCard){const copy:UnitCard={...card,id:uid(),recordId:undefined,createdAt:undefined,saveType:undefined,noUnit:'',multiPaddockMode:false,paddockWorks:[],dailyPlanId:'',monthlyPlanLineId:'',paddock:'',activity:'',type:'',woSearch:'',photo:undefined,photoDriveUrl:undefined,removePhoto:false,scanReportFile:undefined,scanReportDriveUrl:undefined,scanConfidence:undefined,scanRawText:undefined,scanSourceFileName:undefined,scanAppliedAt:undefined,legacyScanPhotoBase64:undefined,fillings:card.fillings.map((f,i)=>({...f,id:uid(),pengisianKe:i+1,jumlah:'',hasilKerja:'',pemerataanPupuk:''})),downtime:[],catatan:''};setCards(old=>[...old,copy]);setActiveCardId(copy.id)}
   function removeCard(card:UnitCard){const remaining=cards.filter(c=>c.id!==card.id);const next=remaining.length?remaining:[newCard()];setCards(next);setActiveCardId(next[Math.max(0,Math.min(activeIndex-1,next.length-1))]?.id||next[0]?.id||'')}
   async function clearInput(confirmFirst=true){if(confirmFirst&&cards.some(hasCardInput)&&!window.confirm('Bersihkan seluruh input Fertilizer pada form ini? Data yang sudah tersimpan di Data QC tidak ikut dihapus.'))return;await clearDraft(draftKey);const fresh=newCard();setSessionId(`fertsession_${Date.now()}_${Math.random().toString(36).slice(2,7)}`);setDate(today());setShift('1');setMandor('');setAssistant('');setCards([fresh]);setActiveCardId(fresh.id);setMessage('Form input Fertilizer sudah dibersihkan.')}
   function addDowntime(cardId:string){setCards(old=>old.map(c=>c.id===cardId?{...c,downtime:[...c.downtime,{id:uid(),issue:'',start:'',end:'',note:''}]}:c))}
