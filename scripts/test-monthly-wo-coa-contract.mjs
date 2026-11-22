@@ -14,7 +14,7 @@ test('Master Resource contains CoA catalog, separate from ACT validation code',(
  assert.match(catalog,/master_activity_catalog/)
  assert.match(catalog,/coaCode/)
  assert.match(catalog,/inputMode="numeric"/)
- assert.match(catalog,/co[aA]Code.*'+'/)
+ assert.match(catalog,/\^\\d\{1,20\}\$/)
  assert.match(validation,/catalogActivityId/)
  assert.match(validation,/selectedCatalog/)
  assert.match(validation,/CoA \(otomatis\)/)
