@@ -113,6 +113,12 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
       const currentActive=latestAssignments.filter(a=>a.workGroupId===focused.workGroupId&&a.date===date&&a.shift===shift&&a.status!=='CANCELLED'&&a.status!=='REPLACED').length
       if(!sourceAssignment&&currentActive>=focused.quantity)throw Error('Semua slot kebutuhan sudah terisi. Batalkan penugasan lama atau gunakan Replacement.')
       if(sourceAssignment&&(sourceAssignment.workGroupId!==focused.workGroupId||sourceAssignment.date!==date))throw Error('Replacement tidak cocok dengan pekerjaan asal.')
+      if(sourceAssignment&&unit.id===sourceAssignment.unitId)throw Error('Unit pengganti harus berbeda dari unit yang digantikan.')
+      if(sourceAssignment&&window.startMinute<sourceAssignment.startMinute)throw Error('Replacement tidak boleh dimulai sebelum penugasan lama.')
+      if(sourceAssignment){
+        const affected=latestEvents.filter(e=>e.unitId===sourceAssignment.unitId&&e.type==='BREAKDOWN'&&e.effectiveMinute>=sourceAssignment.startMinute&&e.effectiveMinute<=sourceAssignment.endMinute).sort((a,b)=>a.effectiveMinute-b.effectiveMinute)[0]
+        if(affected&&window.startMinute<affected.effectiveMinute)throw Error('Unit pengganti tidak boleh dimulai sebelum waktu Breakdown.')
+      }
       if(sourceAssignment&&!latestAssignments.some(a=>a.id===sourceAssignment.id&&a.status!=='REPLACED'&&a.status!=='CANCELLED'))throw Error('Assignment lama sudah berubah. Refresh Dispatch terlebih dahulu.')
       const{db,uid,name}=await currentActor()
       const id='ua_'+idNew(),batch=writeBatch(db)
