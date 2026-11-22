@@ -29,12 +29,13 @@ try{
   const report=doc(mandor,'unit_events','ue-mandor-breakdown')
   await assertSucceeds(setDoc(report,event('mandor-unit','BREAKDOWN')))
   assert.equal((await getDoc(report)).data().type,'BREAKDOWN')
-  await assertFails(setDoc(doc(mandor,'unit_events','ue-mandor-ready'),event('mandor-unit','READY_APPROVED')))
+  await assertFails(setDoc(doc(mandor,'unit_events','ue-mandor-ready'),event('mandor-unit','READY')))
   await assertFails(setDoc(doc(mandor,'unit_events','ue-mandor-other-actor'),event('asisten-unit','BREAKDOWN')))
   await assertFails(updateDoc(report,{note:'Tamper'}))
   await assertFails(getDoc(doc(noAuth,'unit_events','ue-mandor-breakdown')))
   await assertSucceeds(setDoc(doc(asisten,'unit_events','ue-maintenance'),event('asisten-unit','MAINTENANCE')))
-  await assertSucceeds(setDoc(doc(asisten,'unit_events','ue-ready'),event('asisten-unit','READY_APPROVED')))
+  await assertSucceeds(setDoc(doc(asisten,'unit_events','ue-ready'),event('asisten-unit','READY')))
+  await assertSucceeds(setDoc(doc(asisten,'unit_events','ue-out-of-service'),event('asisten-unit','OUT_OF_SERVICE')))
   function assignment(uid,startMinute=29925600,endMinute=29925900){
     return{unitId,unitCode:'SS004',workGroupId:'daily-1',date:'2026-11-22',shift:'1',
       startTime:'08:00',endTime:'13:00',startMinute,endMinute,activity:'Stool Splitting',
@@ -46,6 +47,7 @@ try{
   const allocated=doc(asisten,'unit_assignments','ua-valid')
   await assertSucceeds(setDoc(allocated,assignment('asisten-unit')))
   await assertSucceeds(updateDoc(allocated,{status:'WORKING',updatedByUid:'asisten-unit',updatedAt:serverTimestamp()}))
+  await assertSucceeds(updateDoc(allocated,{notes:'Pindah ke paddock A-007',updatedByUid:'asisten-unit',updatedAt:serverTimestamp()}))
   await assertFails(updateDoc(allocated,{unitId:'arbitrary',updatedByUid:'asisten-unit',updatedAt:serverTimestamp()}))
-  process.stdout.write('PASS: Mandor breakdown only; Asisten dispatch/maintenance/Ready; append-only events and immutable assignment identity\n')
+  process.stdout.write('PASS: direct Ready/Breakdown/Maintenance, Asisten dispatch remarks, immutable assignment identity\n')
 }finally{await environment.cleanup()}
