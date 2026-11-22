@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { collection, getDocs, query as fsQuery, where } from 'firebase/firestore'
 import { firestoreDb } from './firebase'
 import YinYangRefreshButton from './YinYangRefreshButton'
+import MonthlyPlanPdfReport from './MonthlyPlanPdfReport'
 import { exportAllPlanSummary } from './planSummaryExcelExport'
 import { aggregateActivityShares, calculateMonthlyActivityAchievement, type MonthlyAchievementActualRow, type MonthlyActivityAchievement } from './activityAchievement'
 
@@ -359,6 +360,8 @@ export default function PlanSummaryDashboard(){
             :selectedAchievement&&<ActivityAchievementDetail stats={selectedAchievement} onBack={()=>setSelectedActivity(null)}/>
         :<ActivityCompositionPie rows={activityPieRows} basisLabel={activityBasis==='ACTUAL'?'Actual Ha':'Daily Plan Ha'} onSelect={setSelectedActivity}/>}
     </section>
+
+    <MonthlyPlanPdfReport monthKey={monthKey}/>
 
     <section className="panel summary-day-matrix-panel">
       <div className="section-head"><div><div className="eyebrow">PLAN VS AKTUAL HARIAN</div><h3>Summary Activity per Tanggal</h3><p className="muted">Semua activity ditampilkan. Filter sama dengan grafik Produktivitas Harian.</p></div><strong>{activityNames.length} activity</strong></div>
