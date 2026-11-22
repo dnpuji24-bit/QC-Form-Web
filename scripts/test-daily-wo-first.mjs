@@ -25,6 +25,8 @@ test('planned shift is only a snapshot; actual shift 2 is allowed for planned sh
  assert.equal(shiftIsCrossOver('1','2'),true)
  assert.equal(shiftIsCrossOver('2','1'),true)
  assert.equal(shiftIsCrossOver('1','1'),false)
+ assert.equal(shiftIsCrossOver('ALL','1'),false)
+ assert.equal(shiftIsCrossOver('ALL','2'),false)
  const snapshot=dailyWoSnapshot(rows[0])
  assert.equal(snapshot.woNumber,'WO-PL-001')
  assert.equal(snapshot.monthlyPlanLineId,'MP-GPA-202611-0001')
