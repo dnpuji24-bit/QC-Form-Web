@@ -151,7 +151,7 @@ export default function MasterResourceImportPanel({user,kind,onImported}:Props){
                 brand:row.brand,model:row.model,year:row.year,serialNo:row.serialNo,
                 planCompany:row.planCompany,planUser:row.planUser,
                 capacitySpec:row.capacitySpec,operatorRequirement:row.operatorRequirement,
-                category:row.category,importNeedsInspection:true,
+                category:row.category,importNeedsInspection:false,
                 sourceRow:row.rowNumber,importSource:'Upkeep & Manuring',
                 createdBy:name,createdByUid:uid,createdAt:serverTimestamp(),updatedAt:serverTimestamp()
               })
@@ -189,7 +189,7 @@ export default function MasterResourceImportPanel({user,kind,onImported}:Props){
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(100px,1fr))',gap:8}}>
         {[{name:'Dibaca',value:rows.length},{name:'Baru',value:counts.create},{name:'Perlu review',value:counts.review},{name:'Sudah ada',value:counts.skip},{name:'Tidak valid',value:counts.invalid}].map(x=><div key={x.name} style={{padding:10,borderRadius:9,background:'#f2f6fa'}}><small style={{color:'#64748b'}}>{x.name}</small><strong style={{display:'block',fontSize:21}}>{x.value}</strong></div>)}
       </div>
-      <p className="muted" style={{fontSize:12}}>Data duplikat tidak ditimpa; Employee ID kosong tidak dibuat-buat. {kind==='unit'?'Unit baru memerlukan pemeriksaan Asisten sebelum Ready dan Standby otomatis.':''}</p>
+      <p className="muted" style={{fontSize:12}}>Data duplikat tidak ditimpa; Employee ID kosong tidak dibuat-buat. {kind==='unit'?'Unit baru langsung Ready untuk Shift 1 dan 2, kecuali diubah menjadi Breakdown atau Maintenance.':''}</p>
       <div style={{maxHeight:330,overflow:'auto'}}>
         <table style={{width:'100%'}}><thead><tr><th>Baris</th><th>{kind==='employee'?'Karyawan':'Kode Unit'}</th><th>{kind==='employee'?'Jabatan / Unit':'Implement / Type'}</th><th>Status</th><th>Catatan</th></tr></thead><tbody>
           {rows.slice(0,100).map((row,i)=><tr key={row.rowNumber}>
