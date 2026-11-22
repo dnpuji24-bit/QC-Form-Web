@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: form-qc-unm-live-hosting
+  group: form-qc-unm-hosting-release
   cancel-in-progress: false
 
 jobs:
