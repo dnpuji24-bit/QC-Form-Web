@@ -142,10 +142,10 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
   }))},[eligiblePlans,masterProducts,productsLoaded,draftReady,editing])
   const total=useMemo(()=>({units:cards.filter(c=>c.noUnit||c.unit).length,totalKg:cards.reduce((s,c)=>s+c.fillings.reduce((x,f)=>x+num(f.jumlah),0),0),totalHa:cards.reduce((s,c)=>s+c.fillings.reduce((x,f)=>x+num(f.hasilKerja),0),0)}),[cards])
   const activeCard=cards.find(c=>c.id===activeCardId)||cards[0],activeIndex=Math.max(0,cards.findIndex(c=>c.id===activeCard?.id))
-  function invalidateLinks(){setCards(old=>old.map(c=>({...c,dailyPlanId:'',monthlyPlanLineId:'',type:''})))}
-  function changeShift(value:string){const next=qcShiftValue(value)||value;if(next!==qcShiftValue(shift))invalidateLinks();setShift(next)}
+  function invalidateLinks(preserveWo=false){setCards(old=>old.map(c=>preserveWo&&qcExplicitWorkOrderPlan(dailyPlanRows,'fertilizer',date,c.dailyPlanId)?c:{...c,dailyPlanId:'',monthlyPlanLineId:'',type:'',woSearch:''}))}
+  function changeShift(value:string){const next=qcShiftValue(value)||value;if(next!==qcShiftValue(shift))invalidateLinks(true);setShift(next)}
   function changeDate(value:string){if(value!==date)invalidateLinks();setDate(value)}
-  function changeMandor(value:string){if(norm(value)!==norm(mandor))invalidateLinks();setMandor(value)}
+  function changeMandor(value:string){if(norm(value)!==norm(mandor))invalidateLinks(true);setMandor(value)}
   function patchCard(id:string,patch:Partial<UnitCard>){setCards(old=>old.map(c=>c.id===id?{...c,...patch}:c))}
   function linkDailyPlan(cardId:string,pid:string,activity:string,sourceId?:string,explicitSource?:QcDailyPlan){
     const candidates=fertDailyPlans.filter(p=>norm(p.pid)===norm(pid)&&norm(p.activity)===norm(activity))
