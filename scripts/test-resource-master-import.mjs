@@ -44,10 +44,11 @@ test('each physical code is one unit; QTY is a capacity label, not unit count',(
  assert.equal(unitKindName(rows[1]),'STOOL SPLITTER')
  assert.notEqual(unitDocId(unitKindName(rows[0]),rows[0].code),unitDocId(unitKindName(rows[1]),rows[1].code))
 })
-test('unverified imported unit must be inspected by Asisten before dispatch Ready',()=>{
+test('existing imported unit is available without mandatory inspection',()=>{
  const unit=normalizeUnitNumber('test',{name:'TR001G',parentUnitName:'STOOL SPLITTER',active:true,importNeedsInspection:true})
  assert.equal(unit.importNeedsInspection,true)
- assert.equal(conditionAt([],unit.id,100,'PENDING_INSPECTION'),'PENDING_INSPECTION')
+ assert.equal(conditionAt([],unit.id,100),'READY')
+ assert.equal(conditionAt([{id:'legacy',unitId:unit.id,type:'PENDING_INSPECTION',effectiveMinute:90,date:'2026-11-22',shift:'1',note:'old',actorUid:'asisten'}],unit.id,100),'READY')
  assert.equal(conditionAt([{id:'e1',unitId:unit.id,type:'READY_APPROVED',effectiveMinute:90,date:'2026-11-22',shift:'1',note:'approved',actorUid:'asisten'}],unit.id,100,'PENDING_INSPECTION'),'READY')
 })
 test('separate menu, role permissions and Firestore-only import',()=>{
@@ -60,7 +61,7 @@ test('separate menu, role permissions and Firestore-only import',()=>{
  assert.match(rules,/match \/master_employees\//)
  assert.match(rules,/match \/master_resource_import_logs\//)
  assert.match(importer,/\.ods/)
- assert.match(importer,/importNeedsInspection:true/)
+ assert.match(importer,/importNeedsInspection:false/)
  assert.match(importer,/master_unit_numbers/)
  assert.match(importer,/master_employees/)
  assert.match(importer,/getDocsFromServer/)
