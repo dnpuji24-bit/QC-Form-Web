@@ -41,8 +41,17 @@ export function conditionAt(events:UnitEvent[],unitId:string,minute:number,initi
 export function assignmentConflict(assignments:UnitAssignment[],unitId:string,range:{startMinute:number;endMinute:number},skipId=''){
   return assignments.find(a=>a.id!==skipId&&a.unitId===unitId&&a.status!=='CANCELLED'&&overlaps(a,range))
 }
+export function unitMatchesType(u:UnitNumber,requestedName:string){
+  const requested=key(requestedName)
+  if(!requested)return false
+  const labels=[key(u.kind),key(u.parentUnitId),key(u.implement),key(u.code)]
+  if(labels.includes(requested))return true
+  // DT is commonly used as a short equipment name for Dump Truck.
+  if(requested==='dt')return labels.some(label=>label==='dump truck'||label.startsWith('dump truck '))
+  return false
+}
 export function unitMatches(u:UnitNumber,requirement:UnitRequirement){
-  return key(u.kind)===key(requirement.unitName) || (!!u.parentUnitId && key(u.parentUnitId)===key(requirement.unitName))
+  return unitMatchesType(u,requirement.unitName)
 }
 export function slotCoverage(requirement:UnitRequirement,assignments:UnitAssignment[],events:UnitEvent[]){
   const matching=assignments.filter(a=>a.workGroupId===requirement.workGroupId&&a.date===requirement.date&&a.shift===requirement.shift&&((a.requirementId||'primary')===(requirement.requirementId||'primary'))&&a.status!=='CANCELLED'&&a.status!=='REPLACED'&&conditionAt(events,a.unitId,a.startMinute)==='READY'&&
