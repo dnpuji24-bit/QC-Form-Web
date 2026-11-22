@@ -78,3 +78,5 @@ test('Saved Daily / WhatsApp display WO without breaking historical Daily cards'
  assert.match(entry,/Shift Aktual/)
  assert.match(entry,/shiftIsCrossOver/)
 })
+
+test('WO repeated results can be distinguished by Monthly Plan ID and optional scheduled date',()=>{const picker=read('src/DailyWoSmartSearch.tsx');assert.match(picker,/Plan ID \{row\.planLineId\}/);assert.match(picker,/row\.plannedDate/);assert.match(entry,/plannedDate:planText\(r\.plannedDate\)/)})
