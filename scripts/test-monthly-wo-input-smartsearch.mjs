@@ -34,6 +34,8 @@ test('Monthly duplicate detection distinguishes planned shift and Operation iden
  assert.notEqual(original,monthlyWorkIdentity({...row,catalogActivityId:'op-10618175'}))
  assert.equal(original,monthlyWorkIdentity({...row,pid:'jagf-2-k-003'}))
  assert.equal(original,monthlyWorkIdentity({...row,varieties:['R570']}))
+ assert.notEqual(original,monthlyWorkIdentity({...row,plannedShift:'ALL'}))
+ assert.notEqual(monthlyWorkIdentity({...row,plannedDate:'2026-11-23'}),monthlyWorkIdentity({...row,plannedDate:'2026-11-24'}))
 })
 test('Monthly UI uses keyboard smartsearch and previews all WO snapshot fields',()=>{
  assert.match(entry,/<MonthlyActivitySmartSearch options=\{activityChoices\}/)
@@ -43,11 +45,14 @@ test('Monthly UI uses keyboard smartsearch and previews all WO snapshot fields',
  assert.match(entry,/operationCode:info\.operationCode/)
  assert.match(entry,/department:info\.department/)
  assert.match(entry,/runTransaction\(db,async transaction/)
- assert.match(entry,/if\(existingWo>=0\)throw/)
+ assert.match(entry,/const uniqueWos=\[\.\.\.new Set/)
+ assert.match(entry,/plannedDate:info\.line\.plannedDate/)
+ assert.match(entry,/Semua Shift \(Shift 1 & 2\)/)
  assert.match(entry,/Shift Rencana WO/)
  assert.match(entry,/Operation Code \(otomatis\)/)
  assert.match(entry,/monthlyWorkIdentity/)
  assert.match(entry,/row\.plannedShift!==\(x\.line\.plannedShift/)
+ assert.match(entry,/row\.plannedDate&&x\.line\.plannedDate/)
 })
 test('Monthly smartsearch supports mouse, keyboard, clear and ten-result limit',()=>{
  assert.match(picker,/role="combobox"/)
@@ -62,9 +67,25 @@ test('Monthly smartsearch supports mouse, keyboard, clear and ten-result limit',
 })
 test('Monthly list search and Excel include WO, planned shift, Operation, CoA',()=>{
  assert.match(list,/row\.operationCode,row\.department,row\.activityCode,row\.plannedShift/)
- for(const name of ['Work Order (WO)','Operation Code','COA','Shift Rencana','Activity Code']){
+ for(const name of ['Work Order (WO)','Operation Code','COA','Shift Rencana','Tanggal Rencana','Activity Code']){
    assert.ok(list.includes("'"+name+"'"),'Missing export heading '+name)
  }
- assert.match(list,/row\.woNumber,row\.operationCode,row\.coaCode,row\.department,row\.plannedShift/)
+ assert.match(list,/row\.woNumber,row\.operationCode,row\.coaCode,row\.department,row\.plannedShift,row\.plannedDate/)
  assert.match(list,/WO <strong>\{row\.woNumber\}<\/strong> · Operation/)
+})
+
+// The supplied example WO_931 carries the same WO across two paddocks and
+// five dates, scheduled on both shifts. The unique line identities must remain
+// distinct, even though work-order header identity is shared.
+test('WO_931 repeated date/shift rows produce distinct Monthly line identities',()=>{
+ const lines=[]
+ const dates=['2026-11-23','2026-11-24','2026-11-25','2026-11-26','2026-11-27']
+ for(const date of dates)for(const shift of ['1','2']){
+  const pid=date<='2026-11-25'&&!(date==='2026-11-25'&&shift==='2')?'JAGF-2-J-007':'JAGF-3-L-005'
+  lines.push({woNumber:'WO_931',pid,masterActivityId:'top-dressing',catalogActivityId:'10618175',plannedShift:shift,plannedDate:date,varieties:['R570']})
+ }
+ const ids=lines.map(monthlyWorkIdentity)
+ assert.equal(lines.length,10)
+ assert.equal(new Set(lines.map(x=>x.woNumber)).size,1)
+ assert.equal(new Set(ids).size,10)
 })
