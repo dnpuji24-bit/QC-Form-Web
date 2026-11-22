@@ -64,6 +64,9 @@ jobs:
       - name: Validate QC Multi-Paddock allocation and atomic Actual
         run: npm run test:qc:multi-paddock
 
+      - name: Compile Firestore rules in demo emulator (no production access)
+        run: npx --yes firebase-tools@14 emulators:exec --only firestore --project demo-qc-multi-paddock --config firebase.native-cutover-browser-emulator.json "node --check src/qcMultiPaddock.mjs"
+
       - name: Verify TypeScript
         run: npm run typecheck
       - name: Build React safely
