@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import {readFileSync} from 'node:fs'
 import {test} from 'node:test'
-import {transform} from 'esbuild'
+import ts from 'typescript'
 
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8')
 const modelSource=read('src/activityCatalogModel.ts')
@@ -10,7 +10,7 @@ const resource=read('src/MasterOperationalResourcePanel.tsx')
 const validation=read('src/MasterActivityManagePanel.tsx')
 const monthly=read('src/MonthlyPlanWebEntryPanel.tsx')
 const rules=read('firestore.rules')
-const {code}=await transform(modelSource,{loader:'ts',format:'esm',target:'es2022'})
+const code=ts.transpileModule(modelSource,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText
 const mod=await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'))
 
 test('Excel/ODS five-column schema accepts distinct department operation codes with shared COA',()=>{
