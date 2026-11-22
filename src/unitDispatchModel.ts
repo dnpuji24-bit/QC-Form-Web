@@ -2,8 +2,8 @@ export type UnitCondition='READY'|'BREAKDOWN'|'MAINTENANCE'|'PENDING_INSPECTION'
 export type UnitEventType='BREAKDOWN'|'MAINTENANCE'|'OUT_OF_SERVICE'|'READY'|'PENDING_INSPECTION'|'READY_APPROVED'
 export type UnitNumber={id:string;code:string;kind:string;parentUnitId:string;active:boolean;brand:string;model:string;implement:string;notes:string;year:string;serialNo:string;importNeedsInspection:boolean}
 export type UnitEvent={id:string;unitId:string;type:UnitEventType;effectiveMinute:number;note:string;actorUid:string;date:string;shift:string;createdAtMs?:number}
-export type UnitAssignment={id:string;unitId:string;unitCode:string;workGroupId:string;date:string;shift:string;startTime:string;endTime:string;startMinute:number;endMinute:number;activity:string;woNumber:string;pids:string[];status:string;notes:string;replacesAssignmentId?:string}
-export type UnitRequirement={id:string;date:string;shift:string;workGroupId:string;activity:string;woNumber:string;pids:string[];unitName:string;quantity:number;preferred:string[]}
+export type UnitAssignment={id:string;unitId:string;unitCode:string;workGroupId:string;date:string;shift:string;startTime:string;endTime:string;startMinute:number;endMinute:number;activity:string;woNumber:string;pids:string[];status:string;notes:string;requirementId?:string;replacesAssignmentId?:string}
+export type UnitRequirement={id:string;date:string;shift:string;workGroupId:string;activity:string;woNumber:string;pids:string[];unitName:string;quantity:number;preferred:string[];requirementId?:string;role?:'MAIN'|'SUPPORT';notes?:string}
 export const clean=(value:unknown)=>String(value??'').trim()
 export const count=(value:unknown)=>Math.max(0,Math.floor(Number(value)||0))
 export const key=(value:unknown)=>clean(value).toLowerCase().replace(/\s+/g,' ')
@@ -41,11 +41,20 @@ export function conditionAt(events:UnitEvent[],unitId:string,minute:number,initi
 export function assignmentConflict(assignments:UnitAssignment[],unitId:string,range:{startMinute:number;endMinute:number},skipId=''){
   return assignments.find(a=>a.id!==skipId&&a.unitId===unitId&&a.status!=='CANCELLED'&&overlaps(a,range))
 }
+export function unitMatchesType(u:UnitNumber,requestedName:string){
+  const requested=key(requestedName)
+  if(!requested)return false
+  const labels=[key(u.kind),key(u.parentUnitId),key(u.implement),key(u.code)]
+  if(labels.includes(requested))return true
+  // DT is commonly used as a short equipment name for Dump Truck.
+  if(requested==='dt')return labels.some(label=>label==='dump truck'||label.startsWith('dump truck '))
+  return false
+}
 export function unitMatches(u:UnitNumber,requirement:UnitRequirement){
-  return key(u.kind)===key(requirement.unitName) || (!!u.parentUnitId && key(u.parentUnitId)===key(requirement.unitName))
+  return unitMatchesType(u,requirement.unitName)
 }
 export function slotCoverage(requirement:UnitRequirement,assignments:UnitAssignment[],events:UnitEvent[]){
-  const matching=assignments.filter(a=>a.workGroupId===requirement.workGroupId&&a.date===requirement.date&&a.shift===requirement.shift&&a.status!=='CANCELLED'&&a.status!=='REPLACED'&&conditionAt(events,a.unitId,a.startMinute)==='READY'&&
+  const matching=assignments.filter(a=>a.workGroupId===requirement.workGroupId&&a.date===requirement.date&&a.shift===requirement.shift&&((a.requirementId||'primary')===(requirement.requirementId||'primary'))&&a.status!=='CANCELLED'&&a.status!=='REPLACED'&&conditionAt(events,a.unitId,a.startMinute)==='READY'&&
     !events.some(e=>e.unitId===a.unitId&&e.effectiveMinute>a.startMinute&&e.effectiveMinute<a.endMinute&&['BREAKDOWN','MAINTENANCE','OUT_OF_SERVICE'].includes(e.type)))
   return Math.min(requirement.quantity,new Set(matching.map(a=>a.unitId)).size)
 }
@@ -53,7 +62,7 @@ export function normalizeUnitNumber(id:string,raw:Record<string,unknown>):UnitNu
   return{id,code:clean(raw.name||raw.code||id),kind:clean(raw.parentUnitName),parentUnitId:clean(raw.parentUnitId),active:raw.active!==false,brand:clean(raw.brand),model:clean(raw.model),implement:clean(raw.implement),notes:clean(raw.notes),year:clean(raw.year),serialNo:clean(raw.serialNo),importNeedsInspection:raw.importNeedsInspection===true}
 }
 export function normalizeAssignment(id:string,raw:Record<string,unknown>):UnitAssignment{
-  return{id,unitId:clean(raw.unitId),unitCode:clean(raw.unitCode),workGroupId:clean(raw.workGroupId),date:clean(raw.date),shift:clean(raw.shift),startTime:clean(raw.startTime),endTime:clean(raw.endTime),startMinute:Number(raw.startMinute)||0,endMinute:Number(raw.endMinute)||0,activity:clean(raw.activity),woNumber:clean(raw.woNumber),pids:Array.isArray(raw.pids)?raw.pids.map(clean):[],status:clean(raw.status)||'ASSIGNED',notes:clean(raw.notes),replacesAssignmentId:clean(raw.replacesAssignmentId)}
+  return{id,unitId:clean(raw.unitId),unitCode:clean(raw.unitCode),workGroupId:clean(raw.workGroupId),date:clean(raw.date),shift:clean(raw.shift),startTime:clean(raw.startTime),endTime:clean(raw.endTime),startMinute:Number(raw.startMinute)||0,endMinute:Number(raw.endMinute)||0,activity:clean(raw.activity),woNumber:clean(raw.woNumber),pids:Array.isArray(raw.pids)?raw.pids.map(clean):[],status:clean(raw.status)||'ASSIGNED',notes:clean(raw.notes),requirementId:clean(raw.requirementId)||'primary',replacesAssignmentId:clean(raw.replacesAssignmentId)}
 }
 export function normalizeEvent(id:string,raw:Record<string,unknown>):UnitEvent{
  const timestamp=raw.createdAt as {toMillis?:()=>number}|undefined

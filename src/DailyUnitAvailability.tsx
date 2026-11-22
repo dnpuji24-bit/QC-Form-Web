@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { collection, getDocs } from 'firebase/firestore'
 import { firestoreDb } from './firebase'
-import { conditionAt, key, normalizeAssignment, normalizeEvent, normalizeUnitNumber, overlaps, shiftWindow, type UnitAssignment, type UnitEvent, type UnitNumber } from './unitDispatchModel'
+import { conditionAt, unitMatchesType, normalizeAssignment, normalizeEvent, normalizeUnitNumber, overlaps, shiftWindow, type UnitAssignment, type UnitEvent, type UnitNumber } from './unitDispatchModel'
 
 type Props={unitName:string;date:string;shift:string;required:number;preferred:string[];onPreferred:(codes:string[])=>void}
 export default function DailyUnitAvailability({unitName,date,shift,required,preferred,onPreferred}:Props){
@@ -25,7 +25,7 @@ export default function DailyUnitAvailability({unitName,date,shift,required,pref
   },[date,shift])
   const summary=useMemo(()=>{
     const range=shiftWindow(date,shift)
-    const matching=units.filter(u=>key(u.kind)===key(unitName))
+    const matching=units.filter(u=>unitMatchesType(u,unitName))
     const results=matching.map(u=>{
       const condition=conditionAt(events,u.id,range.startMinute)
       const allocated=assignments.some(a=>a.unitId===u.id&&a.status!=='CANCELLED'&&a.status!=='REPLACED'&&overlaps(a,range))

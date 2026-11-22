@@ -52,6 +52,9 @@ jobs:
       - name: Validate Daily WhatsApp layout and material totals
         run: npm run test:plan:daily-wa-layout
 
+      - name: Validate multiple unit support, per-requirement dispatch and WA physical codes
+        run: node --experimental-strip-types --test scripts/test-daily-multi-unit-support.mjs
+
       - name: Validate Actual WO-first and independent shift
         run: npm run test:plan:actual-wo-first
 

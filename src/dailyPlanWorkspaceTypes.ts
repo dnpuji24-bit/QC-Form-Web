@@ -1,3 +1,5 @@
+import {type SupportUnitRequirement} from './dailyUnitSupport'
+
 export type SavedDailyMaterial={
   material:string
   dosePerHa:number
@@ -36,6 +38,7 @@ export type SavedDailyRow={
   unitName:string
   unitRequired:number
   unitPreferredCodes:string[]
+  supportUnits:SupportUnitRequirement[]
   unitReady:number
   unitStandby:number
   unitBreakdown:number
@@ -64,6 +67,7 @@ export type SavedDailyGroup={
   unitName:string
   unitRequired:number
   unitPreferredCodes:string[]
+  supportUnits:SupportUnitRequirement[]
   unitReady:number
   unitStandby:number
   unitBreakdown:number
@@ -104,6 +108,7 @@ export function groupSavedDailyRows(rows:SavedDailyRow[]):SavedDailyGroup[]{
       unitName:first.unitName,
       unitRequired:first.unitRequired,
       unitPreferredCodes:first.unitPreferredCodes,
+      supportUnits:first.supportUnits,
       unitReady:first.unitReady,
       unitStandby:first.unitStandby,
       unitBreakdown:first.unitBreakdown,
