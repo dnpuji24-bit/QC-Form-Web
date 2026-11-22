@@ -3,12 +3,13 @@ import { collection, doc, getDoc, getDocs, getDocsFromServer, query, serverTimes
 import { firebaseAuth, firebaseAuthPersistenceReady, firestoreDb } from './firebase'
 import { canEditAccess } from './accessControl'
 import type { User } from './types'
+import MasterResourceImportPanel from './MasterResourceImportPanel'
 import { assignmentConflict, clean, conditionAt, count, dateMinute, key, normalizeAssignment, normalizeEvent, normalizeUnitNumber, overlaps, shiftWindow, slotCoverage, timeWindow, unitMatches, type UnitAssignment, type UnitCondition, type UnitEvent, type UnitEventType, type UnitNumber, type UnitRequirement } from './unitDispatchModel'
 
 type Raw = Record<string,unknown>
 type Kind={id:string;name:string}
 type Props={user:User; initialDate?:string}
-type Tab='dispatch'|'units'|'events'
+type Tab='dispatch'|'units'|'events'|'import'
 const siteClock=()=>{
   const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Jayapura',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date())
   const part=(kind:string)=>parts.find(p=>p.type===kind)?.value||''
@@ -82,9 +83,9 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
   const shiftAssignments=assignments.filter(a=>overlaps(a,windowShift)&&a.status!=='CANCELLED')
   const activeAtTime=(unitId:string)=>shiftAssignments.some(a=>a.unitId===unitId&&a.status!=='REPLACED'&&a.status!=='COMPLETED'&&a.startMinute<=nowMinute&&nowMinute<a.endMinute)
   const dayRequirements=requirements.filter(r=>r.shift===shift)
-  const readyUnits=units.filter(u=>conditionAt(events,u.id,nowMinute)==='READY')
+  const readyUnits=units.filter(u=>conditionAt(events,u.id,nowMinute,u.importNeedsInspection?'PENDING_INSPECTION':'READY')==='READY')
   const standbyUnits=readyUnits.filter(u=>!activeAtTime(u.id))
-  const unavailable=units.filter(u=>conditionAt(events,u.id,nowMinute)!=='READY')
+  const unavailable=units.filter(u=>conditionAt(events,u.id,nowMinute,u.importNeedsInspection?'PENDING_INSPECTION':'READY')!=='READY')
   const availableFor=(r:UnitRequirement)=>{
     const window=timeWindow(date,shift,start,end)
     if(!window)return[]
@@ -108,7 +109,7 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
       const fresh=await Promise.all([getDocsFromServer(collection(firestoreDb,'unit_events')),getDocsFromServer(collection(firestoreDb,'unit_assignments'))])
       const latestEvents=fresh[0].docs.map(d=>normalizeEvent(d.id,d.data() as Raw))
       const latestAssignments=fresh[1].docs.map(d=>normalizeAssignment(d.id,d.data() as Raw))
-      if(conditionAt(latestEvents,unit.id,window.startMinute)!=='READY')throw Error('Unit tidak berstatus Ready pada jadwal tersebut.')
+      if(conditionAt(latestEvents,unit.id,window.startMinute,unit.importNeedsInspection?'PENDING_INSPECTION':'READY')!=='READY')throw Error('Unit tidak berstatus Ready pada jadwal tersebut.')
       if(latestEvents.some(e=>e.unitId===unit.id&&e.effectiveMinute>window.startMinute&&e.effectiveMinute<window.endMinute&&e.type!=='READY_APPROVED'))throw Error('Ada kejadian Breakdown/Maintenance dalam interval penugasan.')
       if(assignmentConflict(latestAssignments,unit.id,window,replacementOf))throw Error('Jadwal unit bertabrakan dengan pekerjaan lain.')
       const currentActive=latestAssignments.filter(a=>a.workGroupId===focused.workGroupId&&a.date===date&&a.shift===shift&&a.status!=='CANCELLED'&&a.status!=='REPLACED').length
@@ -157,7 +158,7 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
       if(existing.exists())throw Error('Kejadian dengan unit, waktu, dan jenis yang sama sudah tercatat. Refresh untuk melihatnya.')
       const latest=await getDocsFromServer(collection(db,'unit_events'))
       const latestEvents=latest.docs.map(d=>normalizeEvent(d.id,d.data() as Raw))
-      const previous=conditionAt(latestEvents,unit.id,when)
+      const previous=conditionAt(latestEvents,unit.id,when,unit.importNeedsInspection?'PENDING_INSPECTION':'READY')
       if(eventType==='READY_APPROVED'&&!['BREAKDOWN','MAINTENANCE','PENDING_INSPECTION'].includes(previous))throw Error('Unit belum mempunyai kondisi yang perlu disahkan Ready.')
       await setDoc(doc(db,'unit_events',id),{unitId:unit.id,unitCode:unit.code,type:eventType,effectiveMinute:when,date,shift,note:eventNote.trim(),maintenanceType:eventType==='MAINTENANCE'?maintenanceType:'',estimatedFinish:eventType==='MAINTENANCE'?estimatedFinish:'',hourMeter:eventType==='MAINTENANCE'?hourMeter:'',maintenancePic:eventType==='MAINTENANCE'?maintenancePic:'',actorUid:uid,actorName:name,createdAt:serverTimestamp()})
       setEventNote('');setMessage('Kondisi unit tercatat. '+(eventType==='BREAKDOWN'?'Unit langsung tidak tersedia.':'Status berubah sesuai tahap pemeriksaan.'));refresh()
@@ -189,6 +190,7 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
       <button type="button" className={tab==='dispatch'?'active':''} onClick={()=>setTab('dispatch')}>Unit Dispatch</button>
       <button type="button" className={tab==='units'?'active':''} onClick={()=>setTab('units')}>Master Unit</button>
       <button type="button" className={tab==='events'?'active':''} onClick={()=>setTab('events')}>Breakdown & Maintenance</button>
+      <button type="button" className={tab==='import'?'active':''} onClick={()=>setTab('import')}>Import Unit</button>
     </div>
     <div className="panel" style={{marginTop:12}}>
       <div className="form-grid">
@@ -197,7 +199,7 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
       </div>
       {loading&&<p role="status">Memuat unit, penugasan, dan kondisi terkini…</p>}
       {!loading&&<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(115px,1fr))',gap:8,marginTop:12}}>
-        {[{l:'Total Unit',v:units.length},{l:'Ready',v:readyUnits.length},{l:'Standby',v:standbyUnits.length},{l:'Breakdown',v:unavailable.filter(u=>conditionAt(events,u.id,nowMinute)==='BREAKDOWN').length},{l:'Maintenance',v:unavailable.filter(u=>conditionAt(events,u.id,nowMinute)==='MAINTENANCE').length},{l:'Pending Inspection',v:unavailable.filter(u=>conditionAt(events,u.id,nowMinute)==='PENDING_INSPECTION').length}].map(x=><div key={x.l} style={{background:'#f2f6fa',borderRadius:10,padding:12}}><small style={{color:'#607086'}}>{x.l}</small><strong style={{display:'block',fontSize:20}}>{fmt(x.v)}</strong></div>)}
+        {[{l:'Total Unit',v:units.length},{l:'Ready',v:readyUnits.length},{l:'Standby',v:standbyUnits.length},{l:'Breakdown',v:unavailable.filter(u=>conditionAt(events,u.id,nowMinute,u.importNeedsInspection?'PENDING_INSPECTION':'READY')==='BREAKDOWN').length},{l:'Maintenance',v:unavailable.filter(u=>conditionAt(events,u.id,nowMinute,u.importNeedsInspection?'PENDING_INSPECTION':'READY')==='MAINTENANCE').length},{l:'Pending Inspection',v:unavailable.filter(u=>conditionAt(events,u.id,nowMinute,u.importNeedsInspection?'PENDING_INSPECTION':'READY')==='PENDING_INSPECTION').length}].map(x=><div key={x.l} style={{background:'#f2f6fa',borderRadius:10,padding:12}}><small style={{color:'#607086'}}>{x.l}</small><strong style={{display:'block',fontSize:20}}>{fmt(x.v)}</strong></div>)}
       </div>}
     </div>
     {tab==='dispatch'&&<div style={{display:'grid',gap:12,marginTop:12}}>
@@ -242,7 +244,7 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
       <div className="panel"><h3>Unit Fisik & Standby Otomatis</h3>
         <input aria-label="Cari unit" placeholder="Cari kode unit, equipment, implement…" value={search} onChange={e=>setSearch(e.target.value)}/>
         <div style={{maxHeight:360,overflowY:'auto',marginTop:10,display:'grid',gap:6}}>{filteredUnits.map(u=>{
-          const state=conditionAt(events,u.id,nowMinute)
+          const state=conditionAt(events,u.id,nowMinute,u.importNeedsInspection?'PENDING_INSPECTION':'READY')
           const busy=activeAtTime(u.id)
           const display=state==='READY'?(busy?'Assigned / Working':'Standby'):eventConditionLabel(state)
           return <div key={u.id} style={{padding:10,border:'1px solid #e2e8f0',borderRadius:9,display:'flex',justifyContent:'space-between',alignItems:'center',gap:10}}>
@@ -252,6 +254,7 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
         })}</div>
       </div>
     </div>}
+    {tab==='import'&&<MasterResourceImportPanel user={user} kind="unit" onImported={refresh}/>}
     {tab==='units'&&<div className="panel" style={{marginTop:12}}>
       <h3>Master Unit Fisik</h3><p className="muted">Jenis Unit tetap mengikuti Master Activity → Master Resource. Detail kode unit dapat dilengkapi di sini.</p>
       {editor&&<div style={{border:'1px solid #e2e8f0',borderRadius:10,padding:12,display:'grid',gap:9}}>
@@ -264,14 +267,14 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
       </div>}
       <div style={{maxHeight:420,overflowY:'auto',display:'grid',gap:7,marginTop:12}}>{units.map(u=><div key={u.id} style={{border:'1px solid #e2e8f0',borderRadius:9,padding:10,display:'flex',justifyContent:'space-between',gap:10,alignItems:'center'}}>
         <div><strong>{u.code}</strong><small style={{display:'block',color:'#64748b'}}>{u.kind}{u.brand?' · '+u.brand:''}{u.model?' · '+u.model:''}</small></div>
-        <div style={{display:'flex',gap:6,alignItems:'center'}}><span style={{fontSize:12}}>{eventConditionLabel(conditionAt(events,u.id,nowMinute))}</span>{editor&&<button type="button" onClick={()=>{setUnitCode(u.code);setUnitKind(u.parentUnitId);setUnitBrand(u.brand);setUnitModel(u.model);setUnitImplement(u.implement);setUnitNotes(u.notes);window.scrollTo({top:0,behavior:'smooth'})}}>Edit</button>}</div>
+        <div style={{display:'flex',gap:6,alignItems:'center'}}><span style={{fontSize:12}}>{eventConditionLabel(conditionAt(events,u.id,nowMinute,u.importNeedsInspection?'PENDING_INSPECTION':'READY'))}</span>{editor&&<button type="button" onClick={()=>{setUnitCode(u.code);setUnitKind(u.parentUnitId);setUnitBrand(u.brand);setUnitModel(u.model);setUnitImplement(u.implement);setUnitNotes(u.notes);window.scrollTo({top:0,behavior:'smooth'})}}>Edit</button>}</div>
       </div>)}</div>
     </div>}
     {tab==='events'&&<div style={{display:'grid',gap:12,marginTop:12}}>
       <div className="panel"><h3>Breakdown, Maintenance & Ready Approval</h3>
         <label>Kode Unit<select value={focusUnit} onChange={e=>setFocusUnit(e.target.value)}><option value="">Pilih unit…</option>{units.map(u=><option key={u.id} value={u.id}>{u.code} — {u.kind}</option>)}</select></label>
         {unitFocus&&<div style={{marginTop:10,display:'grid',gap:9}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><strong>{unitFocus.code}</strong><span style={{fontWeight:600}}>{eventConditionLabel(conditionAt(events,unitFocus.id,nowMinute))}</span></div>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><strong>{unitFocus.code}</strong><span style={{fontWeight:600}}>{eventConditionLabel(conditionAt(events,unitFocus.id,nowMinute,unitFocus.importNeedsInspection?'PENDING_INSPECTION':'READY'))}</span></div>
           {reporter&&<>
             <label>Jenis Kejadian<select value={eventType} onChange={e=>setEventType(e.target.value as UnitEventType)}><option value="BREAKDOWN">Breakdown — laporan Mandor</option>{editor&&<><option value="MAINTENANCE">Maintenance dimulai</option><option value="PENDING_INSPECTION">Perbaikan selesai — menunggu pemeriksaan</option><option value="READY_APPROVED">Approve Ready — Asisten</option></>}</select></label>
             {eventType==='MAINTENANCE'&&<div style={{display:'grid',gap:8}}>
