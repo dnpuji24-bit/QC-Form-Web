@@ -31,7 +31,7 @@ test('legacy validation composition and ACT code are retained',()=>{
 
 test('Monthly plan supports one WO shared across dated lines and all shifts',()=>{
  assert.match(monthly,/woNumber:string;plannedShift:string/)
- assert.match(monthly,/Nomor WO \(manual\)/)
+ assert.match(monthly,/Nomor WO \(boleh berulang\)/)
  assert.match(monthly,/CoA \(otomatis\)/)
  assert.match(monthly,/woNumber,plannedShift/)
  assert.match(monthly,/coaCode:info.coaCode/)
