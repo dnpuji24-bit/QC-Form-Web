@@ -236,16 +236,38 @@ function RecordReport({record,onClose}:{record:QcRecord;onClose:()=>void}){const
   try{
    await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())))
    const root=el.getBoundingClientRect()
-   const imageBlocks=Array.from(el.querySelectorAll<HTMLImageElement>('img.report-photo')).map(img=>{
-    const section=img.closest('.report-section')
-    const group=section&&section.querySelectorAll('img.report-photo').length===1
-      ?section:img.closest('.report-hold-item')||img
-    const bounds=group.getBoundingClientRect()
-    return {top:bounds.top-root.top,bottom:bounds.bottom-root.top}
-   })
+   if(root.height<=0)throw new Error('Layout laporan tidak valid.')
+   // Protection uses actual capture-layout coordinates. Each transparent field
+   // frame and complete photo section must stay on ONE PDF page.
+   const blocks:Array<{top:number;bottom:number}>=[]
+   const protect=(element:Element|null)=>{
+    if(!element)return
+    const bounds=element.getBoundingClientRect()
+    if(bounds.height>0)blocks.push({top:bounds.top-root.top,bottom:bounds.bottom-root.top})
+   }
+   protect(el.querySelector('.report-title'))
+   const fields=Array.from(el.querySelectorAll('.report-grid > div'))
+   for(let i=0;i<fields.length;i+=2){
+    const first=fields[i]?.getBoundingClientRect()
+    const second=fields[i+1]?.getBoundingClientRect()
+    if(!first)continue
+    blocks.push({top:Math.min(first.top,second?.top??first.top)-root.top,
+     bottom:Math.max(first.bottom,second?.bottom??first.bottom)-root.top})
+   }
+   for(const section of el.querySelectorAll('.report-section')){
+    // A normal-height section moves in its entirety to the next page.
+    // If an exceptionally long section exceeds one A4 page, its rows,
+    // paragraphs and individual HOLD/photo frames still get protection.
+    protect(section)
+    for(const item of section.querySelectorAll('h3,p,.report-hold-item,.report-table tr,img.report-photo'))protect(item)
+   }
+   protect(el.querySelector('.report-footer'))
    const image=await mod.default(el,{scale:2,backgroundColor:'#ffffff',useCORS:true,allowTaint:false,logging:false})
    const scale=image.height/root.height
-   const protectedRanges=imageBlocks.map(range=>({top:Math.max(0,Math.floor(range.top*scale)),bottom:Math.min(image.height,Math.ceil(range.bottom*scale))}))
+   const protectedRanges=blocks.map(range=>({
+    top:Math.max(0,Math.floor(range.top*scale)-3),
+    bottom:Math.min(image.height,Math.ceil(range.bottom*scale)+3)
+   }))
    return {image,protectedRanges}
   }finally{el.classList.remove('report-export-capture')}
  }
