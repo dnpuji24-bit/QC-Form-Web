@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, getDocsFromServer, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore'
 import { firebaseAuth, firebaseAuthPersistenceReady, firestoreDb } from './firebase'
 import { canEditAccess } from './accessControl'
 import type { User } from './types'
@@ -103,16 +103,21 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
       if(focused.quantity<1)throw Error('Isi jumlah unit Required pada Daily Plan terlebih dahulu.')
       const unit=units.find(u=>u.id===slotUnit)
       if(!unit||!unitMatches(unit,focused))throw Error('Pilih unit yang sesuai jenis kebutuhan.')
-      if(conditionAt(events,unit.id,window.startMinute)!=='READY')throw Error('Unit tidak berstatus Ready pada jadwal tersebut.')
-      if(events.some(e=>e.unitId===unit.id&&e.effectiveMinute>window.startMinute&&e.effectiveMinute<window.endMinute&&e.type!=='READY_APPROVED'))throw Error('Ada kejadian Breakdown/Maintenance dalam interval penugasan.')
-      if(assignmentConflict(assignments,unit.id,window,replacementOf))throw Error('Jadwal unit bertabrakan dengan pekerjaan lain.')
-      const currentActive=assignmentFor(focused).filter(a=>a.status!=='REPLACED').length
+      if(!firestoreDb)throw Error('Firestore tidak tersedia.')
+      const fresh=await Promise.all([getDocsFromServer(collection(firestoreDb,'unit_events')),getDocsFromServer(collection(firestoreDb,'unit_assignments'))])
+      const latestEvents=fresh[0].docs.map(d=>normalizeEvent(d.id,d.data() as Raw))
+      const latestAssignments=fresh[1].docs.map(d=>normalizeAssignment(d.id,d.data() as Raw))
+      if(conditionAt(latestEvents,unit.id,window.startMinute)!=='READY')throw Error('Unit tidak berstatus Ready pada jadwal tersebut.')
+      if(latestEvents.some(e=>e.unitId===unit.id&&e.effectiveMinute>window.startMinute&&e.effectiveMinute<window.endMinute&&e.type!=='READY_APPROVED'))throw Error('Ada kejadian Breakdown/Maintenance dalam interval penugasan.')
+      if(assignmentConflict(latestAssignments,unit.id,window,replacementOf))throw Error('Jadwal unit bertabrakan dengan pekerjaan lain.')
+      const currentActive=latestAssignments.filter(a=>a.workGroupId===focused.workGroupId&&a.date===date&&a.shift===shift&&a.status!=='CANCELLED'&&a.status!=='REPLACED').length
       if(!sourceAssignment&&currentActive>=focused.quantity)throw Error('Semua slot kebutuhan sudah terisi. Batalkan penugasan lama atau gunakan Replacement.')
       if(sourceAssignment&&(sourceAssignment.workGroupId!==focused.workGroupId||sourceAssignment.date!==date))throw Error('Replacement tidak cocok dengan pekerjaan asal.')
+      if(sourceAssignment&&!latestAssignments.some(a=>a.id===sourceAssignment.id&&a.status!=='REPLACED'&&a.status!=='CANCELLED'))throw Error('Assignment lama sudah berubah. Refresh Dispatch terlebih dahulu.')
       const{db,uid,name}=await currentActor()
       const id='ua_'+idNew(),batch=writeBatch(db)
       if(sourceAssignment){
-        const changed=events.filter(e=>e.unitId===sourceAssignment.unitId&&e.type==='BREAKDOWN'&&e.effectiveMinute>=sourceAssignment.startMinute&&e.effectiveMinute<=sourceAssignment.endMinute).sort((a,b)=>a.effectiveMinute-b.effectiveMinute)[0]
+        const changed=latestEvents.filter(e=>e.unitId===sourceAssignment.unitId&&e.type==='BREAKDOWN'&&e.effectiveMinute>=sourceAssignment.startMinute&&e.effectiveMinute<=sourceAssignment.endMinute).sort((a,b)=>a.effectiveMinute-b.effectiveMinute)[0]
         const actualEnd=changed?Math.min(changed.effectiveMinute,sourceAssignment.endMinute):Math.min(window.startMinute,sourceAssignment.endMinute)
         batch.update(doc(db,'unit_assignments',sourceAssignment.id),{status:'REPLACED',endMinute:Math.max(sourceAssignment.startMinute+1,actualEnd),updatedByUid:uid,updatedAt:serverTimestamp()})
       }
@@ -137,12 +142,16 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
     let when=dateMinute(date,eventTime)
     if(!Number.isFinite(when)){setMessage('Waktu kejadian tidak valid.');return}
     if(shift==='2'&&when-dateMinute(date,'00:00')<720)when+=1440
-    const previous=conditionAt(events,unit.id,when)
-    if(eventType==='READY_APPROVED'&&!['BREAKDOWN','MAINTENANCE','PENDING_INSPECTION'].includes(previous)){setMessage('Unit belum mempunyai kondisi yang perlu disahkan Ready.');return}
     setBusy(true);setMessage('')
     try{
       const{db,uid,name}=await currentActor()
-      const id='ue_'+idNew()
+      const id='ue_'+unit.id.replace(/[^A-Za-z0-9_-]/g,'-')+'_'+date.replaceAll('-','')+'_'+shift+'_'+eventTime.replace(':','')+'_'+eventType
+      const existing=await getDoc(doc(db,'unit_events',id))
+      if(existing.exists())throw Error('Kejadian dengan unit, waktu, dan jenis yang sama sudah tercatat. Refresh untuk melihatnya.')
+      const latest=await getDocsFromServer(collection(db,'unit_events'))
+      const latestEvents=latest.docs.map(d=>normalizeEvent(d.id,d.data() as Raw))
+      const previous=conditionAt(latestEvents,unit.id,when)
+      if(eventType==='READY_APPROVED'&&!['BREAKDOWN','MAINTENANCE','PENDING_INSPECTION'].includes(previous))throw Error('Unit belum mempunyai kondisi yang perlu disahkan Ready.')
       await setDoc(doc(db,'unit_events',id),{unitId:unit.id,unitCode:unit.code,type:eventType,effectiveMinute:when,date,shift,note:eventNote.trim(),maintenanceType:eventType==='MAINTENANCE'?maintenanceType:'',estimatedFinish:eventType==='MAINTENANCE'?estimatedFinish:'',hourMeter:eventType==='MAINTENANCE'?hourMeter:'',maintenancePic:eventType==='MAINTENANCE'?maintenancePic:'',actorUid:uid,actorName:name,createdAt:serverTimestamp()})
       setEventNote('');setMessage('Kondisi unit tercatat. '+(eventType==='BREAKDOWN'?'Unit langsung tidak tersedia.':'Status berubah sesuai tahap pemeriksaan.'));refresh()
     }catch(e){setMessage(e instanceof Error?e.message:'Kejadian unit gagal dicatat.')}finally{setBusy(false)}
