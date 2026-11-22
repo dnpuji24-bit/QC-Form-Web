@@ -404,7 +404,7 @@ service cloud.firestore {
 
     match /master_units/{unitId} {
       allow read: if activeUser();
-      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow create, update: if activeUser() && (canEditKey('data_master_activity_resources',['owner','asisten']) || (role() in ['owner','asisten'] && canEditKey('data_unit_dispatch',['owner','asisten'])));
       allow delete: if activeUser() && role() == 'owner';
     }
 
@@ -420,9 +420,43 @@ service cloud.firestore {
       allow delete: if activeUser() && role() == 'owner';
     }
 
+    // Personnel registry is independent of Firebase Auth accounts.
+    // Import never grants login access or makes automatic operator assignments.
+    match /master_employees/{employeeDocId} {
+      allow read: if activeUser() && canViewKey('data_master_employees',['owner','manager','asisten']);
+      allow create: if activeUser() && role() in ['owner','asisten']
+        && canEditKey('data_master_employees',['owner','asisten'])
+        && request.resource.data.keys().hasAll(['employeeId','fullName','jobTitle','createdByUid','createdAt'])
+        && request.resource.data.employeeId is string
+        && request.resource.data.fullName is string
+        && request.resource.data.fullName.size() > 0
+        && request.resource.data.fullName.size() < 200
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      allow update: if activeUser() && role() in ['owner','asisten']
+        && canEditKey('data_master_employees',['owner','asisten'])
+        && request.resource.data.employeeId is string
+        && request.resource.data.fullName is string
+        && request.resource.data.fullName.size() > 0
+        && request.resource.data.createdByUid == resource.data.createdByUid
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if false;
+    }
+
+    match /master_resource_import_logs/{logId} {
+      allow read: if activeUser() && (canViewKey('data_master_employees',['owner','manager','asisten']) || canViewKey('data_unit_dispatch',['owner','manager','asisten']));
+      allow create: if activeUser() && role() in ['owner','asisten']
+        && request.resource.data.kind in ['unit','employee']
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && ((request.resource.data.kind == 'unit' && canEditKey('data_unit_dispatch',['owner','asisten']))
+        || (request.resource.data.kind == 'employee' && canEditKey('data_master_employees',['owner','asisten'])));
+      allow update, delete: if false;
+    }
+
     match /master_unit_numbers/{unitNumberId} {
       allow read: if activeUser();
-      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow create, update: if activeUser() && (canEditKey('data_master_activity_resources',['owner','asisten']) || (role() in ['owner','asisten'] && canEditKey('data_unit_dispatch',['owner','asisten'])));
       allow delete: if activeUser() && role() == 'owner';
     }
 
