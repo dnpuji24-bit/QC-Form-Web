@@ -425,7 +425,7 @@ service cloud.firestore {
     match /master_employees/{employeeDocId} {
       allow read: if activeUser() && canViewKey('data_master_employees',['owner','manager','asisten']);
       allow create: if activeUser() && role() in ['owner','asisten']
-        && canEditKey('data_master_employees',['owner','asisten'])
+        && canEditKey('data_master_employees',['owner'])
         && request.resource.data.keys().hasAll(['employeeId','fullName','jobTitle','createdByUid','createdAt'])
         && request.resource.data.employeeId is string
         && request.resource.data.fullName is string
@@ -434,7 +434,7 @@ service cloud.firestore {
         && request.resource.data.createdByUid == request.auth.uid
         && request.resource.data.createdAt == request.time;
       allow update: if activeUser() && role() in ['owner','asisten']
-        && canEditKey('data_master_employees',['owner','asisten'])
+        && canEditKey('data_master_employees',['owner'])
         && request.resource.data.employeeId is string
         && request.resource.data.fullName is string
         && request.resource.data.fullName.size() > 0
@@ -450,7 +450,7 @@ service cloud.firestore {
         && request.resource.data.createdByUid == request.auth.uid
         && request.resource.data.createdAt == request.time
         && ((request.resource.data.kind == 'unit' && canEditKey('data_unit_dispatch',['owner','asisten']))
-        || (request.resource.data.kind == 'employee' && canEditKey('data_master_employees',['owner','asisten'])));
+        || (request.resource.data.kind == 'employee' && canEditKey('data_master_employees',['owner'])));
       allow update, delete: if false;
     }
 
