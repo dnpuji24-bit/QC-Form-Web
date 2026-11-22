@@ -345,6 +345,518 @@ service cloud.firestore {
       allow delete: if activeUser() && role() == 'owner';
     }
 
+    // Activity/CoA catalog is independent from validation ACT codes and material recipes.
+    match /master_activity_catalog/{catalogId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.coaCode is string
+        && request.resource.data.coaCode.matches('^[0-9]{1,20}
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if false;
+    }
+
+    match /master_activity_categories/{categoryId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if false;
+    }
+
+    match /master_nozzles/{nozzleId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /master_nozzle_specs/{specId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /master_droppers/{dropperId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /master_assistants/{assistantId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /master_water_qualities/{waterQualityId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /master_weather_conditions/{weatherConditionId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /master_activity_import_logs/{batchId} {
+      allow read: if activeUser();
+      allow create: if activeUser() && canEditKey('data_master_activity_import',['owner','asisten']);
+      allow update, delete: if false;
+    }
+
+    // Manual WO is allocated once and remains immutable. Shift Actual is independent.
+    match /work_orders/{woKey} {
+      allow read: if activeUser();
+      allow create: if activeUser() && canEditKey('data_plan_monthly',['owner','asisten'])
+        && request.resource.data.keys().hasAll(['woNumber','planLineId','pid','activity','coaCode','plannedShift'])
+        && request.resource.data.woNumber is string
+        && request.resource.data.coaCode is string
+        && request.resource.data.coaCode.matches('^[0-9]{1,20}
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditEither('data_plan_monthly','data_plan_monthly_import',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /monthly_plan_import_logs/{batchId} {
+      allow read: if activeUser();
+      allow create: if activeUser() && canEditKey('data_plan_monthly_import',['owner','asisten']);
+      allow update, delete: if false;
+    }
+
+    match /daily_plans/{dailyPlanId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditEither('data_plan_daily','data_plan_daily_import',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /daily_plan_import_logs/{batchId} {
+      allow read: if activeUser();
+      allow create: if activeUser() && canEditKey('data_plan_daily_import',['owner','asisten']);
+      allow update, delete: if false;
+    }
+
+    function archivedActual(reportId, data) {
+      return (reportId.matches('^qcactual_.+')
+          && qcArchived(reportId.replace('^qcactual_', '')))
+        || (data.get('qcRecordId','') is string
+          && data.get('qcRecordId','') != ''
+          && qcArchived(data.qcRecordId));
+    }
+    function lockedHistoricalActual(reportId, data) {
+      return (reportId.matches('^qcactual_.+') && historicalQcLocked(reportId.replace('^qcactual_', '')))
+        || (data.get('qcRecordId','') is string && data.get('qcRecordId','') != '' && historicalQcLocked(data.qcRecordId));
+    }
+    match /daily_reports/{reportId} {
+      allow read: if activeUser();
+      allow create: if activeUser() && !lockedHistoricalActual(reportId, request.resource.data) && !archivedActual(reportId, request.resource.data) && (
+        canEditEither('data_plan_actual','data_plan_actual_import',['owner','asisten'])
+        || validQcActualWrite()
+      );
+      allow update: if activeUser() && !lockedHistoricalActual(reportId, resource.data) && !lockedHistoricalActual(reportId, request.resource.data) && !archivedActual(reportId, resource.data) && !archivedActual(reportId, request.resource.data) && (
+        canEditEither('data_plan_actual','data_plan_actual_import',['owner','asisten'])
+        || (resource.data.sourceOrigin == 'QC' && resource.data.qcRecordId == request.resource.data.qcRecordId && validQcActualWrite())
+      );
+      allow delete: if activeUser() && !lockedHistoricalActual(reportId, resource.data) && !archivedActual(reportId, resource.data) && (
+        role() == 'owner'
+        || (resource.data.sourceOrigin == 'QC' && canEditKey('qc_records',['owner','manager','admin','asisten']))
+      );
+    }
+
+    match /actual_plan_import_logs/{batchId} {
+      allow read: if activeUser();
+      allow create: if activeUser() && canEditKey('data_plan_actual_import',['owner','asisten']);
+      allow update, delete: if false;
+    }
+
+    match /fertilizer_scan_feedback/{feedbackId} {
+      allow read: if activeUser() && resource.data.inputtedBy == username();
+
+      allow create: if activeUser()
+        && request.resource.data.formType == 'fertilizer'
+        && request.resource.data.inputtedBy == username()
+        && request.resource.data.firebaseUid == request.auth.uid;
+
+      allow update, delete: if false;
+    }
+
+    match /fertilizer_ocr_feedback/{feedbackId} {
+      allow read: if activeUser() && resource.data.inputtedBy == username();
+
+      allow create: if activeUser()
+        && request.resource.data.formType == 'fertilizer'
+        && request.resource.data.engine == 'tesseract'
+        && request.resource.data.inputtedBy == username()
+        && request.resource.data.firebaseUid == request.auth.uid;
+
+      allow update, delete: if false;
+    }
+
+    // Owner-only synthetic end-to-end pilot. Never writes qc_records.
+    match /qc_operational_pilot_records/{recordId} {
+      function validPilot() {
+        let d = request.resource.data;
+        return activeUser() && role() == 'owner'
+          && recordId.matches('^qc-operational-pilot-[A-Za-z0-9_-]{1,120}$')
+          && d.keys().hasAll(['id','ownerUid','clientRevision','formType','saveType','testOnly','operationalPhotoManifest','operationalSaveId','firestoreSaveState'])
+          && d.keys().hasOnly(['id','ownerUid','clientRevision','formType','saveType','testOnly','operationalPhotoManifest','operationalSaveId','firestoreSaveState'])
+          && d.id == recordId && d.ownerUid == request.auth.uid
+          && d.clientRevision is string && d.clientRevision.matches('^[A-Za-z0-9_-]{1,160}$')
+          && d.formType in ['spray','fertilizer'] && d.saveType in ['draft','ready','uploaded']
+          && d.testOnly == true && d.firestoreSaveState == 'confirmed'
+          && d.operationalSaveId is string && d.operationalSaveId.size() <= 600
+          && d.operationalPhotoManifest is map && d.operationalPhotoManifest.size() <= 20;
+      }
+      allow get: if activeUser() && role() == 'owner' && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow create: if validPilot();
+      allow update: if validPilot() && resource.data.ownerUid == request.auth.uid
+        && resource.data.formType == request.resource.data.formType
+        && resource.data.clientRevision != request.resource.data.clientRevision;
+      allow list, delete: if false;
+    }
+
+    // Upload reservation only; never creates an operational QC or Actual Plan.
+    match /qc_photo_upload_intents/{recordId} {
+      allow get: if activeUser() && resource.data.ownerUid == request.auth.uid;
+      allow create: if activeUser()
+        && recordId.matches('^[A-Za-z0-9_-]{1,160}$')
+        && !qcArchived(recordId)
+        && !exists(/databases/$(database)/documents/qc_records/$(recordId))
+        && request.resource.data.keys().hasOnly(['ownerUid','formType','clientRevision','createdAt'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.clientRevision is string
+        && request.resource.data.clientRevision.matches('^[A-Za-z0-9_-]{1,160}$')
+        && request.resource.data.createdAt == request.time
+        && stagingPhotoEdit(request.resource.data.formType)
+        && request.resource.data.formType in ['spray','fertilizer'];
+      allow update, delete, list: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+);
+      allow delete: if false;
+    }
+
+    match /master_activity_types/{typeId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if false;
+    }
+
+    match /master_activity_categories/{categoryId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if false;
+    }
+
+    match /master_nozzles/{nozzleId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /master_nozzle_specs/{specId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /master_droppers/{dropperId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /master_assistants/{assistantId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /master_water_qualities/{waterQualityId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /master_weather_conditions/{weatherConditionId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /master_activity_import_logs/{batchId} {
+      allow read: if activeUser();
+      allow create: if activeUser() && canEditKey('data_master_activity_import',['owner','asisten']);
+      allow update, delete: if false;
+    }
+
+    match /monthly_plans/{planId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditEither('data_plan_monthly','data_plan_monthly_import',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /monthly_plan_import_logs/{batchId} {
+      allow read: if activeUser();
+      allow create: if activeUser() && canEditKey('data_plan_monthly_import',['owner','asisten']);
+      allow update, delete: if false;
+    }
+
+    match /daily_plans/{dailyPlanId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditEither('data_plan_daily','data_plan_daily_import',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /daily_plan_import_logs/{batchId} {
+      allow read: if activeUser();
+      allow create: if activeUser() && canEditKey('data_plan_daily_import',['owner','asisten']);
+      allow update, delete: if false;
+    }
+
+    function archivedActual(reportId, data) {
+      return (reportId.matches('^qcactual_.+')
+          && qcArchived(reportId.replace('^qcactual_', '')))
+        || (data.get('qcRecordId','') is string
+          && data.get('qcRecordId','') != ''
+          && qcArchived(data.qcRecordId));
+    }
+    function lockedHistoricalActual(reportId, data) {
+      return (reportId.matches('^qcactual_.+') && historicalQcLocked(reportId.replace('^qcactual_', '')))
+        || (data.get('qcRecordId','') is string && data.get('qcRecordId','') != '' && historicalQcLocked(data.qcRecordId));
+    }
+    match /daily_reports/{reportId} {
+      allow read: if activeUser();
+      allow create: if activeUser() && !lockedHistoricalActual(reportId, request.resource.data) && !archivedActual(reportId, request.resource.data) && (
+        canEditEither('data_plan_actual','data_plan_actual_import',['owner','asisten'])
+        || validQcActualWrite()
+      );
+      allow update: if activeUser() && !lockedHistoricalActual(reportId, resource.data) && !lockedHistoricalActual(reportId, request.resource.data) && !archivedActual(reportId, resource.data) && !archivedActual(reportId, request.resource.data) && (
+        canEditEither('data_plan_actual','data_plan_actual_import',['owner','asisten'])
+        || (resource.data.sourceOrigin == 'QC' && resource.data.qcRecordId == request.resource.data.qcRecordId && validQcActualWrite())
+      );
+      allow delete: if activeUser() && !lockedHistoricalActual(reportId, resource.data) && !archivedActual(reportId, resource.data) && (
+        role() == 'owner'
+        || (resource.data.sourceOrigin == 'QC' && canEditKey('qc_records',['owner','manager','admin','asisten']))
+      );
+    }
+
+    match /actual_plan_import_logs/{batchId} {
+      allow read: if activeUser();
+      allow create: if activeUser() && canEditKey('data_plan_actual_import',['owner','asisten']);
+      allow update, delete: if false;
+    }
+
+    match /fertilizer_scan_feedback/{feedbackId} {
+      allow read: if activeUser() && resource.data.inputtedBy == username();
+
+      allow create: if activeUser()
+        && request.resource.data.formType == 'fertilizer'
+        && request.resource.data.inputtedBy == username()
+        && request.resource.data.firebaseUid == request.auth.uid;
+
+      allow update, delete: if false;
+    }
+
+    match /fertilizer_ocr_feedback/{feedbackId} {
+      allow read: if activeUser() && resource.data.inputtedBy == username();
+
+      allow create: if activeUser()
+        && request.resource.data.formType == 'fertilizer'
+        && request.resource.data.engine == 'tesseract'
+        && request.resource.data.inputtedBy == username()
+        && request.resource.data.firebaseUid == request.auth.uid;
+
+      allow update, delete: if false;
+    }
+
+    // Owner-only synthetic end-to-end pilot. Never writes qc_records.
+    match /qc_operational_pilot_records/{recordId} {
+      function validPilot() {
+        let d = request.resource.data;
+        return activeUser() && role() == 'owner'
+          && recordId.matches('^qc-operational-pilot-[A-Za-z0-9_-]{1,120}$')
+          && d.keys().hasAll(['id','ownerUid','clientRevision','formType','saveType','testOnly','operationalPhotoManifest','operationalSaveId','firestoreSaveState'])
+          && d.keys().hasOnly(['id','ownerUid','clientRevision','formType','saveType','testOnly','operationalPhotoManifest','operationalSaveId','firestoreSaveState'])
+          && d.id == recordId && d.ownerUid == request.auth.uid
+          && d.clientRevision is string && d.clientRevision.matches('^[A-Za-z0-9_-]{1,160}$')
+          && d.formType in ['spray','fertilizer'] && d.saveType in ['draft','ready','uploaded']
+          && d.testOnly == true && d.firestoreSaveState == 'confirmed'
+          && d.operationalSaveId is string && d.operationalSaveId.size() <= 600
+          && d.operationalPhotoManifest is map && d.operationalPhotoManifest.size() <= 20;
+      }
+      allow get: if activeUser() && role() == 'owner' && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow create: if validPilot();
+      allow update: if validPilot() && resource.data.ownerUid == request.auth.uid
+        && resource.data.formType == request.resource.data.formType
+        && resource.data.clientRevision != request.resource.data.clientRevision;
+      allow list, delete: if false;
+    }
+
+    // Upload reservation only; never creates an operational QC or Actual Plan.
+    match /qc_photo_upload_intents/{recordId} {
+      allow get: if activeUser() && resource.data.ownerUid == request.auth.uid;
+      allow create: if activeUser()
+        && recordId.matches('^[A-Za-z0-9_-]{1,160}$')
+        && !qcArchived(recordId)
+        && !exists(/databases/$(database)/documents/qc_records/$(recordId))
+        && request.resource.data.keys().hasOnly(['ownerUid','formType','clientRevision','createdAt'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.clientRevision is string
+        && request.resource.data.clientRevision.matches('^[A-Za-z0-9_-]{1,160}$')
+        && request.resource.data.createdAt == request.time
+        && stagingPhotoEdit(request.resource.data.formType)
+        && request.resource.data.formType in ['spray','fertilizer'];
+      allow update, delete, list: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+)
+        && request.resource.data.plannedShift in ['1','2']
+        && existsAfter(/databases/$(database)/documents/monthly_plans/$(request.resource.data.planLineId))
+        && getAfter(/databases/$(database)/documents/monthly_plans/$(request.resource.data.planLineId)).data.woNumber == request.resource.data.woNumber;
+      allow update, delete: if false;
+    }
+
+    match /monthly_plans/{planId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditEither('data_plan_monthly','data_plan_monthly_import',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /monthly_plan_import_logs/{batchId} {
+      allow read: if activeUser();
+      allow create: if activeUser() && canEditKey('data_plan_monthly_import',['owner','asisten']);
+      allow update, delete: if false;
+    }
+
+    match /daily_plans/{dailyPlanId} {
+      allow read: if activeUser();
+      allow create, update: if activeUser() && canEditEither('data_plan_daily','data_plan_daily_import',['owner','asisten']);
+      allow delete: if activeUser() && role() == 'owner';
+    }
+
+    match /daily_plan_import_logs/{batchId} {
+      allow read: if activeUser();
+      allow create: if activeUser() && canEditKey('data_plan_daily_import',['owner','asisten']);
+      allow update, delete: if false;
+    }
+
+    function archivedActual(reportId, data) {
+      return (reportId.matches('^qcactual_.+')
+          && qcArchived(reportId.replace('^qcactual_', '')))
+        || (data.get('qcRecordId','') is string
+          && data.get('qcRecordId','') != ''
+          && qcArchived(data.qcRecordId));
+    }
+    function lockedHistoricalActual(reportId, data) {
+      return (reportId.matches('^qcactual_.+') && historicalQcLocked(reportId.replace('^qcactual_', '')))
+        || (data.get('qcRecordId','') is string && data.get('qcRecordId','') != '' && historicalQcLocked(data.qcRecordId));
+    }
+    match /daily_reports/{reportId} {
+      allow read: if activeUser();
+      allow create: if activeUser() && !lockedHistoricalActual(reportId, request.resource.data) && !archivedActual(reportId, request.resource.data) && (
+        canEditEither('data_plan_actual','data_plan_actual_import',['owner','asisten'])
+        || validQcActualWrite()
+      );
+      allow update: if activeUser() && !lockedHistoricalActual(reportId, resource.data) && !lockedHistoricalActual(reportId, request.resource.data) && !archivedActual(reportId, resource.data) && !archivedActual(reportId, request.resource.data) && (
+        canEditEither('data_plan_actual','data_plan_actual_import',['owner','asisten'])
+        || (resource.data.sourceOrigin == 'QC' && resource.data.qcRecordId == request.resource.data.qcRecordId && validQcActualWrite())
+      );
+      allow delete: if activeUser() && !lockedHistoricalActual(reportId, resource.data) && !archivedActual(reportId, resource.data) && (
+        role() == 'owner'
+        || (resource.data.sourceOrigin == 'QC' && canEditKey('qc_records',['owner','manager','admin','asisten']))
+      );
+    }
+
+    match /actual_plan_import_logs/{batchId} {
+      allow read: if activeUser();
+      allow create: if activeUser() && canEditKey('data_plan_actual_import',['owner','asisten']);
+      allow update, delete: if false;
+    }
+
+    match /fertilizer_scan_feedback/{feedbackId} {
+      allow read: if activeUser() && resource.data.inputtedBy == username();
+
+      allow create: if activeUser()
+        && request.resource.data.formType == 'fertilizer'
+        && request.resource.data.inputtedBy == username()
+        && request.resource.data.firebaseUid == request.auth.uid;
+
+      allow update, delete: if false;
+    }
+
+    match /fertilizer_ocr_feedback/{feedbackId} {
+      allow read: if activeUser() && resource.data.inputtedBy == username();
+
+      allow create: if activeUser()
+        && request.resource.data.formType == 'fertilizer'
+        && request.resource.data.engine == 'tesseract'
+        && request.resource.data.inputtedBy == username()
+        && request.resource.data.firebaseUid == request.auth.uid;
+
+      allow update, delete: if false;
+    }
+
+    // Owner-only synthetic end-to-end pilot. Never writes qc_records.
+    match /qc_operational_pilot_records/{recordId} {
+      function validPilot() {
+        let d = request.resource.data;
+        return activeUser() && role() == 'owner'
+          && recordId.matches('^qc-operational-pilot-[A-Za-z0-9_-]{1,120}$')
+          && d.keys().hasAll(['id','ownerUid','clientRevision','formType','saveType','testOnly','operationalPhotoManifest','operationalSaveId','firestoreSaveState'])
+          && d.keys().hasOnly(['id','ownerUid','clientRevision','formType','saveType','testOnly','operationalPhotoManifest','operationalSaveId','firestoreSaveState'])
+          && d.id == recordId && d.ownerUid == request.auth.uid
+          && d.clientRevision is string && d.clientRevision.matches('^[A-Za-z0-9_-]{1,160}$')
+          && d.formType in ['spray','fertilizer'] && d.saveType in ['draft','ready','uploaded']
+          && d.testOnly == true && d.firestoreSaveState == 'confirmed'
+          && d.operationalSaveId is string && d.operationalSaveId.size() <= 600
+          && d.operationalPhotoManifest is map && d.operationalPhotoManifest.size() <= 20;
+      }
+      allow get: if activeUser() && role() == 'owner' && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow create: if validPilot();
+      allow update: if validPilot() && resource.data.ownerUid == request.auth.uid
+        && resource.data.formType == request.resource.data.formType
+        && resource.data.clientRevision != request.resource.data.clientRevision;
+      allow list, delete: if false;
+    }
+
+    // Upload reservation only; never creates an operational QC or Actual Plan.
+    match /qc_photo_upload_intents/{recordId} {
+      allow get: if activeUser() && resource.data.ownerUid == request.auth.uid;
+      allow create: if activeUser()
+        && recordId.matches('^[A-Za-z0-9_-]{1,160}$')
+        && !qcArchived(recordId)
+        && !exists(/databases/$(database)/documents/qc_records/$(recordId))
+        && request.resource.data.keys().hasOnly(['ownerUid','formType','clientRevision','createdAt'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.clientRevision is string
+        && request.resource.data.clientRevision.matches('^[A-Za-z0-9_-]{1,160}$')
+        && request.resource.data.createdAt == request.time
+        && stagingPhotoEdit(request.resource.data.formType)
+        && request.resource.data.formType in ['spray','fertilizer'];
+      allow update, delete, list: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+);
+      allow delete: if false;
+    }
+
     match /master_activity_types/{typeId} {
       allow read: if activeUser();
       allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);
