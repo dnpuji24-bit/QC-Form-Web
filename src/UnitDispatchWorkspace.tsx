@@ -9,7 +9,12 @@ type Raw = Record<string,unknown>
 type Kind={id:string;name:string}
 type Props={user:User; initialDate?:string}
 type Tab='dispatch'|'units'|'events'
-const dateToday=()=>new Date().toISOString().slice(0,10)
+const siteClock=()=>{
+  const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Jayapura',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date())
+  const part=(kind:string)=>parts.find(p=>p.type===kind)?.value||''
+  return{date:part('year')+'-'+part('month')+'-'+part('day'),time:part('hour')+':'+part('minute')}
+}
+const dateToday=()=>siteClock().date
 const idNew=()=>Math.random().toString(36).slice(2,11)+Date.now().toString(36)
 const fmt=(n:number)=>n.toLocaleString('id-ID')
 const isDispatchEditor=(user:User)=>canEditAccess(user,'data_unit_dispatch')&&(user.role==='owner'||user.role==='asisten')
@@ -48,6 +53,7 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
   const[replacementOf,setReplacementOf]=useState('')
   const[focusUnit,setFocusUnit]=useState('')
   const[eventType,setEventType]=useState<UnitEventType>('BREAKDOWN'),[eventTime,setEventTime]=useState('10:30'),[eventNote,setEventNote]=useState('')
+  const[maintenanceType,setMaintenanceType]=useState('PREVENTIVE'),[estimatedFinish,setEstimatedFinish]=useState(''),[hourMeter,setHourMeter]=useState(''),[maintenancePic,setMaintenancePic]=useState('')
   const[unitCode,setUnitCode]=useState(''),[unitKind,setUnitKind]=useState(''),[unitBrand,setUnitBrand]=useState(''),[unitModel,setUnitModel]=useState(''),[unitImplement,setUnitImplement]=useState(''),[unitNotes,setUnitNotes]=useState('')
   const editor=isDispatchEditor(user),reporter=isReporter(user)
   const[reload,setReload]=useState(0)
@@ -71,7 +77,8 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
   },[date,reload])
   const refresh=()=>setReload(v=>v+1)
   const windowShift=shiftWindow(date,shift)
-  const nowMinute=Math.min(windowShift.endMinute,Math.max(windowShift.startMinute,Date.now()/60000))
+  const local=siteClock(),localMinute=dateMinute(local.date,local.time)
+  const nowMinute=date<local.date?windowShift.endMinute:date>local.date?windowShift.startMinute:Math.min(windowShift.endMinute,Math.max(windowShift.startMinute,localMinute))
   const shiftAssignments=assignments.filter(a=>overlaps(a,windowShift)&&a.status!=='CANCELLED')
   const dayRequirements=requirements.filter(r=>r.shift===shift)
   const readyUnits=units.filter(u=>conditionAt(events,u.id,nowMinute)==='READY')
@@ -136,7 +143,7 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
     try{
       const{db,uid,name}=await currentActor()
       const id='ue_'+idNew()
-      await setDoc(doc(db,'unit_events',id),{unitId:unit.id,unitCode:unit.code,type:eventType,effectiveMinute:when,date,shift,note:eventNote.trim(),actorUid:uid,actorName:name,createdAt:serverTimestamp()})
+      await setDoc(doc(db,'unit_events',id),{unitId:unit.id,unitCode:unit.code,type:eventType,effectiveMinute:when,date,shift,note:eventNote.trim(),maintenanceType:eventType==='MAINTENANCE'?maintenanceType:'',estimatedFinish:eventType==='MAINTENANCE'?estimatedFinish:'',hourMeter:eventType==='MAINTENANCE'?hourMeter:'',maintenancePic:eventType==='MAINTENANCE'?maintenancePic:'',actorUid:uid,actorName:name,createdAt:serverTimestamp()})
       setEventNote('');setMessage('Kondisi unit tercatat. '+(eventType==='BREAKDOWN'?'Unit langsung tidak tersedia.':'Status berubah sesuai tahap pemeriksaan.'));refresh()
     }catch(e){setMessage(e instanceof Error?e.message:'Kejadian unit gagal dicatat.')}finally{setBusy(false)}
   }
@@ -196,6 +203,7 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
             {focusWork===r.id&&<div style={{borderTop:'1px solid #e2e8f0',marginTop:12,paddingTop:12,display:'grid',gap:8}}>
               {assignmentFor(r).map(a=><div key={a.id} style={{background:'#f6f8fb',borderRadius:8,padding:9}}>
                 <strong>{a.unitCode}</strong> · {a.startTime}–{a.endTime} · {a.status}
+                {events.some(e=>e.unitId===a.unitId&&e.effectiveMinute>=a.startMinute&&e.effectiveMinute<a.endMinute&&e.type!=='READY_APPROVED')&&a.status!=='REPLACED'&&<small style={{display:'block',color:'#a54c27'}}>Affected by Breakdown / Maintenance — periksa Replacement.</small>}
                 {a.replacesAssignmentId&&<small style={{display:'block'}}>Replacement dari {a.replacesAssignmentId}</small>}
                 {editor&&a.status!=='CANCELLED'&&a.status!=='REPLACED'&&<div style={{display:'flex',gap:6,marginTop:8,flexWrap:'wrap'}}>
                   {a.status==='ASSIGNED'&&<button type="button" disabled={busy} onClick={()=>void markAssignment(a,'WORKING')}>Mulai Working</button>}
@@ -250,6 +258,11 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><strong>{unitFocus.code}</strong><span style={{fontWeight:600}}>{eventConditionLabel(conditionAt(events,unitFocus.id,nowMinute))}</span></div>
           {reporter&&<>
             <label>Jenis Kejadian<select value={eventType} onChange={e=>setEventType(e.target.value as UnitEventType)}><option value="BREAKDOWN">Breakdown — laporan Mandor</option>{editor&&<><option value="MAINTENANCE">Maintenance dimulai</option><option value="PENDING_INSPECTION">Perbaikan selesai — menunggu pemeriksaan</option><option value="READY_APPROVED">Approve Ready — Asisten</option></>}</select></label>
+            {eventType==='MAINTENANCE'&&<div style={{display:'grid',gap:8}}>
+              <label>Jenis Maintenance<select value={maintenanceType} onChange={e=>setMaintenanceType(e.target.value)}><option value="PREVENTIVE">Preventive / Periodic Service</option><option value="CORRECTIVE">Corrective Repair</option><option value="INSPECTION">Inspection</option><option value="IMPLEMENT">Implement Maintenance</option></select></label>
+              <div className="form-grid"><label>Estimasi selesai<input type="date" value={estimatedFinish} onChange={e=>setEstimatedFinish(e.target.value)}/></label><label>Hour Meter (opsional)<input type="number" min="0" step="0.1" value={hourMeter} onChange={e=>setHourMeter(e.target.value)}/></label></div>
+              <label>PIC / Workshop<input value={maintenancePic} onChange={e=>setMaintenancePic(e.target.value)} placeholder="Penanggung jawab pemeliharaan"/></label>
+            </div>}
             <label>Waktu kejadian<input type="time" value={eventTime} onChange={e=>setEventTime(e.target.value)}/></label>
             <label>Keterangan / dasar pemeriksaan<textarea rows={3} value={eventNote} onChange={e=>setEventNote(e.target.value)} placeholder="Tuliskan penyebab, tindakan, atau hasil pemeriksaan…"/></label>
             <button type="button" disabled={busy||!eventNote.trim()} onClick={()=>void saveEvent()}>{busy?'Menyimpan…':eventType==='READY_APPROVED'?'Sahkan Ready':'Simpan Kejadian'}</button>
