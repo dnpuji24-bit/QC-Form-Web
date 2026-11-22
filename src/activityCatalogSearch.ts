@@ -25,5 +25,5 @@ export function searchActivityCatalog(options:CoaActivity[],input:string,limit=1
     ||a.row.name.localeCompare(b.row.name,'id')
     ||a.row.department.localeCompare(b.row.department,'id')
     ||a.row.operationCode.localeCompare(b.row.operationCode,'id'))
-  return ranked.slice(0,Math.max(1,limit))
+  return ranked.slice(0,Math.max(1,limit)).map(item=>item.row)
 }
