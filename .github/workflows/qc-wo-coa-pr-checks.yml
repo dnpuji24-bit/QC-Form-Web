@@ -40,6 +40,9 @@ jobs:
       - name: Verify unified Activity register and historical safety
         run: npm run test:master:activity-unified
 
+      - name: Validate Activity smartsearch matching and keyboard navigation
+        run: npm run test:master:activity-smartsearch
+
       - name: Verify TypeScript
         run: npm run typecheck
       - name: Build React safely
