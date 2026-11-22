@@ -12,8 +12,8 @@ export const operationalSaveEnabled=import.meta.env.VITE_QC_OPERATIONAL_SAVE==='
 const validId=(s:string)=>/^[A-Za-z0-9_-]{1,160}$/.test(s)&&!/^qc-(operational-pilot|photo-staging)-/.test(s)
 type RecordInput=AtomicQcInput['record']
 type Job=OperationalJob&{record:RecordInput;scope:'operational';changes:QcSaveIntent['changes']}
-type PersistedJob=OperationalJob&{id:string;createdAt:number}
-type PersistedQcJob=Job&{id:string;createdAt:number}
+type PersistedJob=OperationalJob&{id:string;createdAt:number;lastError?:string}
+type PersistedQcJob=Job&{id:string;createdAt:number;lastError?:string}
 const acceptJob=(job:OperationalJob):job is Job=>{
   const candidate=job as Partial<Job>
   const record=candidate.record
