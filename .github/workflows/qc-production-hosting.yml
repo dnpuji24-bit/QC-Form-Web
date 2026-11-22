@@ -50,6 +50,9 @@ jobs:
       - name: Report photo pagination regression
         run: npm run test:cutover:report-photo-pagination
 
+      - name: Native A4 report printing regression
+        run: npm run test:cutover:native-report-print
+
       - name: Check TypeScript types
         run: npm run typecheck
 
