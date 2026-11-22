@@ -19,7 +19,7 @@ const GROUPS:Record<GroupKey,{label:string;hint:string;kinds:OperationalResource
   unit:{label:'Unit & Equipment',hint:'Jenis unit, nomor unit, nozzle, dan dropper.',kinds:['unit','unit_number','nozzle','dropper']},
   supervision:{label:'Supervisi',hint:'Shift, Mandor / Foreman, dan Asisten.',kinds:['shift','foreman','assistant']},
   field:{label:'Kondisi Lapangan',hint:'Water Quality dan Weather Condition.',kinds:['water_quality','weather_condition']},
-  classification:{label:'Klasifikasi Activity',hint:'Atur Type dan Activity Category untuk Master Activity.',kinds:['activity_type','activity_category']},
+  classification:{label:'Klasifikasi Activity',hint:'Satu master: Departement, Operation Code, COA, Activity Category, Activity.',kinds:['activity_type','activity_category']},
 }
 
 const META:Record<OperationalResourceKind,{title:string;singular:string;placeholder:string;example:string}>={
@@ -99,7 +99,7 @@ export default function MasterOperationalResourcePanel({user}:Props){
 
   const selectedParent=unitRows.find(row=>row.id===parentUnitId)
 
-  function switchGroup(next:GroupKey){setGroup(next);setCatalogView(false);setKind(GROUPS[next].kinds[0])}
+  function switchGroup(next:GroupKey){setGroup(next);setCatalogView(next==='classification');setKind(GROUPS[next].kinds[0])}
 
   async function save(){
     const name=isClassification?classificationName(value):value.trim()
@@ -176,10 +176,10 @@ export default function MasterOperationalResourcePanel({user}:Props){
     </div>
 
     <div className="segmented resource-kind-tabs" aria-label="Jenis Master Resource">
-      {GROUPS[group].kinds.map(item=><button type="button" key={item} className={kind===item?'active':''} onClick={()=>{setCatalogView(false);setKind(item)}}>{META[item].title}</button>)}
-      {group==='classification'&&<button type="button" className={catalogView?'active':''} onClick={()=>setCatalogView(true)}>Master Activity &amp; CoA</button>}
+      {group==='classification'?<button type="button" className={catalogView?'active':''} onClick={()=>setCatalogView(true)}>Daftar Activity (5 kolom)</button>:GROUPS[group].kinds.map(item=><button type="button" key={item} className={kind===item?'active':''} onClick={()=>{setCatalogView(false);setKind(item)}}>{META[item].title}</button>)}
     </div>
 
+    {group==='classification'&&<div className="panel" style={{marginBottom:12}}><details><summary>Pengaturan Type / Category lama (opsional, untuk kompatibilitas QC)</summary><p className="muted">Data Type dan Category lama tetap dipertahankan untuk record QC historis.</p><div className="row-actions"><button type="button" onClick={()=>{setKind('activity_type');setCatalogView(false)}}>Activity Type lama</button><button type="button" onClick={()=>{setKind('activity_category');setCatalogView(false)}}>Activity Category lama</button><button type="button" onClick={()=>setCatalogView(true)}>Kembali ke Daftar Activity</button></div></details></div>}
     {catalogView?<MasterActivityCatalogPanel user={user}/>:<>
     {message&&<div className="alert">{message}</div>}
 
