@@ -34,7 +34,7 @@ function formatHa(value:number,digits=2){return new Intl.NumberFormat('id-ID',{m
 function groupArea(group:SavedDailyGroup){return group.rows.reduce((sum,row)=>sum+row.areaHa,0)}
 function groupKeySet(groups:SavedDailyGroup[]){return new Set(groups.map(group=>group.groupKey))}
 async function writerContext(appUser:User){const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.');const current=auth.currentUser;if(!current)throw new Error('Login Firebase tidak tersedia.');const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.');const p=snap.data() as Record<string,unknown>;if(p.active!==true||!canEditAccess(appUser,'data_plan_daily'))throw new Error('Hak akses Edit Daily Plan belum diberikan.');return{db,username:text(p.username)||appUser.username}}
-function asTransfer(row:DailyRow):DailyPlanTransfer{return{dailyPlanId:row.dailyPlanId,workGroupId:row.workGroupId,planningOrder:row.planningOrder,date:row.date,shift:row.shift,sourceType:row.sourceType,monthlyPlanLineId:row.monthlyPlanLineId,woNumber:row.woNumber,plannedShift:row.plannedShift,coaCode:row.coaCode,operationCode:row.operationCode,companyCode:row.companyCode,farm:row.farm,pid:row.pid,activity:row.activity,description:row.description,areaHa:row.areaHa,manpower:row.manpower,unitName:row.unitName,unitReady:row.unitReady,unitStandby:row.unitStandby,unitBreakdown:row.unitBreakdown,foreman:row.foreman,notes:row.notes,pidNotes:row.pidNotes,materials:row.materials}}
+function asTransfer(row:DailyRow):DailyPlanTransfer{return{dailyPlanId:row.dailyPlanId,workGroupId:row.workGroupId,planningOrder:row.planningOrder,date:row.date,shift:row.shift,sourceType:row.sourceType,monthlyPlanLineId:row.monthlyPlanLineId,woNumber:row.woNumber,plannedShift:row.plannedShift,coaCode:row.coaCode,operationCode:row.operationCode,department:row.department,companyCode:row.companyCode,farm:row.farm,pid:row.pid,activity:row.activity,description:row.description,areaHa:row.areaHa,manpower:row.manpower,unitName:row.unitName,unitReady:row.unitReady,unitStandby:row.unitStandby,unitBreakdown:row.unitBreakdown,foreman:row.foreman,notes:row.notes,pidNotes:row.pidNotes,materials:row.materials}}
 
 export default function DailyPlanListPanel({user,onCopyToActual,selectedDate,compact=true,refreshKey=0,onEditGroup,onDuplicateGroup,onChanged,focusMonthlyPlanLineId='',focusPid='',onClearMonthlyFocus,readOnly=false}:Props){
   const[rows,setRows]=useState<DailyRow[]>([]),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
@@ -74,7 +74,7 @@ export default function DailyPlanListPanel({user,onCopyToActual,selectedDate,com
   async function copyWaGroups(targets:SavedDailyGroup[]){
     if(!targets.length){setMessage('Pilih minimal satu kegiatan untuk Copy WA.');return}
     const wa=dailyPlansToWhatsApp(targets.flatMap(group=>group.rows).map(asTransfer))
-    try{await navigator.clipboard.writeText(wa);setMessage('Daily Planning disalin ke clipboard tanpa Plan ID. Tinggal paste ke WhatsApp.')}catch{window.prompt('Salin Daily Planning berikut:',wa)}
+    try{await navigator.clipboard.writeText(wa);setMessage('Daily Plan disalin ke clipboard. Tinggal paste ke WhatsApp.')}catch{window.prompt('Salin Daily Plan berikut:',wa)}
   }
 
   function copyToActual(){

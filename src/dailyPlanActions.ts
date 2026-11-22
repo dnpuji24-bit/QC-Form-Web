@@ -24,52 +24,146 @@ export type DailyPlanTransfer={
   foreman:string
   notes:string
   pidNotes?:string
+  department?:string
   materials:Array<{material:string;dosePerHa:number;doseUnit:string;totalMaterial:number;unit:string}>
 }
 
-function n(v:number){return new Intl.NumberFormat('id-ID',{maximumFractionDigits:2}).format(v)}
-function groupKey(row:DailyPlanTransfer){return row.date+'|'+(row.workGroupId||row.dailyPlanId)}
-function materialLine(m:DailyPlanTransfer['materials'][number]){
-  const doseUnit=m.doseUnit||m.unit||'',totalUnit=m.unit||m.doseUnit||''
-  return `      - ${m.material}: ${n(m.dosePerHa)} ${doseUnit}/Ha · Total ${n(m.totalMaterial)} ${totalUnit}`
+
+function n(v:number){return new Intl.NumberFormat('id-ID',{maximumFractionDigits:2}).format(Number.isFinite(v)?v:0)}
+function ha(v:number){return new Intl.NumberFormat('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number.isFinite(v)?v:0)}
+function tidy(v:unknown){return String(v??'').replace(/\s+/g,' ').trim()||'-'}
+function groupKey(row:DailyPlanTransfer){return row.date+'|'+(row.shift||'-')+'|'+(row.workGroupId||row.dailyPlanId)}
+function prettyDate(iso:string){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(iso))return tidy(iso)
+  const date=new Date(iso+'T00:00:00Z')
+  return Number.isNaN(date.getTime())?tidy(iso):
+    new Intl.DateTimeFormat('id-ID',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(date)
+}
+function field(label:string,value:string){return label.padEnd(14)+' : '+value}
+function dosePerHaUnit(row:DailyPlanTransfer['materials'][number]){
+  const unit=tidy(row.doseUnit||row.unit)
+  return /\/\s*ha$/i.test(unit)?unit:unit==='-'?'-':unit+'/Ha'
+}
+function wrapText(value:string,width:number){
+  const words=tidy(value).split(/\s+/)
+  const lines:string[]=[]
+  let current=''
+  for(const word of words){
+    let remaining=word
+    while(remaining.length>width){
+      if(current){lines.push(current);current=''}
+      lines.push(remaining.slice(0,width))
+      remaining=remaining.slice(width)
+    }
+    if(!remaining)continue
+    if(!current)current=remaining
+    else if(current.length+1+remaining.length<=width)current+=' '+remaining
+    else{lines.push(current);current=remaining}
+  }
+  if(current)lines.push(current)
+  return lines.length?lines:['-']
+}
+function twoColumns(left:string,right:string){
+  const leftLines=wrapText(left,22),rightLines=wrapText(right,13)
+  return Array.from({length:Math.max(leftLines.length,rightLines.length)},(_,index)=>
+    (leftLines[index]||'').padEnd(22)+' │ '+(rightLines[index]||'')).map(line=>line.trimEnd())
+}
+function groupMaterials(rows:DailyPlanTransfer[]){
+  const map=new Map<string,{material:string;unit:string;quantity:number}>()
+  for(const row of rows)for(const m of row.materials){
+    const material=tidy(m.material),unit=tidy(m.unit||m.doseUnit)
+    const qty=Number(m.totalMaterial)
+    if(material==='-'||!Number.isFinite(qty))continue
+    const key=material.toLocaleLowerCase('id-ID')+'|'+unit.toLocaleLowerCase('id-ID')
+    const current=map.get(key)
+    if(current)current.quantity+=qty
+    else map.set(key,{material,unit,quantity:qty})
+  }
+  return [...map.values()].sort((a,b)=>a.material.localeCompare(b.material,'id-ID'))
 }
 
+/** WhatsApp plain text with native bold and monospace tables.
+ * Formatting only: does not modify saved Daily Plans or Firestore.
+ */
 export function dailyPlansToWhatsApp(rows:DailyPlanTransfer[]){
-  const sorted=[...rows].sort((a,b)=>a.date.localeCompare(b.date)||a.shift.localeCompare(b.shift,undefined,{numeric:true})||(a.planningOrder||0)-(b.planningOrder||0)||a.pid.localeCompare(b.pid,undefined,{numeric:true}))
-  if(!sorted.length)return''
-  const dates=[...new Set(sorted.map(x=>x.date))]
-  const lines:string[]=['*DAILY PLANNING*',`📅 *Tanggal:* ${dates.length===1?dates[0]:dates.join(', ')}`,'────────────────────']
-  let number=0
-  const shifts=[...new Set(sorted.map(x=>x.shift||'-'))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}))
+  const sorted=[...rows].sort((a,b)=>a.date.localeCompare(b.date)||
+    a.shift.localeCompare(b.shift,undefined,{numeric:true})||
+    (a.planningOrder||0)-(b.planningOrder||0)||
+    a.pid.localeCompare(b.pid,undefined,{numeric:true}))
+  if(!sorted.length)return ''
+  const dates=[...new Set(sorted.map(row=>prettyDate(row.date)))]
+  const lines:string[]=['*DAILY PLAN*','📅 Tanggal: '+dates.join(', ')]
+  const departments=[...new Set(sorted.map(row=>tidy(row.department)).filter(dep=>dep!=='-'))]
+  if(departments.length===1)lines.push('Departemen: '+departments[0])
+  const shifts=[...new Set(sorted.map(row=>row.shift||'-'))]
+    .sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}))
+  const mono=String.fromCharCode(96,96,96)
+  let groupNumber=0
+  const allGroups=new Map<string,DailyPlanTransfer[]>()
   for(const shift of shifts){
-    lines.push('',`*=== SHIFT ${shift} ===*`,'')
-    const shiftRows=sorted.filter(x=>(x.shift||'-')===shift)
+    const shiftRows=sorted.filter(row=>(row.shift||'-')===shift)
     const groups=new Map<string,DailyPlanTransfer[]>()
-    for(const row of shiftRows){const k=groupKey(row),list=groups.get(k)||[];list.push(row);groups.set(k,list)}
-    for(const groupRows of groups.values()){
-      const first=groupRows[0],area=groupRows.reduce((s,x)=>s+x.areaHa,0)
-      number++
-      const title=(first.activity||first.description||'KEGIATAN').toUpperCase()
-      lines.push(`*${number}. ${title} (${n(area)} Ha)*`)
-      for(const row of groupRows){
-        lines.push(`📍 Pdk: ${row.pid||'-'} (${n(row.areaHa)} Ha)`)
-        if(row.woNumber)lines.push(`   📋 WO: ${row.woNumber} · Operation: ${row.operationCode||'-'} · CoA: ${row.coaCode||'-'}${row.plannedShift?' · Shift Rencana: '+row.plannedShift:''}`)
-        lines.push(`   🧾 Kegiatan: ${row.description||row.activity||'-'}`)
-        lines.push('   🧪 Bahan & Dosis:')
-        if(row.materials.length)lines.push(...row.materials.map(materialLine))
-        else lines.push('      -')
-        if(row.pidNotes)lines.push(`   ↳ Ket: ${row.pidNotes}`)
+    for(const row of shiftRows){
+      const key=groupKey(row)
+      const group=groups.get(key)||[]
+      group.push(row)
+      groups.set(key,group)
+      if(!allGroups.has(key))allGroups.set(key,group)
+    }
+    lines.push('','━━━━━━━━━━━━━━━━','*SHIFT KERJA '+shift+'*')
+    for(const group of groups.values()){
+      const first=group[0]
+      const activity=tidy(first.activity||first.description).toUpperCase()
+      const area=group.reduce((sum,row)=>sum+row.areaHa,0)
+      const pids=new Set(group.map(row=>tidy(row.pid)))
+      groupNumber++
+      lines.push('','*'+String(groupNumber).padStart(2,'0')+'. '+activity+'*',
+        'Total Rencana: *'+ha(area)+' Ha* · '+pids.size+' Paddock','')
+      for(const [index,row] of group.entries()){
+        if(index)lines.push('────────────────────','')
+        lines.push('📍 *'+(index+1)+'. '+tidy(row.pid)+'*')
+        const details:string[]=[]
+        if(row.woNumber)details.push(field('WO',tidy(row.woNumber)))
+        if(row.operationCode)details.push(field('Operation Code',tidy(row.operationCode)))
+        if(row.coaCode)details.push(field('CoA',tidy(row.coaCode)))
+        if(departments.length!==1&&row.department)details.push(field('Departemen',tidy(row.department)))
+        details.push(field('Luas Rencana',ha(row.areaHa)+' Ha'))
+        if(row.plannedShift)details.push(field('Shift WO',tidy(row.plannedShift)+' → Shift Kerja '+tidy(row.shift)))
+        lines.push(mono,...details,mono)
+        if(row.materials.length){
+          lines.push('🧪 *MATERIAL & DOSIS*')
+          for(const m of row.materials){
+            lines.push('• '+tidy(m.material)+' : '+n(m.dosePerHa)+' '+dosePerHaUnit(m))
+            lines.push('  Kebutuhan: '+n(m.totalMaterial)+' '+tidy(m.unit||m.doseUnit))
+          }
+        }
+        if(row.pidNotes?.trim())lines.push('📝 Catatan PID: '+tidy(row.pidNotes))
+        lines.push('')
       }
-      lines.push(`👷 Mandor: ${first.foreman||'-'}`)
-      lines.push(`👷 HK: ${n(first.manpower)} | 🚜 Alat: ${first.unitName||'-'}`)
-      lines.push(`⚙️ Stat: 🟢${n(first.unitReady)} | 🔴${n(first.unitBreakdown)} | 🟡${n(first.unitStandby)}`)
-      lines.push(`ℹ️ Ket: ${first.notes||'-'}`,'')
+      lines.push('*RESOURCE OPERASIONAL*',mono,
+        ...twoColumns('Mandor: '+tidy(first.foreman),'HK: '+n(first.manpower)),
+        ...twoColumns('Unit: '+tidy(first.unitName),'Ready: '+n(first.unitReady)),
+        ...twoColumns('Breakdown: '+n(first.unitBreakdown),'Standby: '+n(first.unitStandby)),
+        mono)
+      if(first.notes?.trim())lines.push('📝 Catatan: '+tidy(first.notes))
+      lines.push('')
     }
   }
-  const totalArea=sorted.reduce((s,x)=>s+x.areaHa,0)
-  const uniqueGroups=new Map<string,DailyPlanTransfer>()
-  for(const row of sorted)if(!uniqueGroups.has(groupKey(row)))uniqueGroups.set(groupKey(row),row)
-  const totalHk=[...uniqueGroups.values()].reduce((s,x)=>s+x.manpower,0)
-  lines.push('────────────────────',`📊 *Total:* ${uniqueGroups.size} activity | ${sorted.length} PID | ${n(totalArea)} Ha | HK ${n(totalHk)}`)
-  return lines.join('\n')
+  const totalArea=sorted.reduce((sum,row)=>sum+row.areaHa,0)
+  const totalHk=[...allGroups.values()].reduce((sum,group)=>sum+group[0].manpower,0)
+  const distinctActivities=new Set([...allGroups.values()].map(group=>tidy(group[0].activity||group[0].description).toLocaleLowerCase('id-ID')))
+  const distinctWos=new Set(sorted.map(row=>tidy(row.woNumber)).filter(wo=>wo!=='-'))
+  const distinctPids=new Set(sorted.map(row=>tidy(row.pid)).filter(pid=>pid!=='-'))
+  lines.push('━━━━━━━━━━━━━━━━',shifts.length===1?'*RINGKASAN SHIFT*':'*RINGKASAN DAILY PLAN*',
+    mono,field('Total Activity',String(distinctActivities.size)),
+    field('Total WO',String(distinctWos.size)),
+    field('Total Paddock',String(distinctPids.size)),
+    field('Total Luas',ha(totalArea)+' Ha'),
+    field('Total HK',n(totalHk)),mono)
+  const materials=groupMaterials(sorted)
+  if(materials.length){
+    lines.push('','*TOTAL MATERIAL*')
+    for(const item of materials)lines.push('• '+item.material+' : *'+n(item.quantity)+' '+item.unit+'*')
+  }
+  return lines.join('\n').trim()
 }

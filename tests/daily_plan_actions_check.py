@@ -32,11 +32,11 @@ for token in [
     assert token in listing, f'Missing Daily bulk action token: {token}'
 
 for token in [
-    "*DAILY PLANNING*",
+    "*DAILY PLAN*",
     "📅 *Tanggal:*",
-    "🧾 Kegiatan:",
-    "🧪 Bahan & Dosis:",
-    "📊 *Total:*",
+    "Operation Code",
+    "🧪 *MATERIAL & DOSIS*",
+    "*RINGKASAN SHIFT*",
 ]:
     assert token in actions, f'Missing WhatsApp format token: {token}'
 
