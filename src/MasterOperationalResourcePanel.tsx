@@ -8,6 +8,7 @@ import YinYangRefreshButton from './YinYangRefreshButton'
 import NozzleSpecificationImportPanel from './NozzleSpecificationImportPanel'
 import { NOZZLE_SPEC_COLLECTION,matchingNozzleCode,nozzleSpecFromData,type NozzleSpec } from './nozzlePerformance'
 import { classificationRows,classificationName,classificationId,type ActivityClassificationKind } from './activityClassifications'
+import MasterActivityCatalogPanel from './MasterActivityCatalogPanel'
 
 type Props={user:User}
 type Row={id:string;name:string;active:boolean;builtIn?:boolean;parentUnitId?:string;parentUnitName?:string}
@@ -53,6 +54,7 @@ async function writerContext(appUser:User){
 
 export default function MasterOperationalResourcePanel({user}:Props){
   const[group,setGroup]=useState<GroupKey>('unit')
+  const[catalogView,setCatalogView]=useState(false)
   const[kind,setKind]=useState<OperationalResourceKind>('unit')
   const[rows,setRows]=useState<Row[]>([])
   const[unitRows,setUnitRows]=useState<Row[]>([])
@@ -97,7 +99,7 @@ export default function MasterOperationalResourcePanel({user}:Props){
 
   const selectedParent=unitRows.find(row=>row.id===parentUnitId)
 
-  function switchGroup(next:GroupKey){setGroup(next);setKind(GROUPS[next].kinds[0])}
+  function switchGroup(next:GroupKey){setGroup(next);setCatalogView(false);setKind(GROUPS[next].kinds[0])}
 
   async function save(){
     const name=isClassification?classificationName(value):value.trim()
@@ -174,9 +176,11 @@ export default function MasterOperationalResourcePanel({user}:Props){
     </div>
 
     <div className="segmented resource-kind-tabs" aria-label="Jenis Master Resource">
-      {GROUPS[group].kinds.map(item=><button type="button" key={item} className={kind===item?'active':''} onClick={()=>setKind(item)}>{META[item].title}</button>)}
+      {GROUPS[group].kinds.map(item=><button type="button" key={item} className={kind===item?'active':''} onClick={()=>{setCatalogView(false);setKind(item)}}>{META[item].title}</button>)}
+      {group==='classification'&&<button type="button" className={catalogView?'active':''} onClick={()=>setCatalogView(true)}>Master Activity &amp; CoA</button>}
     </div>
 
+    {catalogView?<MasterActivityCatalogPanel user={user}/>:<>
     {message&&<div className="alert">{message}</div>}
 
     {isClassification&&<div className="alert">Daftar Type dan Activity Category bersumber dari Firestore. Nilai bawaan seperti SPRAY, FERTILIZER, OTHERS dan OTHER bisa dinonaktifkan, tetapi tidak dihapus. Activity yang sudah tersimpan tetap menyimpan nilai historisnya. Type OTHERS tidak membuka form QC Spray/Fertilizer.</div>}
@@ -197,5 +201,6 @@ export default function MasterOperationalResourcePanel({user}:Props){
         {!rows.length&&<tr><td colSpan={kind==='unit_number'||kind==='nozzle'?4:3} className="empty">Belum ada data {meta.singular}.</td></tr>}
       </tbody></table></div>
     </div>
+    </>}
   </section>
 }
