@@ -10,6 +10,8 @@ import type { User } from './types'
 import { canEditAccess } from './accessControl'
 import YinYangRefreshButton from './YinYangRefreshButton'
 import { getPlanDocsWithCache } from './planOfflineReads'
+import ActualWoSmartSearch from './ActualWoSmartSearch'
+import {actualShiftSnapshot,isActualCrossShift,type ActualWoChoice} from './actualWoSelection'
 
 type Props={
   user:User
@@ -20,17 +22,17 @@ type Props={
   composerRequest?:ActualComposerRequest
   onComposerRequestHandled?:()=>void
 }
-type Daily={id:string;dailyPlanId:string;date:string;shift:string;monthlyPlanLineId:string;sourceType:string;companyCode:string;farm:string;pid:string;activity:string;description:string;areaHa:number;manpower:number;unitName:string;unitReady:number;unitStandby:number;unitBreakdown:number;foreman:string;notes:string;componentsSnapshot:unknown[];materials:PlanMaterialLine[]}
+type Daily={id:string;dailyPlanId:string;date:string;shift:string;woNumber:string;plannedShift:string;operationCode:string;coaCode:string;department:string;monthlyPlanLineId:string;sourceType:string;companyCode:string;farm:string;pid:string;activity:string;description:string;areaHa:number;manpower:number;unitName:string;unitReady:number;unitStandby:number;unitBreakdown:number;foreman:string;notes:string;componentsSnapshot:unknown[];materials:PlanMaterialLine[]}
 type ActualRef={id:string;actualReportId:string;dailyPlanId:string;date:string;actualAreaHa:number;planningOrder:number;workGroupId:string}
-type WorkDraft={id:string;dailyId:string;dailySearch:string;area:string;manpower:string;unitName:string;unitReady:string;unitStandby:string;unitBreakdown:string;notes:string;persistedDocId?:string;persistedActualReportId?:string}
+type WorkDraft={id:string;dailyId:string;dailySearch:string;woSearch:string;shift:string;area:string;manpower:string;unitName:string;unitReady:string;unitStandby:string;unitBreakdown:string;notes:string;persistedDocId?:string;persistedActualReportId?:string}
 type DraftState={date:string;foreman:string;active:WorkDraft;works:WorkDraft[];editingId:string}
 type WorkInfo={work:WorkDraft;selected:Daily|null;area:number;done:number;remaining:number;variance:number;materials:PlanMaterialLine[]}
 type PersistedEditContext={id:string;actualReportId:string;planningOrder:number;workGroupId:string;originalArea:number}
 
-function blankWork(patch:Partial<WorkDraft>={}):WorkDraft{return{id:planRowId('actual'),dailyId:'',dailySearch:'',area:'',manpower:'0',unitName:'',unitReady:'0',unitStandby:'0',unitBreakdown:'0',notes:'',...patch}}
+function blankWork(patch:Partial<WorkDraft>={}):WorkDraft{return{id:planRowId('actual'),dailyId:'',dailySearch:'',woSearch:'',shift:'',area:'',manpower:'0',unitName:'',unitReady:'0',unitStandby:'0',unitBreakdown:'0',notes:'',...patch}}
 function cloneWork(work:WorkDraft,newId=true):WorkDraft{return{...work,id:newId?planRowId('actual'):work.id,persistedDocId:undefined,persistedActualReportId:undefined}}
 function materialsFromData(value:unknown):PlanMaterialLine[]{if(!Array.isArray(value))return[];return value.map(item=>{const x=(item&&typeof item==='object'?item:{}) as Record<string,unknown>;return{material:planText(x.material),dosePerHa:planNum(x.dosePerHa),doseUnit:planText(x.doseUnit),totalMaterial:planNum(x.totalMaterial),unit:planText(x.unit)}}).filter(x=>x.material)}
-function normalizeWork(value:unknown):WorkDraft{const row=(value&&typeof value==='object'?value:{}) as Record<string,unknown>;return blankWork({id:planText(row.id)||planRowId('actual'),dailyId:planText(row.dailyId),dailySearch:planText(row.dailySearch),area:planText(row.area),manpower:planText(row.manpower||'0'),unitName:planText(row.unitName),unitReady:planText(row.unitReady||'0'),unitStandby:planText(row.unitStandby||'0'),unitBreakdown:planText(row.unitBreakdown||'0'),notes:planText(row.notes)})}
+function normalizeWork(value:unknown):WorkDraft{const row=(value&&typeof value==='object'?value:{}) as Record<string,unknown>;return blankWork({id:planText(row.id)||planRowId('actual'),dailyId:planText(row.dailyId),dailySearch:planText(row.dailySearch),woSearch:planText(row.woSearch),shift:planText(row.shift),area:planText(row.area),manpower:planText(row.manpower||'0'),unitName:planText(row.unitName),unitReady:planText(row.unitReady||'0'),unitStandby:planText(row.unitStandby||'0'),unitBreakdown:planText(row.unitBreakdown||'0'),notes:planText(row.notes)})}
 function normalizeDraft(raw:unknown):DraftState{
   const today=new Date().toISOString().slice(0,10)
   if(!raw||typeof raw!=='object')return{date:today,foreman:'',active:blankWork(),works:[],editingId:''}
@@ -39,7 +41,7 @@ function normalizeDraft(raw:unknown):DraftState{
   const legacyWorks=Array.isArray(row.works)?row.works.map(normalizeWork):[]
   return{date,foreman,active:blankWork(),works:legacyWorks,editingId:''}
 }
-function dailyLabel(row:Daily){return row.dailyPlanId+' — Shift '+(row.shift||'-')+' — '+row.pid+' — '+row.activity}
+function dailyLabel(row:Daily){return (row.woNumber?'WO '+row.woNumber+' — ':'')+row.dailyPlanId+' — Shift '+(row.shift||'-')+' — '+row.pid+' — '+row.activity}
 async function writer(appUser:User){
   const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.')
   await firebaseAuthPersistenceReady
@@ -67,7 +69,7 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
         getPlanDocsWithCache(fsQuery(collection(firestoreDb,'daily_plans'),where('date','==',date))),
         getPlanDocsWithCache(fsQuery(collection(firestoreDb,'daily_reports'),where('date','==',date))),
       ])
-      setDaily(d.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,dailyPlanId:planText(r.dailyPlanId||x.id),date:planText(r.date),shift:planText(r.shift),monthlyPlanLineId:planText(r.monthlyPlanLineId),sourceType:planText(r.sourceType),companyCode:planText(r.companyCode),farm:planText(r.farm),pid:planText(r.pid),activity:planText(r.activity),description:planText(r.description),areaHa:planNum(r.areaHa),manpower:planNum(r.manpower),unitName:planText(r.unitName),unitReady:planNum(r.unitReady),unitStandby:planNum(r.unitStandby),unitBreakdown:planNum(r.unitBreakdown),foreman:planText(r.foreman),notes:planText(r.notes),componentsSnapshot:Array.isArray(r.componentsSnapshot)?r.componentsSnapshot:[],materials:materialsFromData(r.materials)}}).sort((a,b)=>a.shift.localeCompare(b.shift,undefined,{numeric:true})||a.dailyPlanId.localeCompare(b.dailyPlanId,undefined,{numeric:true})))
+      setDaily(d.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,dailyPlanId:planText(r.dailyPlanId||x.id),date:planText(r.date),shift:planText(r.shift),monthlyPlanLineId:planText(r.monthlyPlanLineId),woNumber:planText(r.woNumber),plannedShift:planText(r.plannedShift),operationCode:planText(r.operationCode),coaCode:planText(r.coaCode),department:planText(r.department),sourceType:planText(r.sourceType),companyCode:planText(r.companyCode),farm:planText(r.farm),pid:planText(r.pid),activity:planText(r.activity),description:planText(r.description),areaHa:planNum(r.areaHa),manpower:planNum(r.manpower),unitName:planText(r.unitName),unitReady:planNum(r.unitReady),unitStandby:planNum(r.unitStandby),unitBreakdown:planNum(r.unitBreakdown),foreman:planText(r.foreman),notes:planText(r.notes),componentsSnapshot:Array.isArray(r.componentsSnapshot)?r.componentsSnapshot:[],materials:materialsFromData(r.materials)}}).sort((a,b)=>a.shift.localeCompare(b.shift,undefined,{numeric:true})||a.dailyPlanId.localeCompare(b.dailyPlanId,undefined,{numeric:true})))
       setActuals(a.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,actualReportId:planText(r.actualReportId||x.id),dailyPlanId:planText(r.dailyPlanId),date:planText(r.date),actualAreaHa:planNum(r.actualAreaHa),planningOrder:planNum(r.planningOrder),workGroupId:planText(r.workGroupId)}}))
     }catch(e){setMessage(e instanceof Error?e.message:'Data Actual periode gagal dimuat.')}finally{setBusy(false)}
   }
@@ -93,10 +95,10 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
   const draftInfos=useMemo(()=>state.works.map(buildInfo),[state.works,daily,actualByDaily,actuals])
   const totalMaterials=aggregateMaterials(draftInfos.map(info=>info.materials))
   const totals=useMemo(()=>draftInfos.reduce((acc,x)=>({records:acc.records+1,area:acc.area+x.area,planned:acc.planned+(x.selected?.areaHa||0),manpower:acc.manpower+planNum(x.work.manpower),ready:acc.ready+planNum(x.work.unitReady),standby:acc.standby+planNum(x.work.unitStandby),breakdown:acc.breakdown+planNum(x.work.unitBreakdown)}),{records:0,area:0,planned:0,manpower:0,ready:0,standby:0,breakdown:0}),[draftInfos])
-  const shifts=useMemo(()=>[...new Set(draftInfos.map(info=>info.selected?.shift||'-'))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[draftInfos])
+  const shifts=useMemo(()=>[...new Set(draftInfos.map(info=>info.work.shift||info.selected?.shift||'-'))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),[draftInfos])
   const activeDailyChoices=useMemo(()=>{
     const q=state.active.dailySearch.trim().toLowerCase(),pool=persistedEdit?daily:openDaily
-    return pool.filter(row=>!q||[row.dailyPlanId,row.monthlyPlanLineId,row.pid,row.activity,row.description,row.companyCode,row.farm].join(' ').toLowerCase().includes(q))
+    return pool.filter(row=>!q||[row.dailyPlanId,row.monthlyPlanLineId,row.woNumber,row.operationCode,row.coaCode,row.pid,row.activity,row.description,row.companyCode,row.farm].join(' ').toLowerCase().includes(q))
   },[state.active.dailySearch,daily,openDaily,persistedEdit])
 
   useEffect(()=>{
@@ -105,14 +107,14 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
     const selected=daily.filter(row=>prefillDailyPlanIds.includes(row.dailyPlanId))
     if(!selected.length)return
     prefillHandledRef.current=key
-    setState(current=>({...current,date:selected[0]?.date||current.date,foreman:selected[0]?.foreman||current.foreman,works:selected.map(row=>blankWork({dailyId:row.id,dailySearch:dailyLabel(row),area:String(row.areaHa),manpower:String(row.manpower||0),unitName:row.unitName||'',unitReady:String(row.unitReady||0),unitStandby:String(row.unitStandby||0),unitBreakdown:String(row.unitBreakdown||0),notes:row.notes||''}))}))
+    setState(current=>({...current,date:selected[0]?.date||current.date,foreman:selected[0]?.foreman||current.foreman,works:selected.map(row=>blankWork({dailyId:row.id,dailySearch:dailyLabel(row),area:String(Math.max(row.areaHa-(actualByDaily.get(row.dailyPlanId)||0),0)),shift:row.shift,woSearch:row.woNumber,manpower:String(row.manpower||0),unitName:row.unitName||'',unitReady:String(row.unitReady||0),unitStandby:String(row.unitStandby||0),unitBreakdown:String(row.unitBreakdown||0),notes:row.notes||''}))}))
     setMessage(selected.length+' Daily Plan masuk ke Draft Actual. Periksa luas hasil lalu Simpan Semua Actual.')
   },[prefillDailyPlanIds.join('|'),daily.length])
 
   useEffect(()=>{
     if(!composerRequest)return
     const source=composerRequest.row,found=daily.find(row=>row.dailyPlanId===source.dailyPlanId),work=blankWork({
-      dailyId:found?.id||source.dailyPlanId,dailySearch:found?dailyLabel(found):source.dailyPlanId,area:String(source.actualAreaHa),manpower:String(source.manpower||0),unitName:source.unitName||'',unitReady:String(source.unitReady||0),unitStandby:String(source.unitStandby||0),unitBreakdown:String(source.unitBreakdown||0),notes:source.notes||'',
+      dailyId:found?.id||source.dailyPlanId,dailySearch:found?dailyLabel(found):source.dailyPlanId,woSearch:found?.woNumber||source.woNumber||'',shift:source.shift,area:String(source.actualAreaHa),manpower:String(source.manpower||0),unitName:source.unitName||'',unitReady:String(source.unitReady||0),unitStandby:String(source.unitStandby||0),unitBreakdown:String(source.unitBreakdown||0),notes:source.notes||'',
       ...(composerRequest.mode==='edit-saved'?{persistedDocId:source.id,persistedActualReportId:source.actualReportId}:{})
     })
     setState(current=>({...current,date:source.date,foreman:source.foreman||current.foreman,active:work,editingId:''}))
@@ -126,14 +128,33 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
   function showSaveFeedback(text:string){setMessage(text);requestAnimationFrame(()=>saveFeedbackRef.current?.scrollIntoView({behavior:'smooth',block:'nearest'}))}
   function patchActive(patch:Partial<WorkDraft>){setState(current=>({...current,active:{...current.active,...patch}}))}
   function chooseDailyValue(value:string){
-    const pool=persistedEdit?daily:openDaily,found=pool.find(row=>dailyLabel(row)===value||row.dailyPlanId===value||row.id===value)
-    patchActive({dailySearch:value,dailyId:found?.id||'',...(found?{area:state.active.area||String(Math.max(found.areaHa-(actualByDaily.get(found.dailyPlanId)||0),0)),manpower:state.active.manpower==='0'?String(found.manpower||0):state.active.manpower,unitName:state.active.unitName||found.unitName,unitReady:state.active.unitReady==='0'?String(found.unitReady||0):state.active.unitReady,unitStandby:state.active.unitStandby==='0'?String(found.unitStandby||0):state.active.unitStandby,unitBreakdown:state.active.unitBreakdown==='0'?String(found.unitBreakdown||0):state.active.unitBreakdown}:{})})
+    const pool=persistedEdit?daily:openDaily
+    const found=pool.find(row=>dailyLabel(row)===value||row.dailyPlanId===value||row.id===value)
+    const changed=found?.id!==state.active.dailyId
+    patchActive({dailySearch:value,dailyId:found?.id||'',woSearch:found?.woNumber||'',
+      ...(found?{shift:persistedEdit?(state.active.shift||found.shift):(changed?found.shift:state.active.shift||found.shift),
+        area:changed?String(Math.max(found.areaHa-(actualByDaily.get(found.dailyPlanId)||0),0)):
+          (state.active.area||String(Math.max(found.areaHa-(actualByDaily.get(found.dailyPlanId)||0),0))),
+        manpower:state.active.manpower==='0'?String(found.manpower||0):state.active.manpower,
+        unitName:state.active.unitName||found.unitName,
+        unitReady:state.active.unitReady==='0'?String(found.unitReady||0):state.active.unitReady,
+        unitStandby:state.active.unitStandby==='0'?String(found.unitStandby||0):state.active.unitStandby,
+        unitBreakdown:state.active.unitBreakdown==='0'?String(found.unitBreakdown||0):state.active.unitBreakdown
+      }:{area:'',shift:''})})
     if(found&&!state.foreman)setState(current=>({...current,foreman:found.foreman||current.foreman}))
   }
+  function chooseWoDaily(row:Daily){chooseDailyValue(row.id)}
+  function typeWoSearch(query:string){patchActive({woSearch:query,dailyId:'',dailySearch:'',area:''})}
+  const woChoices=useMemo<ActualWoChoice[]>(()=>daily.filter(row=>row.woNumber).map(row=>({
+    id:row.id,dailyPlanId:row.dailyPlanId,woNumber:row.woNumber,plannedShift:row.plannedShift,
+    dailyShift:row.shift,pid:row.pid,activity:row.activity,description:row.description,
+    operationCode:row.operationCode,coaCode:row.coaCode,department:row.department,
+    date:row.date,areaHa:row.areaHa,doneHa:actualByDaily.get(row.dailyPlanId)||0
+  })),[daily,actualByDaily])
   function resetInput(){setPersistedEdit(null);setState(current=>({...current,active:blankWork(),editingId:''}))}
   function clearAll(){if(!window.confirm('Hapus semua input dan Draft Actual pada perangkat ini?'))return;clearPlanDraft(draftKey);setPersistedEdit(null);setState({date:new Date().toISOString().slice(0,10),foreman:'',active:blankWork(),works:[],editingId:''});setMessage('Input dan Draft Actual dikosongkan.')}
 
-  function validateInfo(info:WorkInfo){if(!info.selected)return'Pilih Daily Plan terlebih dahulu.';if(info.area<0)return'Luas Actual tidak boleh negatif.';return''}
+  function validateInfo(info:WorkInfo){if(!info.selected)return'Pilih WO atau Daily Plan terlebih dahulu.';if(!['1','2'].includes(info.work.shift||info.selected.shift))return'Shift Aktual harus 1 atau 2.';if(info.area<0)return'Luas Actual tidak boleh negatif.';return''}
   function saveToDraft(e:FormEvent){
     e.preventDefault();const error=validateInfo(activeInfo);if(error){setMessage(error);return}
     if(activeInfo.area>activeInfo.remaining+0.0001&&!window.confirm('Actual melebihi sisa Daily Plan. Tetap tambahkan ke draft?'))return
