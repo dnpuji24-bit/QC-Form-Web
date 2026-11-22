@@ -89,7 +89,7 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
   const availableFor=(r:UnitRequirement)=>{
     const window=timeWindow(date,shift,start,end)
     if(!window)return[]
-    return units.filter(u=>unitMatches(u,r)&&conditionAt(events,u.id,window.startMinute)==='READY'&&
+    return units.filter(u=>unitMatches(u,r)&&conditionAt(events,u.id,window.startMinute,u.importNeedsInspection?'PENDING_INSPECTION':'READY')==='READY'&&
       !events.some(ev=>ev.unitId===u.id&&ev.effectiveMinute>window.startMinute&&ev.effectiveMinute<window.endMinute&&ev.type!=='READY_APPROVED')&&
       !assignmentConflict(assignments,u.id,window,replacementOf))
   }
