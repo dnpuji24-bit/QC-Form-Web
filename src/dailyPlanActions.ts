@@ -155,12 +155,12 @@ export function dailyPlansToWhatsApp(rows:DailyPlanTransfer[]){
       // Display physical unit codes as well as equipment names. Dispatch-confirmed
       // codes take priority; otherwise label Daily Plan selections as proposals.
       const dispatch=first.dispatchUnits||[]
-      const selectedCodes=(requirementId:string,preferred:string[]=[])=>
+      const selectedCodes=(requirementId:string)=>
         [...new Set(dispatch.filter(x=>x.requirementId===requirementId).map(x=>x.unitCode).filter(Boolean))]
           .sort((a,b)=>a.localeCompare(b,'id',{numeric:true}))
       const describe=(role:string,type:string,quantity:number,requirementId:string,preferred:string[],notes='')=>{
         if(!type.trim()&&quantity===0)return
-        lines.push('• '+role+': '+tidy(type)+' — '+n(quantity)+' unit')
+        lines.push('• '+role+': '+tidy(type)+(quantity>0?' — '+n(quantity)+' unit':''))
         const codes=selectedCodes(requirementId)
         if(codes.length)lines.push('  Kode: '+codes.join(', '))
         else if(preferred.length)lines.push('  Kode usulan: '+[...new Set(preferred)].join(', '))
