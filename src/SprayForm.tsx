@@ -296,7 +296,8 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
       {card.multiPaddockMode&&<QcMultiPaddockSection kind="spray" rows={woOptions}
         works={card.paddockWorks||[]} sources={multiDisplaySources}
         unitName={card.noUnit||card.unit}
-        disabled={busy||editingUploaded||Boolean(card.recordId&&card.saveType!=='draft')}
+        disabled={busy||editingUploaded}
+        lockedMembership={Boolean(card.recordId&&card.saveType!=='draft')}
         onChange={works=>changeMultiWorks(card,works)}/>}
       <section hidden={card.multiPaddockMode} className="subpanel qc-daily-program"><div className="section-head"><div><div className="eyebrow">DAILY PLAN</div><h4>Program & Paddock</h4></div>{linkedDailyPlan&&<span className="badge">Terhubung {linkedDailyPlan.dailyPlanId}</span>}</div>
       <div className="qc-wo-workflow"><QcWorkOrderSmartSearch rows={woOptions} value={card.woSearch||''}
