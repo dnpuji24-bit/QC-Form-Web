@@ -39,6 +39,7 @@
     "test:cutover:release-identity": "node --test scripts/test-qc-release-identity.mjs",
     "test:plan:wo-coa": "node --test scripts/test-monthly-wo-coa-contract.mjs",
     "test:master:activity-unified": "node --test scripts/test-unified-activity-register.mjs",
+    "test:master:activity-smartsearch": "node --test scripts/test-activity-catalog-smartsearch.mjs",
     "test:cutover:qc-retry-diagnostics": "node --check src/qcOperationalQueue.mjs && node --check scripts/test-qc-operational-sync-diagnostics.mjs && node scripts/test-qc-operational-sync-diagnostics.mjs && npm run typecheck",
     "test:cutover:actual-archive-rules": "node --check scripts/test-qc-actual-archive-rules.mjs && node scripts/test-qc-actual-archive-rules.mjs --self-test && firebase emulators:exec --only firestore,auth --project demo-qc-photo-test --config firebase.native-cutover-browser-emulator.json \"env -u GOOGLE_CLOUD_PROJECT -u FIREBASE_PROJECT_ID -u QC_UAT_MODE GCLOUD_PROJECT=demo-qc-photo-test FIRESTORE_EMULATOR_HOST=127.0.0.1:8085 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 node scripts/test-qc-actual-archive-rules.mjs --emulator\""
   },
