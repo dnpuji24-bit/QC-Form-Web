@@ -46,7 +46,7 @@ test('Monthly UI uses keyboard smartsearch and previews all WO snapshot fields',
  assert.match(entry,/department:info\.department/)
  assert.match(entry,/runTransaction\(db,async transaction/)
  assert.match(entry,/const uniqueWos=\[\.\.\.new Set/)
- assert.match(entry,/plannedDate:info\.line\.plannedDate/)
+ assert.match(entry,/plannedDate=info\.line\.plannedDate/)
  assert.match(entry,/Semua Shift \(Shift 1 & 2\)/)
  assert.match(entry,/Shift Rencana WO/)
  assert.match(entry,/Operation Code \(otomatis\)/)
