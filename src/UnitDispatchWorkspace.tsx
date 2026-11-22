@@ -48,7 +48,7 @@ function buildRequirements(rows:Raw[],date:string):UnitRequirement[]{
       unitName:item.unitName,quantity:item.unitRequired,preferred:item.unitPreferredCodes,notes:item.notes
     }))
     return[main,...additional].filter(r=>r.quantity>0||r.unitName.trim())
-  }).sort((a,b)=>a.shift.localeCompare(b.shift)||a.activity.localeCompare(b.activity)||(a.role==='MAIN'?-1:1))
+  }).sort((a,b)=>a.shift.localeCompare(b.shift)||a.activity.localeCompare(b.activity)||(a.role===b.role?0:a.role==='MAIN'?-1:1))
 }
 function eventConditionLabel(value:UnitCondition){return value==='OUT_OF_SERVICE'?'Out of Service':value[0]+value.slice(1).toLowerCase()}
 function dispatchBadge(value:string){return value==='READY'||value==='WORKING'?'success':value==='BREAKDOWN'?'danger':value==='MAINTENANCE'||value==='PENDING_INSPECTION'?'warning':'secondary'}
@@ -235,6 +235,7 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
                     <td style={{padding:9,borderBottom:'1px solid #e2e8f0'}}><button type="button" onClick={()=>{setFocusWork(focusWork===r.id?'':r.id);setReplacementOf('');setSlotUnit('')}}>{focusWork===r.id?'Tutup':'Atur Unit'}</button></td>
                   </tr>
                   {focusWork===r.id&&<tr><td colSpan={9} style={{padding:12,background:'#f7faff'}}>
+                    {r.notes&&<p className="muted">Support: {r.notes}</p>}
                     {r.quantity===0&&<p className="muted">Isi Jumlah Unit Diperlukan pada Daily Plan. Data lama tidak otomatis diubah.</p>}
                     {r.preferred.length>0&&<p className="muted">Usulan kode unit: {r.preferred.join(', ')}</p>}
                     <div style={{overflowX:'auto'}}><table style={{minWidth:670,width:'100%',borderCollapse:'collapse'}}>
