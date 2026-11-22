@@ -5,6 +5,7 @@ import {nativePortalEnabled} from './qcNativePortalConfig'
 import {qcMasterFirestoreEnabled} from './qcMasterDataFirestore'
 import {qcFirestoreOnly} from './qcCutover'
 import { useOperationalReportPhotos } from './useOperationalReportPhotos'
+import { paginateReportImage } from './qcReportPagination.mjs'
 import { isOperationalQcId } from './qcOperationalFormBridge'
 import { operationalSaveEnabled } from './qcOperationalAdapters'
 import { FormEvent, useEffect, useMemo, useState } from 'react'
@@ -219,9 +220,70 @@ function RecordReport({record,onClose}:{record:QcRecord;onClose:()=>void}){const
  const scanPhoto=privatePhotos.photos.scan||(!operational?driveImageUrl(String(record.scanReportPhotoBase64||record.scanReportDriveUrl||'')):'')
  const holdPhoto=(h:{holdId?:unknown;photoBase64?:unknown;photoDriveUrl?:unknown})=>privatePhotos.photos['hold_'+String(h.holdId||'')]||(!operational?driveImageUrl(String(h.photoBase64||h.photoDriveUrl||'')):'')
  useEffect(()=>{const previous=document.body.style.overflow;document.body.style.overflow='hidden';const handleKey=(event:KeyboardEvent)=>{if(event.key==='Escape')onClose()};document.addEventListener('keydown',handleKey);return()=>{document.body.style.overflow=previous;document.removeEventListener('keydown',handleKey)}},[onClose])
- async function canvas(){const el=document.getElementById('record-report-sheet');if(!el)throw new Error('Laporan tidak ditemukan');if(privatePhotos.status!=='ready')throw Error('Tunggu seluruh foto selesai dimuat.');await Promise.all(Array.from(el.querySelectorAll('img')).map(async img=>{await img.decode();if(!img.naturalWidth)throw Error('Foto laporan gagal dimuat.')}));const mod=await import('html2canvas');el.classList.add('report-export-capture');try{await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));return await mod.default(el,{scale:2,backgroundColor:'#ffffff',useCORS:true,allowTaint:false,logging:false})}finally{el.classList.remove('report-export-capture')}}
- async function jpg(){setBusy(true);setExportError('');try{const c=await canvas(),a=document.createElement('a');a.href=c.toDataURL('image/jpeg',.92);a.download=`${safeName}.jpg`;a.click()}catch(e){setExportError(e instanceof Error?e.message:'Ekspor laporan gagal.')}finally{setBusy(false)}}
- async function pdf(){setBusy(true);setExportError('');try{const c=await canvas(),{jsPDF}=await import('jspdf'),doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'}),img=c.toDataURL('image/jpeg',.92),w=190,h=c.height*w/c.width,page=277;let position=10,left=h;doc.addImage(img,'JPEG',10,position,w,h);left-=page;while(left>0){position-=page;doc.addPage();doc.addImage(img,'JPEG',10,position,w,h);left-=page}doc.save(`${safeName}.pdf`)}catch(e){setExportError(e instanceof Error?e.message:'Ekspor laporan gagal.')}finally{setBusy(false)}}
- const modal=<div className="report-backdrop" role="dialog" aria-modal="true" onMouseDown={event=>{if(event.target===event.currentTarget)onClose()}}><div className="report-dialog" onMouseDown={event=>event.stopPropagation()}><div className="report-toolbar"><strong>Preview Laporan QC Lengkap</strong><div className="row-actions report-toolbar-actions"><button className="report-action-button" disabled={busy||privatePhotos.status!=='ready'} onClick={()=>void jpg()}>JPG</button><button className="primary report-action-button" disabled={busy||privatePhotos.status!=='ready'} onClick={()=>void pdf()}>Cetak / PDF</button><button className="report-close-button" onClick={onClose}>Tutup</button></div></div>{exportError&&<p role="alert">{exportError}</p>}{privatePhotos.status==='loading'&&<p>Memuat dan memverifikasi foto private…</p>}{privatePhotos.status==='error'&&<p role="alert">{privatePhotos.message} Tutup dan buka kembali laporan untuk mencoba ulang.</p>}<article id="record-report-sheet" className="report-sheet"><div className="report-title"><div><small>PT. GLOBAL PAPUA ABADI</small><h2>Laporan Quality Control</h2><p>{record.date} • {record.paddock}</p></div><strong>{record.formType==='spray'?'SPRAYING':'FERTILIZER'}</strong></div><div className="report-grid">{rows.map(([k,v])=><div key={k}><span>{k}</span><strong>{v}</strong></div>)}</div>{record.formType==='fertilizer'&&<div className="report-section"><h3>Detail Pengisian</h3><p className="muted">Jumlah aplikasi adalah penjumlahan luas pengisian per pupuk, bukan luas fisik lahan atau progress Daily Plan.</p><div className="report-table"><table><thead><tr><th>#</th><th>Pupuk</th><th>Dosis Target</th><th>Hose</th><th>Jumlah</th><th>Hasil</th><th>Dosis Aktual</th><th>Perataan</th></tr></thead><tbody>{fills.map((f,i)=><tr key={i}><td>{String(f.pengisianKe||i+1)}</td><td>{value(f.jenisPupuk)}</td><td>{value(f.dosis,' Kg/Ha')}</td><td>{value(f.statusHose)}</td><td>{value(f.jumlah,' Kg')}</td><td>{value(f.hasilKerja,' Ha')}</td><td>{value(f.dosisAktual,' Kg/Ha')}</td><td>{value(f.pemerataanPupuk)}</td></tr>)}</tbody></table></div></div>}{record.formType==='fertilizer'&&downtime.length>0&&<div className="report-section report-issue"><h3>Issue / Downtime</h3>{downtime.map((d,i)=><p key={i}><strong>Issue {i+1}</strong> • {value(d.start)}–{value(d.end)} • {value(d.issue)}{d.note?` • ${String(d.note)}`:''}</p>)}</div>}{record.formType==='fertilizer'&&holds.some(h=>Boolean(holdPhoto(h)))&&<div className="report-section report-issue"><h3>Foto HOLD / Downtime</h3>{holds.map((h,i)=>holdPhoto(h)?<div className="report-hold-item" key={h.holdId||i}><p><strong>HOLD {i+1}</strong> • {h.start||'-'}–{h.end||'-'} • {h.reason||'-'}</p><img className="report-photo hold-photo" crossOrigin="anonymous" src={holdPhoto(h)} alt={`Foto HOLD ${i+1}`}/></div>:null)}</div>}{record.formType==='spray'&&holds.length>0&&<div className="report-section report-issue"><h3>HOLD / Issue</h3>{holds.map((h,i)=><div className="report-hold-item" key={i}><p><strong>HOLD {i+1}</strong> • {h.start||'-'}–{h.end||'-'} • {h.reason||'-'} {h.note?`• ${h.note}`:''} {h.windSpeed?`• Angin ${h.windSpeed} km/jam`:''}</p>{holdPhoto(h)&&<img className="report-photo hold-photo" crossOrigin="anonymous" src={holdPhoto(h)} alt={`Foto HOLD ${i+1}`}/>}</div>)}</div>}<div className="report-section"><h3>Lampiran Foto QC</h3>{mainPhoto?<img className="report-photo" crossOrigin="anonymous" src={mainPhoto} alt="Foto QC"/>:<p className="muted">Tidak ada foto utama pada record ini.</p>}</div>{scanPhoto&&<div className="report-section"><h3>Scan Report (Historis)</h3><img className="report-photo" crossOrigin="anonymous" src={scanPhoto} alt="Scan Report"/></div>}{operational&&Object.entries(privatePhotos.photos).filter(([slot])=>slot.startsWith('hold_')&&!holds.some(h=>'hold_'+h.holdId===slot)).map(([slot,src])=><div key={slot} className="report-section"><h3>Foto HOLD / Downtime</h3><img className="report-photo" src={src} alt="Foto HOLD"/></div>)}{!operational&&<QcSupabasePhotoViewer recordId={record.id}/>}<div className="report-footer">Dibuat dari QC Form Web • {new Date().toLocaleString('id-ID')}</div></article></div></div>;return createPortal(modal,document.body)}
+
+ // Export from the stable desktop report geometry, even when previewing on mobile.
+ // The visible report is never mutated beyond the temporary capture class.
+ async function canvas(){
+  const el=document.getElementById('record-report-sheet')
+  if(!el)throw new Error('Laporan tidak ditemukan')
+  if(privatePhotos.status!=='ready')throw Error('Tunggu seluruh foto selesai dimuat.')
+  await Promise.all(Array.from(el.querySelectorAll('img')).map(async img=>{
+   await img.decode()
+   if(!img.naturalWidth)throw Error('Foto laporan gagal dimuat.')
+  }))
+  const mod=await import('html2canvas')
+  el.classList.add('report-export-capture')
+  try{
+   await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())))
+   const root=el.getBoundingClientRect()
+   const imageBlocks=Array.from(el.querySelectorAll<HTMLImageElement>('img.report-photo')).map(img=>{
+    const section=img.closest('.report-section')
+    const group=section&&section.querySelectorAll('img.report-photo').length===1
+      ?section:img.closest('.report-hold-item')||img
+    const bounds=group.getBoundingClientRect()
+    return {top:bounds.top-root.top,bottom:bounds.bottom-root.top}
+   })
+   const image=await mod.default(el,{scale:2,backgroundColor:'#ffffff',useCORS:true,allowTaint:false,logging:false})
+   const scale=image.height/root.height
+   const protectedRanges=imageBlocks.map(range=>({top:Math.max(0,Math.floor(range.top*scale)),bottom:Math.min(image.height,Math.ceil(range.bottom*scale))}))
+   return {image,protectedRanges}
+  }finally{el.classList.remove('report-export-capture')}
+ }
+ async function jpg(){
+  setBusy(true);setExportError('')
+  try{
+   const {image}=await canvas(),a=document.createElement('a')
+   a.href=image.toDataURL('image/jpeg',.92)
+   a.download=`${safeName}.jpg`
+   a.click()
+  }catch(e){setExportError(e instanceof Error?e.message:'Ekspor laporan gagal.')}
+  finally{setBusy(false)}
+ }
+ async function pdf(){
+  setBusy(true);setExportError('')
+  try{
+   const {image,protectedRanges}=await canvas()
+   const {jsPDF}=await import('jspdf')
+   const pdfDocument=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'})
+   const widthMm=190,availableHeightMm=277
+   const pageHeightPx=Math.floor(image.width*availableHeightMm/widthMm)
+   const slices=paginateReportImage(image.height,pageHeightPx,protectedRanges)
+   for(const [index,slice] of slices.entries()){
+    const piece=document.createElement('canvas')
+    piece.width=image.width
+    piece.height=slice.end-slice.start
+    const context=piece.getContext('2d')
+    if(!context)throw new Error('Gagal menyiapkan halaman PDF.')
+    context.fillStyle='#ffffff'
+    context.fillRect(0,0,piece.width,piece.height)
+    context.drawImage(image,0,slice.start,image.width,piece.height,0,0,piece.width,piece.height)
+    if(index>0)pdfDocument.addPage()
+    pdfDocument.addImage(piece.toDataURL('image/jpeg',.92),'JPEG',10,10,widthMm,piece.height*widthMm/image.width)
+   }
+   pdfDocument.save(`${safeName}.pdf`)
+  }catch(e){setExportError(e instanceof Error?e.message:'Ekspor laporan gagal.')}
+  finally{setBusy(false)}
+ }
+ const modal=<div className="report-backdrop" role="dialog" aria-modal="true" onMouseDown={event=>{if(event.target===event.currentTarget)onClose()}}><div className="report-dialog" onMouseDown={event=>event.stopPropagation()}><div className="report-toolbar"><strong>Preview Laporan QC Lengkap</strong><div className="row-actions report-toolbar-actions"><button className="report-action-button" disabled={busy||privatePhotos.status!=='ready'} onClick={()=>void jpg()}>JPG</button><button className="primary report-action-button" disabled={busy||privatePhotos.status!=='ready'} onClick={()=>void pdf()}>Cetak / PDF</button><button className="report-close-button" onClick={onClose}>Tutup</button></div></div>{exportError&&<p role="alert">{exportError}</p>}{privatePhotos.status==='loading'&&<p>Memuat dan memverifikasi foto private…</p>}{privatePhotos.status==='error'&&<p role="alert">{privatePhotos.message} Tutup dan buka kembali laporan untuk mencoba ulang.</p>}<article id="record-report-sheet" className="report-sheet"><div className="report-title"><div><small>PT. GLOBAL PAPUA ABADI</small><h2>Laporan Quality Control</h2><p>{record.date} • {record.paddock}</p></div><strong>{record.formType==='spray'?'SPRAYING':'FERTILIZER'}</strong></div><div className="report-grid">{rows.map(([k,v])=><div key={k}><span>{k}</span><strong>{v}</strong></div>)}</div>{record.formType==='fertilizer'&&<div className="report-section"><h3>Detail Pengisian</h3><p className="muted">Jumlah aplikasi adalah penjumlahan luas pengisian per pupuk, bukan luas fisik lahan atau progress Daily Plan.</p><div className="report-table"><table><thead><tr><th>#</th><th>Pupuk</th><th>Dosis Target</th><th>Hose</th><th>Jumlah</th><th>Hasil</th><th>Dosis Aktual</th><th>Perataan</th></tr></thead><tbody>{fills.map((f,i)=><tr key={i}><td>{String(f.pengisianKe||i+1)}</td><td>{value(f.jenisPupuk)}</td><td>{value(f.dosis,' Kg/Ha')}</td><td>{value(f.statusHose)}</td><td>{value(f.jumlah,' Kg')}</td><td>{value(f.hasilKerja,' Ha')}</td><td>{value(f.dosisAktual,' Kg/Ha')}</td><td>{value(f.pemerataanPupuk)}</td></tr>)}</tbody></table></div></div>}{record.formType==='fertilizer'&&downtime.length>0&&<div className="report-section report-issue"><h3>Issue / Downtime</h3>{downtime.map((d,i)=><p key={i}><strong>Issue {i+1}</strong> • {value(d.start)}–{value(d.end)} • {value(d.issue)}{d.note?` • ${String(d.note)}`:''}</p>)}</div>}{record.formType==='fertilizer'&&holds.some(h=>Boolean(holdPhoto(h)))&&<div className="report-section report-issue"><h3>Foto HOLD / Downtime</h3>{holds.map((h,i)=>holdPhoto(h)?<div className="report-hold-item" key={h.holdId||i}><p><strong>HOLD {i+1}</strong> • {h.start||'-'}–{h.end||'-'} • {h.reason||'-'}</p><img className="report-photo hold-photo" crossOrigin="anonymous" src={holdPhoto(h)} alt={`Foto HOLD ${i+1}`}/></div>:null)}</div>}{record.formType==='spray'&&holds.length>0&&<div className="report-section report-issue"><h3>HOLD / Issue</h3>{holds.map((h,i)=><div className="report-hold-item" key={i}><p><strong>HOLD {i+1}</strong> • {h.start||'-'}–{h.end||'-'} • {h.reason||'-'} {h.note?`• ${h.note}`:''} {h.windSpeed?`• Angin ${h.windSpeed} km/jam`:''}</p>{holdPhoto(h)&&<img className="report-photo hold-photo" crossOrigin="anonymous" src={holdPhoto(h)} alt={`Foto HOLD ${i+1}`}/>}</div>)}</div>}<div className="report-section"><h3>Lampiran Foto QC</h3>{mainPhoto?<img className="report-photo" crossOrigin="anonymous" src={mainPhoto} alt="Foto QC"/>:<p className="muted">{operational&&privatePhotos.status==='loading'?'Memuat foto utama dari Supabase…':operational&&privatePhotos.status==='error'?'Foto utama belum dapat ditampilkan.':'Tidak ada foto utama pada record ini.'}</p>}</div>{scanPhoto&&<div className="report-section"><h3>Scan Report (Historis)</h3><img className="report-photo" crossOrigin="anonymous" src={scanPhoto} alt="Scan Report"/></div>}{operational&&Object.entries(privatePhotos.photos).filter(([slot])=>slot.startsWith('hold_')&&!holds.some(h=>'hold_'+h.holdId===slot)).map(([slot,src])=><div key={slot} className="report-section"><h3>Foto HOLD / Downtime</h3><img className="report-photo" src={src} alt="Foto HOLD"/></div>)}{!operational&&<QcSupabasePhotoViewer recordId={record.id}/>}<div className="report-footer">Dibuat dari QC Form Web • {new Date().toLocaleString('id-ID')}</div></article></div></div>;return createPortal(modal,document.body)}
 function ReadOnlyNotice({title}:{title:string}){return <section className="panel"><div className="eyebrow">HAK AKSES</div><h2>{title}</h2><p className="muted">Akun ini memiliki akses hanya lihat. Owner dapat mengubahnya menjadi Edit dari Home → Users & Access.</p></section>}
 function Settings({readOnly=false}:{readOnly?:boolean}){const[url,setUrl]=useState(()=>nativePortalEnabled?'':getApiUrl()),[message,setMessage]=useState('');function save(event:FormEvent){event.preventDefault();if(readOnly)return;try{setApiUrl(url.trim());setMessage('URL Apps Script tersimpan di perangkat ini.')}catch(error){setMessage(error instanceof Error?error.message:'URL tidak valid')}}if(nativePortalEnabled)return <section data-testid="firebase-native-settings"><div className="section-head"><div><div className="eyebrow">KONFIGURASI</div><h2>Pengaturan</h2></div></div><div className="panel"><p>Mode Firebase-only aktif: login melalui Firebase Authentication dan data operasional melalui Firestore.</p><p>URL Apps Script lama dinonaktifkan dan tidak dapat diubah dari portal ini.</p><p>Referensi foto QC historis di Google Drive tetap dipertahankan; foto QC baru menggunakan Supabase privat setelah jalur backend disetujui.</p></div></section>;return <section><div className="section-head"><div><div className="eyebrow">KONFIGURASI</div><h2>Pengaturan</h2></div></div><form className="panel form-stack" onSubmit={save}><label>Apps Script API URL<input value={url} onChange={e=>setUrl(e.target.value)} readOnly={readOnly}/></label><p className="muted">Backend tetap menggunakan deployment <code>/exec</code> yang sama.</p>{readOnly&&<div className="alert">Akses hanya lihat. Perubahan dinonaktifkan.</div>}{message&&<div className="alert">{message}</div>}{!readOnly&&<button className="primary">Simpan</button>}</form></section>}
