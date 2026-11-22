@@ -1,5 +1,7 @@
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { firestoreDb } from './firebase'
+import {qcWorkOrderPlansByKind,qcSelectedWorkOrder} from './qcWorkOrderSelection.mjs'
+export {qcSearchWorkOrders,qcMergeEligiblePlans} from './qcWorkOrderSelection.mjs'
 
 export type QcDailyMaterial={
   material:string
@@ -13,6 +15,13 @@ export type QcDailyPlan={
   id:string
   dailyPlanId:string
   monthlyPlanLineId:string
+  woNumber:string
+  plannedShift:string
+  operationCode:string
+  coaCode:string
+  department:string
+  catalogActivityId:string
+  activityCode:string
   companyCode:string
   farm:string
   date:string
@@ -83,6 +92,13 @@ export async function loadQcDailyPlans(date:string):Promise<QcDailyPlan[]>{
       id:item.id,
       dailyPlanId:text(row.dailyPlanId||item.id),
       monthlyPlanLineId:text(row.monthlyPlanLineId),
+      woNumber:text(row.woNumber),
+      plannedShift:text(row.plannedShift),
+      operationCode:text(row.operationCode),
+      coaCode:text(row.coaCode),
+      department:text(row.department),
+      catalogActivityId:text(row.catalogActivityId),
+      activityCode:text(row.activityCode),
       companyCode:text(row.companyCode).toUpperCase(),
       farm:text(row.farm),
       date:text(row.date),
@@ -148,4 +164,16 @@ export function resolveQcSessionPlan(rows:QcDailyPlan[],pid:string,activity:stri
 export function qcShiftOneCarryoverCandidates(rows:QcDailyPlan[],kind:'spray'|'fertilizer',date:string,actualShift:string,actualForeman:string){
   if(shiftKey(actualShift)!=='2'||!text(date)||!sessionKey(actualForeman))return[]
   return rows.filter(row=>qcDailyKind(row)===kind&&row.date===text(date)&&shiftKey(row.shift)==='1'&&Boolean(sessionKey(row.foreman))&&Boolean(row.dailyPlanId))
+}
+
+
+
+/** Explicit WO source selection is independent of planned/actual shifts.
+ * Only the matching QC kind and session date are eligible.
+ */
+export function qcWorkOrderPlans(rows:QcDailyPlan[],kind:'spray'|'fertilizer',date:string):QcDailyPlan[]{
+  return qcWorkOrderPlansByKind(rows,date,row=>qcDailyKind(row)===kind)
+}
+export function qcExplicitWorkOrderPlan(rows:QcDailyPlan[],kind:'spray'|'fertilizer',date:string,selectedId:string):QcDailyPlan|null{
+  return qcSelectedWorkOrder(qcWorkOrderPlans(rows,kind,date),selectedId)
 }

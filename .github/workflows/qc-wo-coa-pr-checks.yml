@@ -58,6 +58,9 @@ jobs:
       - name: Validate Actual WhatsApp layout and totals
         run: npm run test:plan:actual-wa-layout
 
+      - name: Validate QC Spray and Fertilizer WO parity across shifts
+        run: npm run test:qc:wo-shift-parity
+
       - name: Verify TypeScript
         run: npm run typecheck
       - name: Build React safely
