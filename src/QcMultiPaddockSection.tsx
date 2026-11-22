@@ -11,6 +11,7 @@ type Props={
   works:QcMultiPaddockWork[]
   sources:QcMultiMaterialSource[]
   disabled?:boolean
+  lockedMembership?:boolean
   unitName?:string
   onChange:(works:QcMultiPaddockWork[])=>void
 }
@@ -22,7 +23,7 @@ export function blankQcPaddockWork():QcMultiPaddockWork{
     plannedShift:'',dailyShift:'',dailyForeman:'',plannedDailyAreaHa:0,
     areaHa:0,completed:false,materialAllocations:{}}
 }
-export default function QcMultiPaddockSection({kind,rows,works,sources,disabled=false,unitName,onChange}:Props){
+export default function QcMultiPaddockSection({kind,rows,works,sources,disabled=false,lockedMembership=false,unitName,onChange}:Props){
   const [error,setError]=useState('')
   const [editingId,setEditingId]=useState('')
   const totalArea=useMemo(()=>works.reduce((v,w)=>v+(Number(w.areaHa)||0),0),[works])
@@ -56,6 +57,7 @@ export default function QcMultiPaddockSection({kind,rows,works,sources,disabled=
     setEditingId('')
   }
   const add=()=>{
+    if(lockedMembership){setError('WO/Paddock pada QC Ready terkunci. Anda dapat memperbaiki luas atau alokasi, bukan menambah WO.');return}
     if(works.length>=MAX_QC_PADDOCKS){setError('Maksimal '+MAX_QC_PADDOCKS+' paddock dalam satu Unit Card.');return}
     if(works.some(w=>!w.completed)){setError('Selesaikan paddock yang aktif sebelum menambahkan WO berikutnya.');return}
     const next=blankQcPaddockWork()
@@ -93,12 +95,12 @@ export default function QcMultiPaddockSection({kind,rows,works,sources,disabled=
             <small>{work.woNumber?('WO '+work.woNumber+' · '+money(work.areaHa)+' Ha'):'Pilih WO dari Daily Plan'}</small></div>
           <div className="qc-multi-buttons">
             {work.completed&&<button type="button" disabled={disabled} onClick={()=>{setEditingId(work.workId);update(work.workId,{completed:false})}}>Edit</button>}
-            {!work.completed&&works.length>1&&<button type="button" disabled={disabled}
+            {!work.completed&&works.length>1&&!lockedMembership&&<button type="button" disabled={disabled}
               onClick={()=>{onChange(works.filter(w=>w.workId!==work.workId));setError('')}}>Hapus</button>}
           </div>
         </div>
         {isOpen&&<div className="qc-multi-work-body">
-          <QcWorkOrderSmartSearch rows={rows} disabled={disabled}
+          <QcWorkOrderSmartSearch rows={rows} disabled={disabled||lockedMembership}
             value={work.woNumber} selectedId={work.dailyPlanId}
             onQuery={value=>update(work.workId,{woNumber:value,dailyPlanId:'',
               pid:'',activity:'',description:'',monthlyPlanLineId:'',completed:false})}
@@ -124,7 +126,7 @@ export default function QcMultiPaddockSection({kind,rows,works,sources,disabled=
         </div>}
       </div>
     })}
-    <button className="qc-multi-add" type="button" disabled={disabled||works.length>=MAX_QC_PADDOCKS} onClick={add}>+ Tambah WO / Paddock Berikutnya</button>
+    <button className="qc-multi-add" type="button" disabled={disabled||lockedMembership||works.length>=MAX_QC_PADDOCKS} onClick={add}>+ Tambah WO / Paddock Berikutnya</button>
     <section className="qc-multi-alloc">
       <h4>LANGKAH 3 · Pengisian dan Alokasi Bahan</h4>
       <p>Jumlah fisik diisi sekali pada bagian Material/Filling unit. Di sini bagi ke paddock yang menerima bahan. Saran otomatis mengikuti proporsi luas dan masih bisa dikoreksi.</p>
@@ -157,6 +159,7 @@ export default function QcMultiPaddockSection({kind,rows,works,sources,disabled=
           onClick={()=>onChange(allocateQcMaterial(works,source.id,source.quantity))}>Alokasikan otomatis menurut luas</button>
       </div>)}
     </section>
+    {lockedMembership&&<small className="qc-multi-warn">Mode koreksi: WO/Daily ID terkunci setelah Ready. Luas dan alokasi bahan masih dapat diperbaiki selama QC belum Uploaded.</small>}
     {error&&<p className="qc-multi-error" role="alert">{error}</p>}
     <div className="qc-multi-review">
       <h4>LANGKAH 5 · Review</h4>
