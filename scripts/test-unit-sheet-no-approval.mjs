@@ -52,3 +52,9 @@ test('Excel-style Master Unit UI has inline fields and bulk save without approva
  assert.match(rules,/request\.resource\.data\.type in \['MAINTENANCE','OUT_OF_SERVICE','READY'/)
  assert.match(rules,/\.affectedKeys\(\)\.hasOnly\(\['status','endMinute','notes'/)
 })
+
+test('rapid condition changes within one minute honor latest creation timestamp',()=>{
+ const date='2026-11-22',minute=shiftWindow(date,'1').startMinute+15
+ const e=(id,type,createdAtMs)=>({id,unitId:'wt001',type,date,shift:'1',effectiveMinute:minute,note:'test',actorUid:'owner',createdAtMs})
+ assert.equal(conditionAt([e('z-breakdown','BREAKDOWN',100),e('a-ready','READY',200)],'wt001',minute),'READY')
+})
