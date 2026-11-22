@@ -1,5 +1,7 @@
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { firestoreDb } from './firebase'
+import {qcWorkOrderPlansByKind,qcSelectedWorkOrder} from './qcWorkOrderSelection.mjs'
+export {qcSearchWorkOrders,qcMergeEligiblePlans} from './qcWorkOrderSelection.mjs'
 
 export type QcDailyMaterial={
   material:string
@@ -165,54 +167,13 @@ export function qcShiftOneCarryoverCandidates(rows:QcDailyPlan[],kind:'spray'|'f
 }
 
 
-/** WO is selected explicitly by Daily ID; planned shift never constrains
- * execution shift. Only Daily records for the QC session date and form kind
- * are eligible. Legacy records without WO remain in the existing picker.
+
+/** Explicit WO source selection is independent of planned/actual shifts.
+ * Only the matching QC kind and session date are eligible.
  */
 export function qcWorkOrderPlans(rows:QcDailyPlan[],kind:'spray'|'fertilizer',date:string):QcDailyPlan[]{
-  return rows.filter(row=>row.date===date&&qcDailyKind(row)===kind
-    &&Boolean(row.woNumber.trim())&&Boolean(row.dailyPlanId))
+  return qcWorkOrderPlansByKind(rows,date,row=>qcDailyKind(row)===kind)
 }
-
-function searchToken(value:unknown):string{
-  return text(value).normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('id-ID').trim()
-}
-export function qcSearchWorkOrders(rows:QcDailyPlan[],query:string,limit=12):QcDailyPlan[]{
-  const tokens=searchToken(query).split(/\s+/).filter(Boolean)
-  const whole=tokens.join(' ')
-  return rows.map(row=>{
-    const wo=searchToken(row.woNumber)
-    const hay=[row.woNumber,row.pid,row.dailyPlanId,row.operationCode,
-      row.coaCode,row.activity,row.description,row.department,row.shift]
-      .map(searchToken).join(' ')
-    if(!row.woNumber||!tokens.every(t=>hay.includes(t)))return null
-    const rank=!whole?4:wo===whole?0:wo.startsWith(whole)?1:
-      searchToken(row.dailyPlanId)===whole?2:3
-    return {row,rank}
-  }).filter((entry):entry is {row:QcDailyPlan;rank:number}=>entry!==null)
-    .sort((a,b)=>a.rank-b.rank
-      ||a.row.woNumber.localeCompare(b.row.woNumber,'id',{numeric:true})
-      ||a.row.shift.localeCompare(b.row.shift,'id',{numeric:true})
-      ||a.row.dailyPlanId.localeCompare(b.row.dailyPlanId,'id'))
-    .slice(0,Math.max(1,limit)).map(item=>item.row)
-}
-export function qcExplicitWorkOrderPlan(
-  allRows:QcDailyPlan[],kind:'spray'|'fertilizer',date:string,selectedId:string
-):QcDailyPlan|null{
-  if(!selectedId)return null
-  const matches=qcWorkOrderPlans(allRows,kind,date)
-    .filter(row=>row.dailyPlanId===selectedId)
-  return matches.length===1?matches[0]:null
-}
-/** Preserve existing same-shift and legacy carry-over results, then include
- * only explicitly linked WO rows. Deduplicate by Daily ID before QC validates.
- */
-export function qcMergeEligiblePlans(
-  current:QcDailyPlan[],carryover:QcDailyPlan[],explicit:QcDailyPlan[]
-):QcDailyPlan[]{
-  const byId=new Map<string,QcDailyPlan>()
-  for(const row of [...current,...carryover,...explicit]){
-    if(row.dailyPlanId&&!byId.has(row.dailyPlanId))byId.set(row.dailyPlanId,row)
-  }
-  return [...byId.values()]
+export function qcExplicitWorkOrderPlan(rows:QcDailyPlan[],kind:'spray'|'fertilizer',date:string,selectedId:string):QcDailyPlan|null{
+  return qcSelectedWorkOrder(qcWorkOrderPlans(rows,kind,date),selectedId)
 }
