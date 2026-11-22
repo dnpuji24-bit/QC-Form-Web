@@ -26,5 +26,5 @@ export function dailyWoSnapshot(row:DailyWoChoice|undefined){
   }
 }
 export function shiftIsCrossOver(plannedShift:string,actualShift:string):boolean{
-  return Boolean(plannedShift&&actualShift&&plannedShift!==actualShift)
+  return Boolean(plannedShift&&plannedShift!=='ALL'&&actualShift&&plannedShift!==actualShift)
 }
