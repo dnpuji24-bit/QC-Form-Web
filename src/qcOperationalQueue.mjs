@@ -1,5 +1,17 @@
 import { operationalQueueId, processOperationalQcJob } from './qcOperationalSaveTransport.mjs'
 
+export function operationalFailureForRecord(failures,recordId){
+  if(!Array.isArray(failures)||typeof recordId!=='string')return ''
+  for(const failure of failures){
+    try{
+      const key=JSON.parse(failure.id)
+      if(Array.isArray(key)&&key.length===3&&key[1]===recordId&&typeof failure.error==='string')
+        return failure.error.replace(/[\r\n\t]+/g,' ').slice(0,280)
+    }catch{}
+  }
+  return ''
+}
+
 // Dedicated DB: never clear, migrate, or replay the legacy Spreadsheet queue.
 export function openOperationalQueue(factory=globalThis.indexedDB) {
   return new Promise((resolve,reject)=>{
@@ -58,7 +70,22 @@ export function flushOperationalJobs(uid,deps,factory) {
         if(result.status!=='confirmed')throw Error('Unconfirmed commit');
         await transaction(factory,'readwrite',(store)=>store.delete(job.id));
         sent++;
-      }catch(error){blocked.add(job.record.id);failures.push({id:job.id,error:String(error?.message||error)})}
+      }catch(error){
+        blocked.add(job.record.id)
+        const message=String(error?.message||error).replace(/[\r\n\t]+/g,' ').slice(0,280)
+        failures.push({id:job.id,error:message})
+        try{
+          await transaction(factory,'readwrite',(store,done)=>{
+            const req=store.get(job.id)
+            req.onsuccess=()=>{
+              const item=req.result
+              if(item?.record?.clientRevision===job.record.clientRevision)
+                store.put({...item,lastError:message,lastAttemptAt:Date.now()})
+              done(null)
+            }
+          })
+        }catch{} // A diagnostic write must never remove or advance the job.
+      }
     }
     return {sent,left:(await listOperationalJobs(uid,factory)).filter(j=>deps.acceptJob?deps.acceptJob(j):true).length,failures};
   };
