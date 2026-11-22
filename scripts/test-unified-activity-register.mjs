@@ -59,7 +59,7 @@ test('Import is preview-first and non-destructive, with archive and audit',()=>{
 
 test('Validation and Monthly store catalog references, snapshots and soft archive legacy',()=>{
  assert.match(validation,/catalogActivityId:choice\?\.id/)
- assert.match(validation,/activityCatalogChoiceLabel/)
+ assert.match(validation,/ActivityCatalogSmartSearch/)
  assert.match(validation,/archivedAt:serverTimestamp\(\)/)
  assert.doesNotMatch(validation,/batch\.delete\(doc\(context\.db,'master_activities'/)
  assert.match(monthly,/findCatalogForValidation/)
