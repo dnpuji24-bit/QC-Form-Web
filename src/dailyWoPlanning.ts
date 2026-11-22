@@ -4,7 +4,7 @@
 export type DailyWoChoice={
   id:string;planLineId:string;woNumber:string;pid:string;activity:string;
   description:string;coaCode:string;operationCode:string;department:string;
-  plannedShift:string;targetAreaHa:number;monthKey:string;week:string
+  plannedShift:string;plannedDate?:string;targetAreaHa:number;monthKey:string;week:string
 }
 export function normalizeWo(value:string):string{return String(value||'').trim().toUpperCase()}
 export function searchDailyWo(rows:DailyWoChoice[],query:string,limit=12):DailyWoChoice[]{
