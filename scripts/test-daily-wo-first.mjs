@@ -25,6 +25,8 @@ test('planned shift is only a snapshot; actual shift 2 is allowed for planned sh
  assert.equal(shiftIsCrossOver('1','2'),true)
  assert.equal(shiftIsCrossOver('2','1'),true)
  assert.equal(shiftIsCrossOver('1','1'),false)
+ assert.equal(shiftIsCrossOver('ALL','1'),false)
+ assert.equal(shiftIsCrossOver('ALL','2'),false)
  const snapshot=dailyWoSnapshot(rows[0])
  assert.equal(snapshot.woNumber,'WO-PL-001')
  assert.equal(snapshot.monthlyPlanLineId,'MP-GPA-202611-0001')
@@ -76,3 +78,5 @@ test('Saved Daily / WhatsApp display WO without breaking historical Daily cards'
  assert.match(entry,/Shift Aktual/)
  assert.match(entry,/shiftIsCrossOver/)
 })
+
+test('WO repeated results can be distinguished by Monthly Plan ID and optional scheduled date',()=>{const picker=read('src/DailyWoSmartSearch.tsx');assert.match(picker,/Plan ID \{row\.planLineId\}/);assert.match(picker,/row\.plannedDate/);assert.match(entry,/plannedDate:planText\(r\.plannedDate\)/)})

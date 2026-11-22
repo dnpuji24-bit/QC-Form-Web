@@ -16,8 +16,8 @@ type VarietyArea={variety:string;areaHa:number}
 type Paddock={pid:string;companyCode:string;farm:string;variety:string;varietyBreakdown:VarietyArea[];stage:string;areaPaddockHa:number;plantAreaHa:number}
 type Component={sequence:number;label:string;activeIngredient:string;dosePerHa:number;unit:string}
 type Activity={id:string;activityCode:string;description:string;activity:string;coaCode:string;catalogActivityId:string;type:string;activityCategory:string;companyScope:string;active:boolean;components:Component[]}
-type Existing={planLineId:string;monthKey:string;week:string;pid:string;activity:string;catalogActivityId:string;masterActivityId:string;plannedShift:string}
-type LineDraft={id:string;pid:string;activityId:string;woNumber:string;plannedShift:string;target:string;notes:string;varieties?:string[]}
+type Existing={planLineId:string;monthKey:string;week:string;pid:string;activity:string;catalogActivityId:string;masterActivityId:string;plannedShift:string;plannedDate:string}
+type LineDraft={id:string;pid:string;activityId:string;woNumber:string;plannedShift:string;plannedDate:string;target:string;notes:string;varieties?:string[]}
 type Draft={month:string;week:string;company:string;farm:string;lines:LineDraft[]}
 
 function pad(v:number){return String(v).padStart(2,'0')}
@@ -27,7 +27,7 @@ function varietyBreakdownFromData(value:unknown):VarietyArea[]{if(!Array.isArray
 function plantAreaFromData(d:Record<string,unknown>){const explicit=planNum(d.varietyAreaTotalHa||d.plantAreaHa);if(explicit>0)return explicit;if(!Array.isArray(d.plantProgress))return 0;return d.plantProgress.reduce((sum,item)=>{const row=(item&&typeof item==='object'?item:{}) as Record<string,unknown>;return sum+planNum(row.areaHa||row.progressHa||row.area)},0)}
 function planDocId(v:string){return encodeURIComponent(v.replaceAll('/','-')).slice(0,1400)}
 function weekDates(monthKey:string,week:string){if(!/^\d{4}-\d{2}$/.test(monthKey))return{start:'',end:''};const[y,m]=monthKey.split('-').map(Number),last=new Date(y,m,0).getDate(),map:Record<string,[number,number]>={W1:[1,7],W2:[8,15],W3:[16,22],W4:[23,last]},range=map[week]||[1,last];return{start:monthKey+'-'+pad(range[0]),end:monthKey+'-'+pad(range[1])}}
-function blankLine():LineDraft{return{id:planRowId('monthly'),pid:'',activityId:'',woNumber:'',plannedShift:'1',target:'',notes:'',varieties:[]}}
+function blankLine():LineDraft{return{id:planRowId('monthly'),pid:'',activityId:'',woNumber:'',plannedShift:'1',plannedDate:'',target:'',notes:'',varieties:[]}}
 function normalizedWo(value:string){return value.trim().toUpperCase()}
 function woDocId(value:string){return encodeURIComponent(normalizedWo(value))}
 async function writer(appUser:User){const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.');await firebaseAuthPersistenceReady;if(typeof auth.authStateReady==='function')await auth.authStateReady();const current=auth.currentUser;if(!current)throw new Error('Sesi Firebase belum siap. Tunggu sebentar atau login ulang lalu coba lagi.');const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.');const p=snap.data() as Record<string,unknown>;if(p.active!==true||!canEditAccess(appUser,'data_plan_monthly'))throw new Error('Hak akses Edit Monthly Plan belum diberikan.');return{db,username:planText(p.username)||appUser.username}}
@@ -40,7 +40,7 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
   const[draft,setDraft]=useState<Draft>(()=>({...initial,lines:initial.lines?.length?initial.lines:[blankLine()]})),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
 
   async function loadMasters(){if(!firestoreDb)return;setBusy(true);try{const[c,p,a,coaSnap]=await Promise.all([getDocs(collection(firestoreDb,'master_companies')),getDocs(collection(firestoreDb,'master_paddocks')),getDocs(collection(firestoreDb,'master_activities')),getDocs(collection(firestoreDb,ACTIVITY_COA_COLLECTION))]);setCoaCatalog(coaSnap.docs.map(x=>parseCoaActivity(x.id,x.data() as Record<string,unknown>)));setCompanies(c.empty?FALLBACK_COMPANIES:c.docs.map(x=>companyFromData(x.id,x.data() as Record<string,unknown>)).filter(x=>x.active));setPaddocks(p.docs.map(x=>{const d=x.data() as Record<string,unknown>,varietyBreakdown=varietyBreakdownFromData(d.varietyBreakdown);return{pid:planText(d.pid||x.id).toUpperCase(),companyCode:planText(d.companyCode).toUpperCase(),farm:planText(d.farm),variety:planText(d.variety),varietyBreakdown,stage:planText(d.currentStage||d.stage),areaPaddockHa:planNum(d.areaPlantedHa||d.areaPaddockHa),plantAreaHa:plantAreaFromData(d)}}));setActivities(a.docs.map(x=>{const d=x.data() as Record<string,unknown>;return{id:x.id,activityCode:planText(d.activityCode),description:planText(d.description),activity:planText(d.activity),coaCode:planText(d.coaCode),catalogActivityId:planText(d.catalogActivityId),type:planText(d.type),activityCategory:planText(d.activityCategory),companyScope:planText(d.companyScope||'GLOBAL').toUpperCase(),active:d.active===true,components:components(d.components)}}))}catch(e){setMessage(e instanceof Error?e.message:'Master data gagal dimuat.')}finally{setBusy(false)}}
-  async function loadPeriod(month=draft.month){if(!firestoreDb||!month)return;try{const m=await getDocs(fsQuery(collection(firestoreDb,'monthly_plans'),where('monthKey','==',month)));setExisting(m.docs.map(x=>{const d=x.data() as Record<string,unknown>;return{planLineId:planText(d.planLineId||x.id),monthKey:planText(d.monthKey),week:planText(d.week),pid:planText(d.pid).toUpperCase(),activity:planText(d.activity),catalogActivityId:planText(d.catalogActivityId),masterActivityId:planText(d.masterActivityId),plannedShift:planText(d.plannedShift)}}))}catch(e){setMessage(e instanceof Error?e.message:'Monthly periode gagal dimuat.')}}
+  async function loadPeriod(month=draft.month){if(!firestoreDb||!month)return;try{const m=await getDocs(fsQuery(collection(firestoreDb,'monthly_plans'),where('monthKey','==',month)));setExisting(m.docs.map(x=>{const d=x.data() as Record<string,unknown>;return{planLineId:planText(d.planLineId||x.id),monthKey:planText(d.monthKey),week:planText(d.week),pid:planText(d.pid).toUpperCase(),activity:planText(d.activity),catalogActivityId:planText(d.catalogActivityId),masterActivityId:planText(d.masterActivityId),plannedShift:planText(d.plannedShift),plannedDate:planText(d.plannedDate)}}))}catch(e){setMessage(e instanceof Error?e.message:'Monthly periode gagal dimuat.')}}
   useEffect(()=>{void loadMasters()},[])
   useEffect(()=>{void loadPeriod(draft.month);onPeriodChange?.(draft.month,draft.week)},[draft.month,draft.week])
   useEffect(()=>{if((selectedMonth&&selectedMonth!==draft.month)||(selectedWeek&&selectedWeek!==draft.week))setDraft(current=>({...current,month:selectedMonth||current.month,week:selectedWeek||current.week}))},[selectedMonth,selectedWeek])
@@ -58,12 +58,13 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
       department:mapped?.department||'',activityCategory:item.activityCategory}
   }),[activityOptions,coaCatalog])
   const lineInfo=useMemo(()=>draft.lines.map(line=>{const paddock=paddocks.find(x=>x.pid===line.pid.toUpperCase())||null,activity=activityOptions.find(x=>x.id===line.activityId)||null,target=planNum(line.target),materials=materialLinesFromComponents(activity?.components||[],target),varietyOptions=paddock?(paddock.varietyBreakdown.length?paddock.varietyBreakdown:(paddock.variety?[{variety:paddock.variety,areaHa:paddock.plantAreaHa}]:[])):[],requested=(line.varieties||[]).filter(name=>varietyOptions.some(option=>option.variety===name)),selectedVarieties=requested.length?requested:(varietyOptions.length===1?[varietyOptions[0].variety]:[]),selectedVarietyDetails=varietyOptions.filter(option=>selectedVarieties.includes(option.variety)),selectedPlantArea=selectedVarietyDetails.reduce((sum,item)=>sum+item.areaHa,0);const mapped=activity?findCatalogForValidation(coaCatalog,{catalogActivityId:activity.catalogActivityId,activity:activity.activity,coaCode:activity.coaCode}):undefined;return{line,paddock,activity,coaCode:mapped?.coaCode||'',catalogActivityId:mapped?.id||activity?.catalogActivityId||'',operationCode:mapped?.operationCode||'',department:mapped?.department||'',target,materials,varietyOptions,selectedVarieties,selectedVarietyDetails,selectedPlantArea}}),[draft.lines,paddocks,activityOptions,coaCatalog])
+  const dates=weekDates(draft.month,draft.week)
   const totalArea=lineInfo.reduce((s,x)=>s+x.target,0)
   const totalMaterials=aggregateMaterials(lineInfo.map(x=>x.materials))
 
   function patchDraft(patch:Partial<Draft>){setDraft(current=>({...current,...patch}))}
   function patchLine(id:string,patch:Partial<LineDraft>){setDraft(current=>({...current,lines:current.lines.map(line=>line.id===id?{...line,...patch}:line)}))}
-  function addLine(copy?:LineDraft){setDraft(current=>({...current,lines:[...current.lines,{...(copy||blankLine()),id:planRowId('monthly'),woNumber:'',target:'',notes:'',varieties:[...(copy?.varieties||[])]}]}))}
+  function addLine(copy?:LineDraft){setDraft(current=>({...current,lines:[...current.lines,{...(copy||blankLine()),id:planRowId('monthly'),woNumber:copy?.woNumber||'',target:'',notes:'',varieties:[...(copy?.varieties||[])]}]}))}
   function toggleVariety(id:string,variety:string,all:string[]){setDraft(current=>({...current,lines:current.lines.map(line=>{if(line.id!==id)return line;const selected=line.varieties||[],next=selected.includes(variety)?selected.filter(x=>x!==variety):[...selected,variety];return{...line,varieties:next.filter(x=>all.includes(x))}})}))}
   function selectAllVarieties(id:string,all:string[]){setDraft(current=>({...current,lines:current.lines.map(line=>line.id===id?{...line,varieties:[...all]}:line)}))}
   function clearVarieties(id:string){setDraft(current=>({...current,lines:current.lines.map(line=>line.id===id?{...line,varieties:[]}:line)}))}
@@ -71,15 +72,20 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
   function reset(){if(!window.confirm('Kosongkan draft input Monthly Plan ini?'))return;clearPlanDraft(draftKey);setDraft({month:new Date().toISOString().slice(0,7),week:'W1',company:draft.company||'GPA',farm:'',lines:[blankLine()]});setMessage('Draft Monthly Plan dikosongkan.')}
 
   function duplicateKeys(){
-    const keys=new Map<string,number>(),dupes:{label:string;index:number}[]=[]
+    const seen:Array<{identity:string;shift:string}>=[]
+    const dupes:{label:string;index:number}[]=[]
     lineInfo.forEach((info,index)=>{
       if(!info.line.pid||!info.activity)return
-      const key=monthlyWorkIdentity({pid:info.line.pid,masterActivityId:info.activity.id,
-        catalogActivityId:info.catalogActivityId,plannedShift:info.line.plannedShift||'1',
-        varieties:info.selectedVarieties})
-      if(keys.has(key))dupes.push({label:info.line.pid+' · '+info.activity.description+
-        ' · Shift '+(info.line.plannedShift||'1'),index})
-      else keys.set(key,index)
+      // Same WO may occur on many lines. Only reject indistinguishable work
+      // rows; ALL overlaps either individual shift on the same date.
+      const identity=monthlyWorkIdentity({pid:info.line.pid,masterActivityId:info.activity.id,
+        catalogActivityId:info.catalogActivityId,plannedShift:'ALL',
+        plannedDate:info.line.plannedDate||'',varieties:info.selectedVarieties})
+      const shift=info.line.plannedShift||'1'
+      if(seen.some(x=>x.identity===identity&&(x.shift===shift||x.shift==='ALL'||shift==='ALL')))
+        dupes.push({label:info.line.pid+' · '+info.activity.description+' · '+
+          (info.line.plannedDate||'tanpa tanggal')+' · '+(shift==='ALL'?'Semua Shift':'Shift '+shift),index})
+      else seen.push({identity,shift})
     })
     return dupes
   }
@@ -88,34 +94,32 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
   async function save(e:FormEvent){
     e.preventDefault()
     if(!draft.month||!draft.week||!draft.company){setMessage('BELUM TERSIMPAN · Bulan, Week, dan Company wajib diisi.');return}
-    const invalidIndex=lineInfo.findIndex(x=>!x.paddock||!x.activity||!/^\d{1,20}$/.test(x.coaCode)||!normalizedWo(x.line.woNumber||'')||!['1','2'].includes(x.line.plannedShift||'1')||x.target<=0||(x.varietyOptions.length>0&&x.selectedVarieties.length===0))
+    const invalidIndex=lineInfo.findIndex(x=>(Boolean(x.line.plannedDate)&&(x.line.plannedDate<dates.start||x.line.plannedDate>dates.end))||!x.paddock||!x.activity||!/^\d{1,20}$/.test(x.coaCode)||!normalizedWo(x.line.woNumber||'')||!['1','2','ALL'].includes(x.line.plannedShift||'1')||x.target<=0||(x.varietyOptions.length>0&&x.selectedVarieties.length===0))
     if(invalidIndex>=0){
       const x=lineInfo[invalidIndex]
-      const reason=!x.paddock?'Paddock tidak valid.':!x.activity?'Activity tidak ACTIVE.':!x.coaCode?'CoA belum diatur pada Master Activity.':!x.line.woNumber?'Nomor WO wajib diisi.':x.target<=0?'Target harus lebih dari 0 Ha.':'Periksa Shift Rencana dan varietas.'
+      const reason=!x.paddock?'Paddock tidak valid.':!x.activity?'Activity tidak ACTIVE.':!x.coaCode?'CoA belum diatur pada Master Activity.':!x.line.woNumber?'Nomor WO wajib diisi.':x.target<=0?'Target harus lebih dari 0 Ha.':x.line.plannedDate&&(x.line.plannedDate<dates.start||x.line.plannedDate>dates.end)?'Tanggal Rencana harus berada dalam periode '+dates.start+' s.d. '+dates.end+'.':'Periksa Shift Rencana dan varietas.'
       setMessage('BELUM TERSIMPAN · Pekerjaan '+(invalidIndex+1)+': '+reason);focusLine(invalidIndex);return
     }
     const badWo=lineInfo.findIndex(x=>!(/^[A-Z0-9][A-Z0-9._/-]{0,79}$/.test(normalizedWo(x.line.woNumber))))
     if(badWo>=0){setMessage('BELUM TERSIMPAN · Format WO '+(badWo+1)+' tidak valid. Gunakan huruf, angka, /, -, _ atau titik; maksimum 80 karakter.');focusLine(badWo);return}
-    const woSet=new Set<string>()
-    const duplicateWo=lineInfo.findIndex(x=>{const key=normalizedWo(x.line.woNumber);if(woSet.has(key))return true;woSet.add(key);return false})
-    if(duplicateWo>=0){setMessage('BELUM TERSIMPAN · Nomor WO duplikat dalam batch. Setiap WO harus unik.');focusLine(duplicateWo);return}
-    const dupes=duplicateKeys();if(dupes.length){setMessage('BELUM TERSIMPAN · Kombinasi PID, Activity, Shift Rencana, dan varietas duplikat: '+dupes.map(x=>x.label).join(', '));return}
+    const dupes=duplicateKeys();if(dupes.length){setMessage('BELUM TERSIMPAN · Baris pekerjaan identik (PID, Activity, Tanggal, Shift, varietas): '+dupes.map(x=>x.label).join(', '));return}
     const duplicates=lineInfo.filter(x=>existing.some(row=>{
       if(row.monthKey!==draft.month||row.week!==draft.week||row.pid!==x.line.pid.toUpperCase())return false
-      // Shift 1 and Shift 2 are distinct planned work even when execution later
-      // crosses shifts. Old plans without shift identity are not blockers.
-      if(!row.plannedShift||row.plannedShift!==(x.line.plannedShift||'1'))return false
+      // Distinct scheduled dates do not collide; ALL overlaps Shift 1 and 2.
+      if(row.plannedDate&&x.line.plannedDate&&row.plannedDate!==x.line.plannedDate)return false
+      if(!row.plannedShift)return false
+      if(row.plannedShift!==(x.line.plannedShift||'1')&&row.plannedShift!=='ALL'&&x.line.plannedShift!=='ALL')return false
       return row.catalogActivityId&&x.catalogActivityId
         ?row.catalogActivityId===x.catalogActivityId
         :row.masterActivityId&&x.activity
           ?row.masterActivityId===x.activity.id
           :row.activity===x.activity?.activity
     }))
-    if(duplicates.length&&!window.confirm(duplicates.length+' pasangan Month/Week/PID/Activity sudah ada. Tetap buat WO baru?'))return
-    setBusy(true);setMessage('Memeriksa keunikan WO dan menyimpan Monthly Plan…')
+    if(duplicates.length&&!window.confirm(duplicates.length+' baris pekerjaan serupa sudah ada dalam periode ini. Tetap simpan? Pastikan target luas tidak dihitung dua kali.'))return
+    setBusy(true);setMessage('Memeriksa WO dan menyimpan setiap baris Monthly Plan…')
     try{
       const {db,username}=await writer(user)
-      const dates=weekDates(draft.month,draft.week),[year,monthNumber]=draft.month.split('-').map(Number)
+      const [year,monthNumber]=draft.month.split('-').map(Number)
       const prefix='MP-'+draft.company+'-'+draft.month.replace('-','')+'-'
       let seq=existing.map(x=>x.planLineId.startsWith(prefix)?Number(x.planLineId.slice(prefix.length)):0).filter(Number.isFinite).reduce((max,n)=>Math.max(max,n),0)
       const prepared=lineInfo.map(info=>{
@@ -123,18 +127,24 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
         return {info,planLineId:prefix+String(seq).padStart(4,'0'),woNumber:normalizedWo(info.line.woNumber)}
       })
       await runTransaction(db,async transaction=>{
-        const woRefs=prepared.map(item=>doc(db,'work_orders',woDocId(item.woNumber)))
+        // A WO is a shared header. Every Monthly Plan row still has a distinct
+        // Plan ID and remains independently selectable in Daily/Actual/QC.
+        const uniqueWos=[...new Set(prepared.map(item=>item.woNumber))]
+        const woRefs=uniqueWos.map(wo=>doc(db,'work_orders',woDocId(wo)))
         const monthlyRefs=prepared.map(item=>doc(db,'monthly_plans',planDocId(item.planLineId)))
         const woSnaps=await Promise.all(woRefs.map(item=>transaction.get(item)))
         const monthlySnaps=await Promise.all(monthlyRefs.map(item=>transaction.get(item)))
-        const existingWo=woSnaps.findIndex(x=>x.exists())
-        if(existingWo>=0)throw new Error('Nomor WO '+prepared[existingWo].woNumber+' sudah terdaftar. Gunakan nomor WO lain.')
+        for(let index=0;index<woSnaps.length;index++){
+          const found=woSnaps[index]
+          if(found.exists()&&planText(found.data().companyCode)&&planText(found.data().companyCode).toUpperCase()!==draft.company)
+            throw new Error('WO '+uniqueWos[index]+' sudah digunakan oleh Company lain.')
+        }
         if(monthlySnaps.some(x=>x.exists()))throw new Error('Nomor MP berubah karena input pengguna lain. Refresh data Monthly lalu coba ulang.')
         prepared.forEach(({info,planLineId,woNumber},index)=>{
-          const p=info.paddock!,a=info.activity!,plannedShift=info.line.plannedShift||'1'
+          const p=info.paddock!,a=info.activity!,plannedShift=info.line.plannedShift||'1',plannedDate=info.line.plannedDate||''
           transaction.set(monthlyRefs[index],{
             planLineId,year,monthNumber,monthKey:draft.month,monthLabel:new Date(year,monthNumber-1,1).toLocaleString('id-ID',{month:'short'}),
-            inputDate:new Date().toISOString().slice(0,10),startDate:dates.start,endDate:dates.end,week:draft.week,
+            inputDate:new Date().toISOString().slice(0,10),startDate:dates.start,endDate:dates.end,week:draft.week,plannedDate,
             description:a.description,pid:p.pid,targetAreaHa:info.target,variety:info.selectedVarieties.join(', ')||p.variety,
             selectedVarieties:info.selectedVarieties,selectedVarietyDetails:info.selectedVarietyDetails,
             sourceStatus:'Belum dikerjakan',status:'PLANNED',actualAreaHa:0,balanceHa:info.target,calculatedBalanceHa:info.target,
@@ -146,18 +156,26 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
             sourceOrigin:'WEB',lastModifiedSource:'WEB',createdAt:serverTimestamp(),createdBy:username,
             updatedAt:serverTimestamp(),updatedBy:username
           })
+        })
+        // An existing WO header is never overwritten. It references its
+        // original first line; additional lines live in monthly_plans.
+        uniqueWos.forEach((wo,index)=>{
+          if(woSnaps[index].exists())return
+          const first=prepared.find(item=>item.woNumber===wo)!
+          const p=first.info.paddock!,a=first.info.activity!
           transaction.set(woRefs[index],{
-            woNumber,planLineId,companyCode:draft.company,pid:p.pid,
+            woNumber:wo,planLineId:first.planLineId,companyCode:draft.company,pid:p.pid,
             masterActivityId:a.id,activity:a.activity,description:a.description,
-            activityCode:a.activityCode,coaCode:info.coaCode,catalogActivityId:info.catalogActivityId,operationCode:info.operationCode,department:info.department,
-            plannedShift,monthKey:draft.month,week:draft.week,targetAreaHa:info.target,
+            activityCode:a.activityCode,coaCode:first.info.coaCode,catalogActivityId:first.info.catalogActivityId,
+            operationCode:first.info.operationCode,department:first.info.department,
+            plannedShift:first.info.line.plannedShift||'1',monthKey:draft.month,week:draft.week,targetAreaHa:first.info.target,
             status:'PLANNED',createdAt:serverTimestamp(),createdBy:username
           })
         })
       })
-      setExisting(rows=>[...rows,...prepared.map(x=>({planLineId:x.planLineId,monthKey:draft.month,week:draft.week,pid:x.info.paddock!.pid,activity:x.info.activity!.activity,catalogActivityId:x.info.catalogActivityId,masterActivityId:x.info.activity!.id,plannedShift:x.info.line.plannedShift||'1'}))])
+      setExisting(rows=>[...rows,...prepared.map(x=>({planLineId:x.planLineId,monthKey:draft.month,week:draft.week,pid:x.info.paddock!.pid,activity:x.info.activity!.activity,catalogActivityId:x.info.catalogActivityId,masterActivityId:x.info.activity!.id,plannedShift:x.info.line.plannedShift||'1',plannedDate:x.info.line.plannedDate||''}))])
       clearPlanDraft(draftKey);setDraft(current=>({...current,lines:[blankLine()]}))
-      setMessage(prepared.length+' Monthly Plan dan WO berhasil disimpan. Total target '+planHa(totalArea)+'.')
+      setMessage(prepared.length+' baris Monthly Plan tersimpan untuk '+new Set(prepared.map(item=>item.woNumber)).size+' nomor WO. Total target '+planHa(totalArea)+'.')
       onSaved?.()
     }catch(err){setMessage(err instanceof Error?err.message:'Gagal membuat WO/Monthly Plan.')}finally{setBusy(false)}
   }
@@ -174,12 +192,13 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
         <label><span>Farm</span><select value={draft.farm} onChange={e=>patchDraft({farm:e.target.value,lines:draft.lines.map(line=>({...line,pid:'',varieties:[]}))})}><option value="">Semua Farm</option>{farms.map(x=><option key={x}>{x}</option>)}</select></label>
       </div></section>
 
-      <section className="panel plan-section monthly-work-section"><div className="plan-section-title"><div><span className="eyebrow">PEKERJAAN</span><h3>PID & Activity</h3><p className="muted">Tambahkan beberapa pekerjaan dalam satu batch Monthly Plan.</p></div><span className="status-pill">{draft.lines.length} pekerjaan</span></div>
+      <section className="panel plan-section monthly-work-section"><div className="plan-section-title"><div><span className="eyebrow">PEKERJAAN</span><h3>PID & Activity</h3><p className="muted">Satu nomor WO boleh digunakan pada banyak baris pekerjaan dan tanggal. Setiap baris memiliki Plan ID tersendiri dan target dihitung sesuai baris.</p></div><span className="status-pill">{draft.lines.length} pekerjaan</span></div>
         <div className="plan-work-list monthly-work-list">{lineInfo.map((info,index)=><div id={'monthly-work-'+index} className="plan-work-card monthly-work-card" key={info.line.id}><div className="plan-work-head"><div><span className="eyebrow">PEKERJAAN {String(index+1).padStart(2,'0')}</span><strong>{info.line.pid||'Pilih PID'}{info.activity?' · '+info.activity.description:''}{info.line.woNumber?' · WO '+info.line.woNumber:''}</strong></div><div className="row-actions">{index>0&&<button type="button" onClick={()=>addLine(info.line)}>Duplikat</button>}<button type="button" className="danger" onClick={()=>removeLine(info.line.id)}>Hapus</button></div></div><div className="plan-grid">
-          <label><span>Nomor WO (manual)</span><input value={info.line.woNumber||''} onChange={e=>patchLine(info.line.id,{woNumber:e.target.value.toUpperCase()})} placeholder="Nomor WO unik" autoComplete="off" maxLength={80}/></label><label><span>PID / Paddock</span><input list={'monthly-pids-'+info.line.id} value={info.line.pid} onChange={e=>patchLine(info.line.id,{pid:e.target.value.toUpperCase(),varieties:[]})} placeholder="Pilih PID"/><datalist id={'monthly-pids-'+info.line.id}>{pidOptions.map(x=><option key={x.pid} value={x.pid}>{x.farm} · {x.variety}</option>)}</datalist></label>
-          <MonthlyActivitySmartSearch options={activityChoices} value={info.line.activityId} disabled={busy} onSelect={id=>patchLine(info.line.id,{activityId:id})}/><label><span>Shift Rencana WO</span><select value={info.line.plannedShift||'1'} onChange={e=>patchLine(info.line.id,{plannedShift:e.target.value})}><option value="1">Shift 1</option><option value="2">Shift 2</option></select><small>Shift Aktual nantinya boleh berbeda di Actual dan QC.</small></label>
+          <label><span>Nomor WO (boleh berulang)</span><input value={info.line.woNumber||''} onChange={e=>patchLine(info.line.id,{woNumber:e.target.value.toUpperCase()})} placeholder="Contoh: WO_931" autoComplete="off" maxLength={80}/></label><label><span>PID / Paddock</span><input list={'monthly-pids-'+info.line.id} value={info.line.pid} onChange={e=>patchLine(info.line.id,{pid:e.target.value.toUpperCase(),varieties:[]})} placeholder="Pilih PID"/><datalist id={'monthly-pids-'+info.line.id}>{pidOptions.map(x=><option key={x.pid} value={x.pid}>{x.farm} · {x.variety}</option>)}</datalist></label>
+          <MonthlyActivitySmartSearch options={activityChoices} value={info.line.activityId} disabled={busy} onSelect={id=>patchLine(info.line.id,{activityId:id})}/><label><span>Shift Rencana WO</span><select value={info.line.plannedShift||'1'} onChange={e=>patchLine(info.line.id,{plannedShift:e.target.value})}><option value="1">Shift 1</option><option value="2">Shift 2</option><option value="ALL">Semua Shift (Shift 1 & 2)</option></select><small>Semua Shift: pekerjaan dapat dilaksanakan di Shift 1 atau 2. Target tidak otomatis dikalikan dua; shift aktual ditentukan saat Daily Plan/QC.</small></label>
           
           
+          <label><span>Tanggal Rencana (opsional)</span><input type="date" min={dates.start} max={dates.end} value={info.line.plannedDate||''} onChange={e=>patchLine(info.line.id,{plannedDate:e.target.value})}/><small>Isi jika WO yang sama berisi pekerjaan pada beberapa tanggal.</small></label>
           <label><span>CoA (otomatis)</span><input readOnly value={info.coaCode||'Belum tersedia'} title="CoA berasal dari Master Activity"/></label><label><span>Operation Code (otomatis)</span><input readOnly value={info.operationCode||'Belum dipetakan'} title="Kode Operation mengikuti Master Activity"/></label>
           <label><span>Target Luas (Ha)</span><input type="text" inputMode="decimal" value={info.line.target} onChange={e=>patchLine(info.line.id,{target:e.target.value.replace(/[^0-9.,]/g,'')})} placeholder="Contoh: 72,8"/></label>
           <label className="plan-span-2"><span>Keterangan</span><input value={info.line.notes} onChange={e=>patchLine(info.line.id,{notes:e.target.value})} placeholder="Opsional"/></label>

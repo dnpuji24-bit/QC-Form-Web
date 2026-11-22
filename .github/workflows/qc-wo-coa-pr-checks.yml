@@ -74,6 +74,11 @@ jobs:
           npm install --no-save --no-package-lock @firebase/rules-unit-testing@5
           npx --yes firebase-tools@14 emulators:exec --only firestore --project demo-qc-unit-dispatch --config firebase.native-cutover-browser-emulator.json "node scripts/test-unit-dispatch-rules-emulator.mjs"
 
+      - name: Verify shared WO and ALL shifts in Firestore emulator
+        run: |
+          npm install --no-save --no-package-lock @firebase/rules-unit-testing@5
+          npx --yes firebase-tools@14 emulators:exec --only firestore --project demo-qc-shared-wo --config firebase.native-cutover-browser-emulator.json "node scripts/test-monthly-shared-wo-rules-emulator.mjs"
+
       - name: Verify TypeScript
         run: npm run typecheck
       - name: Build React safely

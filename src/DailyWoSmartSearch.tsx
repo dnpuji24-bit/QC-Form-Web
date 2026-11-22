@@ -45,10 +45,10 @@ export default function DailyWoSmartSearch({value,selectedId,rows,loading=false,
           onPointerDown={e=>e.preventDefault()} onMouseEnter={()=>setIndex(i)} onClick={()=>choose(row)}>
           <span className="activity-smartsearch-title">WO {row.woNumber} · {row.pid}</span>
           <span className="activity-smartsearch-meta">{row.description||row.activity} · {row.department||'-'}</span>
-          <span className="activity-smartsearch-meta">Operation {row.operationCode||'-'} · CoA {row.coaCode||'-'} · Rencana Shift {row.plannedShift||'-'} · {row.monthKey}/{row.week}</span>
+          <span className="activity-smartsearch-meta">Operation {row.operationCode||'-'} · CoA {row.coaCode||'-'} · Rencana Shift {row.plannedShift==='ALL'?'Semua Shift':row.plannedShift||'-'} · {row.monthKey}/{row.week} · Plan ID {row.planLineId}{row.plannedDate?' · Tgl '+row.plannedDate:''}</span>
         </button>)}
         {!matches.length&&<div className="activity-smartsearch-empty">{loading?'Mencari WO lintas bulan di Firestore…':normalizeWo(value).length<2?'Ketik minimal 2 karakter atau pilih WO periode saat ini.':'WO tidak ditemukan / tidak aktif. Periksa nomor atau refresh.'}</div>}
-        <p className="activity-smartsearch-tip">Maksimal 12 hasil. Pilih WO untuk mengisi PID, Activity, CoA dan Operation otomatis.</p>
+        <p className="activity-smartsearch-tip">Maksimal 12 hasil. Jika nomor WO berulang, pilih baris menurut PID, Plan ID, tanggal rencana, dan Shift.</p>
       </div>}
     </div>
     <small>WO terikat pada PID dan Activity, tetapi Shift Aktual boleh berbeda dengan Shift Rencana.</small>

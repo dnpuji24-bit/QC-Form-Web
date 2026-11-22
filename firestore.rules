@@ -526,7 +526,7 @@ service cloud.firestore {
         && request.resource.data.woNumber is string
         && request.resource.data.coaCode is string
         && request.resource.data.coaCode.matches('^[0-9]{1,20}$')
-        && request.resource.data.plannedShift in ['1','2']
+        && request.resource.data.plannedShift in ['1','2','ALL']
         && existsAfter(/databases/$(database)/documents/monthly_plans/$(request.resource.data.planLineId))
         && getAfter(/databases/$(database)/documents/monthly_plans/$(request.resource.data.planLineId)).data.woNumber == request.resource.data.woNumber;
       allow update, delete: if false;
