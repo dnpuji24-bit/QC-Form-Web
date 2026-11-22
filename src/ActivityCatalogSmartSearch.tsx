@@ -78,7 +78,6 @@ export default function ActivityCatalogSmartSearch({options,value,fallbackLabel=
         }}/>
       {query&&<button type="button" className="activity-smartsearch-clear" aria-label="Hapus pilihan Activity" disabled={disabled} onClick={clear}>×</button>}
       <span className="activity-smartsearch-chevron" aria-hidden="true">⌕</span>
-    </div>
     {open&&!disabled&&<div className="activity-smartsearch-results" id={id+'-list'} role="listbox" aria-label="Hasil pencarian Activity">
       {matches.length?matches.map((row,index)=>
         <button type="button" id={id+'-option-'+index} role="option"
@@ -93,6 +92,7 @@ export default function ActivityCatalogSmartSearch({options,value,fallbackLabel=
       ):<div className="activity-smartsearch-empty">Tidak ada Activity yang cocok. Periksa nama atau Operation Code.</div>}
       <p className="activity-smartsearch-tip">Menampilkan maksimal 10 hasil. Ketik lebih spesifik untuk mempersempit pencarian.</p>
     </div>}
+    </div>
     <small>Gunakan nama, departemen, Operation Code, atau CoA. Enter untuk memilih; Esc untuk menutup. Activity dengan nama sama tetap dibedakan berdasarkan Operation Code.</small>
   </div>
 }
