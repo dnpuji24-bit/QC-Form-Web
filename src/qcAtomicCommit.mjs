@@ -18,6 +18,8 @@ export async function commitQcAndActual(input,deps){
     const multi=next.multiPaddockMode===true
     if(current&&current.multiPaddockMode!==next.multiPaddockMode)
       throw Error('QC_MULTI_MODE_IMMUTABLE')
+    if(multi&&current?.saveType==='ready'&&next.saveType==='draft')
+      throw Error('QC_MULTI_STATUS_REGRESSION')
     if(multi&&current&&['ready','uploaded'].includes(current.saveType)){
       const oldIds=(current.paddockWorks||[]).map(w=>w.workId+':'+w.dailyPlanId).sort()
       const newIds=(next.paddockWorks||[]).map(w=>w.workId+':'+w.dailyPlanId).sort()
