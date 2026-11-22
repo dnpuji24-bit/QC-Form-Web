@@ -50,7 +50,11 @@ export default function QcMultiPaddockSection({kind,rows,works,sources,disabled=
     setError('')
   }
   const finish=(work:QcMultiPaddockWork)=>{
-    if(!work.dailyPlanId||!work.woNumber||!work.pid){setError('Pilih WO/Daily ID sebelum menyelesaikan paddock.');return}
+    const chosen=rows.filter(row=>row.dailyPlanId===work.dailyPlanId)
+    if(chosen.length!==1||chosen[0].pid!==work.pid||chosen[0].activity!==work.activity||
+       chosen[0].woNumber!==work.woNumber){
+      setError('Pilih sumber Daily dengan PID dan Activity yang cocok pada tanggal QC.');return
+    }
     if(!(work.areaHa>0)){setError('Luas actual paddock harus lebih dari 0 Ha.');return}
     setError('')
     update(work.workId,{completed:true})
@@ -76,8 +80,8 @@ export default function QcMultiPaddockSection({kind,rows,works,sources,disabled=
       <span>4 · Working/HOLD</span><span>5 · Review</span>
     </nav>
     <div className="qc-multi-heading">
-      <div><small>LANGKAH 2 · WORK ORDER</small><h4>Pekerjaan per WO / Paddock</h4>
-        <p>Isi satu paddock, pilih Selesai Paddock, kemudian tambahkan WO berikutnya. Waktu dan foto tetap milik unit.</p>
+      <div><small>LANGKAH 2 · WORK ORDER</small><h4>Pekerjaan per Daily / Paddock</h4>
+        <p>Isi satu paddock, pilih Selesai Paddock, kemudian tambahkan sumber Daily berikutnya. Waktu dan foto tetap milik unit.</p>
       </div>
       <div className="qc-multi-summary"><b>{complete}/{works.length}</b><small>Selesai</small></div>
     </div>
@@ -92,7 +96,7 @@ export default function QcMultiPaddockSection({kind,rows,works,sources,disabled=
       return <div className={'qc-multi-work '+(work.completed&&!isOpen?'qc-multi-complete':'')} key={work.workId}>
         <div className="qc-multi-work-head">
           <div><strong>{work.completed?'✓ ':'📍 '}Paddock {index+1} · {work.pid||'Belum dipilih'}</strong>
-            <small>{work.woNumber?('WO '+work.woNumber+' · '+money(work.areaHa)+' Ha'):'Pilih WO dari Daily Plan'}</small></div>
+            <small>{work.dailyPlanId?((work.woNumber?'WO '+work.woNumber:'Tanpa WO · Daily lama')+' · '+money(work.areaHa)+' Ha'):'Pilih sumber Daily: WO atau PID/Activity'}</small></div>
           <div className="qc-multi-buttons">
             {work.completed&&<button type="button" disabled={disabled} onClick={()=>{setEditingId(work.workId);update(work.workId,{completed:false})}}>Edit</button>}
             {!work.completed&&works.length>1&&!lockedMembership&&<button type="button" disabled={disabled}
@@ -101,7 +105,7 @@ export default function QcMultiPaddockSection({kind,rows,works,sources,disabled=
         </div>
         {isOpen&&<div className="qc-multi-work-body">
           <QcWorkOrderSmartSearch rows={rows} disabled={disabled||lockedMembership}
-            value={work.woNumber} selectedId={work.dailyPlanId}
+            value={selected?(selected.woNumber||`${selected.pid} ${selected.activity} ${selected.dailyPlanId}`):work.woNumber} selectedId={work.dailyPlanId}
             onQuery={value=>update(work.workId,{woNumber:value,dailyPlanId:'',
               pid:'',activity:'',description:'',monthlyPlanLineId:'',completed:false})}
             onSelect={row=>selectWo(work.workId,row)}
@@ -142,7 +146,7 @@ export default function QcMultiPaddockSection({kind,rows,works,sources,disabled=
           <span>{money(source.quantity)} {source.unit}</span>
         </div>
         {works.filter(w=>w.dailyPlanId).map(w=><label className="qc-multi-allocation" key={w.workId}>
-          <span>{w.pid} · {w.woNumber}</span>
+          <span>{w.pid} · {w.woNumber||'Tanpa WO'} · {w.activity}</span>
           <input disabled={disabled} inputMode="decimal" type="number" min="0" step="0.001"
             aria-label={'Alokasi '+source.material+' untuk '+w.pid}
             value={w.materialAllocations?.[source.id]??''}
