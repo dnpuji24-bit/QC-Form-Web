@@ -77,6 +77,9 @@ jobs:
       - name: Validate Daily WO-first and cross-shift planning
         run: npm run test:plan:daily-wo-first
 
+      - name: Validate Daily WhatsApp layout and material totals
+        run: npm run test:plan:daily-wa-layout
+
       - name: Check TypeScript types
         run: npm run typecheck
 
