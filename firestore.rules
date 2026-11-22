@@ -312,7 +312,7 @@ service cloud.firestore {
     match /master_activities/{activityId} {
       allow read: if activeUser();
       allow create, update: if activeUser() && (canEditKey('data_master_activity_list',['owner','asisten']) || canEditKey('data_master_activity_manage',['owner','asisten']) || canEditKey('data_master_activity_import',['owner','asisten']));
-      allow delete: if activeUser() && role() == 'owner';
+      allow delete: if false; // Preserve ACT codes, QC and Plan history
     }
 
     match /master_materials/{materialId} {
@@ -346,14 +346,41 @@ service cloud.firestore {
     }
 
     // Activity/CoA catalog is independent from validation ACT codes and material recipes.
+    // Five-column Activity/Operation register. Existing slug-based legacy
+    // documents remain valid, but new records use immutable op-<Operation Code>.
     match /master_activity_catalog/{catalogId} {
       allow read: if activeUser();
-      allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten'])
+      allow create: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.department is string
+        && request.resource.data.department.size() > 0
+        && request.resource.data.activityCategory is string
+        && request.resource.data.activityCategory.size() > 0
+        && request.resource.data.operationCode is string
+        && request.resource.data.operationCode.matches('^[0-9]{1,20}$')
+        && catalogId == 'op-' + request.resource.data.operationCode
+        && request.resource.data.coaCode is string
+        && request.resource.data.coaCode.matches('^[0-9]{0,20}$')
+        && request.resource.data.active is bool;
+      allow update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten'])
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.coaCode is string
-        && request.resource.data.coaCode.matches('^[0-9]{1,20}$');
+        && request.resource.data.coaCode.matches('^[0-9]{0,20}$')
+        && request.resource.data.get('operationCode','') == resource.data.get('operationCode','')
+        && request.resource.data.active is bool;
       allow delete: if false;
+    }
+    // Append-only audit stores previous and new catalog values, independently
+    // of the current ACTIVE/ARCHIVED master record.
+    match /master_activity_catalog_history/{historyId} {
+      allow read: if activeUser() && canViewKey('data_master_activity_resources',['owner','manager','admin','asisten']);
+      allow create: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten'])
+        && request.resource.data.keys().hasAll(['catalogId','action','before','after','createdAt','createdBy'])
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.catalogId is string;
+      allow update, delete: if false;
     }
 
     match /master_activity_types/{typeId} {
