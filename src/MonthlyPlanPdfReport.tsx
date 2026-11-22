@@ -93,11 +93,13 @@ export default function MonthlyPlanPdfReport({monthKey}:{monthKey:string}){
       const items=rows.filter(r=>r.week===w)
       return{week:w,items,target:items.reduce((s,r)=>s+r.target,0),actual:items.reduce((s,r)=>s+r.actual,0)}
     })
-    const usage=new Map<string,Usage>()
+    const usage=new Map<string,Usage>(),weeklyUsage=new Map<string,Map<string,Usage>>()
     for(const row of rows)for(const m of row.materials){
       const key=norm(m.name)+'|'+norm(m.unit)
       const entry=usage.get(key)||{name:m.name,unit:m.unit,planned:0,estimated:0,qc:0,qcKnown:false}
       entry.planned+=m.dose*row.target;entry.estimated+=m.dose*row.actual;usage.set(key,entry)
+      const weekly=weeklyUsage.get(row.week)||new Map<string,Usage>(),part=weekly.get(key)||{name:m.name,unit:m.unit,planned:0,estimated:0,qc:0,qcKnown:false}
+      part.planned+=m.dose*row.target;part.estimated+=m.dose*row.actual;weekly.set(key,part);weeklyUsage.set(row.week,weekly)
     }
     // A QC session is counted once only. Multi-paddock must supply explicit allocations;
     // otherwise mark it as unallocated rather than duplicating the total across PIDs.
@@ -115,8 +117,10 @@ export default function MonthlyPlanPdfReport({monthKey}:{monthKey:string}){
         for(const work of selectedWorks){
           const allocations=(work.materialAllocations&&typeof work.materialAllocations==='object'?work.materialAllocations:{}) as Raw
           for(const [key,val] of Object.entries(allocations)){
+            const matchingPlan=rows.find(p=>norm(p.id)===norm(work.monthlyPlanLineId)&&norm(p.pid)===norm(work.pid))
             const item=[...usage.values()].find(u=>norm(u.name)===norm(key))
-            if(item&&typeof val==='number'&&Number.isFinite(val)){item.qc+=val;item.qcKnown=true}
+            const weekly=matchingPlan?[...(weeklyUsage.get(matchingPlan.week)?.values()||[])].find(u=>norm(u.name)===norm(key)):undefined
+            if(item&&weekly&&typeof val==='number'&&Number.isFinite(val)){item.qc+=val;item.qcKnown=true;weekly.qc+=val;weekly.qcKnown=true}
           }
         }
       }else{
@@ -125,12 +129,14 @@ export default function MonthlyPlanPdfReport({monthKey}:{monthKey:string}){
         for(const source of sources){
           const key=norm(source.material)+'|'+norm(source.unit)
           const item=usage.get(key)
-          if(item&&typeof source.quantity==='number'&&Number.isFinite(source.quantity)){item.qc+=source.quantity;item.qcKnown=true}
+          const matchingPlan=rows.find(p=>norm(p.id)===norm(raw.monthlyPlanLineId)&&norm(p.pid)===norm(raw.paddock||raw.pid))
+          const weekly=matchingPlan?weeklyUsage.get(matchingPlan.week)?.get(key):undefined
+          if(item&&weekly&&typeof source.quantity==='number'&&Number.isFinite(source.quantity)){item.qc+=source.quantity;item.qcKnown=true;weekly.qc+=source.quantity;weekly.qcKnown=true}
           else unallocated.push(id)
         }
       }
     }
-    return{byWeek,usage:[...usage.values()].sort((a,b)=>a.name.localeCompare(b.name)),unallocated,
+    return{byWeek,weeklyUsage:[...weeklyUsage.entries()].map(([week,items])=>({week,items:[...items.values()]})),usage:[...usage.values()].sort((a,b)=>a.name.localeCompare(b.name)),unallocated,
       target:rows.reduce((s,r)=>s+r.target,0),actual:rows.reduce((s,r)=>s+r.actual,0),rows}
   },[chosen,actuals,plans,qcRows,cutoff,mode,from,to,custom])
   function download(){
@@ -153,7 +159,7 @@ export default function MonthlyPlanPdfReport({monthKey}:{monthKey:string}){
         y+=height
       }
       doc.setTextColor(24,62,51);doc.setFont('helvetica','bold');doc.setFontSize(15);doc.text('MONTHLY PLAN & ACTUAL REPORT',margin,y)
-      y+=7;doc.setFontSize(9);doc.setFont('helvetica','normal');doc.text('PT GLOBAL PAPUA ABADI  |  '+monthKey+'  |  As of '+cutoff,y?margin:margin,y)
+      y+=7;doc.setFontSize(9);doc.setFont('helvetica','normal');doc.text('PT GLOBAL PAPUA ABADI  |  '+monthKey+'  |  As of '+cutoff,margin,y)
       y+=8;row(['Selected weeks: '+weeks.join(', '),'Target: '+fmt(summary.target)+' Ha','Actual: '+fmt(summary.actual)+' Ha','Balance: '+fmt(summary.target-summary.actual)+' Ha'],[80,67,67,59],true)
       heading('WEEKLY SUMMARY')
       row(['Week / Date range','Target Ha','Actual Ha','Balance Ha','Progress'],[68,50,50,50,55],true)
@@ -172,6 +178,12 @@ export default function MonthlyPlanPdfReport({monthKey}:{monthKey:string}){
           mat.forEach((m,i)=>row([m.name+(m.dose?' / '+fmt(m.dose)+' '+m.unit+'/Ha':''),i?'':fmt(p.target),i?'':fmt(p.actual),i?'':fmt(p.target-p.actual)],[132,47,47,47]))
         }
         row([week.week+' SUBTOTAL',fmt(week.target),fmt(week.actual),fmt(week.target-week.actual)],[132,47,47,47],true)
+      }
+      heading('WEEKLY MATERIAL BREAKDOWN')
+      for(const week of summary.weeklyUsage){
+        heading(week.week+' MATERIAL USAGE')
+        row(['Material','Unit','Planned','Estimated','QC Actual','Variance'],[71,25,38,58,43,38],true)
+        week.items.forEach(m=>row([m.name,m.unit,fmt(m.planned),fmt(m.estimated),m.qcKnown?fmt(m.qc):'Pending QC',m.qcKnown?fmt(m.estimated-m.qc):'—'],[71,25,38,58,43,38]))
       }
       heading('MONTHLY MATERIAL USAGE')
       row(['Material','Unit','Planned','Estimated (Actual x Dose)','QC Actual Used','Variance (Estimate - QC)'],[71,25,38,58,43,38],true)
@@ -200,9 +212,9 @@ export default function MonthlyPlanPdfReport({monthKey}:{monthKey:string}){
     {!loading&&loadedMonth===monthKey&&<><div className="section-head"><strong>Pilih pekerjaan ({chosen.length} terpilih)</strong><div><button type="button" onClick={()=>setSelectedIds(plans.map(p=>p.id+'|'+p.pid+'|'+p.activity))}>Pilih semua</button><button type="button" onClick={()=>setSelectedIds([])}>Kosongkan</button></div></div>
       <div style={{maxHeight:220,overflow:'auto'}}>{plans.filter(p=>weeks.includes(p.week)).map(p=>{const key=p.id+'|'+p.pid+'|'+p.activity;return <label key={key} style={{display:'block',padding:'5px 0'}}><input type="checkbox" checked={selectedIds.includes(key)} onChange={e=>setSelectedIds(old=>e.target.checked?[...old,key]:old.filter(v=>v!==key))}/> {p.week} · {p.wo||'No WO'} · {p.pid} · {p.activity} · {fmt(p.target)} Ha</label>})}</div>
       <div className="summary-wide-table"><table className="summary-plan-report-table"><thead><tr><th>Week</th><th>Target</th><th>Actual</th><th>Balance</th><th>Progress</th></tr></thead><tbody>{summary.byWeek.map(w=><tr key={w.week}><td>{w.week}</td><td>{fmt(w.target)}</td><td>{fmt(w.actual)}</td><td>{fmt(w.target-w.actual)}</td><td>{w.target?fmt(w.actual/w.target*100)+'%':'—'}</td></tr>)}</tbody></table></div>
-      <h4>Material Usage Preview</h4><div className="summary-wide-table"><table className="summary-plan-report-table"><thead><tr><th>Material</th><th>Unit</th><th>Planned</th><th>Estimated</th><th>QC Actual</th><th>Variance</th></tr></thead><tbody>{summary.usage.map(m=><tr key={m.name+'|'+m.unit}><td>{m.name}</td><td>{m.unit}</td><td>{fmt(m.planned)}</td><td>{fmt(m.estimated)}</td><td>{m.qcKnown?fmt(m.qc):'Pending QC'}</td><td>{m.qcKnown?fmt(m.estimated-m.qc):'—'}</td></tr>)}</tbody></table></div>
+      <h4>Material Usage Preview (Weekly)</h4>{summary.weeklyUsage.map(w=><div key={w.week}><strong>{w.week}</strong><div className="summary-wide-table"><table className="summary-plan-report-table"><thead><tr><th>Material</th><th>Unit</th><th>Planned</th><th>Estimated</th><th>QC Actual</th><th>Variance</th></tr></thead><tbody>{w.items.map(m=><tr key={m.name+'|'+m.unit}><td>{m.name}</td><td>{m.unit}</td><td>{fmt(m.planned)}</td><td>{fmt(m.estimated)}</td><td>{m.qcKnown?fmt(m.qc):'Pending QC'}</td><td>{m.qcKnown?fmt(m.estimated-m.qc):'—'}</td></tr>)}</tbody></table></div></div>)}<h4>Monthly Material Total</h4><div className="summary-wide-table"><table className="summary-plan-report-table"><thead><tr><th>Material</th><th>Unit</th><th>Planned</th><th>Estimated</th><th>QC Actual</th><th>Variance</th></tr></thead><tbody>{summary.usage.map(m=><tr key={m.name+'|'+m.unit}><td>{m.name}</td><td>{m.unit}</td><td>{fmt(m.planned)}</td><td>{fmt(m.estimated)}</td><td>{m.qcKnown?fmt(m.qc):'Pending QC'}</td><td>{m.qcKnown?fmt(m.estimated-m.qc):'—'}</td></tr>)}</tbody></table></div>
       <p className="muted">QC hanya dihitung jika memiliki kuantitas eksplisit dan cocok dengan pekerjaan. Data QC draft, tak cocok, atau tidak teralokasi tidak dianggap sebagai pemakaian nol. Actual mengikuti referensi Monthly Plan walaupun dikerjakan pada minggu berikutnya.</p>
-      <button type="button" className="summary-excel-button" disabled={!chosen.length||!weeks.length||printing||!!error||!!qcError} onClick={download}>{printing?'Membuat PDF…':'Export PDF · '+weeks.join(', ')}</button>
+      <button type="button" className="summary-excel-button" disabled={!chosen.length||!weeks.length||printing||!!error} onClick={download}>{printing?'Membuat PDF…':'Export PDF · '+weeks.join(', ')}</button>
     </>}
   </section>
 }
