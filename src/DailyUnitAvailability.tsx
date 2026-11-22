@@ -27,7 +27,7 @@ export default function DailyUnitAvailability({unitName,date,shift,required,pref
     const range=shiftWindow(date,shift)
     const matching=units.filter(u=>key(u.kind)===key(unitName))
     const results=matching.map(u=>{
-      const condition=conditionAt(events,u.id,range.endMinute)
+      const condition=conditionAt(events,u.id,range.startMinute)
       const allocated=assignments.some(a=>a.unitId===u.id&&a.status!=='CANCELLED'&&a.status!=='REPLACED'&&overlaps(a,range))
       return{...u,condition,allocated}
     })
