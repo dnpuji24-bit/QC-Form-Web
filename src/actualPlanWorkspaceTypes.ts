@@ -13,6 +13,12 @@ export type SavedActualRow={
   monthlyLinkStatus:string
   dailyPlanId:string
   monthlyPlanLineId:string
+  woNumber:string
+  plannedShift:string
+  dailyShift:string
+  operationCode:string
+  coaCode:string
+  department:string
   companyCode:string
   farm:string
   pid:string

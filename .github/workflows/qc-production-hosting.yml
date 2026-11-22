@@ -80,6 +80,12 @@ jobs:
       - name: Validate Daily WhatsApp layout and material totals
         run: npm run test:plan:daily-wa-layout
 
+      - name: Validate Actual WO-first and independent shift
+        run: npm run test:plan:actual-wo-first
+
+      - name: Validate Actual WhatsApp layout and totals
+        run: npm run test:plan:actual-wa-layout
+
       - name: Check TypeScript types
         run: npm run typecheck
 
