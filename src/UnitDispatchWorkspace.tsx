@@ -5,6 +5,7 @@ import { canEditAccess } from './accessControl'
 import type { User } from './types'
 import MasterResourceImportPanel from './MasterResourceImportPanel'
 import UnitMasterGrid from './UnitMasterGrid'
+import {supportUnitRows} from './dailyUnitSupport'
 import { assignmentConflict, clean, conditionAt, count, dateMinute, normalizeAssignment, normalizeEvent, normalizeUnitNumber, overlaps, shiftWindow, slotCoverage, timeWindow, unitMatches, type UnitAssignment, type UnitCondition, type UnitEvent, type UnitEventType, type UnitNumber, type UnitRequirement } from './unitDispatchModel'
 
 type Raw = Record<string,unknown>
@@ -38,10 +39,16 @@ function buildRequirements(rows:Raw[],date:string):UnitRequirement[]{
     const groupKey=id+'|'+clean(r.shift)
     const existing=groups.get(groupKey)||[];existing.push(r);groups.set(groupKey,existing)
   })
-  return[...groups.entries()].map(([groupKey,groupRows])=>{
+  return[...groups.entries()].flatMap(([groupKey,groupRows])=>{
     const first=groupRows[0],name=clean(first.unitName)
-    return{id:groupKey,date,shift:clean(first.shift)||'1',workGroupId:clean(first.workGroupId||first.dailyPlanId),activity:clean(first.activity),woNumber:clean(first.woNumber),pids:[...new Set(groupRows.map(r=>clean(r.pid)).filter(Boolean))],unitName:name,quantity:count(first.unitRequired),preferred:Array.isArray(first.unitPreferredCodes)?first.unitPreferredCodes.map(clean):[]}
-  }).sort((a,b)=>a.shift.localeCompare(b.shift)||a.activity.localeCompare(b.activity))
+    const common={date,shift:clean(first.shift)||'1',workGroupId:clean(first.workGroupId||first.dailyPlanId),activity:clean(first.activity),woNumber:clean(first.woNumber),pids:[...new Set(groupRows.map(r=>clean(r.pid)).filter(Boolean))]}
+    const main:UnitRequirement={...common,id:groupKey+'|primary',requirementId:'primary',role:'MAIN',unitName:name,quantity:count(first.unitRequired),preferred:Array.isArray(first.unitPreferredCodes)?first.unitPreferredCodes.map(clean):[]}
+    const additional=supportUnitRows(first.supportUnits).map(item=>({...common,
+      id:groupKey+'|support:'+item.id,requirementId:'support:'+item.id,role:'SUPPORT' as const,
+      unitName:item.unitName,quantity:item.unitRequired,preferred:item.unitPreferredCodes,notes:item.notes
+    }))
+    return[main,...additional].filter(r=>r.quantity>0||r.unitName.trim())
+  }).sort((a,b)=>a.shift.localeCompare(b.shift)||a.activity.localeCompare(b.activity)||(a.role==='MAIN'?-1:1))
 }
 function eventConditionLabel(value:UnitCondition){return value==='OUT_OF_SERVICE'?'Out of Service':value[0]+value.slice(1).toLowerCase()}
 function dispatchBadge(value:string){return value==='READY'||value==='WORKING'?'success':value==='BREAKDOWN'?'danger':value==='MAINTENANCE'||value==='PENDING_INSPECTION'?'warning':'secondary'}
@@ -96,7 +103,7 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
   }
   const focused=dayRequirements.find(r=>r.id===focusWork)
   const sourceAssignment=assignments.find(a=>a.id===replacementOf)
-  const assignmentFor= (r:UnitRequirement)=>assignments.filter(a=>a.workGroupId===r.workGroupId&&a.date===date&&a.shift===r.shift&&a.status!=='CANCELLED')
+  const assignmentFor= (r:UnitRequirement)=>assignments.filter(a=>a.workGroupId===r.workGroupId&&a.date===date&&a.shift===r.shift&&(a.requirementId||'primary')===(r.requirementId||'primary')&&a.status!=='CANCELLED')
   async function saveAssignment(){
     if(!editor||!focused)return
     setBusy(true);setMessage('')
@@ -113,9 +120,9 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
       if(conditionAt(latestEvents,unit.id,window.startMinute)!=='READY')throw Error('Unit tidak berstatus Ready pada jadwal tersebut.')
       if(latestEvents.some(e=>e.unitId===unit.id&&e.effectiveMinute>window.startMinute&&e.effectiveMinute<window.endMinute&&['BREAKDOWN','MAINTENANCE','OUT_OF_SERVICE'].includes(e.type)))throw Error('Ada kejadian Breakdown/Maintenance dalam interval penugasan.')
       if(assignmentConflict(latestAssignments,unit.id,window,replacementOf))throw Error('Jadwal unit bertabrakan dengan pekerjaan lain.')
-      const currentActive=latestAssignments.filter(a=>a.workGroupId===focused.workGroupId&&a.date===date&&a.shift===shift&&a.status!=='CANCELLED'&&a.status!=='REPLACED').length
+      const currentActive=latestAssignments.filter(a=>a.workGroupId===focused.workGroupId&&a.date===date&&a.shift===shift&&(a.requirementId||'primary')===(focused.requirementId||'primary')&&a.status!=='CANCELLED'&&a.status!=='REPLACED').length
       if(!sourceAssignment&&currentActive>=focused.quantity)throw Error('Semua slot kebutuhan sudah terisi. Batalkan penugasan lama atau gunakan Replacement.')
-      if(sourceAssignment&&(sourceAssignment.workGroupId!==focused.workGroupId||sourceAssignment.date!==date))throw Error('Replacement tidak cocok dengan pekerjaan asal.')
+      if(sourceAssignment&&(sourceAssignment.workGroupId!==focused.workGroupId||sourceAssignment.date!==date||(sourceAssignment.requirementId||'primary')!==(focused.requirementId||'primary')))throw Error('Replacement tidak cocok dengan pekerjaan asal.')
       if(sourceAssignment&&unit.id===sourceAssignment.unitId)throw Error('Unit pengganti harus berbeda dari unit yang digantikan.')
       if(sourceAssignment&&window.startMinute<sourceAssignment.startMinute)throw Error('Replacement tidak boleh dimulai sebelum penugasan lama.')
       if(sourceAssignment){
@@ -130,7 +137,7 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
         const actualEnd=changed?Math.min(changed.effectiveMinute,sourceAssignment.endMinute):Math.min(window.startMinute,sourceAssignment.endMinute)
         batch.update(doc(db,'unit_assignments',sourceAssignment.id),{status:'REPLACED',endMinute:Math.max(sourceAssignment.startMinute+1,actualEnd),updatedByUid:uid,updatedAt:serverTimestamp()})
       }
-      batch.set(doc(db,'unit_assignments',id),{unitId:unit.id,unitCode:unit.code,workGroupId:focused.workGroupId,date,shift,startTime:start,endTime:end,...window,activity:focused.activity,woNumber:focused.woNumber,pids:focused.pids,status:'ASSIGNED',notes:assignmentNotes.trim(),replacesAssignmentId:sourceAssignment?.id||'',createdByUid:uid,createdBy:name,createdAt:serverTimestamp(),updatedAt:serverTimestamp()})
+      batch.set(doc(db,'unit_assignments',id),{unitId:unit.id,unitCode:unit.code,workGroupId:focused.workGroupId,date,shift,startTime:start,endTime:end,...window,activity:focused.activity,woNumber:focused.woNumber,pids:focused.pids,status:'ASSIGNED',notes:assignmentNotes.trim(),requirementId:focused.requirementId||'primary',unitName:focused.unitName,replacesAssignmentId:sourceAssignment?.id||'',createdByUid:uid,createdBy:name,createdAt:serverTimestamp(),updatedAt:serverTimestamp()})
       await batch.commit();setReplacementOf('');setSlotUnit('');setAssignmentNotes('');setMessage('Penugasan unit berhasil disimpan.');refresh()
     }catch(e){setMessage(e instanceof Error?e.message:'Penugasan gagal disimpan.')}finally{setBusy(false)}
   }
@@ -221,7 +228,7 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
                     <td style={{padding:9,width:'13%',borderBottom:'1px solid #e2e8f0'}}>{r.woNumber||'—'}</td>
                     <td style={{padding:9,width:'15%',borderBottom:'1px solid #e2e8f0'}}>{r.pids.join(', ')||'—'}</td>
                     <td style={{padding:9,width:'19%',borderBottom:'1px solid #e2e8f0'}}>{r.activity||'—'}</td>
-                    <td style={{padding:9,width:'17%',borderBottom:'1px solid #e2e8f0'}}>{r.unitName||'—'}</td>
+                    <td style={{padding:9,width:'17%',borderBottom:'1px solid #e2e8f0'}}>{r.role==='SUPPORT'?'Support · ':'Utama · '}{r.unitName||'—'}</td>
                     <td style={{padding:9,width:'7%',borderBottom:'1px solid #e2e8f0'}}>{r.quantity}</td>
                     <td style={{padding:9,width:'7%',borderBottom:'1px solid #e2e8f0'}}>{covered}</td>
                     <td style={{padding:9,width:'7%',borderBottom:'1px solid #e2e8f0',fontWeight:700,color:r.quantity>covered?'#b45309':'#166534'}}>{Math.max(0,r.quantity-covered)}</td>
