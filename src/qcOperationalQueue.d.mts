@@ -19,3 +19,6 @@ export function flushOperationalJobs(uid:string,deps:{
 },factory?:IDBFactory):Promise<{sent:number;left:number;failures:Array<{id:string;error:string}>}>
 
 export function enqueueOperationalBatch<J extends OperationalJob>(jobs:J[],factory?:IDBFactory):Promise<Array<J&{id:string;createdAt:number}>>
+
+// Diagnostic lookup is read-only and scoped to the requested record ID.
+export function operationalFailureForRecord(failures: Array<{id:string;error:string}>|undefined,recordId:string):string
