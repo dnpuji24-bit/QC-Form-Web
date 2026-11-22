@@ -16,7 +16,7 @@ import {dailyWoSnapshot,shiftIsCrossOver,normalizeWo,type DailyWoChoice} from '.
 
 type Props={user:User;selectedDate?:string;onDateChange?:(date:string)=>void;onSaved?:()=>void;composerRequest?:DailyComposerRequest;onComposerRequestHandled?:()=>void}
 type Monthly=DailyWoChoice&{companyCode:string;farm:string;manualActualAreaHa:number;sourceStatus:string;status:string;type:string;activityCategory:string;stage:string;masterVariety:string;componentsSnapshot:unknown[];catalogActivityId:string;activityCode:string}
-type Daily={dailyPlanId:string;monthlyPlanLineId:string;date:string;shift:string;pid:string;activity:string;description:string;areaHa:number}
+type Daily={dailyPlanId:string;monthlyPlanLineId:string;date:string;shift:string;pid:string;activity:string;description:string;areaHa:number;woNumber?:string;plannedShift?:string;coaCode?:string;operationCode?:string;department?:string;catalogActivityId?:string;activityCode?:string}
 type Actual={id:string;monthlyPlanLineId:string;pid:string;activity:string;description:string;actualAreaHa:number}
 type MasterPaddock={pid:string;companyCode:string;farm:string;stage:string;variety:string}
 type MasterActivity={id:string;description:string;activity:string;type:string;activityCategory:string;active:boolean;componentsSnapshot:unknown[]}
