@@ -423,12 +423,12 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    function archivedActual(reportId) {
+    function archivedActual(reportId, data) {
       return (reportId.matches('^qcactual_.+')
           && qcArchived(reportId.replace('^qcactual_', '')))
-        || (request.resource.data.get('qcRecordId','') is string
-          && request.resource.data.get('qcRecordId','') != ''
-          && qcArchived(request.resource.data.qcRecordId));
+        || (data.get('qcRecordId','') is string
+          && data.get('qcRecordId','') != ''
+          && qcArchived(data.qcRecordId));
     }
     function lockedHistoricalActual(reportId, data) {
       return (reportId.matches('^qcactual_.+') && historicalQcLocked(reportId.replace('^qcactual_', '')))
@@ -436,15 +436,15 @@ service cloud.firestore {
     }
     match /daily_reports/{reportId} {
       allow read: if activeUser();
-      allow create: if activeUser() && !lockedHistoricalActual(reportId, request.resource.data) && !archivedActual(reportId) && (
+      allow create: if activeUser() && !lockedHistoricalActual(reportId, request.resource.data) && !archivedActual(reportId, request.resource.data) && (
         canEditEither('data_plan_actual','data_plan_actual_import',['owner','asisten'])
         || validQcActualWrite()
       );
-      allow update: if activeUser() && !lockedHistoricalActual(reportId, resource.data) && !lockedHistoricalActual(reportId, request.resource.data) && !archivedActual(reportId) && (
+      allow update: if activeUser() && !lockedHistoricalActual(reportId, resource.data) && !lockedHistoricalActual(reportId, request.resource.data) && !archivedActual(reportId, resource.data) && !archivedActual(reportId, request.resource.data) && (
         canEditEither('data_plan_actual','data_plan_actual_import',['owner','asisten'])
         || (resource.data.sourceOrigin == 'QC' && resource.data.qcRecordId == request.resource.data.qcRecordId && validQcActualWrite())
       );
-      allow delete: if activeUser() && !lockedHistoricalActual(reportId, resource.data) && (
+      allow delete: if activeUser() && !lockedHistoricalActual(reportId, resource.data) && !archivedActual(reportId, resource.data) && (
         role() == 'owner'
         || (resource.data.sourceOrigin == 'QC' && canEditKey('qc_records',['owner','manager','admin','asisten']))
       );
