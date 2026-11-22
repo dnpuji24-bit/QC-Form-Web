@@ -5,7 +5,7 @@ import { canEditAccess } from './accessControl'
 import type { User } from './types'
 import MasterResourceImportPanel from './MasterResourceImportPanel'
 import UnitMasterGrid from './UnitMasterGrid'
-import { assignmentConflict, clean, conditionAt, count, dateMinute, key, normalizeAssignment, normalizeEvent, normalizeUnitNumber, overlaps, shiftWindow, slotCoverage, timeWindow, unitMatches, type UnitAssignment, type UnitCondition, type UnitEvent, type UnitEventType, type UnitNumber, type UnitRequirement } from './unitDispatchModel'
+import { assignmentConflict, clean, conditionAt, count, dateMinute, normalizeAssignment, normalizeEvent, normalizeUnitNumber, overlaps, shiftWindow, slotCoverage, timeWindow, unitMatches, type UnitAssignment, type UnitCondition, type UnitEvent, type UnitEventType, type UnitNumber, type UnitRequirement } from './unitDispatchModel'
 
 type Raw = Record<string,unknown>
 type Kind={id:string;name:string}
@@ -52,6 +52,7 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
   const[kinds,setKinds]=useState<Kind[]>([]),[units,setUnits]=useState<UnitNumber[]>([]),[events,setEvents]=useState<UnitEvent[]>([]),[assignments,setAssignments]=useState<UnitAssignment[]>([]),[requirements,setRequirements]=useState<UnitRequirement[]>([])
   const[loading,setLoading]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[search,setSearch]=useState('')
   const[focusWork,setFocusWork]=useState(''),[slotUnit,setSlotUnit]=useState(''),[start,setStart]=useState('08:00'),[end,setEnd]=useState('10:00')
+  const[dispatchSearch,setDispatchSearch]=useState(''),[assignmentNotes,setAssignmentNotes]=useState(''),[noteDrafts,setNoteDrafts]=useState<Record<string,string>>({})
   const[replacementOf,setReplacementOf]=useState('')
   const[focusUnit,setFocusUnit]=useState('')
   const[eventType,setEventType]=useState<UnitEventType>('BREAKDOWN'),[eventTime,setEventTime]=useState('10:30'),[eventNote,setEventNote]=useState('')
@@ -89,7 +90,7 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
   const availableFor=(r:UnitRequirement)=>{
     const window=timeWindow(date,shift,start,end)
     if(!window)return[]
-    return units.filter(u=>unitMatches(u,r)&&conditionAt(events,u.id,window.startMinute,u.importNeedsInspection?'PENDING_INSPECTION':'READY')==='READY'&&
+    return units.filter(u=>unitMatches(u,r)&&conditionAt(events,u.id,window.startMinute)==='READY'&&
       !events.some(ev=>ev.unitId===u.id&&ev.effectiveMinute>window.startMinute&&ev.effectiveMinute<window.endMinute&&['BREAKDOWN','MAINTENANCE','OUT_OF_SERVICE'].includes(ev.type))&&
       !assignmentConflict(assignments,u.id,window,replacementOf))
   }
@@ -129,8 +130,8 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
         const actualEnd=changed?Math.min(changed.effectiveMinute,sourceAssignment.endMinute):Math.min(window.startMinute,sourceAssignment.endMinute)
         batch.update(doc(db,'unit_assignments',sourceAssignment.id),{status:'REPLACED',endMinute:Math.max(sourceAssignment.startMinute+1,actualEnd),updatedByUid:uid,updatedAt:serverTimestamp()})
       }
-      batch.set(doc(db,'unit_assignments',id),{unitId:unit.id,unitCode:unit.code,workGroupId:focused.workGroupId,date,shift,startTime:start,endTime:end,...window,activity:focused.activity,woNumber:focused.woNumber,pids:focused.pids,status:'ASSIGNED',replacesAssignmentId:sourceAssignment?.id||'',createdByUid:uid,createdBy:name,createdAt:serverTimestamp(),updatedAt:serverTimestamp()})
-      await batch.commit();setReplacementOf('');setSlotUnit('');setMessage('Penugasan unit berhasil disimpan.');refresh()
+      batch.set(doc(db,'unit_assignments',id),{unitId:unit.id,unitCode:unit.code,workGroupId:focused.workGroupId,date,shift,startTime:start,endTime:end,...window,activity:focused.activity,woNumber:focused.woNumber,pids:focused.pids,status:'ASSIGNED',notes:assignmentNotes.trim(),replacesAssignmentId:sourceAssignment?.id||'',createdByUid:uid,createdBy:name,createdAt:serverTimestamp(),updatedAt:serverTimestamp()})
+      await batch.commit();setReplacementOf('');setSlotUnit('');setAssignmentNotes('');setMessage('Penugasan unit berhasil disimpan.');refresh()
     }catch(e){setMessage(e instanceof Error?e.message:'Penugasan gagal disimpan.')}finally{setBusy(false)}
   }
   async function markAssignment(a:UnitAssignment,status:'WORKING'|'COMPLETED'|'CANCELLED'){
@@ -140,6 +141,20 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
       await updateDoc(doc(db,'unit_assignments',a.id),{status,updatedByUid:uid,updatedAt:serverTimestamp()})
       setMessage('Status penugasan diperbarui.');refresh()
     }catch(e){setMessage(e instanceof Error?e.message:'Perubahan gagal.')}finally{setBusy(false)}
+  }
+  async function saveAssignmentNote(a:UnitAssignment){
+    if(!editor)return
+    const note=(noteDrafts[a.id]??a.notes).trim()
+    if(note.length>1500){setMessage('Keterangan maksimal 1.500 karakter.');return}
+    setBusy(true);setMessage('')
+    try{
+      const{db,uid}=await currentActor()
+      await updateDoc(doc(db,'unit_assignments',a.id),{
+        notes:note,updatedByUid:uid,updatedAt:serverTimestamp()
+      })
+      setMessage('Keterangan penugasan '+a.unitCode+' tersimpan.')
+      refresh()
+    }catch(e){setMessage(e instanceof Error?e.message:'Keterangan gagal disimpan.')}finally{setBusy(false)}
   }
   async function saveEvent(){
     if(!reporter||!focusUnit)return
@@ -187,43 +202,71 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
       </div>}
     </div>
     {tab==='dispatch'&&<div style={{display:'grid',gap:12,marginTop:12}}>
-      <div className="panel"><h3>Daily Plan — Kebutuhan Unit</h3>
+      <div className="panel">
+        <h3>Daily Plan — Unit Dispatch (Tabel)</h3>
+        <p className="muted">Cari pekerjaan lalu pilih Atur Unit. Unit yang sama dapat digunakan pada kedua shift dan beberapa Activity secara berurutan, selama jadwal tidak bertabrakan.</p>
+        <label>Cari WO, PID, Activity, atau jenis unit
+          <input type="search" value={dispatchSearch} onChange={e=>setDispatchSearch(e.target.value)} placeholder="Cari pekerjaan atau unit…"/>
+        </label>
         {!dayRequirements.length&&<p className="muted">Belum ada Daily Plan pada tanggal ini.</p>}
-        <div style={{display:'grid',gap:9}}>{dayRequirements.map(r=>{
-          const covered=slotCoverage(r,assignments,events)
-          return <div key={r.id} style={{border:'1px solid #e0e7ef',borderRadius:10,padding:12}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'start',gap:12,flexWrap:'wrap'}}>
-              <div><strong>{r.activity||'Activity belum ada'}</strong><small style={{display:'block',color:'#64748b'}}>{r.woNumber||'Tanpa WO'} · {r.pids.join(', ')||'Tanpa PID'} · {r.unitName||'Jenis unit belum ditentukan'}</small></div>
-              <span style={{fontWeight:600}}>{covered} / {r.quantity} unit</span>
-            </div>
-            {r.quantity===0&&<p className="muted" style={{fontSize:12}}>Jumlah unit belum ditentukan di Daily Plan. Data lama tetap ditampilkan tanpa asumsi.</p>}
-            {r.preferred.length>0&&<small className="muted">Usulan dari Daily Plan: {r.preferred.join(', ')}</small>}
-            <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:9}}>
-              {editor&&<button type="button" onClick={()=>{setFocusWork(r.id);setReplacementOf('');setSlotUnit('')}}>Assign Unit</button>}
-              <button type="button" onClick={()=>setFocusWork(focusWork===r.id?'':r.id)}>{focusWork===r.id?'Tutup':'Lihat penugasan'}</button>
-            </div>
-            {focusWork===r.id&&<div style={{borderTop:'1px solid #e2e8f0',marginTop:12,paddingTop:12,display:'grid',gap:8}}>
-              {assignmentFor(r).map(a=><div key={a.id} style={{background:'#f6f8fb',borderRadius:8,padding:9}}>
-                <strong>{a.unitCode}</strong> · {a.startTime}–{a.endTime} · {a.status}
-                {events.some(e=>e.unitId===a.unitId&&e.effectiveMinute>=a.startMinute&&e.effectiveMinute<a.endMinute&&['BREAKDOWN','MAINTENANCE','OUT_OF_SERVICE'].includes(e.type))&&a.status!=='REPLACED'&&<small style={{display:'block',color:'#a54c27'}}>Affected by Breakdown / Maintenance — periksa Replacement.</small>}
-                {a.replacesAssignmentId&&<small style={{display:'block'}}>Replacement dari {a.replacesAssignmentId}</small>}
-                {editor&&a.status!=='CANCELLED'&&a.status!=='REPLACED'&&<div style={{display:'flex',gap:6,marginTop:8,flexWrap:'wrap'}}>
-                  {a.status==='ASSIGNED'&&<button type="button" disabled={busy} onClick={()=>void markAssignment(a,'WORKING')}>Mulai Working</button>}
-                  {a.status!=='COMPLETED'&&<button type="button" disabled={busy} onClick={()=>void markAssignment(a,'COMPLETED')}>Selesai</button>}
-                  <button type="button" disabled={busy} onClick={()=>{setReplacementOf(a.id);setSlotUnit('');setStart(a.endTime)}}>Replace</button>
-                  {a.status==='ASSIGNED'&&<button type="button" disabled={busy} onClick={()=>void markAssignment(a,'CANCELLED')}>Batalkan</button>}
-                </div>}
-              </div>)}
-              {editor&&<div style={{display:'grid',gap:8}}>
-                <strong>{replacementOf?'Unit Pengganti':'Tambah Penugasan'}</strong>
-                <div className="form-grid"><label>Mulai<input type="time" value={start} onChange={e=>setStart(e.target.value)}/></label><label>Selesai<input type="time" value={end} onChange={e=>setEnd(e.target.value)}/></label></div>
-                <label>Kode unit<select value={slotUnit} onChange={e=>setSlotUnit(e.target.value)}><option value="">Pilih unit Ready yang tidak bentrok…</option>{availableFor(r).map(u=><option key={u.id} value={u.id}>{u.code} · {u.kind}{u.implement?' / '+u.implement:''}</option>)}</select></label>
-                {replacementOf&&<small className="muted">Menggantikan {sourceAssignment?.unitCode||replacementOf}. Histori penugasan lama tetap tersimpan.</small>}
-                <div style={{display:'flex',gap:8}}><button type="button" disabled={busy||!slotUnit} onClick={()=>void saveAssignment()}>{busy?'Menyimpan…':replacementOf?'Simpan Replacement':'Simpan Assignment'}</button>{replacementOf&&<button type="button" onClick={()=>setReplacementOf('')}>Batal Replacement</button>}</div>
-              </div>}
-            </div>}
-          </div>
-        })}</div>
+        <div className="table-wrap" style={{maxHeight:600,overflow:'auto',marginTop:10,border:'1px solid #dce5ef',borderRadius:8}}>
+          <table style={{width:'100%',minWidth:850,borderCollapse:'separate',borderSpacing:0,fontSize:13}}>
+            <thead><tr>{['Shift','WO','PID','Activity','Jenis Unit','Required','Assigned','Shortage','Aksi'].map(title=><th key={title} style={{position:'sticky',top:0,zIndex:1,background:'#eaf0f7',borderBottom:'1px solid #dce5ef',padding:9,textAlign:'left'}}>{title}</th>)}</tr></thead>
+            <tbody>{dayRequirements.filter(r=>[r.activity,r.woNumber,r.pids.join(' '),r.unitName].some(v=>v.toLowerCase().includes(dispatchSearch.toLowerCase()))).map(r=>{
+              const covered=slotCoverage(r,assignments,events)
+              return <tr key={r.id}><td colSpan={9} style={{padding:0}}>
+                <table style={{width:'100%',minWidth:850,borderCollapse:'collapse'}}><tbody>
+                  <tr style={{background:focusWork===r.id?'#f0f6ff':'#fff'}}>
+                    <td style={{padding:9,width:'7%',borderBottom:'1px solid #e2e8f0'}}>{r.shift}</td>
+                    <td style={{padding:9,width:'13%',borderBottom:'1px solid #e2e8f0'}}>{r.woNumber||'—'}</td>
+                    <td style={{padding:9,width:'15%',borderBottom:'1px solid #e2e8f0'}}>{r.pids.join(', ')||'—'}</td>
+                    <td style={{padding:9,width:'19%',borderBottom:'1px solid #e2e8f0'}}>{r.activity||'—'}</td>
+                    <td style={{padding:9,width:'17%',borderBottom:'1px solid #e2e8f0'}}>{r.unitName||'—'}</td>
+                    <td style={{padding:9,width:'7%',borderBottom:'1px solid #e2e8f0'}}>{r.quantity}</td>
+                    <td style={{padding:9,width:'7%',borderBottom:'1px solid #e2e8f0'}}>{covered}</td>
+                    <td style={{padding:9,width:'7%',borderBottom:'1px solid #e2e8f0',fontWeight:700,color:r.quantity>covered?'#b45309':'#166534'}}>{Math.max(0,r.quantity-covered)}</td>
+                    <td style={{padding:9,borderBottom:'1px solid #e2e8f0'}}><button type="button" onClick={()=>{setFocusWork(focusWork===r.id?'':r.id);setReplacementOf('');setSlotUnit('')}}>{focusWork===r.id?'Tutup':'Atur Unit'}</button></td>
+                  </tr>
+                  {focusWork===r.id&&<tr><td colSpan={9} style={{padding:12,background:'#f7faff'}}>
+                    {r.quantity===0&&<p className="muted">Isi Jumlah Unit Diperlukan pada Daily Plan. Data lama tidak otomatis diubah.</p>}
+                    {r.preferred.length>0&&<p className="muted">Usulan kode unit: {r.preferred.join(', ')}</p>}
+                    <div style={{overflowX:'auto'}}><table style={{minWidth:670,width:'100%',borderCollapse:'collapse'}}>
+                      <thead><tr><th>Kode Unit</th><th>Mulai</th><th>Selesai</th><th>Status</th><th>Keterangan</th><th>Aksi</th></tr></thead>
+                      <tbody>{assignmentFor(r).map(a=><tr key={a.id}>
+                        <td><strong>{a.unitCode}</strong>{a.replacesAssignmentId&&<small style={{display:'block'}}>Pengganti</small>}</td>
+                        <td>{a.startTime}</td><td>{a.endTime}</td><td>{a.status}</td>
+                        <td><div style={{display:'flex',gap:5}}>
+                          <input style={{minWidth:170,maxWidth:300}} aria-label={'Keterangan '+a.unitCode} value={noteDrafts[a.id]??a.notes} disabled={!editor||busy} onChange={e=>setNoteDrafts(d=>({...d,[a.id]:e.target.value}))} placeholder="Tambahkan keterangan…"/>
+                          {editor&&<button type="button" disabled={busy||(noteDrafts[a.id]??a.notes)===a.notes} onClick={()=>void saveAssignmentNote(a)}>Simpan</button>}
+                        </div></td>
+                        <td><div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
+                          {editor&&a.status==='ASSIGNED'&&<button type="button" disabled={busy} onClick={()=>void markAssignment(a,'WORKING')}>Working</button>}
+                          {editor&&a.status!=='COMPLETED'&&a.status!=='CANCELLED'&&a.status!=='REPLACED'&&<button type="button" disabled={busy} onClick={()=>void markAssignment(a,'COMPLETED')}>Selesai</button>}
+                          {editor&&a.status!=='CANCELLED'&&a.status!=='REPLACED'&&<button type="button" disabled={busy} onClick={()=>{setReplacementOf(a.id);setSlotUnit('');setStart(a.endTime)}}>Replace</button>}
+                          {editor&&a.status==='ASSIGNED'&&<button type="button" disabled={busy} onClick={()=>void markAssignment(a,'CANCELLED')}>Batalkan</button>}
+                        </div></td>
+                      </tr>)}</tbody>
+                    </table></div>
+                    {editor&&<div style={{display:'grid',gap:9,marginTop:12,padding:10,border:'1px solid #dce5ef',borderRadius:8,background:'#fff'}}>
+                      <strong>{replacementOf?'Unit pengganti':'Tambah penugasan unit'}</strong>
+                      <div className="form-grid">
+                        <label>Jam mulai<input type="time" value={start} onChange={e=>setStart(e.target.value)}/></label>
+                        <label>Jam selesai<input type="time" value={end} onChange={e=>setEnd(e.target.value)}/></label>
+                        <label>Kode unit<select value={slotUnit} onChange={e=>setSlotUnit(e.target.value)}><option value="">Pilih unit Ready…</option>{availableFor(r).map(u=><option key={u.id} value={u.id}>{u.code} · {u.kind}</option>)}</select></label>
+                      </div>
+                      <label>Keterangan penugasan<input value={assignmentNotes} onChange={e=>setAssignmentNotes(e.target.value)} placeholder="Misalnya: alokasi water tank ke A-007"/></label>
+                      {replacementOf&&<small className="muted">Menggantikan {sourceAssignment?.unitCode||replacementOf}. Histori penugasan lama tetap tersimpan.</small>}
+                      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                        <button type="button" disabled={busy||!slotUnit} onClick={()=>void saveAssignment()}>{busy?'Menyimpan…':replacementOf?'Simpan Unit Pengganti':'Simpan Penugasan'}</button>
+                        {replacementOf&&<button type="button" onClick={()=>setReplacementOf('')}>Batal Replacement</button>}
+                      </div>
+                    </div>}
+                  </td></tr>}
+                </tbody></table>
+              </td></tr>
+            })}</tbody>
+          </table>
+        </div>
       </div>
       <div className="panel"><h3>Unit Fisik & Standby Otomatis</h3>
         <input aria-label="Cari unit" placeholder="Cari kode unit, equipment, implement…" value={search} onChange={e=>setSearch(e.target.value)}/>
