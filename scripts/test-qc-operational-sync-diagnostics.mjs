@@ -34,4 +34,11 @@ check('UI retry no longer claims success when sync fails',()=>{
   assert.match(q,/store\.put\(\{\.\.\.item,lastError:message,lastAttemptAt:Date\.now\(\)\}\)/)
   assert.match(q,/if\(item\?\.record\?\.clientRevision===job\.record\.clientRevision\)/)
 })
+check('TypeScript declarations expose diagnostic helper and persisted error metadata',()=>{
+  const declarations=readFileSync(new URL('../src/qcOperationalQueue.d.mts',import.meta.url),'utf8')
+  assert.match(declarations,/export function operationalFailureForRecord\(/)
+  const adapters=readFileSync(new URL('../src/qcOperationalAdapters.ts',import.meta.url),'utf8')
+  assert.match(adapters,/type PersistedJob=OperationalJob&\{id:string;createdAt:number;lastError\?:string\}/)
+  assert.match(adapters,/type PersistedQcJob=Job&\{id:string;createdAt:number;lastError\?:string\}/)
+})
 console.log('SUCCESS: '+count+' focused retry diagnostic tests passed (OFFLINE, NO WRITES)')
