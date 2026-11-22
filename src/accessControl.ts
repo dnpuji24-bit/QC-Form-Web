@@ -23,6 +23,7 @@ export type PermissionKey=
   |'data_master_activity_resources'
   |'data_master_activity_import'
   |'data_company'
+  |'data_unit_dispatch'
 
 export type UserPermissions=Partial<Record<PermissionKey,AccessMode>>
 
@@ -51,6 +52,7 @@ export const PERMISSION_CATALOG:PermissionItem[]=[
   {key:'data_master_activity_resources',group:'Data UnM',menu:'Master Activity',subMenu:'Master Resource',editable:true},
   {key:'data_master_activity_import',group:'Data UnM',menu:'Master Activity',subMenu:'Update / Import',editable:true},
   {key:'data_company',group:'Data UnM',menu:'Company & Prefix',subMenu:'Company & Prefix',editable:true},
+  {key:'data_unit_dispatch',group:'Data UnM',menu:'Unit Management',subMenu:'Unit Dispatch, Breakdown & Maintenance',editable:true},
 ]
 
 const NONE:UserPermissions={}
@@ -65,12 +67,12 @@ export function defaultPermissionsForRole(role:Role):UserPermissions{
     data_plan_actual:'edit',data_plan_actual_import:'edit',data_plan_reconciliation:'view',
     data_master_paddock_list:'view',data_master_paddock_import:'edit',
     data_master_activity_list:'edit',data_master_activity_manage:'edit',data_master_activity_resources:'edit',data_master_activity_import:'edit',
-    data_company:'view',
+    data_company:'view',data_unit_dispatch:'edit',
   } as UserPermissions)
-  if(role==='manager')return merge(setAll('none'),{qc_dashboard:'view',qc_records:'edit',qc_logs:'view',qc_settings:'view'} as UserPermissions)
+  if(role==='manager')return merge(setAll('none'),{qc_dashboard:'view',qc_records:'edit',qc_logs:'view',qc_settings:'view',data_unit_dispatch:'view'} as UserPermissions)
   if(role==='admin')return merge(setAll('none'),{qc_dashboard:'view',qc_records:'edit',qc_logs:'view',qc_settings:'edit'} as UserPermissions)
-  if(role==='mandor_spraying')return merge(setAll('none'),{qc_dashboard:'view',qc_spraying:'edit',qc_records:'view',qc_settings:'view'} as UserPermissions)
-  if(role==='mandor_fertilizer')return merge(setAll('none'),{qc_dashboard:'view',qc_fertilizer:'edit',qc_records:'view',qc_settings:'view'} as UserPermissions)
+  if(role==='mandor_spraying')return merge(setAll('none'),{qc_dashboard:'view',qc_spraying:'edit',qc_records:'view',qc_settings:'view',data_unit_dispatch:'view'} as UserPermissions)
+  if(role==='mandor_fertilizer')return merge(setAll('none'),{qc_dashboard:'view',qc_fertilizer:'edit',qc_records:'view',qc_settings:'view',data_unit_dispatch:'view'} as UserPermissions)
   if(role==='pengunjung')return merge(setAll('none'),{qc_dashboard:'view',qc_records:'view'} as UserPermissions)
   return NONE
 }
