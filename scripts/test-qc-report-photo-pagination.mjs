@@ -57,3 +57,20 @@ test('invalid bounds and screenshot dimensions are handled defensively', () => {
   ])
   assertLossless(pages, 3000)
 })
+
+test('transparent information frames and an entire photo section are never split', () => {
+  // Screenshot pixels after applying the report-export-capture layout.
+  const groups = [
+    { top: 80, bottom: 255 }, // report title frame
+    { top: 2150, bottom: 2600 }, // long multiline notes in transparent grid cell
+    { top: 2740, bottom: 3300 }, // fertilizer table frame
+    { top: 3900, bottom: 5050 }, // main QC photo + caption frame
+    { top: 5130, bottom: 5290 }  // footer
+  ]
+  const pages = paginateReportImage(5450, 2380, groups)
+  assertLossless(pages, 5450)
+  for(const group of groups) {
+    assert.ok(pages.some(p => p.start <= group.top && p.end >= group.bottom),
+      'a field/photo frame was divided between PDF pages')
+  }
+})
