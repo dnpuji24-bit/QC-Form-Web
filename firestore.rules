@@ -343,6 +343,65 @@ service cloud.firestore {
       allow delete: if activeUser() && role() == 'owner';
     }
 
+    // Unit dispatch: reports are append-only. A Mandor may report a breakdown, but
+    // only an Asisten/Owner may allocate units or approve their return to Ready.
+    match /unit_events/{eventId} {
+      allow read: if activeUser() && canViewKey('data_unit_dispatch',['owner','manager','asisten','mandor_spraying','mandor_fertilizer']);
+      allow create: if activeUser()
+        && canViewKey('data_unit_dispatch',['owner','asisten','mandor_spraying','mandor_fertilizer'])
+        && request.resource.data.keys().hasAll(['unitId','unitCode','type','effectiveMinute','date','shift','note','actorUid','createdAt'])
+        && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.unitId is string
+        && request.resource.data.unitCode is string
+        && request.resource.data.note is string
+        && request.resource.data.note.size() > 0
+        && request.resource.data.note.size() <= 1500
+        && request.resource.data.date is string
+        && request.resource.data.shift in ['1','2']
+        && request.resource.data.effectiveMinute is int
+        && exists(/databases/$(database)/documents/master_unit_numbers/$(request.resource.data.unitId))
+        && (
+          (request.resource.data.type == 'BREAKDOWN'
+           && role() in ['owner','asisten','mandor_spraying','mandor_fertilizer'])
+          || (request.resource.data.type in ['MAINTENANCE','PENDING_INSPECTION','READY_APPROVED']
+           && canEditKey('data_unit_dispatch',['owner','asisten'])
+           && role() in ['owner','asisten'])
+        );
+      allow update, delete: if false;
+    }
+
+    match /unit_assignments/{assignmentId} {
+      allow read: if activeUser() && canViewKey('data_unit_dispatch',['owner','manager','asisten','mandor_spraying','mandor_fertilizer']);
+      allow create: if activeUser()
+        && canEditKey('data_unit_dispatch',['owner','asisten'])
+        && role() in ['owner','asisten']
+        && request.resource.data.keys().hasAll(['unitId','unitCode','workGroupId','date','shift','startMinute','endMinute','status','createdByUid','createdAt'])
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.unitId is string
+        && request.resource.data.workGroupId is string
+        && request.resource.data.date is string
+        && request.resource.data.shift in ['1','2']
+        && request.resource.data.startMinute is int
+        && request.resource.data.endMinute is int
+        && request.resource.data.endMinute > request.resource.data.startMinute
+        && request.resource.data.endMinute <= request.resource.data.startMinute + 1440
+        && request.resource.data.status == 'ASSIGNED'
+        && exists(/databases/$(database)/documents/master_unit_numbers/$(request.resource.data.unitId));
+      allow update: if activeUser()
+        && canEditKey('data_unit_dispatch',['owner','asisten'])
+        && role() in ['owner','asisten']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','endMinute','updatedByUid','updatedAt'])
+        && request.resource.data.status in ['ASSIGNED','WORKING','COMPLETED','CANCELLED','REPLACED']
+        && request.resource.data.endMinute is int
+        && request.resource.data.endMinute > resource.data.startMinute
+        && request.resource.data.endMinute <= resource.data.endMinute
+        && request.resource.data.updatedByUid == request.auth.uid
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+
     match /master_units/{unitId} {
       allow read: if activeUser();
       allow create, update: if activeUser() && canEditKey('data_master_activity_resources',['owner','asisten']);

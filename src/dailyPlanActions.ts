@@ -18,6 +18,8 @@ export type DailyPlanTransfer={
   areaHa:number
   manpower:number
   unitName:string
+  unitRequired?:number
+  unitPreferredCodes?:string[]
   unitReady:number
   unitStandby:number
   unitBreakdown:number

@@ -34,6 +34,8 @@ export type SavedDailyRow={
   areaUnit:string
   manpower:number
   unitName:string
+  unitRequired:number
+  unitPreferredCodes:string[]
   unitReady:number
   unitStandby:number
   unitBreakdown:number
@@ -60,6 +62,8 @@ export type SavedDailyGroup={
   description:string
   manpower:number
   unitName:string
+  unitRequired:number
+  unitPreferredCodes:string[]
   unitReady:number
   unitStandby:number
   unitBreakdown:number
@@ -98,6 +102,8 @@ export function groupSavedDailyRows(rows:SavedDailyRow[]):SavedDailyGroup[]{
       description:first.description,
       manpower:first.manpower,
       unitName:first.unitName,
+      unitRequired:first.unitRequired,
+      unitPreferredCodes:first.unitPreferredCodes,
       unitReady:first.unitReady,
       unitStandby:first.unitStandby,
       unitBreakdown:first.unitBreakdown,

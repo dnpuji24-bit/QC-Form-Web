@@ -69,6 +69,11 @@ jobs:
           npm install --no-save --no-package-lock @firebase/rules-unit-testing@5
           npx --yes firebase-tools@14 emulators:exec --only firestore --project demo-qc-multi-paddock --config firebase.native-cutover-browser-emulator.json "node scripts/test-qc-multi-paddock-rules-emulator.mjs"
 
+      - name: Verify Unit Dispatch role and approval rules in emulator
+        run: |
+          npm install --no-save --no-package-lock @firebase/rules-unit-testing@5
+          npx --yes firebase-tools@14 emulators:exec --only firestore --project demo-qc-unit-dispatch --config firebase.native-cutover-browser-emulator.json "node scripts/test-unit-dispatch-rules-emulator.mjs"
+
       - name: Verify TypeScript
         run: npm run typecheck
       - name: Build React safely
