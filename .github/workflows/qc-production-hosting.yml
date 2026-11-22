@@ -89,6 +89,9 @@ jobs:
       - name: Validate QC Spray and Fertilizer WO parity across shifts
         run: npm run test:qc:wo-shift-parity
 
+      - name: Validate QC Multi-Paddock allocation and atomic Actual
+        run: npm run test:qc:multi-paddock
+
       - name: Check TypeScript types
         run: npm run typecheck
 
