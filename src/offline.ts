@@ -3,6 +3,7 @@ import {qcFirestoreOnly,qcFlushMode} from './qcCutover'
 import {assertLegacyQcWriteAllowed} from './qcCutoverPolicy.mjs'
 import { isOperationalQcId, queueOperationalFinalize } from './qcOperationalFormBridge'
 import { operationalSaveEnabled, operationalQueuedRecords, flushOperationalQc } from './qcOperationalAdapters'
+import { operationalFailureForRecord } from './qcOperationalQueue.mjs'
 import { qcApi } from './api'
 import { flushQcPhotoQueue, queueQcRecordPhotos, supabaseQcPhotoPreviewEnabled } from './qcSupabasePhotos'
 import { firebaseAuth, firebaseAuthPersistenceReady } from './firebase'
@@ -165,13 +166,27 @@ async function sendServerFirst(token:string,action:QueueAction,record:QcRecord):
 
 export async function queueCount(){const username=currentUsername();return(await allItems()).filter(item=>belongsToCurrentUser(item,username)).length+(operationalSaveEnabled&&firebaseAuth?.currentUser? (await operationalQueuedRecords()).length:0)}
 export async function legacyQueueInventory(){return summarizeLegacyQueue(await allItems(),currentUsername())}
-export async function queuedRecords(){const username=currentUsername();const owned=(await allItems()).filter(item=>belongsToCurrentUser(item,username));const legacy=(qcFirestoreOnly?owned:await recoverInterruptedUploads(owned)).map(item=>item.record);const next=operationalSaveEnabled&&firebaseAuth?.currentUser?await operationalQueuedRecords():[];return [...legacy,...next.map(job=>({...job.record,saveType:job.action==='finalizeRecord'?'upload_queued':job.record.saveType==='draft'?'draft_queued':job.record.saveType==='uploaded'?'upload_queued':'ready',firestoreSaveState:'queued'} as QcRecord))]}
+export async function queuedRecords(){const username=currentUsername();const owned=(await allItems()).filter(item=>belongsToCurrentUser(item,username));const legacy=(qcFirestoreOnly?owned:await recoverInterruptedUploads(owned)).map(item=>item.record);const next=operationalSaveEnabled&&firebaseAuth?.currentUser?await operationalQueuedRecords():[];return [...legacy,...next.map(job=>({...job.record,saveType:job.action==='finalizeRecord'?'upload_queued':job.record.saveType==='draft'?'draft_queued':job.record.saveType==='uploaded'?'upload_queued':'ready',firestoreSaveState:'queued',...(job.lastError?{firestoreSaveError:String(job.lastError).slice(0,280)}:{})} as QcRecord))]}
 export async function discardQueuedRecord(recordId:string){if(qcFirestoreOnly)throw Error('Antrean lama dipertahankan selama cutover.');const username=currentUsername();await replaceItems((await allItems()).filter(item=>item.record.id!==recordId||!belongsToCurrentUser(item,username)))}
 export async function enqueue(action:QueueAction,record:QcRecord){if(isOperationalQcId(record.id))throw Error('QC baru tidak boleh masuk antrean lama');await enqueueInternal(action,record)}
 
 export async function retryQueuedRecord(recordOrId:QcRecord|string,token:string):Promise<boolean>{
   const recordId=typeof recordOrId==='string'?recordOrId:recordOrId.id
-  if(isOperationalQcId(recordId)){if(!operationalSaveEnabled)throw Error('QC baru belum diaktifkan');await flushOperationalQc();return true}
+  if(isOperationalQcId(recordId)){
+    if(!operationalSaveEnabled)throw Error('QC baru belum diaktifkan')
+    const pending=(await operationalQueuedRecords()).find(job=>job.record.id===recordId)
+    if(!pending)return false
+    const result=await flushOperationalQc()
+    const failure=operationalFailureForRecord(result.failures,recordId)
+    if(failure){
+      emitUploadState({...pending.record,saveType:pending.record.saveType==='draft'?'draft_queued':pending.record.saveType,
+        firestoreSaveState:'queued',firestoreSaveError:failure})
+      throw Error('Sinkronisasi QC belum berhasil: '+failure)
+    }
+    const remains=(await operationalQueuedRecords()).some(job=>job.record.id===recordId)
+    if(remains)throw Error('Sinkronisasi QC belum terkonfirmasi. Antrean aman; periksa koneksi dan sesi Firebase.')
+    return true
+  }
   assertLegacyQcWriteAllowed(recordId,qcFirestoreOnly)
   const running=manualRetryLocks.get(recordId);if(running)return running
   const task=(async()=>{
