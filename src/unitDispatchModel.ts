@@ -43,7 +43,8 @@ export function unitMatches(u:UnitNumber,requirement:UnitRequirement){
   return key(u.kind)===key(requirement.unitName) || (!!u.parentUnitId && key(u.parentUnitId)===key(requirement.unitName))
 }
 export function slotCoverage(requirement:UnitRequirement,assignments:UnitAssignment[],events:UnitEvent[]){
-  const matching=assignments.filter(a=>a.workGroupId===requirement.workGroupId&&a.date===requirement.date&&a.shift===requirement.shift&&a.status!=='CANCELLED'&&a.status!=='REPLACED'&&conditionAt(events,a.unitId,a.startMinute)==='READY')
+  const matching=assignments.filter(a=>a.workGroupId===requirement.workGroupId&&a.date===requirement.date&&a.shift===requirement.shift&&a.status!=='CANCELLED'&&a.status!=='REPLACED'&&conditionAt(events,a.unitId,a.startMinute)==='READY'&&
+    !events.some(e=>e.unitId===a.unitId&&e.effectiveMinute>a.startMinute&&e.effectiveMinute<a.endMinute&&e.type!=='READY_APPROVED'))
   return Math.min(requirement.quantity,new Set(matching.map(a=>a.unitId)).size)
 }
 export function normalizeUnitNumber(id:string,raw:Record<string,unknown>):UnitNumber{
