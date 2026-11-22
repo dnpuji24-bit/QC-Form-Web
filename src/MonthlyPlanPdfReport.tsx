@@ -49,6 +49,7 @@ export default function MonthlyPlanPdfReport({monthKey}:{monthKey:string}){
   const[loading,setLoading]=useState(false),[error,setError]=useState(''),[loadedMonth,setLoadedMonth]=useState('')
   const[qcError,setQcError]=useState(''),[cutoff,setCutoff]=useState(()=>new Date().toISOString().slice(0,10))
   const[printing,setPrinting]=useState(false)
+  const[showWorks,setShowWorks]=useState(false),[searchWork,setSearchWork]=useState(''),[showMaterial,setShowMaterial]=useState(false)
   const weeks=mode==='all'?[...WEEKS]:mode==='range'?WEEKS.filter(w=>WEEKS.indexOf(w)>=WEEKS.indexOf(from)&&WEEKS.indexOf(w)<=WEEKS.indexOf(to)):WEEKS.filter(w=>custom.includes(w))
   useEffect(()=>{
     let active=true
@@ -139,6 +140,7 @@ export default function MonthlyPlanPdfReport({monthKey}:{monthKey:string}){
     return{byWeek,weeklyUsage:[...weeklyUsage.entries()].map(([week,items])=>({week,items:[...items.values()]})),usage:[...usage.values()].sort((a,b)=>a.name.localeCompare(b.name)),unallocated,
       target:rows.reduce((s,r)=>s+r.target,0),actual:rows.reduce((s,r)=>s+r.actual,0),rows}
   },[chosen,actuals,plans,qcRows,cutoff,mode,from,to,custom])
+  const visibleWorks=plans.filter(p=>weeks.includes(p.week)&&[p.wo,p.pid,p.activity,p.description].join(' ').toLocaleLowerCase('id-ID').includes(searchWork.toLocaleLowerCase('id-ID')))
   function download(){
     if(!summary.rows.length||loading||error)return
     setPrinting(true)
@@ -198,23 +200,57 @@ export default function MonthlyPlanPdfReport({monthKey}:{monthKey:string}){
     finally{setPrinting(false)}
   }
   return <section id="monthly-plan-pdf-report" className="panel" style={{marginTop:16,scrollMarginTop:24}}>
-    <div className="section-head"><div><div className="eyebrow">MONTHLY REPORT</div><h3>Draft Monthly Plan & Actual PDF</h3><p className="muted">Report A4 landscape · pengelompokan Week 1–4 · Planned, Estimated, dan QC Actual terpisah.</p></div></div>
-    <div className="form-grid">
-      <label>Rentang Week<select value={mode} onChange={e=>setMode(e.target.value as typeof mode)}><option value="all">Semua Week (1–4)</option><option value="range">Range berurutan</option><option value="custom">Pilih Week tertentu</option></select></label>
-      <label>Actual sampai tanggal<input type="date" value={cutoff} onChange={e=>setCutoff(e.target.value)}/></label>
+    <div className="section-head" style={{gap:12,alignItems:'center'}}>
+      <div><div className="eyebrow">MONTHLY REPORT</div><h3>Monthly Plan PDF</h3><p className="muted">Laporan ringkas target, aktual, dan pemakaian bahan · {monthKey}</p></div>
+      <button type="button" className="summary-excel-button" disabled={!chosen.length||!weeks.length||printing||loading||!!error} onClick={download}>{printing?'Membuat PDF…':'↓ Export PDF'}</button>
     </div>
-    {mode==='range'&&<div className="form-grid"><label>Dari<select value={from} onChange={e=>{setFrom(e.target.value);if(WEEKS.indexOf(e.target.value)>WEEKS.indexOf(to))setTo(e.target.value)}}>{WEEKS.map(w=><option key={w}>{w}</option>)}</select></label><label>Sampai<select value={to} onChange={e=>{setTo(e.target.value);if(WEEKS.indexOf(e.target.value)<WEEKS.indexOf(from))setFrom(e.target.value)}}>{WEEKS.map(w=><option key={w}>{w}</option>)}</select></label></div>}
-    {mode==='custom'&&<div style={{display:'flex',gap:14,flexWrap:'wrap'}}>{WEEKS.map(w=><label key={w}><input type="checkbox" checked={custom.includes(w)} onChange={e=>setCustom(old=>e.target.checked?[...old,w]:old.filter(x=>x!==w))}/> {w} ({range(monthKey,w)})</label>)}</div>}
-    <p className="muted">Terpilih: {weeks.map(w=>w+' ('+range(monthKey,w)+')').join(' · ')||'Belum ada Week'}. Week mengikuti konfigurasi Monthly Plan, bukan ISO calendar week.</p>
-    {loading&&<p role="status">Memuat laporan dan Actual terhubung…</p>}
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:12,alignItems:'end'}}>
+      <label>Week yang dicetak<select value={mode} onChange={e=>setMode(e.target.value as typeof mode)}><option value="all">Semua Week (1–4)</option><option value="range">Pilih rentang Week</option><option value="custom">Pilih Week tertentu</option></select></label>
+      <label>Aktual hingga tanggal<input type="date" value={cutoff} onChange={e=>setCutoff(e.target.value)}/></label>
+    </div>
+    {mode==='range'&&<div style={{display:'flex',gap:12,flexWrap:'wrap',marginTop:10}}>
+      <label>Dari<select value={from} onChange={e=>{setFrom(e.target.value);if(WEEKS.indexOf(e.target.value)>WEEKS.indexOf(to))setTo(e.target.value)}}>{WEEKS.map(w=><option key={w}>{w}</option>)}</select></label>
+      <label>Sampai<select value={to} onChange={e=>{setTo(e.target.value);if(WEEKS.indexOf(e.target.value)<WEEKS.indexOf(from))setFrom(e.target.value)}}>{WEEKS.map(w=><option key={w}>{w}</option>)}</select></label>
+    </div>}
+    {mode==='custom'&&<div style={{display:'flex',gap:16,flexWrap:'wrap',marginTop:12}}>{WEEKS.map(w=><label key={w} style={{display:'inline-flex',gap:5,alignItems:'center'}}><input type="checkbox" checked={custom.includes(w)} onChange={e=>setCustom(old=>e.target.checked?[...old,w]:old.filter(x=>x!==w))}/>{w}</label>)}</div>}
+    <p className="muted" style={{margin:'8px 0 14px',fontSize:13}}>{weeks.length?weeks.map(w=>w+': '+range(monthKey,w)).join('  ·  '):'Pilih setidaknya satu Week.'}</p>
+    {loading&&<p role="status">Memuat data pekerjaan…</p>}
     {error&&<p role="alert" className="alert danger">{error}</p>}
-    {qcError&&<p role="alert" className="alert">{qcError} — QC Actual dianggap belum lengkap, bukan 0.</p>}
-    {!loading&&loadedMonth===monthKey&&<><div className="section-head"><strong>Pilih pekerjaan ({chosen.length} terpilih)</strong><div><button type="button" onClick={()=>setSelectedIds(plans.map(p=>p.id+'|'+p.pid+'|'+p.activity))}>Pilih semua</button><button type="button" onClick={()=>setSelectedIds([])}>Kosongkan</button></div></div>
-      <div style={{maxHeight:220,overflow:'auto'}}>{plans.filter(p=>weeks.includes(p.week)).map(p=>{const key=p.id+'|'+p.pid+'|'+p.activity;return <label key={key} style={{display:'block',padding:'5px 0'}}><input type="checkbox" checked={selectedIds.includes(key)} onChange={e=>setSelectedIds(old=>e.target.checked?[...old,key]:old.filter(v=>v!==key))}/> {p.week} · {p.wo||'No WO'} · {p.pid} · {p.activity} · {fmt(p.target)} Ha</label>})}</div>
-      <div className="summary-wide-table"><table className="summary-plan-report-table"><thead><tr><th>Week</th><th>Target</th><th>Actual</th><th>Balance</th><th>Progress</th></tr></thead><tbody>{summary.byWeek.map(w=><tr key={w.week}><td>{w.week}</td><td>{fmt(w.target)}</td><td>{fmt(w.actual)}</td><td>{fmt(w.target-w.actual)}</td><td>{w.target?fmt(w.actual/w.target*100)+'%':'—'}</td></tr>)}</tbody></table></div>
-      <h4>Material Usage Preview (Weekly)</h4>{summary.weeklyUsage.map(w=><div key={w.week}><strong>{w.week}</strong><div className="summary-wide-table"><table className="summary-plan-report-table"><thead><tr><th>Material</th><th>Unit</th><th>Planned</th><th>Estimated</th><th>QC Actual</th><th>Variance</th></tr></thead><tbody>{w.items.map(m=><tr key={m.name+'|'+m.unit}><td>{m.name}</td><td>{m.unit}</td><td>{fmt(m.planned)}</td><td>{fmt(m.estimated)}</td><td>{m.qcKnown?fmt(m.qc):'Pending QC'}</td><td>{m.qcKnown?fmt(m.estimated-m.qc):'—'}</td></tr>)}</tbody></table></div></div>)}<h4>Monthly Material Total</h4><div className="summary-wide-table"><table className="summary-plan-report-table"><thead><tr><th>Material</th><th>Unit</th><th>Planned</th><th>Estimated</th><th>QC Actual</th><th>Variance</th></tr></thead><tbody>{summary.usage.map(m=><tr key={m.name+'|'+m.unit}><td>{m.name}</td><td>{m.unit}</td><td>{fmt(m.planned)}</td><td>{fmt(m.estimated)}</td><td>{m.qcKnown?fmt(m.qc):'Pending QC'}</td><td>{m.qcKnown?fmt(m.estimated-m.qc):'—'}</td></tr>)}</tbody></table></div>
-      <p className="muted">QC hanya dihitung jika memiliki kuantitas eksplisit dan cocok dengan pekerjaan. Data QC draft, tak cocok, atau tidak teralokasi tidak dianggap sebagai pemakaian nol. Actual mengikuti referensi Monthly Plan walaupun dikerjakan pada minggu berikutnya.</p>
-      <button type="button" className="summary-excel-button" disabled={!chosen.length||!weeks.length||printing||!!error} onClick={download}>{printing?'Membuat PDF…':'Export PDF · '+weeks.join(', ')}</button>
+    {qcError&&<p role="alert" className="alert">QC belum lengkap: {qcError}. PDF tetap dapat dibuat dengan penanda data parsial.</p>}
+    {!loading&&loadedMonth===monthKey&&<>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:8,marginBottom:14}}>
+        {([{label:'Pekerjaan',value:String(chosen.length)}, {label:'Target',value:fmt(summary.target)+' Ha'}, {label:'Actual',value:fmt(summary.actual)+' Ha'}, {label:'Balance',value:fmt(summary.target-summary.actual)+' Ha'}]).map(item=><div key={item.label} style={{padding:'10px 12px',background:'var(--bg-muted, #f1f5f9)',borderRadius:10,minWidth:0}}><small style={{display:'block',color:'#64748b'}}>{item.label}</small><strong style={{fontSize:16,overflowWrap:'anywhere'}}>{item.value}</strong></div>)}
+      </div>
+      <div style={{border:'1px solid #e2e8f0',borderRadius:12,marginBottom:12,overflow:'hidden'}}>
+        <button type="button" onClick={()=>setShowWorks(v=>!v)} aria-expanded={showWorks} style={{display:'flex',width:'100%',alignItems:'center',justifyContent:'space-between',gap:10,textAlign:'left',background:'transparent',padding:'12px 14px',fontWeight:600}}>
+          <span>Pilih pekerjaan <span className="muted" style={{fontWeight:400}}>({chosen.length} dari {plans.filter(p=>weeks.includes(p.week)).length} dipilih)</span></span><span>{showWorks?'Tutup −':'Ubah pilihan ＋'}</span>
+        </button>
+        {showWorks&&<div style={{padding:'0 14px 14px',borderTop:'1px solid #e2e8f0'}}>
+          <input aria-label="Cari WO, Paddock, atau Activity" placeholder="Cari WO / PID / Activity…" value={searchWork} onChange={e=>setSearchWork(e.target.value)} style={{width:'100%',margin:'12px 0'}}/>
+          <div style={{display:'flex',gap:8,marginBottom:8,flexWrap:'wrap'}}>
+            <button type="button" onClick={()=>setSelectedIds(old=>[...new Set([...old,...visibleWorks.map(p=>p.id+'|'+p.pid+'|'+p.activity)])])}>Pilih hasil ({visibleWorks.length})</button>
+            <button type="button" onClick={()=>setSelectedIds(old=>old.filter(id=>!visibleWorks.some(p=>id===p.id+'|'+p.pid+'|'+p.activity)))}>Hapus pilihan hasil</button>
+          </div>
+          <div style={{maxHeight:230,overflowY:'auto',display:'grid',gap:5}}>{visibleWorks.map(p=>{const key=p.id+'|'+p.pid+'|'+p.activity;return <label key={key} style={{display:'flex',alignItems:'center',gap:9,padding:'7px 5px',borderBottom:'1px solid #f1f5f9'}}>
+            <input type="checkbox" checked={selectedIds.includes(key)} onChange={e=>setSelectedIds(old=>e.target.checked?[...old,key]:old.filter(v=>v!==key))}/>
+            <span style={{flex:1,minWidth:0}}><strong>{p.wo||'No WO'}</strong> · {p.pid} <small className="muted">{p.week} · {p.activity} · {fmt(p.target)} Ha</small></span>
+          </label>})}{visibleWorks.length===0&&<p className="muted">Tidak ada pekerjaan sesuai pencarian.</p>}</div>
+        </div>}
+      </div>
+      <div className="summary-wide-table"><table className="summary-plan-report-table"><thead><tr><th>Week</th><th>Target Ha</th><th>Actual Ha</th><th>Balance Ha</th><th>Progress</th></tr></thead><tbody>{summary.byWeek.map(w=><tr key={w.week}><td><strong>{w.week}</strong></td><td>{fmt(w.target)}</td><td>{fmt(w.actual)}</td><td>{fmt(w.target-w.actual)}</td><td>{w.target?fmt(w.actual/w.target*100)+'%':'—'}</td></tr>)}</tbody></table></div>
+      <div style={{border:'1px solid #e2e8f0',borderRadius:12,margin:'12px 0',overflow:'hidden'}}>
+        <button type="button" onClick={()=>setShowMaterial(v=>!v)} aria-expanded={showMaterial} style={{display:'flex',width:'100%',justifyContent:'space-between',alignItems:'center',gap:10,textAlign:'left',background:'transparent',padding:'12px 14px',fontWeight:600}}>
+          <span>Rekap pemakaian bahan <small className="muted">({summary.usage.length} jenis)</small></span><span>{showMaterial?'Tutup −':'Lihat detail ＋'}</span>
+        </button>
+        {showMaterial&&<div style={{padding:'0 12px 12px'}}>
+          <div className="summary-wide-table"><table className="summary-plan-report-table"><thead><tr><th>Material</th><th>Unit</th><th>Planned</th><th>Estimated</th><th>QC Actual</th><th>Variance</th></tr></thead><tbody>{summary.usage.map(m=><tr key={m.name+'|'+m.unit}><td>{m.name}</td><td>{m.unit}</td><td>{fmt(m.planned)}</td><td>{fmt(m.estimated)}</td><td>{m.qcKnown?fmt(m.qc):'Pending QC'}</td><td>{m.qcKnown?fmt(m.estimated-m.qc):'—'}</td></tr>)}</tbody></table></div>
+          <small className="muted">Rincian material per Week tetap tersedia dalam PDF.</small>
+        </div>}
+      </div>
+      <div style={{display:'flex',gap:10,justifyContent:'flex-end',alignItems:'center',flexWrap:'wrap'}}>
+        <small className="muted">{weeks.length} Week · {chosen.length} pekerjaan · PDF A4 landscape</small>
+        <button type="button" className="summary-excel-button" disabled={!chosen.length||!weeks.length||printing||!!error} onClick={download}>{printing?'Membuat PDF…':'↓ Export PDF'}</button>
+      </div>
     </>}
   </section>
 }
