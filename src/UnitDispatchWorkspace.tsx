@@ -80,9 +80,10 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
   const local=siteClock(),localMinute=dateMinute(local.date,local.time)
   const nowMinute=date<local.date?windowShift.endMinute:date>local.date?windowShift.startMinute:Math.min(windowShift.endMinute,Math.max(windowShift.startMinute,localMinute))
   const shiftAssignments=assignments.filter(a=>overlaps(a,windowShift)&&a.status!=='CANCELLED')
+  const activeAtTime=(unitId:string)=>shiftAssignments.some(a=>a.unitId===unitId&&a.status!=='REPLACED'&&a.status!=='COMPLETED'&&a.startMinute<=nowMinute&&nowMinute<a.endMinute)
   const dayRequirements=requirements.filter(r=>r.shift===shift)
   const readyUnits=units.filter(u=>conditionAt(events,u.id,nowMinute)==='READY')
-  const standbyUnits=readyUnits.filter(u=>!shiftAssignments.some(a=>a.unitId===u.id&&a.status!=='REPLACED'))
+  const standbyUnits=readyUnits.filter(u=>!activeAtTime(u.id))
   const unavailable=units.filter(u=>conditionAt(events,u.id,nowMinute)!=='READY')
   const availableFor=(r:UnitRequirement)=>{
     const window=timeWindow(date,shift,start,end)
@@ -242,8 +243,8 @@ export default function UnitDispatchWorkspace({user,initialDate}:Props){
         <input aria-label="Cari unit" placeholder="Cari kode unit, equipment, implement…" value={search} onChange={e=>setSearch(e.target.value)}/>
         <div style={{maxHeight:360,overflowY:'auto',marginTop:10,display:'grid',gap:6}}>{filteredUnits.map(u=>{
           const state=conditionAt(events,u.id,nowMinute)
-          const busy=shiftAssignments.some(a=>a.unitId===u.id&&a.status!=='REPLACED')
-          const display=state==='READY'?(busy?'Assigned':'Standby'):eventConditionLabel(state)
+          const busy=activeAtTime(u.id)
+          const display=state==='READY'?(busy?'Assigned / Working':'Standby'):eventConditionLabel(state)
           return <div key={u.id} style={{padding:10,border:'1px solid #e2e8f0',borderRadius:9,display:'flex',justifyContent:'space-between',alignItems:'center',gap:10}}>
             <div><strong>{u.code}</strong><small style={{display:'block',color:'#64748b'}}>{u.kind}{u.implement?' · '+u.implement:''}</small></div>
             <div style={{display:'flex',gap:7,alignItems:'center'}}><span style={{fontSize:12,fontWeight:600,color:state==='READY'?'#27704f':'#9d493d'}}>{display}</span><button type="button" onClick={()=>{setFocusUnit(u.id);setTab('events')}}>Detail</button></div>
