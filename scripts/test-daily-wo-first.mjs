@@ -70,7 +70,7 @@ test('WO picker keyboard and multi PID preserve preexisting manual Monthly fallb
 test('Saved Daily / WhatsApp display WO without breaking historical Daily cards',()=>{
  for(const source of [types,list,wa])assert.match(source,/woNumber/)
  assert.match(list,/row\.woNumber&&<small>WO/)
- assert.match(wa,/if\(row\.woNumber\)lines\.push/)
+ assert.match(wa,/if\(row\.woNumber\)details\.push/)
  assert.match(list,/woNumber:text\(data\.woNumber\)/)
  assert.match(list,/plannedShift:text\(data\.plannedShift\)/)
  assert.match(entry,/Shift Aktual/)
