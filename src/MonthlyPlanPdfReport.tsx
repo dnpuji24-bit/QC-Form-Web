@@ -197,7 +197,7 @@ export default function MonthlyPlanPdfReport({monthKey}:{monthKey:string}){
     }catch(e){setError(e instanceof Error?e.message:'PDF gagal dibuat.')}
     finally{setPrinting(false)}
   }
-  return <section className="panel" style={{marginTop:16}}>
+  return <section id="monthly-plan-pdf-report" className="panel" style={{marginTop:16,scrollMarginTop:24}}>
     <div className="section-head"><div><div className="eyebrow">MONTHLY REPORT</div><h3>Draft Monthly Plan & Actual PDF</h3><p className="muted">Report A4 landscape · pengelompokan Week 1–4 · Planned, Estimated, dan QC Actual terpisah.</p></div></div>
     <div className="form-grid">
       <label>Rentang Week<select value={mode} onChange={e=>setMode(e.target.value as typeof mode)}><option value="all">Semua Week (1–4)</option><option value="range">Range berurutan</option><option value="custom">Pilih Week tertentu</option></select></label>
