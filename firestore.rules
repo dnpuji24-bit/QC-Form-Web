@@ -392,7 +392,7 @@ service cloud.firestore {
       allow update: if activeUser()
         && canEditKey('data_unit_dispatch',['owner','asisten'])
         && role() in ['owner','asisten']
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','endMinute','updatedByUid','updatedAt'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','endMinute','notes','updatedByUid','updatedAt'])
         && request.resource.data.status in ['ASSIGNED','WORKING','COMPLETED','CANCELLED','REPLACED']
         && request.resource.data.endMinute is int
         && request.resource.data.endMinute > resource.data.startMinute
