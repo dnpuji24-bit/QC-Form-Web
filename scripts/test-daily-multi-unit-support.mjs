@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import {test} from 'node:test'
 import {readFileSync} from 'node:fs'
 import {supportUnitRows,duplicateUnitCode} from '../src/dailyUnitSupport.ts'
-import {slotCoverage,dateMinute} from '../src/unitDispatchModel.ts'
+import {slotCoverage,dateMinute,unitMatchesType,normalizeUnitNumber} from '../src/unitDispatchModel.ts'
 const source=(path)=>readFileSync(new URL('../'+path,import.meta.url),'utf8')
 test('Stool Splitter can plan one DT support under a single work group',()=>{
  const support=supportUnitRows([{id:'support-dt',unitName:'DUMP TRUCK',unitRequired:1,
@@ -43,4 +43,13 @@ test('Existing Daily Plans with one unit remain compatible with new support rows
  const list=source('src/DailyPlanListPanel.tsx')
  assert.match(list,/dispatchByGroup/)
  assert.match(list,/dispatchUnits/)
+})
+
+test('DT alias matches DUMP TRUCK and implementation matches tractor with Stool Splitter attachment',()=>{
+ const dt=normalizeUnitNumber('dump-truck-dt123t',{name:'DT123T',parentUnitName:'DUMP TRUCK',parentUnitId:'dump-truck',active:true})
+ const tractor=normalizeUnitNumber('tractor-tr015g',{name:'TR015G',parentUnitName:'TRACTOR',parentUnitId:'tractor',implement:'STOOL SPLITTER',active:true})
+ assert.equal(unitMatchesType(dt,'DT'),true)
+ assert.equal(unitMatchesType(dt,'DUMP TRUCK'),true)
+ assert.equal(unitMatchesType(tractor,'STOOL SPLITTER'),true)
+ assert.equal(unitMatchesType(tractor,'DUMP TRUCK'),false)
 })
