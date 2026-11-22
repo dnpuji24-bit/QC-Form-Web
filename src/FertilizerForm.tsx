@@ -10,6 +10,9 @@ import QcSavedPhotoPicker from './QcSavedPhotoPicker'
 import type { HoldInterval, MasterData, MaterialMaster, PlanMaster, QcRecord, User } from './types'
 import { loadAllOperationalResources, mergeResourceNames, unitNumbersForUnit, type OperationalResource } from './masterOperationalResources'
 import QcWorkOrderSmartSearch from './QcWorkOrderSmartSearch'
+import QcMultiPaddockSection,{blankQcPaddockWork} from './QcMultiPaddockSection'
+import {validateQcMultiPaddock,qcWorkMap} from './qcMultiPaddock.mjs'
+import type {QcMultiPaddockWork,QcMultiMaterialSource} from './types'
 import { dailyPlansForQcSession, qcShiftOneCarryoverCandidates, loadQcDailyPlans, qcShiftValue, qcWorkOrderPlans, qcExplicitWorkOrderPlan, qcMergeEligiblePlans, type QcDailyPlan } from './qcDailyPlanSource'
 import { fertilizerChoices, fertilizerChoiceByName, fertilizerIngredientKey, suggestedFertilizerName, type FertilizerMasterProduct } from './qcFertilizerProducts'
 
@@ -17,7 +20,7 @@ type Props={token:string;user:User;master:MasterData;initialRecords?:QcRecord[];
 type Filling={id:string;pengisianKe:number;dosis:string;statusHose:string;jenisPupuk:string;jumlah:string;hasilKerja:string;pemerataanPupuk:string}
 type Downtime={id:string;issue:string;start:string;end:string;note:string;file?:File;photoDriveUrl?:string;removePhoto?:boolean}
 // Scan fields below are retained only for historical records and previously saved local drafts.
-type UnitCard={id:string;recordId?:string;createdAt?:string;photoDriveUrl?:string;saveType?:string;removePhoto?:boolean;startTime:string;endTime:string;unit:string;noUnit:string;paddock:string;type:string;activity:string;dailyPlanId:string;monthlyPlanLineId:string;woSearch:string;catatan:string;photo?:File;fillings:Filling[];downtime:Downtime[];scanReportFile?:File;scanReportDriveUrl?:string;scanConfidence?:number;scanRawText?:string;scanSourceFileName?:string;scanAppliedAt?:string;legacyScanPhotoBase64?:string}
+type UnitCard={id:string;recordId?:string;createdAt?:string;photoDriveUrl?:string;saveType?:string;removePhoto?:boolean;startTime:string;endTime:string;unit:string;noUnit:string;paddock:string;type:string;activity:string;dailyPlanId:string;monthlyPlanLineId:string;woSearch:string;catatan:string;multiPaddockMode:boolean;paddockWorks:QcMultiPaddockWork[];photo?:File;fillings:Filling[];downtime:Downtime[];scanReportFile?:File;scanReportDriveUrl?:string;scanConfidence?:number;scanRawText?:string;scanSourceFileName?:string;scanAppliedAt?:string;legacyScanPhotoBase64?:string}
 type FertDraft={sessionId:string;date:string;shift:string;mandor:string;assistant:string;cards:UnitCard[];activeCardId:string}
 
 const today=()=>new Date().toISOString().slice(0,10)
@@ -56,14 +59,14 @@ function timingFor(card:UnitCard){
   return{ready:true,total,working,effective:working-total,overnight,error:''}
 }
 function newFilling(index=1,source?:Partial<Filling>):Filling{return{id:uid(),pengisianKe:index,dosis:source?.dosis||'',statusHose:source?.statusHose||'Lancar',jenisPupuk:source?.jenisPupuk||'',jumlah:'',hasilKerja:'',pemerataanPupuk:''}}
-function newCard():UnitCard{return{id:uid(),startTime:'',endTime:'',unit:'',noUnit:'',paddock:'',type:'',activity:'',dailyPlanId:'',monthlyPlanLineId:'',woSearch:'',catatan:'',fillings:[newFilling(1)],downtime:[]}}
-function hasCardInput(card:UnitCard){return Boolean(card.recordId||card.startTime||card.endTime||card.unit||card.noUnit||card.paddock||card.activity||card.catatan||card.photo||card.photoDriveUrl||card.scanReportFile||card.scanReportDriveUrl||card.legacyScanPhotoBase64||card.downtime.some(d=>d.issue||d.start||d.end||d.note||d.file||d.photoDriveUrl)||card.fillings.some(f=>f.dosis||f.jenisPupuk||f.jumlah||f.hasilKerja||f.pemerataanPupuk))}
+function newCard():UnitCard{return{id:uid(),startTime:'',endTime:'',unit:'',noUnit:'',paddock:'',type:'',activity:'',dailyPlanId:'',monthlyPlanLineId:'',woSearch:'',catatan:'',multiPaddockMode:false,paddockWorks:[],fillings:[newFilling(1)],downtime:[]}}
+function hasCardInput(card:UnitCard){return Boolean(card.recordId||card.startTime||card.endTime||card.unit||card.noUnit||card.paddock||card.activity||card.catatan||card.photo||card.photoDriveUrl||card.scanReportFile||card.scanReportDriveUrl||card.legacyScanPhotoBase64||card.downtime.some(d=>d.issue||d.start||d.end||d.note||d.file||d.photoDriveUrl)||card.fillings.some(f=>f.dosis||f.jenisPupuk||f.jumlah||f.hasilKerja||f.pemerataanPupuk)||card.paddockWorks?.length>0)}
 function cardFromRecord(record:QcRecord):UnitCard{
   const rawFills=Array.isArray(record.pengisianList)?record.pengisianList as Record<string,unknown>[]:[]
   const rawDowntime=Array.isArray(record.downtimeList)?record.downtimeList as Record<string,unknown>[]:[]
   const holdPhotos=Array.isArray(record.holdIntervals)?record.holdIntervals:[]
   const fillings=rawFills.length?rawFills.map((f,i)=>({id:uid(),pengisianKe:Number(f.pengisianKe||i+1),dosis:text(f.dosis??record.dosis),statusHose:text(f.statusHose??record.statusHose)||'Lancar',jenisPupuk:text(f.jenisPupuk??record.jenisPupuk),jumlah:text(f.jumlah),hasilKerja:text(f.hasilKerja),pemerataanPupuk:text(f.pemerataanPupuk)})):[{id:uid(),pengisianKe:1,dosis:text(record.dosis),statusHose:text(record.statusHose)||'Lancar',jenisPupuk:text(record.jenisPupuk),jumlah:text(record.jumlah),hasilKerja:text(record.hasilKerja),pemerataanPupuk:text(record.pemerataanPupuk)}]
-  return{id:uid(),recordId:record.id,createdAt:text(record.createdAt),photoDriveUrl:text(record.photoDriveUrl),saveType:text(record.saveType),scanReportDriveUrl:text(record.scanReportDriveUrl),scanConfidence:Number(record.scanConfidence||0),scanRawText:text(record.scanRawText),scanSourceFileName:text(record.scanSourceFileName),scanAppliedAt:text(record.scanAppliedAt),legacyScanPhotoBase64:text(record.scanReportPhotoBase64),startTime:text(record.startTime),endTime:text(record.endTime),unit:text(record.unit),noUnit:text(record.noUnit),paddock:record.paddock||'',type:text(record.type),activity:text(record.activity),dailyPlanId:text(record.dailyPlanId),monthlyPlanLineId:text(record.monthlyPlanLineId),woSearch:text(record.woNumber),catatan:text(record.catatan||record.noted).replace(/\s*\|\s*\[UNIT BERHENTI\].*$/i,''),fillings,downtime:rawDowntime.map((d,i)=>({id:holdPhotos[i]?.holdId||uid(),issue:text(d.issue),start:text(d.start),end:text(d.end),note:text(d.note),photoDriveUrl:text(d.photoDriveUrl||holdPhotos[i]?.photoDriveUrl)}))}
+  return{id:uid(),recordId:record.id,createdAt:text(record.createdAt),photoDriveUrl:text(record.photoDriveUrl),saveType:text(record.saveType),scanReportDriveUrl:text(record.scanReportDriveUrl),scanConfidence:Number(record.scanConfidence||0),scanRawText:text(record.scanRawText),scanSourceFileName:text(record.scanSourceFileName),scanAppliedAt:text(record.scanAppliedAt),legacyScanPhotoBase64:text(record.scanReportPhotoBase64),startTime:text(record.startTime),endTime:text(record.endTime),unit:text(record.unit),noUnit:text(record.noUnit),paddock:record.paddock||'',type:text(record.type),activity:text(record.activity),dailyPlanId:text(record.dailyPlanId),monthlyPlanLineId:text(record.monthlyPlanLineId),woSearch:text(record.woNumber),catatan:text(record.catatan||record.noted).replace(/\s*\|\s*\[UNIT BERHENTI\].*$/i,''),fillings,multiPaddockMode:Boolean(record.multiPaddockMode),paddockWorks:record.paddockWorks||[],downtime:rawDowntime.map((d,i)=>({id:holdPhotos[i]?.holdId||uid(),issue:text(d.issue),start:text(d.start),end:text(d.end),note:text(d.note),photoDriveUrl:text(d.photoDriveUrl||holdPhotos[i]?.photoDriveUrl)}))}
 }
 function normalizePlans(master:MasterData){const raw=(master.plans||master.plan||[])as PlanMaster[];return raw.filter(p=>{const category=String(p.category||p.keterangan||'').trim().toLowerCase();if(category)return category==='fertilizer'||category==='fertiliser'||category==='pupuk';return Boolean(p.paddock&&(p.activity||p.type))})}
 async function loadImageElement(file:Blob):Promise<HTMLImageElement>{const url=URL.createObjectURL(file);try{return await new Promise<HTMLImageElement>((resolve,reject)=>{const x=new Image();x.onload=()=>resolve(x);x.onerror=()=>reject(new Error('decode'));x.src=url})}finally{window.setTimeout(()=>URL.revokeObjectURL(url),0)}}
@@ -118,8 +121,37 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
   const norm=(v:unknown)=>text(v).trim().toLowerCase().replace(/\s+/g,' ')
   const uniquePlan=(id:string)=>id&&eligiblePlans.filter(p=>p.dailyPlanId===id).length===1?eligiblePlans.find(p=>p.dailyPlanId===id)||null:null
   const planForCard=(c:UnitCard)=>{const p=uniquePlan(c.dailyPlanId);return p&&norm(p.pid)===norm(c.paddock)&&norm(p.activity)===norm(c.activity)?p:null}
+  const multiFertilizerSources=(c:UnitCard):QcMultiMaterialSource[]=>c.fillings
+    .filter(f=>num(f.jumlah)>0)
+    .map(f=>({id:f.id,material:f.jenisPupuk,unit:'kg',quantity:num(f.jumlah)}))
+  function changeMultiWorks(c:UnitCard,works:QcMultiPaddockWork[]){
+    const first=works[0],source=woOptions.find(row=>row.dailyPlanId===first?.dailyPlanId)
+    patchCard(c.id,{multiPaddockMode:true,paddockWorks:works,
+      dailyPlanId:source?.dailyPlanId||'',monthlyPlanLineId:source?.monthlyPlanLineId||'',
+      paddock:source?.pid||'',activity:source?.activity||'',
+      type:source?(source.type||source.activityCategory||'FERTILIZER'):'',
+      woSearch:source?.woNumber||''})
+  }
+  function toggleMultiPaddock(c:UnitCard,enabled:boolean){
+    if(c.recordId){setMessage('Mode Multi-Paddock tidak dapat diganti setelah record disimpan.');return}
+    if(enabled&&!operationalSaveEnabled){setMessage('Multi-Paddock memerlukan simpan QC atomik.');return}
+    if(enabled)patchCard(c.id,{multiPaddockMode:true,paddockWorks:[blankQcPaddockWork()]})
+    else patchCard(c.id,{multiPaddockMode:false,paddockWorks:[],
+      dailyPlanId:'',monthlyPlanLineId:'',paddock:'',activity:'',type:'',woSearch:''})
+  }
   const planStatus=dailyPlanLoading||(!dailyPlanMessage&&loadedPlanDate!==date)?'Memuat Daily Plan…':dailyPlanMessage||(!mandor.trim()?'Pilih Mandor aktual terlebih dahulu.':fertDailyPlans.length?fertDailyPlans.length+' Daily Plan Fertilizer pada shift dan mandor ini.':'Tidak ada Daily Plan untuk kombinasi shift dan mandor ini.')+' · '+woOptions.length+' WO tersedia pada tanggal ini (pilih Daily ID secara eksplisit).'
   function planProblem(c:UnitCard){
+    if(c.multiPaddockMode){
+      if(!operationalSaveEnabled)return'Multi-Paddock memerlukan simpan QC atomik.'
+      for(const work of c.paddockWorks||[]){
+        if(!work.dailyPlanId)continue
+        const selected=qcExplicitWorkOrderPlan(dailyPlanRows,'fertilizer',date,work.dailyPlanId)
+        if(!selected||selected.pid!==work.pid||selected.woNumber!==work.woNumber||
+            selected.monthlyPlanLineId!==work.monthlyPlanLineId)
+          return'Sumber WO/PID Multi-Paddock tidak cocok dengan Daily Plan.'
+      }
+      return ''
+    }
     const p=planForCard(c)
     if(!p||p.monthlyPlanLineId!==c.monthlyPlanLineId||(p.type||p.activityCategory||'FERTILIZER')!==c.type)return 'pilih ulang Daily Plan yang cocok dengan tanggal, shift, dan mandor.'
     const previous=c.recordId?initialRecords.find(r=>r.id===c.recordId):undefined
@@ -185,6 +217,12 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
       const c=activeCards[i]
       if(!c.paddock||!c.unit||!c.noUnit||!c.activity)return{message:`Unit ${i+1}: lengkapi Paddock, Unit, No. Unit, dan Activity.`,cardId:c.id}
       const problem=planProblem(c);if(problem)return{message:`Unit ${c.noUnit||i+1}: ${problem}`,cardId:c.id}
+      if(c.multiPaddockMode){
+        const totalArea=c.paddockWorks.reduce((sum,w)=>sum+num(w.areaHa),0)
+        const problemMulti=validateQcMultiPaddock(c.paddockWorks,multiFertilizerSources(c),
+          {ready:true,totalArea})
+        if(problemMulti)return{message:`Unit ${c.noUnit||i+1}: ${problemMulti}`,cardId:c.id}
+      }
       const key=`${c.unit}|${c.noUnit}`.toLowerCase()
       if(seen.has(key))return{message:`Unit ${i+1}: ${c.noUnit} sudah digunakan pada unit lain.`,cardId:c.id}
       seen.add(key)
@@ -221,6 +259,9 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
     const serverCards=saveType==='draft'?activeCards.filter(c=>Boolean(date&&mandor&&c.paddock)):activeCards
     if(saveType==='draft'&&!serverCards.length){setMessage('Draft Fertilizer tersimpan di perangkat. Isi Tanggal, Mandor, dan Paddock agar Draft juga muncul di Data QC.');return}
     if(saveType==='draft'){const invalid=serverCards.find(c=>planProblem(c));if(invalid){showReadyProblem({message:(editing?'Draft belum diperbarui. ':'Draft lokal tersimpan. ')+planProblem(invalid),cardId:invalid.id});return}}
+    if(serverCards.some(c=>c.multiPaddockMode)&&!operationalSaveEnabled){
+      setMessage('Multi-Paddock memerlukan simpan QC atomik.');return
+    }
     const operational=operationalSaveEnabled&&serverCards.every(c=>!c.recordId||isOperationalQcId(c.recordId))
     if(serverCards.some(c=>c.recordId&&isOperationalQcId(c.recordId))&&!operational){setMessage('Sesi QC baru tidak boleh dicampur dengan QC lama.');return}
     const operationalItems:OperationalFormItem[]=[]
@@ -230,8 +271,17 @@ export default function FertilizerForm({token,user,master,initialRecords=[],onCa
       for(const card of serverCards){
         const cardDailyPlan=planForCard(card)
         if(!cardDailyPlan||planProblem(card))throw Error('Daily Plan tidak cocok; pilih ulang pekerjaan sebelum menyimpan.')
+        const multiSources=card.multiPaddockMode?multiFertilizerSources(card):[]
+        const multiArea=card.multiPaddockMode?card.paddockWorks.reduce((sum,w)=>sum+num(w.areaHa),0):0
+        const multiProblem=card.multiPaddockMode&&saveType==='ready'?
+          validateQcMultiPaddock(card.paddockWorks,multiSources,{ready:true,totalArea:multiArea}):''
+        if(multiProblem)throw Error(multiProblem)
         const downtimeText=card.downtime.filter(d=>d.issue||d.start||d.end||d.note).map(d=>`${d.issue||'Issue'} ${d.start||'-'}-${d.end||'-'}${d.note?`: ${d.note}`:''}`).join(' | '),catatan=[card.catatan.trim(),downtimeText?`[UNIT BERHENTI] ${downtimeText}`:''].filter(Boolean).join(' | '),pengisianList=card.fillings.map(f=>({pengisianKe:f.pengisianKe,dosis:num(f.dosis),statusHose:f.statusHose,jenisPupuk:f.jenisPupuk,jumlah:num(f.jumlah),hasilKerja:num(f.hasilKerja),dosisAktual:num(f.hasilKerja)>0?Math.round(num(f.jumlah)/num(f.hasilKerja)*100)/100:0,pemerataanPupuk:f.pemerataanPupuk})),actualDoses=pengisianList.map(f=>Number(f.dosisAktual)||0).filter(v=>v>0),averageActualDosage=actualDoses.length?Math.round(actualDoses.reduce((s,v)=>s+v,0)/actualDoses.length*100)/100:0,totalKgForDose=pengisianList.reduce((s,f)=>s+Number(f.jumlah||0),0),totalHaForDose=pengisianList.reduce((s,f)=>s+Number(f.hasilKerja||0),0),weightedActualDosage=totalHaForDose>0?Math.round(totalKgForDose/totalHaForDose*100)/100:0,timing=timingFor(card),productivityHaPerHour=timing.ready&&timing.effective>0?Math.round((totalHaForDose/(timing.effective/60))*100)/100:0,first=pengisianList[0],uploaded=card.saveType==='uploaded',holdIntervals:HoldInterval[]=await Promise.all(card.downtime.map(async d=>({holdId:d.id,start:d.start,end:d.end,reason:d.issue,windSpeed:'',note:d.note,photoBase64:d.removePhoto?'':d.file?await photoData(d.file):'',photoDriveUrl:d.removePhoto?'':d.photoDriveUrl||''}))),downtimeList=card.downtime.map(({file,removePhoto,...d})=>d),recordId=card.recordId||(operational?newOperationalQcId(sessionId,card.id):`fert_${sessionId}_${card.id}`)
-        const record:QcRecord={id:recordId,sessionId,formType:'fertilizer',date,shift,name:mandor,nameOfAssistan:assistant,status:'Working',dailyPlanId:card.dailyPlanId,monthlyPlanLineId:card.monthlyPlanLineId,dailyPlanLinkStatus:card.dailyPlanId?'LINKED':'NOT_FOUND',plannedDailyAreaHa:cardDailyPlan?.areaHa||0,dailyPlanSourceType:cardDailyPlan?.sourceType||'',woNumber:cardDailyPlan?.woNumber||'',plannedShift:cardDailyPlan?.plannedShift||'',dailyShift:cardDailyPlan?.shift||'',dailyForeman:cardDailyPlan?.foreman||'',operationCode:cardDailyPlan?.operationCode||'',coaCode:cardDailyPlan?.coaCode||'',department:cardDailyPlan?.department||'',catalogActivityId:cardDailyPlan?.catalogActivityId||'',activityCode:cardDailyPlan?.activityCode||'',actualAreaHa:totalHaForDose,companyCode:cardDailyPlan?.companyCode||'',farm:cardDailyPlan?.farm||'',dailyPlanningOrder:cardDailyPlan?.planningOrder||0,actualPlanMaterials:(cardDailyPlan?.materials||[]).map(m=>({...m,totalMaterial:Number((m.dosePerHa*totalHaForDose).toFixed(4))})),startTime:card.startTime,endTime:card.endTime,workingDurationMinutes:timing.ready?timing.working:0,holdTotalMinutes:timing.ready?timing.total:0,effectiveWorkingMinutes:timing.ready?timing.effective:0,productivityHaPerHour,paddock:card.paddock,unit:card.unit,noUnit:card.noUnit,type:card.type||'Fertilizer',activity:card.activity,jenisPupuk:first?.jenisPupuk||'',dosis:first?.dosis||0,statusHose:first?.statusHose||'',pengisianList,downtimeList,holdIntervals,catatan,noted:catatan,photoBase64:card.removePhoto?'':await photoData(card.photo),photoDriveUrl:card.removePhoto?'':card.photoDriveUrl||'',scanReportPhotoBase64:card.scanReportFile?await photoData(card.scanReportFile):!operational?(card.legacyScanPhotoBase64||''):'',scanReportDriveUrl:card.scanReportDriveUrl||'',scanConfidence:card.scanConfidence||0,scanRawText:card.scanRawText||'',scanSourceFileName:card.scanSourceFileName||'',scanAppliedAt:card.scanAppliedAt||(card.scanReportFile&&card.scanConfidence?new Date().toISOString():''),averageActualDosage,weightedActualDosage,saveType:uploaded?'uploaded':saveType,inputtedBy:user.username,...(!card.recordId&&firebaseAuth?.currentUser?.uid?{ownerUid:firebaseAuth.currentUser.uid}:{}),createdAt:card.createdAt||new Date().toISOString(),clientRevision:crypto.randomUUID()}
+        const record:QcRecord={id:recordId,sessionId,formType:'fertilizer',date,shift,name:mandor,nameOfAssistan:assistant,status:'Working',dailyPlanId:card.dailyPlanId,monthlyPlanLineId:card.monthlyPlanLineId,dailyPlanLinkStatus:card.dailyPlanId?'LINKED':'NOT_FOUND',plannedDailyAreaHa:cardDailyPlan?.areaHa||0,dailyPlanSourceType:cardDailyPlan?.sourceType||'',woNumber:cardDailyPlan?.woNumber||'',plannedShift:cardDailyPlan?.plannedShift||'',dailyShift:cardDailyPlan?.shift||'',dailyForeman:cardDailyPlan?.foreman||'',operationCode:cardDailyPlan?.operationCode||'',coaCode:cardDailyPlan?.coaCode||'',department:cardDailyPlan?.department||'',catalogActivityId:cardDailyPlan?.catalogActivityId||'',activityCode:cardDailyPlan?.activityCode||'',actualAreaHa:card.multiPaddockMode?multiArea:totalHaForDose,
+          multiPaddockMode:card.multiPaddockMode,
+          paddockWorks:card.multiPaddockMode?card.paddockWorks:[],
+          paddockWorkById:card.multiPaddockMode?qcWorkMap(card.paddockWorks):{},
+          multiMaterialSources:multiSources,companyCode:cardDailyPlan?.companyCode||'',farm:cardDailyPlan?.farm||'',dailyPlanningOrder:cardDailyPlan?.planningOrder||0,actualPlanMaterials:(cardDailyPlan?.materials||[]).map(m=>({...m,totalMaterial:Number((m.dosePerHa*totalHaForDose).toFixed(4))})),startTime:card.startTime,endTime:card.endTime,workingDurationMinutes:timing.ready?timing.working:0,holdTotalMinutes:timing.ready?timing.total:0,effectiveWorkingMinutes:timing.ready?timing.effective:0,productivityHaPerHour,paddock:card.paddock,unit:card.unit,noUnit:card.noUnit,type:card.type||'Fertilizer',activity:card.activity,jenisPupuk:first?.jenisPupuk||'',dosis:first?.dosis||0,statusHose:first?.statusHose||'',pengisianList,downtimeList,holdIntervals,catatan,noted:catatan,photoBase64:card.removePhoto?'':await photoData(card.photo),photoDriveUrl:card.removePhoto?'':card.photoDriveUrl||'',scanReportPhotoBase64:card.scanReportFile?await photoData(card.scanReportFile):!operational?(card.legacyScanPhotoBase64||''):'',scanReportDriveUrl:card.scanReportDriveUrl||'',scanConfidence:card.scanConfidence||0,scanRawText:card.scanRawText||'',scanSourceFileName:card.scanSourceFileName||'',scanAppliedAt:card.scanAppliedAt||(card.scanReportFile&&card.scanConfidence?new Date().toISOString():''),averageActualDosage,weightedActualDosage,saveType:uploaded?'uploaded':saveType,inputtedBy:user.username,...(!card.recordId&&firebaseAuth?.currentUser?.uid?{ownerUid:firebaseAuth.currentUser.uid}:{}),createdAt:card.createdAt||new Date().toISOString(),clientRevision:crypto.randomUUID()}
         if(operational){
           const previous=card.recordId?initialRecords.find(r=>r.id===card.recordId):undefined
           if(card.recordId&&!previous)throw Error('Buka kembali Draft dari Data QC setelah sinkronisasi.')
