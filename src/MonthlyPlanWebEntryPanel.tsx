@@ -99,7 +99,7 @@ export default function MonthlyPlanWebEntryPanel({user,selectedMonth,selectedWee
     const woSet=new Set<string>()
     const duplicateWo=lineInfo.findIndex(x=>{const key=normalizedWo(x.line.woNumber);if(woSet.has(key))return true;woSet.add(key);return false})
     if(duplicateWo>=0){setMessage('BELUM TERSIMPAN · Nomor WO duplikat dalam batch. Setiap WO harus unik.');focusLine(duplicateWo);return}
-    const dupes=duplicateKeys();if(dupes.length){setMessage('BELUM TERSIMPAN · Kombinasi PID, Activity, Shift Rencana, dan varietas duplikat: +dupes.map(x=>x.label).join(', '));return}
+    const dupes=duplicateKeys();if(dupes.length){setMessage('BELUM TERSIMPAN · Kombinasi PID, Activity, Shift Rencana, dan varietas duplikat: '+dupes.map(x=>x.label).join(', '));return}
     const duplicates=lineInfo.filter(x=>existing.some(row=>{
       if(row.monthKey!==draft.month||row.week!==draft.week||row.pid!==x.line.pid.toUpperCase())return false
       // Shift 1 and Shift 2 are distinct planned work even when execution later
