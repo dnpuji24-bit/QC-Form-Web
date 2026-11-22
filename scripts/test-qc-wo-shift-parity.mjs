@@ -60,7 +60,7 @@ test('Daily source retains WO, Operation, CoA, planned Shift and materials with 
  assert.equal(rows[0].coaCode,'60100209')
  assert.equal(rows[0].department,'Ratoon Weed Control')
  assert.equal(rows[0].materials[0].dosePerHa,2)
- assert.equal(rows[2].materials[0].dosePerHa,450)
+ assert.equal(rows.find(r=>r.dailyPlanId==='DP-C').materials[0].dosePerHa,450)
 })
 test('Explicit WO can source Daily Shift 1 for QC Shift 2 and reverse 2 for 1',()=>{
  const spr=qc.qcWorkOrderPlans(rows,'spray','2026-11-22')
