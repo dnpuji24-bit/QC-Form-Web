@@ -364,7 +364,7 @@ service cloud.firestore {
         && (
           (request.resource.data.type == 'BREAKDOWN'
            && role() in ['owner','asisten','mandor_spraying','mandor_fertilizer'])
-          || (request.resource.data.type in ['MAINTENANCE','PENDING_INSPECTION','READY_APPROVED']
+          || (request.resource.data.type in ['MAINTENANCE','OUT_OF_SERVICE','READY','PENDING_INSPECTION','READY_APPROVED']
            && canEditKey('data_unit_dispatch',['owner','asisten'])
            && role() in ['owner','asisten'])
         );
