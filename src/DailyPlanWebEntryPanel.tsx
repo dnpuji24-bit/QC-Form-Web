@@ -265,6 +265,14 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
   }
   useEffect(()=>()=>{if(woTimerRef.current)clearTimeout(woTimerRef.current)},[])
 
+  // Restore WO references in older cross-month drafts after the browser reloads.
+  useEffect(()=>{
+    const stored=[state.active,...state.works].flatMap(work=>work.pids)
+      .filter(pid=>pid.monthlyId&&pid.woSearch).map(pid=>pid.woSearch)
+    const unique=[...new Set(stored)]
+    void (async()=>{for(const code of unique)await loadMonthlyWo(code)})()
+  },[])
+
   useEffect(()=>{void loadMasters();void loadAllOperationalResources().then(resources=>{setResourceUnits(resources.units.map(x=>x.name));setResourceShifts(resources.shifts.map(x=>x.name));setResourceForemen(resources.foremen.map(x=>x.name))}).catch(()=>{})},[])
   useEffect(()=>{void loadPeriod(state.date);onDateChange?.(state.date)},[state.date])
   useEffect(()=>{if(selectedDate&&selectedDate!==state.date)setState(current=>({...current,date:selectedDate}))},[selectedDate])
