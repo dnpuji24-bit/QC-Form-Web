@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { collection, doc, getDoc, getDocs, query as fsQuery, serverTimestamp, where, writeBatch } from 'firebase/firestore'
 import { firebaseAuth, firestoreDb } from './firebase'
 import DailyActionIcon from './DailyPlanActionIcon'
-import { dailyPlansToWhatsApp, type DailyPlanTransfer } from './dailyPlanActions'
+import { dailyPlansToWhatsApp, type DailyPlanTransfer, type DispatchUnitForWA } from './dailyPlanActions'
+import {supportUnitRows} from './dailyUnitSupport'
 import { groupSavedDailyRows, type DailyComposerRequest, type SavedDailyGroup, type SavedDailyRow } from './dailyPlanWorkspaceTypes'
 import type { User } from './types'
 import { canEditAccess } from './accessControl'
@@ -29,12 +30,12 @@ type LinkedActualRef={id:string;actualReportId:string;date:string;dailyPlanId:st
 function text(value:unknown){return value===null||value===undefined?'':String(value).trim()}
 function num(value:unknown){const n=Number(value||0);return Number.isFinite(n)?n:0}
 function materialsFromData(value:unknown):DailyRow['materials']{if(!Array.isArray(value))return[];return value.map(item=>{const x=(item&&typeof item==='object'?item:{}) as Record<string,unknown>;return{material:text(x.material),dosePerHa:num(x.dosePerHa),doseUnit:text(x.doseUnit),totalMaterial:num(x.totalMaterial),unit:text(x.unit)}}).filter(x=>x.material||x.dosePerHa||x.totalMaterial)}
-function rowFromData(id:string,data:Record<string,unknown>):DailyRow{return{id,dailyPlanId:text(data.dailyPlanId||id),workGroupId:text(data.workGroupId),workGroupPidCount:num(data.workGroupPidCount),planningOrder:num(data.planningOrder),sourcePlanIdRaw:text(data.sourcePlanIdRaw),sourceType:text(data.sourceType),monthlyLinkStatus:text(data.monthlyLinkStatus),monthlyPlanLineId:text(data.monthlyPlanLineId),woNumber:text(data.woNumber),plannedShift:text(data.plannedShift),coaCode:text(data.coaCode),operationCode:text(data.operationCode),department:text(data.department),catalogActivityId:text(data.catalogActivityId),activityCode:text(data.activityCode),date:text(data.date),monthKey:text(data.monthKey),shift:text(data.shift),activity:text(data.activity),description:text(data.description),paddockRaw:text(data.paddockRaw),pid:text(data.pid),areaHa:num(data.areaHa),areaUnit:text(data.areaUnit)||'Ha',manpower:num(data.manpower),unitName:text(data.unitName),unitRequired:num(data.unitRequired),unitPreferredCodes:Array.isArray(data.unitPreferredCodes)?data.unitPreferredCodes.map(text):[],unitReady:num(data.unitReady),unitStandby:num(data.unitStandby),unitBreakdown:num(data.unitBreakdown),foreman:text(data.foreman),notes:text(data.notes),pidNotes:text(data.pidNotes),companyCode:text(data.companyCode).toUpperCase(),farm:text(data.farm),stage:text(data.stage),masterVariety:text(data.masterVariety),masterPending:data.masterPending===true,materials:materialsFromData(data.materials),lastModifiedSource:text(data.lastModifiedSource)}}
+function rowFromData(id:string,data:Record<string,unknown>):DailyRow{return{id,dailyPlanId:text(data.dailyPlanId||id),workGroupId:text(data.workGroupId),workGroupPidCount:num(data.workGroupPidCount),planningOrder:num(data.planningOrder),sourcePlanIdRaw:text(data.sourcePlanIdRaw),sourceType:text(data.sourceType),monthlyLinkStatus:text(data.monthlyLinkStatus),monthlyPlanLineId:text(data.monthlyPlanLineId),woNumber:text(data.woNumber),plannedShift:text(data.plannedShift),coaCode:text(data.coaCode),operationCode:text(data.operationCode),department:text(data.department),catalogActivityId:text(data.catalogActivityId),activityCode:text(data.activityCode),date:text(data.date),monthKey:text(data.monthKey),shift:text(data.shift),activity:text(data.activity),description:text(data.description),paddockRaw:text(data.paddockRaw),pid:text(data.pid),areaHa:num(data.areaHa),areaUnit:text(data.areaUnit)||'Ha',manpower:num(data.manpower),unitName:text(data.unitName),unitRequired:num(data.unitRequired),unitPreferredCodes:Array.isArray(data.unitPreferredCodes)?data.unitPreferredCodes.map(text):[],supportUnits:supportUnitRows(data.supportUnits),unitReady:num(data.unitReady),unitStandby:num(data.unitStandby),unitBreakdown:num(data.unitBreakdown),foreman:text(data.foreman),notes:text(data.notes),pidNotes:text(data.pidNotes),companyCode:text(data.companyCode).toUpperCase(),farm:text(data.farm),stage:text(data.stage),masterVariety:text(data.masterVariety),masterPending:data.masterPending===true,materials:materialsFromData(data.materials),lastModifiedSource:text(data.lastModifiedSource)}}
 function formatHa(value:number,digits=2){return new Intl.NumberFormat('id-ID',{minimumFractionDigits:digits,maximumFractionDigits:digits}).format(value)+' Ha'}
 function groupArea(group:SavedDailyGroup){return group.rows.reduce((sum,row)=>sum+row.areaHa,0)}
 function groupKeySet(groups:SavedDailyGroup[]){return new Set(groups.map(group=>group.groupKey))}
 async function writerContext(appUser:User){const db=firestoreDb,auth=firebaseAuth;if(!db||!auth)throw new Error('Firebase belum tersedia.');const current=auth.currentUser;if(!current)throw new Error('Login Firebase tidak tersedia.');const snap=await getDoc(doc(db,'users',current.uid));if(!snap.exists())throw new Error('Profil user tidak ditemukan.');const p=snap.data() as Record<string,unknown>;if(p.active!==true||!canEditAccess(appUser,'data_plan_daily'))throw new Error('Hak akses Edit Daily Plan belum diberikan.');return{db,username:text(p.username)||appUser.username}}
-function asTransfer(row:DailyRow):DailyPlanTransfer{return{dailyPlanId:row.dailyPlanId,workGroupId:row.workGroupId,planningOrder:row.planningOrder,date:row.date,shift:row.shift,sourceType:row.sourceType,monthlyPlanLineId:row.monthlyPlanLineId,woNumber:row.woNumber,plannedShift:row.plannedShift,coaCode:row.coaCode,operationCode:row.operationCode,department:row.department,companyCode:row.companyCode,farm:row.farm,pid:row.pid,activity:row.activity,description:row.description,areaHa:row.areaHa,manpower:row.manpower,unitName:row.unitName,unitReady:row.unitReady,unitStandby:row.unitStandby,unitBreakdown:row.unitBreakdown,foreman:row.foreman,notes:row.notes,pidNotes:row.pidNotes,materials:row.materials}}
+function asTransfer(row:DailyRow,dispatchUnits:DispatchUnitForWA[]=[]):DailyPlanTransfer{return{dailyPlanId:row.dailyPlanId,workGroupId:row.workGroupId,planningOrder:row.planningOrder,date:row.date,shift:row.shift,sourceType:row.sourceType,monthlyPlanLineId:row.monthlyPlanLineId,woNumber:row.woNumber,plannedShift:row.plannedShift,coaCode:row.coaCode,operationCode:row.operationCode,department:row.department,companyCode:row.companyCode,farm:row.farm,pid:row.pid,activity:row.activity,description:row.description,areaHa:row.areaHa,manpower:row.manpower,unitName:row.unitName,unitRequired:row.unitRequired,unitPreferredCodes:row.unitPreferredCodes,supportUnits:row.supportUnits,dispatchUnits,unitReady:row.unitReady,unitStandby:row.unitStandby,unitBreakdown:row.unitBreakdown,foreman:row.foreman,notes:row.notes,pidNotes:row.pidNotes,materials:row.materials}}
 
 export default function DailyPlanListPanel({user,onCopyToActual,selectedDate,compact=true,refreshKey=0,onEditGroup,onDuplicateGroup,onChanged,focusMonthlyPlanLineId='',focusPid='',onClearMonthlyFocus,readOnly=false}:Props){
   const[rows,setRows]=useState<DailyRow[]>([]),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
@@ -73,8 +74,27 @@ export default function DailyPlanListPanel({user,onCopyToActual,selectedDate,com
 
   async function copyWaGroups(targets:SavedDailyGroup[]){
     if(!targets.length){setMessage('Pilih minimal satu kegiatan untuk Copy WA.');return}
-    const wa=dailyPlansToWhatsApp(targets.flatMap(group=>group.rows).map(asTransfer))
-    try{await navigator.clipboard.writeText(wa);setMessage('Daily Plan disalin ke clipboard. Tinggal paste ke WhatsApp.')}catch{window.prompt('Salin Daily Plan berikut:',wa)}
+    // Include physical codes confirmed by Unit Dispatch. If Dispatch cannot
+    // be queried, fall back to labelled Daily Plan code proposals.
+    const dispatchByGroup=new Map<string,DispatchUnitForWA[]>()
+    if(firestoreDb){
+      try{
+        const dates=[...new Set(targets.map(g=>g.date))]
+        const snapshots=await Promise.all(dates.map(date=>getDocs(fsQuery(collection(firestoreDb!,'unit_assignments'),where('date','==',date)))))
+        for(const snap of snapshots)for(const row of snap.docs){
+          const d=row.data(),status=text(d.status)
+          if(status==='CANCELLED'||status==='REPLACED')continue
+          const groupKey=text(d.date)+'|'+text(d.shift)+'|'+text(d.workGroupId)
+          const codes=dispatchByGroup.get(groupKey)||[]
+          if(d.unitCode)codes.push({requirementId:text(d.requirementId)||'primary',unitCode:text(d.unitCode),unitName:text(d.unitName)})
+          dispatchByGroup.set(groupKey,codes)
+        }
+      }catch(e){setMessage('Daftar Dispatch tidak dapat dimuat; Copy WA menggunakan kode unit usulan dari Daily Plan.')}
+    }
+    const transfers=targets.flatMap(group=>group.rows.map(row=>
+      asTransfer(row,dispatchByGroup.get(row.date+'|'+row.shift+'|'+row.workGroupId)||[])))
+    const wa=dailyPlansToWhatsApp(transfers)
+    try{await navigator.clipboard.writeText(wa);setMessage('Daily Plan beserta jenis dan kode unit disalin ke clipboard.')}catch{window.prompt('Salin Daily Plan berikut:',wa)}
   }
 
   function copyToActual(){
