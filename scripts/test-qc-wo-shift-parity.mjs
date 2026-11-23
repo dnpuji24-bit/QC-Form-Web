@@ -132,7 +132,7 @@ test('WO-less Daily selection is not a free-text bypass in Spray or Fertilizer',
   const code=read(path)
   assert.match(code,/qcExplicitWorkOrderPlan\(dailyPlanRows/)
   assert.match(code,/source\.activity!==work\.activity|selected\.activity!==work\.activity/)
-  assert.match(code,/Daily ID secara eksplisit/)
+  assert.match(code,/selectedId=\{card.dailyPlanId\}/)
  }
  const multi=read('src/qcMultiPaddock.mjs')
  assert.match(multi,/!trim\(work\.dailyPlanId\)\|\|!trim\(work\.pid\)\|\|!trim\(work\.activity\)/)

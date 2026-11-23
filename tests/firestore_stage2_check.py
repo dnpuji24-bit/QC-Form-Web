@@ -8,8 +8,8 @@ assert "export async function saveRecordFirestoreFirst" in offline, 'missing gen
 assert "if(action==='syncRecord')return saveRecordFirestoreFirst(token,record)" in offline, 'syncRecord is not Firestore-first'
 assert "return sendFinalizeStateMachine(token,record)" in offline, 'final upload is not routed through the Upload State Machine'
 assert "await enqueueInternal('syncRecord',record)" in offline, 'Spreadsheet handoff is not persisted before success'
-assert "Firestore realtime aktif" in dashboard, 'dashboard realtime status is missing'
-assert "Tidak perlu menekan Refresh" in dashboard, 'dashboard still presents manual refresh as the normal path'
+assert "Pembaruan otomatis" in dashboard, 'dashboard realtime status is missing'
+assert "realtimeActive?<Tag" in dashboard and "onClick={onRefresh}" in dashboard
 assert "onAuthStateChanged" in dashboard, 'dashboard does not react to Firebase auth state'
 
 print('Firestore stage 2 check: realtime dashboard, Firestore-first edits, and Stage 3 upload routing verified.')

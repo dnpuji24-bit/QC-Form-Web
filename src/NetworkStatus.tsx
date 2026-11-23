@@ -31,5 +31,7 @@ export default function NetworkStatus(){
     return()=>{mounted=false;window.removeEventListener('online',goOnline);window.removeEventListener('offline',goOffline);window.clearInterval(timer)}
   },[])
 
-  return <div className={`network-status-floating ${online?'is-online':'is-offline'}`} title={online?'Koneksi tersedia':'Mode offline aktif'}><span className="network-dot"/><span>{syncing?'Sinkronisasi…':online?'Online':'Offline'}</span>{queued>0&&<strong>{queued} antrean</strong>}</div>
+  if(online&&!syncing&&!queued)return null
+
+  return <div role="status" className={`network-status-floating ${online?'is-online':'is-offline'}`} title={online?'Koneksi tersedia':'Mode offline aktif'}><span className="network-dot"/><span>{syncing?'Sinkronisasi…':online?'':'Offline'}</span>{queued>0&&<strong>{queued} antrean</strong>}</div>
 }

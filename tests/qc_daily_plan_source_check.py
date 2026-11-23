@@ -31,7 +31,7 @@ for form,name,kind in [(spray,'Spraying','spray'),(fert,'Fertilizer','fertilizer
         "loadQcDailyPlans(date)",
         "loadedPlanDate===date?dailyPlansForQcSession(dailyPlanRows,'"+kind+"',date,shift,mandor):[]",
         "loadedPlanDate===date?qcShiftOneCarryoverCandidates(dailyPlanRows,'"+kind+"',date,shift,mandor):[]",
-        "Sumber pekerjaan: Daily Plan","Daily Plan ID","Monthly Plan ID",
+        "qc-entry-source","Daily Plan ID","Monthly Plan ID",
         'aria-label="Daily Plan sumber Shift 1"',
         "dailyPlanId:card.dailyPlanId","monthlyPlanLineId:card.monthlyPlanLineId",
         "dailyPlanLinkStatus:","plannedDailyAreaHa:cardDailyPlan?.areaHa",
