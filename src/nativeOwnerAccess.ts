@@ -11,9 +11,11 @@ const permissionKeys=PERMISSION_CATALOG.map(x=>x.key)
 
 async function owner(){
  const user=await readApprovedFirebaseSession()
- if(user.role!=='owner'||!firestoreDb||firebaseAuth?.currentUser?.uid!==user.firebaseUid)
+ const actorUid=user.firebaseUid
+ if(user.role!=='owner'||!firestoreDb||typeof actorUid!=='string'||!actorUid||
+    firebaseAuth?.currentUser?.uid!==actorUid)
    throw Error('Hanya Owner dengan sesi Firebase aktif yang boleh mengubah akses.')
- return{db:firestoreDb,actorUid:user.firebaseUid}
+ return{db:firestoreDb,actorUid}
 }
 function auditId(){return 'ua_'+crypto.randomUUID().replaceAll('-','')}
 function ensureTarget(targetUid:string,actorUid:string){
