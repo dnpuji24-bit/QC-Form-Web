@@ -104,6 +104,9 @@ jobs:
           npm install --no-save --no-package-lock @firebase/rules-unit-testing@5
           npx --yes firebase-tools@14 emulators:exec --only firestore --project demo-qc-native-owner-access --config firebase.native-cutover-browser-emulator.json "node scripts/test-native-owner-access-rules-emulator.mjs"
 
+      - name: Verify safe Firebase Owner login diagnostics
+        run: node --test scripts/test-qc-native-login-diagnostics.mjs
+
       - name: Verify TypeScript
         run: npm run typecheck
       - name: Build React safely
