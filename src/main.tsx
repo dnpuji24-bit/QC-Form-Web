@@ -1,6 +1,8 @@
 import NativePortalSession from './NativePortalSession'
 import {nativePortalEnabled} from './qcNativePortalConfig'
 import React from 'react'
+import { App as AntApp, ConfigProvider } from 'antd'
+import { portalTheme } from './portalTheme'
 
 const NativeRegistrationPilot = React.lazy(() => import('./NativeRegistrationPilot'))
 const showNativeRegistrationPilot = !nativePortalEnabled && import.meta.env.VITE_QC_HOSTED_UAT !== 'true' && import.meta.env.VITE_QC_NATIVE_REGISTRATION === 'true' && new URLSearchParams(window.location.search).get('qc-native-registration-pilot') === '1'
@@ -23,12 +25,22 @@ import './network.css'
 import './field-ui.css'
 import './save-status.css'
 import './ui-enhancers.css'
+import './antd-portal.css'
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/react/sw.js', { scope: '/react/' }).then((registration) => registration.update()).catch(() => {})
   })
 }
+
+const portalContent = <>
+  <App />
+  <PortalRouter />
+  <NetworkStatus />
+  <SaveStatusPopup />
+  <UiEnhancers />
+  <ScrollToTopButton />
+</>
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -41,23 +53,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     ) : showPhotoUploadTest ? (
       <React.Suspense fallback={<p>Memuat halaman uji foto…</p>}><PhotoUploadTest /></React.Suspense>
     ) : (
-      nativePortalEnabled ? <NativePortalSession><>
-        <App />
-        <PortalRouter />
-        <NetworkStatus />
-        <SaveStatusPopup />
-        <UiEnhancers />
-        <ScrollToTopButton />
-      </></NativePortalSession> : (
-      <>
-        <App />
-        <PortalRouter />
-        <NetworkStatus />
-        <SaveStatusPopup />
-        <UiEnhancers />
-        <ScrollToTopButton />
-      </>
-
-      )    )}
+      <ConfigProvider theme={portalTheme}>
+        <AntApp component={false}>
+          {nativePortalEnabled ? <NativePortalSession>{portalContent}</NativePortalSession> : portalContent}
+        </AntApp>
+      </ConfigProvider>
+    )}
   </React.StrictMode>,
 )

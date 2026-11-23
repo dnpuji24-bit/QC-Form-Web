@@ -1,4 +1,5 @@
 import {signOut} from 'firebase/auth'
+import { Alert, App as AntApp, Button, Card, Layout, Tag, Typography } from 'antd'
 import {firebaseAuth} from './firebase'
 import NativeUsersAccess from './NativeUsersAccess'
 import {nativePortalEnabled} from './qcNativePortalConfig'
@@ -38,12 +39,20 @@ export default function PortalRouter(){
   const[user,setUser]=useState<User|null>(()=>readUser())
   const[mode,setMode]=useState<PortalMode>(()=>hasSession()?((sessionStorage.getItem(MODE_KEY) as PortalMode)||'chooser'):'chooser')
   const[dataView,setDataView]=useState<DataView>('home')
-  const[logoutBusy,setLogoutBusy]=useState(false),[logoutError,setLogoutError]=useState('')
+  const[logoutBusy,setLogoutBusy]=useState(false)
+  const { notification } = AntApp.useApp()
   async function nativeLogout(){
     if(logoutBusy||!firebaseAuth)return
     if(!window.confirm('Keluar dari akun ini? Antrean lokal yang sudah tersimpan tetap dipertahankan.'))return
-    setLogoutBusy(true);setLogoutError('')
-    try{await signOut(firebaseAuth)}catch{setLogoutError('Keluar belum berhasil. Coba kembali.')}finally{setLogoutBusy(false)}
+    setLogoutBusy(true)
+    notification.destroy('portal-logout')
+    try {
+      await signOut(firebaseAuth)
+    } catch {
+      notification.error({ title: 'Keluar belum berhasil', description: 'Coba kembali.', key: 'portal-logout', duration: 0 })
+    } finally {
+      setLogoutBusy(false)
+    }
   }
   const planWorkspaceRef=useRef<PlanWorkspaceHandle|null>(null)
 
@@ -157,21 +166,41 @@ export default function PortalRouter(){
     </div></main>
   </div>
 
-  return <div className="portal-layer chooser-layer">
-    <header className="portal-topbar">
-      <div><div className="portal-eyebrow">{GROUP_BRAND}</div><h1>Operational Portal</h1></div>
-      <div className="portal-user"><div><strong>{user.fullName}</strong><span>{user.role.replaceAll('_',' ')}</span></div>{nativePortalEnabled&&<button type="button" disabled={logoutBusy} onClick={()=>void nativeLogout()}>Keluar</button>}</div>
-    </header>
-    <main className="portal-content chooser-content">{logoutError&&<p role="alert">{logoutError}</p>}
-      <section className="portal-hero"><div><span className="portal-kicker">SELAMAT DATANG</span><h2>Pilih area kerja</h2><p>Setelah login, pilih sistem yang akan digunakan. Anda dapat kembali ke menu ini kapan saja.</p></div></section>
-      <section className="portal-grid">
-        {canQc&&<button className="portal-card primary-card" type="button" onClick={()=>choose('qc')}><span className="portal-icon">QC</span><strong>Form QC</strong><p>Input Spraying, Fertilizer, monitoring Data QC, laporan, dan dashboard.</p><span className="portal-link">Masuk Form QC →</span></button>}
-        {canData&&<button className="portal-card" type="button" onClick={()=>choose('data-unm')}><span className="portal-icon">DU</span><strong>Data UnM</strong><p>Plan, Master Paddock, Master Activity, Company, dan master operasional untuk sumber data kegiatan.</p><span className="portal-link">Masuk Data UnM →</span></button>}
-        {canSummary&&<button className="portal-card portal-summary-card" type="button" onClick={()=>choose('summary')}><span className="portal-icon">SM</span><strong>Summary</strong><p>Monitoring target, Daily Plan, Actual Plan dan perkembangan per paddock serta activity.</p><span className="portal-link">Buka Summary →</span></button>}
-        {canCalendar&&<button className="portal-card portal-calendar-card" type="button" onClick={()=>choose('calendar')}><span className="portal-icon">CR</span><strong>Calendar Rekap</strong><p>Lihat pekerjaan per hari, minggu atau bulan beserta realisasi dan selisihnya.</p><span className="portal-link">Buka Calendar Rekap →</span></button>}
-        {canUsers&&<button className="portal-card users-card" type="button" onClick={()=>choose('users')}><span className="portal-icon">US</span><strong>Users & Access</strong><p>Approval user, role, serta pengaturan izin lihat/edit untuk setiap menu dan sub menu.</p><span className="portal-link">Kelola Users →</span></button>}
-      </section>
-      {!canData&&<p className="portal-note">Akses Data UnM belum diberikan untuk akun ini. Owner dapat mengaturnya dari Users & Access.</p>}
-    </main>
-  </div>
+  return <Layout className="portal-layer chooser-layer qc-antd-chooser">
+    <Layout.Header className="qc-chooser-header">
+      <div>
+        <Typography.Text type="secondary">{GROUP_BRAND}</Typography.Text>
+        <Typography.Title level={1}>Operational Portal</Typography.Title>
+      </div>
+      <div className="qc-chooser-account">
+        <Typography.Text strong>{user.fullName}</Typography.Text>
+        <Tag>{user.role.replaceAll('_',' ')}</Tag>
+        {nativePortalEnabled&&<Button loading={logoutBusy} onClick={()=>void nativeLogout()}>Keluar</Button>}
+      </div>
+    </Layout.Header>
+    <Layout.Content className="portal-content chooser-content">
+      <Typography.Title level={2}>Pilih area kerja</Typography.Title>
+      <nav className="portal-grid" aria-label="Area kerja">
+        {canQc&&<PortalDestination title="Form QC" description="Input Spraying dan Fertilizer, Data QC, laporan, dan dashboard." onOpen={()=>choose('qc')} />}
+        {canData&&<PortalDestination title="Data UnM" description="Plan, Master Paddock, Master Activity, Company, dan master operasional." onOpen={()=>choose('data-unm')} />}
+        {canSummary&&<PortalDestination className="portal-summary-card" title="Summary" description="Monitoring target, Daily Plan, Actual Plan, dan progres per paddock dan activity." onOpen={()=>choose('summary')} />}
+        {canCalendar&&<PortalDestination className="portal-calendar-card" title="Calendar Rekap" description="Pekerjaan per hari, minggu, atau bulan beserta realisasi dan selisihnya." onOpen={()=>choose('calendar')} />}
+        {canUsers&&<PortalDestination title="Users & Access" description="Approval pengguna, role, serta izin lihat dan edit." onOpen={()=>choose('users')} />}
+      </nav>
+      {!canData&&<Alert className="qc-chooser-note" type="info" showIcon title="Akses Data UnM belum diberikan untuk akun ini. Owner dapat mengaturnya dari Users & Access." />}
+    </Layout.Content>
+  </Layout>
+}
+
+function PortalDestination({ title, description, onOpen, className }: {
+  title: string
+  description: string
+  onOpen: () => void
+  className?: string
+}) {
+  return <Card className={className}>
+    <Typography.Title level={3}>{title}</Typography.Title>
+    <Typography.Paragraph type="secondary">{description}</Typography.Paragraph>
+    <Button onClick={onOpen}>Buka {title}</Button>
+  </Card>
 }

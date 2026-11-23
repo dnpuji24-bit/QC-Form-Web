@@ -16,7 +16,7 @@ for token in [
     "sessionId,formType:'spray'",
     "cards.filter(hasCardInput)",
     "validateReady(activeCards",
-    "Unit-centric",
+    'role="tablist" aria-label="Daftar unit spraying"',
 ]:
     assert token in spray, f'Missing Spray unit-session token: {token}'
 

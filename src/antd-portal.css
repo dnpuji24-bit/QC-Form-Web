@@ -1,0 +1,237 @@
+.qc-antd-chooser.portal-layer {
+  background: #f3f6fb;
+}
+
+.qc-chooser-header.ant-layout-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: auto;
+  padding: 16px clamp(16px, 4vw, 48px);
+  line-height: 1.4;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.qc-chooser-header h1.ant-typography {
+  margin: 2px 0 0;
+  font-size: clamp(20px, 4vw, 28px);
+}
+
+.qc-chooser-account {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+
+.qc-antd-chooser .chooser-content {
+  width: 100%;
+}
+
+.qc-antd-chooser .portal-grid {
+  gap: 16px;
+}
+
+.qc-antd-chooser .portal-grid .ant-card-body {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.qc-antd-chooser .portal-grid h3 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+
+.qc-antd-chooser .portal-grid .ant-btn {
+  margin-top: auto;
+}
+
+.qc-chooser-note {
+  margin-top: 16px;
+}
+
+.qc-antd-nav {
+  padding-inline: clamp(12px, 4vw, 48px);
+  background: #fff;
+}
+
+.qc-antd-dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  gap: 16px;
+}
+
+.qc-dashboard-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.qc-dashboard-heading h3 {
+  margin: 0;
+}
+
+.qc-dashboard-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 220px);
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.qc-dashboard-filters .ant-form-item {
+  margin-bottom: 0;
+}
+
+.qc-dashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 12px;
+}
+
+.qc-antd-dashboard .qc-activity-link.ant-btn {
+  height: auto;
+  padding-inline: 0;
+  white-space: normal;
+  text-align: start;
+}
+
+@media (max-width: 600px) {
+  .qc-chooser-header.ant-layout-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .qc-dashboard-filters {
+    grid-template-columns: 1fr;
+  }
+}
+
+.qc-entry-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.qc-entry-heading h2.ant-typography {
+  margin: 0;
+  font-size: clamp(19px, 3vw, 28px);
+}
+
+.qc-entry-session,
+.qc-entry-source {
+  margin-bottom: 12px;
+}
+
+.qc-entry-session .session-bar {
+  background: transparent;
+}
+
+.qc-entry-session .session-bar input,
+.qc-entry-session .session-bar select {
+  min-width: 0;
+  border-radius: 8px;
+}
+
+.qc-entry-session .session-bar select {
+  min-height: 40px;
+  padding-block: 6px;
+}
+
+.qc-form-shell .unit-tab {
+  border: 1px solid #d9e2ef;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.qc-form-shell .unit-tab.active {
+  border-color: #1d4ed8;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.qc-form-shell .unit-tab.active span,
+.qc-form-shell .unit-tab.active small {
+  color: #1d4ed8;
+}
+
+.qc-form-shell .unit-tab:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 1px;
+}
+
+.qc-form-shell .active-unit-card {
+  min-width: 0;
+  border-color: #dce5f1;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.qc-form-shell .active-unit-card .unit-card-head {
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 12px;
+}
+
+.qc-form-shell .qc-entry-detail.ant-card {
+  min-width: 0;
+  margin-block: 12px;
+  border-color: #dce5f1;
+}
+
+.qc-form-shell .qc-entry-detail .subpanel {
+  margin: 0;
+  border: 0 !important;
+  border-radius: 8px;
+  background: #fff !important;
+  box-shadow: none;
+}
+
+.qc-form-shell .qc-entry-detail .working-section {
+  box-shadow: inset 3px 0 #93c5fd;
+}
+
+.qc-form-shell .qc-entry-detail :is(.downtime-section, .spray-hold-section) {
+  box-shadow: inset 3px 0 #fbbf24;
+}
+
+.qc-form-shell .qc-entry-feedback {
+  margin-bottom: 12px;
+}
+
+.qc-form-shell .qc-entry-stat {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.qc-form-shell .qc-entry-stat .ant-statistic-content {
+  font-size: clamp(14px, 2vw, 20px);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.qc-form-shell :is(.unit-summary, .session-summary) {
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.qc-form-shell .form-actions .ant-btn {
+  height: auto;
+  min-height: 40px;
+  white-space: normal;
+}

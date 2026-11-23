@@ -1,3 +1,4 @@
+import { Button, Layout, Menu, Tag, Typography } from 'antd'
 import {NativeAccountSettings} from './NativeAccountSettings'
 import {QcReleaseInfo} from './qcReleaseInfo'
 import {NativeHistoricalQcCorrection,canCorrectHistoricalQc} from './NativeHistoricalQcCorrection'
@@ -10,7 +11,7 @@ import { printQcReportA4 } from './qcNativeReportPrint'
 import { isOperationalQcId } from './qcOperationalFormBridge'
 import {sameQcRevision,preserveConfirmedRecord} from './qcPendingReconciliation'
 import { operationalSaveEnabled } from './qcOperationalAdapters'
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { onAuthStateChanged } from 'firebase/auth'
 import { getApiUrl, qcApi, setApiUrl } from './api'
@@ -21,7 +22,6 @@ import { subscribeQcRecords } from './firestoreRealtime'
 import { removeQcActualFromFirestore } from './firestoreStore'
 import SprayForm from './SprayForm'
 import FertilizerForm from './FertilizerForm'
-import OperationalDashboard from './OperationalDashboard'
 import { ActivityLogs } from './AdminPages'
 import { canEditAccess, canViewAccess } from './accessControl'
 import { hydrateUserAccess } from './userAccess'
@@ -30,6 +30,8 @@ import { UploadStatusPill, uploadStatusInfo } from './UploadStatus'
 import type { MasterData, QcRecord, User } from './types'
 import YinYangRefreshButton from './YinYangRefreshButton'
 import QcSupabasePhotoViewer from './QcSupabasePhotoViewer'
+
+const OperationalDashboard = lazy(() => import('./OperationalDashboard'))
 
 type View='dashboard'|'spray'|'fertilizer'|'records'|'logs'|'settings'
 type RecordPreset={type?:'all'|'spray'|'fertilizer';query?:string;saveType?:string;date?:string;mandor?:string}
@@ -215,7 +217,28 @@ export default function App(){
  return <div className="app-shell">
    {!nativePortalEnabled&&sessionNeedsVerification&&<div className="alert qc-session-verification" role="alert"><strong>Sesi Apps Script perlu diperbarui.</strong> Login Firebase dan draft QC tidak dihapus. Input QC dapat masuk antrean lokal, lalu disinkronkan setelah akses pulih. <button type="button" onClick={()=>void refreshSession()}>Coba verifikasi</button><button type="button" onClick={()=>setReloginOpen(open=>!open)}>Perbarui sesi tanpa keluar</button>{reloginOpen&&<form className="qc-session-renew-form" onSubmit={event=>void renewScriptSession(event)}><label>Kata sandi akun {user.username}<input name="password" type="password" autoComplete="current-password" required/></label><button type="submit" disabled={reloginBusy}>{reloginBusy?'Memverifikasi…':'Masuk kembali'}</button></form>}</div>}
    {!nativePortalEnabled&&firebaseReady&&!firebaseConnected&&<div className="alert qc-session-verification" role="alert"><strong>Firestore belum terhubung ke akun Firebase.</strong> QC masih bisa disimpan ke antrean lokal, tetapi belum dapat dikonfirmasi di Firestore. <button type="button" onClick={()=>setFirebaseReloginOpen(open=>!open)}>Sambungkan Firebase</button>{firebaseReloginOpen&&<form className="qc-session-renew-form" onSubmit={event=>void recoverFirebase(event)}><label>Password Firebase untuk {user.email||'akun QC'}<input name="password" type="password" autoComplete="current-password" required/></label><button type="submit" disabled={firebaseReloginBusy}>{firebaseReloginBusy?'Menghubungkan…':'Verifikasi Firebase'}</button></form>}</div>}
-    <header className="topbar qc-topbar"><div className="qc-topbar-brand"><div className="eyebrow">QUALITY CONTROL</div></div><div className="user-box"><div><strong>{user.fullName}</strong><span>{user.role.replaceAll('_',' ')}</span></div><button className="ghost logout-icon-button" onClick={()=>void logout()} aria-label="Keluar" title="Keluar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg></button></div></header><nav className="tabs" aria-label="Navigasi utama">{canViewAccess(user,'qc_dashboard')&&<button className={view==='dashboard'?'active':''} onClick={()=>setView('dashboard')}>Dashboard</button>}{canSpray(user)&&<button className={view==='spray'?'active':''} onClick={()=>{setEditingSprayRecords([]);setEditingFertilizerRecords([]);setMessage('');setView('spray')}}>Input Spraying</button>}{canFertilizer(user)&&<button className={view==='fertilizer'?'active':''} onClick={()=>{setEditingFertilizerRecords([]);setEditingSprayRecords([]);setMessage('');setView('fertilizer')}}>Input Fertilizer</button>}{canViewAccess(user,'qc_records')&&<button className={view==='records'?'active':''} onClick={()=>openRecords({})}>Data QC</button>}{canLogs(user)&&<button className={view==='logs'?'active':''} onClick={()=>setView('logs')}>Activity Logs</button>}{canViewAccess(user,'qc_settings')&&<button className={view==='settings'?'active':''} onClick={()=>setView('settings')}>Pengaturan</button>}</nav><main className="content"><div key={view} className="ui-view-transition qc-view-transition">{message&&<div className="alert">{message}</div>}{view==='dashboard'&&canViewAccess(user,'qc_dashboard')&&<OperationalDashboard records={records} master={master} loading={busy} onRefresh={()=>void Promise.all([refreshRecords(),refreshMaster()])} onOpenRecords={openRecords}/>} {view==='spray'&&canSpray(user)&&(canEditAccess(user,'qc_spraying')?<SprayForm key={String(editingSprayRecords[0]?.sessionId||editingSprayRecords[0]?.id||'new-spray')} token={token} user={user} master={master} initialRecords={editingSprayRecords} onCancelEdit={()=>{setEditingSprayRecords([]);setView('records')}} onSaved={handleSpraySaved}/>:<ReadOnlyNotice title="Input Spraying"/>)} {view==='fertilizer'&&canFertilizer(user)&&(canEditAccess(user,'qc_fertilizer')?<FertilizerForm key={String(editingFertilizerRecords[0]?.sessionId||editingFertilizerRecords[0]?.id||'new-fert')} token={token} user={user} master={master} initialRecords={editingFertilizerRecords} onCancelEdit={()=>{setEditingFertilizerRecords([]);setView('records')}} onSaved={handleFertilizerSaved}/>:<ReadOnlyNotice title="Input Fertilizer"/>)} {view==='records'&&nativePortalEnabled&&user.role==='owner'&&<NativeQcArchive/>} {view==='records'&&canViewAccess(user,'qc_records')&&<Records records={records} user={user} loading={busy} preset={recordPreset} onRefresh={()=>{if(firebaseAuth?.currentUser)setMessage('Data QC realtime aktif; data diperbarui otomatis dari Firestore.');else void refreshRecords()}} onEdit={startEdit} onDelete={r=>void remove(r)} onFinalize={r=>void finalize(r)} onRetry={r=>void retryUpload(r)} onRetrySave={r=>void retryFirestoreSave(r)}/>} {view==='logs'&&canLogs(user)&&<ActivityLogs token={token}/>} {view==='settings'&&canViewAccess(user,'qc_settings')&&(nativePortalEnabled?<NativeAccountSettings user={user}/>:<Settings readOnly={!canEditAccess(user,'qc_settings')}/>)}</div></main></div>
+    <Layout.Header className="qc-topbar qc-chooser-header">
+      <Typography.Title level={1}>Quality Control</Typography.Title>
+      <div className="qc-chooser-account">
+        <Typography.Text strong>{user.fullName}</Typography.Text>
+        <Tag>{user.role.replaceAll('_',' ')}</Tag>
+        <Button onClick={()=>void logout()}>Keluar</Button>
+      </div>
+    </Layout.Header>
+    <nav className="qc-antd-nav" aria-label="Navigasi utama">
+    <Menu mode="horizontal" selectedKeys={[view]} items={[
+      ...(canViewAccess(user,'qc_dashboard') ? [{ key: 'dashboard', label: 'Dashboard', onClick: () => setView('dashboard') }] : []),
+      ...(canSpray(user) ? [{ key: 'spray', label: 'Input Spraying', onClick: () => {
+        setEditingSprayRecords([]);setEditingFertilizerRecords([]);setMessage('');setView('spray')
+      } }] : []),
+      ...(canFertilizer(user) ? [{ key: 'fertilizer', label: 'Input Fertilizer', onClick: () => {
+        setEditingFertilizerRecords([]);setEditingSprayRecords([]);setMessage('');setView('fertilizer')
+      } }] : []),
+      ...(canViewAccess(user,'qc_records') ? [{ key: 'records', label: 'Data QC', onClick: () => openRecords({}) }] : []),
+      ...(canLogs(user) ? [{ key: 'logs', label: 'Activity Logs', onClick: () => setView('logs') }] : []),
+      ...(canViewAccess(user,'qc_settings') ? [{ key: 'settings', label: 'Pengaturan', onClick: () => setView('settings') }] : []),
+    ]} />
+  </nav><main className="content"><div key={view} className="ui-view-transition qc-view-transition">{message&&<div className="alert">{message}</div>}{view==='dashboard'&&canViewAccess(user,'qc_dashboard')&&<Suspense fallback={<p role="status">Memuat Dashboard QC…</p>}><OperationalDashboard records={records} master={master} loading={busy} onRefresh={()=>void Promise.all([refreshRecords(),refreshMaster()])} onOpenRecords={openRecords}/></Suspense>} {view==='spray'&&canSpray(user)&&(canEditAccess(user,'qc_spraying')?<SprayForm key={String(editingSprayRecords[0]?.sessionId||editingSprayRecords[0]?.id||'new-spray')} token={token} user={user} master={master} initialRecords={editingSprayRecords} onCancelEdit={()=>{setEditingSprayRecords([]);setView('records')}} onSaved={handleSpraySaved}/>:<ReadOnlyNotice title="Input Spraying"/>)} {view==='fertilizer'&&canFertilizer(user)&&(canEditAccess(user,'qc_fertilizer')?<FertilizerForm key={String(editingFertilizerRecords[0]?.sessionId||editingFertilizerRecords[0]?.id||'new-fert')} token={token} user={user} master={master} initialRecords={editingFertilizerRecords} onCancelEdit={()=>{setEditingFertilizerRecords([]);setView('records')}} onSaved={handleFertilizerSaved}/>:<ReadOnlyNotice title="Input Fertilizer"/>)} {view==='records'&&nativePortalEnabled&&user.role==='owner'&&<NativeQcArchive/>} {view==='records'&&canViewAccess(user,'qc_records')&&<Records records={records} user={user} loading={busy} preset={recordPreset} onRefresh={()=>{if(firebaseAuth?.currentUser)setMessage('Data QC realtime aktif; data diperbarui otomatis dari Firestore.');else void refreshRecords()}} onEdit={startEdit} onDelete={r=>void remove(r)} onFinalize={r=>void finalize(r)} onRetry={r=>void retryUpload(r)} onRetrySave={r=>void retryFirestoreSave(r)}/>} {view==='logs'&&canLogs(user)&&<ActivityLogs token={token}/>} {view==='settings'&&canViewAccess(user,'qc_settings')&&(nativePortalEnabled?<NativeAccountSettings user={user}/>:<Settings readOnly={!canEditAccess(user,'qc_settings')}/>)}</div></main></div>
 }
 function AuthScreen({onLogin}:{onLogin:(token:string,user:User)=>void}){const[mode,setMode]=useState<'login'|'register'>('login'),[busy,setBusy]=useState(false),[message,setMessage]=useState('');async function login(event:FormEvent<HTMLFormElement>){event.preventDefault();const data=new FormData(event.currentTarget),loginName=String(data.get('username')||''),password=String(data.get('password')||'');setBusy(true);setMessage('');try{const result=await qcApi.login(loginName,password);if(!result.token||!result.user)throw new Error('Respons login tidak lengkap');if(result.user.email){
       const bridgeOk=await signInFirebaseBridge(result.user.email,password)

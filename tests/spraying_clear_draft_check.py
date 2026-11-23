@@ -17,5 +17,5 @@ for token in [
 ]:
     assert token in source, f"Missing Spraying Clean Draft behavior: {token}"
 
-assert "{!editing&&<button" in source
+assert "{!editing&&<Button htmlType=\"button\" disabled={busy} onClick={()=>void clearInput(true)}>" in source
 print("Spraying Clean Draft check passed: local draft/input can be cleared and a fresh session is created without deleting persisted Data QC.")

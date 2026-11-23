@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Alert, Button, Card, Form, Input, Select, Statistic, Table, Tag } from 'antd'
+import type { TableColumnsType } from 'antd'
 import { onAuthStateChanged } from 'firebase/auth'
 import { firebaseAuth, firestoreDb } from './firebase'
 import type { MasterData, QcRecord } from './types'
@@ -6,6 +8,7 @@ import YinYangRefreshButton from './YinYangRefreshButton'
 
 type RecordPreset = { type?: 'all'|'spray'|'fertilizer'; query?: string; saveType?: string }
 type Props = { records: QcRecord[]; master: MasterData; loading: boolean; onRefresh: () => void; onOpenRecords?: (preset: RecordPreset) => void }
+type ActivityRow = { name: string; records: number; area: number; uploaded: number }
 const num = (v: unknown) => Number(String(v ?? '').replace(',','.')) || 0
 
 function recordArea(r: QcRecord) {
@@ -51,18 +54,46 @@ export default function OperationalDashboard({ records, loading, onRefresh, onOp
       const prev = map.get(key) || {records:0,area:0,uploaded:0}
       map.set(key,{records:prev.records+1,area:prev.area+recordArea(r),uploaded:prev.uploaded+(r.saveType==='uploaded'?1:0)})
     })
-    return [...map.entries()].sort((a,b) => b[1].area-a[1].area)
+    return [...map.entries()]
+      .sort((a,b) => b[1].area-a[1].area)
+      .map(([name, row]) => ({ name, ...row }))
   }, [filtered])
 
   const open = (preset: RecordPreset) => onOpenRecords?.(preset)
-  return <section>
+  const columns: TableColumnsType<ActivityRow> = [
+    {
+      title: 'Activity', dataIndex: 'name',
+      render: (name: string) => <Button type="link" className="qc-activity-link" onClick={() => open({ type, query: name })}>{name}</Button>,
+    },
+    { title: 'Luas (Ha)', dataIndex: 'area', align: 'right', render: (area: number) => area.toLocaleString('id-ID') },
+    { title: 'Record', dataIndex: 'records', align: 'right' },
+    { title: 'Uploaded', key: 'uploaded', align: 'right', render: (_, row) => `${row.uploaded} (${Math.round(row.uploaded / row.records * 100)}%)` },
+  ]
+  return <section className="qc-antd-dashboard">
     <div className="dashboard-hero compact-hero">
       <div><div className="eyebrow">QUALITY CONTROL</div><h2>Dashboard QC</h2><p>{realtimeActive?'Ringkasan berubah otomatis saat Draft, Edit, atau Upload berubah di Firestore.':'Ringkasan pekerjaan yang sudah diinput dan status pelaporannya.'}</p></div>
     </div>
-    <div className="section-head"><div><div className="eyebrow">FILTER DATA</div><h2>Ringkasan Pekerjaan</h2></div>{realtimeActive?<span className="status-pill success">● Firestore realtime aktif</span>:<YinYangRefreshButton busy={loading} label="Refresh data" onClick={onRefresh}/>}</div>
-    {realtimeActive&&<div className="alert">Dashboard mengikuti Firestore secara realtime. Tidak perlu menekan Refresh setelah Simpan Draft atau Edit.</div>}
-    <div className="filters dashboard-filters"><div><input list="worked-paddocks" placeholder="Cari / pilih paddock yang sudah dikerjakan…" value={query} onChange={(e)=>setQuery(e.target.value)} /><datalist id="worked-paddocks">{paddockOptions.map((x)=><option value={x} key={x}/>)}</datalist></div><select value={type} onChange={(e)=>setType(e.target.value as typeof type)}><option value="all">Semua form</option><option value="spray">Spraying</option><option value="fertilizer">Fertilizer</option></select></div>
-    <div className="stats-grid dashboard-stats">
+    <Card>
+      <div className="qc-dashboard-heading">
+        <h3>Ringkasan Pekerjaan</h3>
+        {realtimeActive?<Tag color="success">Firestore realtime aktif</Tag>:<YinYangRefreshButton busy={loading} label="Refresh data" onClick={onRefresh}/>}
+      </div>
+      {realtimeActive&&<Alert type="info" showIcon title="Dashboard mengikuti Firestore secara realtime. Tidak perlu menekan Refresh setelah Simpan Draft atau Edit." />}
+      <Form component="div" layout="vertical" className="qc-dashboard-filters">
+        <Form.Item label="Cari pekerjaan" htmlFor="qc-dashboard-query">
+          <Input id="qc-dashboard-query" list="worked-paddocks" placeholder="Paddock, unit, activity, atau mandor" value={query} onChange={e => setQuery(e.target.value)} />
+          <datalist id="worked-paddocks">{paddockOptions.map(value => <option value={value} key={value} />)}</datalist>
+        </Form.Item>
+        <Form.Item label="Jenis form" htmlFor="qc-dashboard-type">
+          <Select id="qc-dashboard-type" value={type} onChange={setType} virtual={false} options={[
+            { value: 'all', label: 'Semua form' },
+            { value: 'spray', label: 'Spraying' },
+            { value: 'fertilizer', label: 'Fertilizer' },
+          ]} />
+        </Form.Item>
+      </Form>
+    </Card>
+    <div className="qc-dashboard-stats">
       <Stat label="Total record" value={filtered.length} onClick={()=>open({type,query})} hint="Lihat semua data" />
       <Stat label="Uploaded" value={stats.uploaded} onClick={()=>open({type,query,saveType:'uploaded'})} hint="Lihat yang sudah upload" />
       <Stat label="Draft / queue" value={stats.pending} onClick={()=>open({type,query,saveType:'pending'})} hint="Lihat yang belum upload" />
@@ -72,12 +103,20 @@ export default function OperationalDashboard({ records, loading, onRefresh, onOp
       <Stat label="Pupuk tercatat" value={`${stats.fertKg.toLocaleString('id-ID')} Kg`} onClick={()=>open({type:'fertilizer',query})} hint="Dari pengisian fertilizer" />
       <Stat label="Unit fertilizer" value={stats.units} onClick={()=>open({type:'fertilizer',query})} hint="Unit unik yang tercatat" />
     </div>
-    <div className="panel activity-panel"><div className="section-head"><div><div className="eyebrow">HASIL PER ACTIVITY</div><h3>Luas yang Sudah Dikerjakan</h3></div><span className={`status-pill ${stats.pending ? 'warning' : 'success'}`}>{stats.pending ? `${stats.pending} belum uploaded` : 'Semua uploaded'}</span></div>
-      <div className="activity-card-list">{activityRows.map(([name,row]) => { const progress=row.records?Math.round(row.uploaded/row.records*100):0; return <button type="button" className="activity-card" key={name} onClick={()=>open({type,query:name})}><span><strong>{name}</strong><small>{row.records} record • {row.uploaded} uploaded</small></span><span className="activity-area">{row.area.toLocaleString('id-ID')} Ha<small>{progress}% uploaded</small></span></button> })}{!activityRows.length && <div className="empty">Belum ada data.</div>}</div>
-    </div>
+    <Card>
+      <div className="qc-dashboard-heading">
+        <h3>Luas yang Sudah Dikerjakan</h3>
+        <Tag color={stats.pending ? 'warning' : 'success'}>{stats.pending ? `${stats.pending} belum uploaded` : 'Semua uploaded'}</Tag>
+      </div>
+      <Table rowKey="name" columns={columns} dataSource={activityRows} pagination={false}
+        scroll={{ x: 520 }} size="small" locale={{ emptyText: 'Belum ada data.' }} />
+    </Card>
   </section>
 }
 
 function Stat({ label, value, hint, onClick }: { label:string; value:number|string; hint?:string; onClick?:()=>void }) {
-  return <button type="button" className="stat stat-button" onClick={onClick}><span>{label}</span><strong>{value}</strong>{hint && <small>{hint}</small>}</button>
+  return <Card size="small">
+    <Statistic title={label} value={value} groupSeparator="." />
+    {hint && <Button type="link" className="qc-activity-link" onClick={onClick} aria-label={`${label}: ${hint}`}>{hint}</Button>}
+  </Card>
 }
