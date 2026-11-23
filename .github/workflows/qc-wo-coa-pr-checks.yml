@@ -96,6 +96,14 @@ jobs:
       - name: Validate Excel-style Unit Grid and both shifts without approval
         run: node --experimental-strip-types --test scripts/test-unit-sheet-no-approval.mjs
 
+      - name: Verify Users and Access Owner audit contract
+        run: node --test scripts/test-native-users-access-contract.mjs
+
+      - name: Verify Owner-only Users and Access writes in Firestore emulator
+        run: |
+          npm install --no-save --no-package-lock @firebase/rules-unit-testing@5
+          npx --yes firebase-tools@14 emulators:exec --only firestore --project demo-qc-native-owner-access --config firebase.native-cutover-browser-emulator.json "node scripts/test-native-owner-access-rules-emulator.mjs"
+
       - name: Verify TypeScript
         run: npm run typecheck
       - name: Build React safely
