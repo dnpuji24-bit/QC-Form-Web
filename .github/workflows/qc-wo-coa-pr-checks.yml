@@ -61,6 +61,9 @@ jobs:
       - name: Validate Actual WhatsApp layout and totals
         run: npm run test:plan:actual-wa-layout
 
+      - name: Verify queued QC Firestore reconciliation and historical safety
+        run: node --experimental-strip-types --test scripts/test-qc-pending-firestore-reconciliation.mjs
+
       - name: Validate QC Spray and Fertilizer WO parity across shifts
         run: npm run test:qc:wo-shift-parity
 

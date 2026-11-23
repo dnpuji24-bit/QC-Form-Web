@@ -2,6 +2,7 @@ import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/fire
 import { firebaseAuth, firestoreDb } from './firebase'
 import { hydrateReportPhotoPreviews } from './reportPhoto'
 import type { QcRecord } from './types'
+import {reconcileServerSnapshot} from './qcPendingReconciliation'
 
 export type RealtimeState={
   source:'firestore'|'apps-script'
@@ -44,8 +45,13 @@ export function subscribeQcRecords(
         : query(base)
 
       if(stopped)return
-      stopSnapshot=onSnapshot(ref,snapshot=>{
-        const records=snapshot.docs.map(docSnap=>hydrateReportPhotoPreviews({id:docSnap.id,...docSnap.data()} as QcRecord))
+      // Metadata-only acknowledgements matter: the SDK may first serve a cached
+      // pending QC and later confirm the exact same bytes from the server.
+      stopSnapshot=onSnapshot(ref,{includeMetadataChanges:true},snapshot=>{
+        const records=snapshot.docs.map(docSnap=>{
+          const record=hydrateReportPhotoPreviews({id:docSnap.id,...docSnap.data()} as QcRecord)
+          return reconcileServerSnapshot(record,!snapshot.metadata.fromCache&&!docSnap.metadata.hasPendingWrites)
+        })
         records.sort((a,b)=>String(b.createdAt||b.date||'').localeCompare(String(a.createdAt||a.date||'')))
         onRecords(records)
         onState?.({source:'firestore',connected:true})
