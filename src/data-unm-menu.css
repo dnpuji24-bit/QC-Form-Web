@@ -1,0 +1,148 @@
+.portal-layer.data-unm-layer {
+  background: #f8fafc;
+}
+
+.data-unm-layer .portal-topbar {
+  min-height: 60px;
+  padding: 10px clamp(16px, 3vw, 40px);
+  border-color: #e2e8f0;
+  background: #fff;
+}
+
+.data-unm-layer .portal-topbar h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  letter-spacing: -.025em;
+}
+
+.data-unm-layer .compact-page-head {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+
+.data-unm-layer .compact-page-head h2 {
+  margin: 0;
+  font-size: clamp(1.25rem, 2.4vw, 1.7rem);
+  scroll-margin-top: 80px;
+}
+
+.data-unm-layer .portal-user .ant-btn,
+.data-unm-layer .compact-page-head .ant-btn {
+  min-height: 40px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.data-unm-menu {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  align-items: start;
+  gap: 20px;
+  max-width: 960px;
+  margin-inline: auto;
+}
+
+.data-unm-menu-group {
+  min-width: 0;
+  padding: 14px 8px 8px;
+  border: 1px solid #dce1e7;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+}
+
+.data-unm-menu-group h2 {
+  margin: 0 10px 8px;
+  color: #475569;
+  font-size: .82rem;
+  font-weight: 600;
+}
+
+.data-unm-menu-group ul {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.data-unm-menu-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 50px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #182238;
+  font-size: .95rem;
+  font-weight: 550;
+  text-align: left;
+  cursor: pointer;
+  scroll-margin-top: 76px;
+}
+
+.data-unm-menu-item:hover,
+.data-unm-menu-item:focus-visible {
+  background: #f1f5f9;
+  color: #1e40af;
+}
+
+.data-unm-menu-item:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+}
+
+.data-unm-menu-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.data-unm-menu-arrow {
+  color: #64748b;
+}
+
+.data-unm-layer :is([aria-label="Menu Master Paddock"], [aria-label="Menu Master Activity"]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f1f5f9;
+}
+
+.data-unm-layer :is([aria-label="Menu Master Paddock"], [aria-label="Menu Master Activity"]) button {
+  min-height: 38px;
+  border-radius: 7px;
+  font-weight: 500;
+}
+
+.data-unm-layer :is([aria-label="Menu Master Paddock"], [aria-label="Menu Master Activity"]) button.active {
+  background: #fff;
+  color: #172554;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 14%);
+}
+
+@media (max-width: 600px) {
+  .data-unm-menu {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .data-unm-layer .portal-user .ant-btn,
+  .data-unm-layer .compact-page-head .ant-btn,
+  .data-unm-layer :is([aria-label="Menu Master Paddock"], [aria-label="Menu Master Activity"]) button {
+    min-height: 44px;
+  }
+}

@@ -9,7 +9,7 @@ for token in [
     "updatedAt:dateValue(data.updatedAt)",
     "const aTime=a.createdAt||a.updatedAt||a.inputDate",
     "bTime.localeCompare(aTime)",
-    "urutan terbaru di atas",
+    'id="monthly-period-results" className="monthly-period-card-list">{filtered.map(row=>',
 ]:
     assert token in source, f"Missing newest-first Monthly Plan token: {token}"
 

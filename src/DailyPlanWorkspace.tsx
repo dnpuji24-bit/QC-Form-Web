@@ -1,3 +1,4 @@
+import { Button, Input, Segmented } from 'antd'
 import { useEffect, useState } from 'react'
 import DailyPlanImportPanel from './DailyPlanImportPanel'
 import DailyPlanListPanel from './DailyPlanListPanel'
@@ -11,7 +12,8 @@ type Props={user:User;onCopyToActual?:(dailyPlanIds:string[])=>void;jumpRequest?
 type View='plan'|'import'
 
 export default function DailyPlanWorkspace({user,onCopyToActual,jumpRequest}:Props){
-  const[view,setView]=useState<View>('plan')
+  const[requestedView,setView]=useState<View>('plan')
+  const[editorOpen,setEditorOpen]=useState(false)
   const[selectedDate,setSelectedDate]=useState(jumpRequest?.date||new Date().toISOString().slice(0,10))
   const[refreshKey,setRefreshKey]=useState(0)
   const[composerRequest,setComposerRequest]=useState<DailyComposerRequest>(null)
@@ -19,17 +21,24 @@ export default function DailyPlanWorkspace({user,onCopyToActual,jumpRequest}:Pro
   useEffect(()=>{if(!jumpRequest)return;setView('plan');setSelectedDate(jumpRequest.date);setMonthlyFocus(jumpRequest.monthlyPlanLineId)},[jumpRequest?.date,jumpRequest?.monthlyPlanLineId,jumpRequest?.pid])
   function changed(){setRefreshKey(x=>x+1)}
   const canPlan=canViewAccess(user,'data_plan_daily'),editPlan=canEditAccess(user,'data_plan_daily'),canImport=canViewAccess(user,'data_plan_daily_import'),editImport=canEditAccess(user,'data_plan_daily_import')
-  useEffect(()=>{if(view==='plan'&&!canPlan)setView(canImport?'import':'plan');if(view==='import'&&!canImport)setView(canPlan?'plan':'import')},[view,canPlan,canImport])
+  if (!canPlan && !canImport) return null
+  const view = !canPlan ? 'import' : !canImport ? 'plan' : requestedView
   return <section className="plan-subworkspace">
-    <div className="segmented plan-secondary-nav" aria-label="Menu Daily Plan">
-      {canPlan&&<button type="button" className={view==='plan'?'active':''} onClick={()=>setView('plan')}>Daily per Tanggal</button>}
-      {canImport&&<button type="button" className={view==='import'?'active':''} onClick={()=>setView('import')}>Update / Import Excel</button>}
-    </div>
+    <Segmented<View> size="small" className="plan-antd-nav" aria-label="Menu Daily Plan" value={view}
+      options={[
+        ...(canPlan ? [{value: 'plan' as const, label: 'Daily per Tanggal'}] : []),
+        ...(canImport ? [{value: 'import' as const, label: 'Update / Import Excel'}] : []),
+      ]} onChange={setView} />
     {(canPlan||canImport)&&<div className="plan-period-export-row"><PlanPeriodExcelExport kind="daily" /></div>}
     {view==='plan'?<div className="period-workspace">
-      {editPlan&&<DailyPlanWebEntryPanel user={user} selectedDate={selectedDate} onDateChange={setSelectedDate} onSaved={changed} composerRequest={composerRequest} onComposerRequestHandled={()=>setComposerRequest(null)}/>}
+      <div className="plan-browse-controls">
+        <label>Tanggal <Input type="date" value={selectedDate} onChange={event=>{if(event.target.value)setSelectedDate(event.target.value)}}/></label>
+        {editPlan&&<Button type={editorOpen?'default':'primary'} aria-expanded={editorOpen}
+          aria-controls="daily-plan-editor" onClick={()=>setEditorOpen(open=>!open)}>{editorOpen?'Tutup Form':'Buka Form Daily'}</Button>}
+      </div>
+      {editPlan&&<div id="daily-plan-editor" hidden={!editorOpen}><DailyPlanWebEntryPanel user={user} selectedDate={selectedDate} onDateChange={setSelectedDate} onSaved={changed} composerRequest={composerRequest} onComposerRequestHandled={()=>setComposerRequest(null)}/></div>}
       {!editPlan&&<div className="alert">Mode Hanya Lihat: input dan perubahan Daily Plan dinonaktifkan.</div>}
-      <DailyPlanListPanel user={user} onCopyToActual={onCopyToActual} selectedDate={selectedDate} compact refreshKey={refreshKey} focusMonthlyPlanLineId={monthlyFocus} focusPid={jumpRequest?.pid||''} onClearMonthlyFocus={()=>setMonthlyFocus('')} onChanged={changed} onEditGroup={group=>setComposerRequest({mode:'edit-saved',group})} onDuplicateGroup={group=>setComposerRequest({mode:'duplicate-saved',group})} readOnly={!editPlan}/>
+      <DailyPlanListPanel user={user} onCopyToActual={onCopyToActual} selectedDate={selectedDate} compact refreshKey={refreshKey} focusMonthlyPlanLineId={monthlyFocus} focusPid={jumpRequest?.pid||''} onClearMonthlyFocus={()=>setMonthlyFocus('')} onChanged={changed} onEditGroup={group=>{setEditorOpen(true);setComposerRequest({mode:'edit-saved',group})}} onDuplicateGroup={group=>{setEditorOpen(true);setComposerRequest({mode:'duplicate-saved',group})}} readOnly={!editPlan}/>
     </div>:(editImport?<DailyPlanImportPanel user={user}/>:<div className="panel"><div className="alert">Mode Hanya Lihat: Update / Import Excel dinonaktifkan.</div></div>)}
   </section>
 }

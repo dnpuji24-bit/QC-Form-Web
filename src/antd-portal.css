@@ -347,3 +347,169 @@
     font-size: .75rem;
   }
 }
+
+.plan-workspace-shell .plan-antd-nav {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  margin-bottom: 10px;
+}
+
+.plan-workspace-shell .plan-antd-nav .ant-segmented-item {
+  flex-shrink: 0;
+}
+
+.plan-workspace-shell .plan-section-menu {
+  padding: 3px;
+  border: 1px solid #dce2e9;
+  border-radius: 10px;
+  color: #475569;
+  background: #f1f4f8;
+}
+
+.plan-section-menu .ant-segmented-item,
+.plan-section-menu .ant-segmented-thumb {
+  border-radius: 7px;
+}
+
+.plan-section-menu .ant-segmented-item-selected,
+.plan-section-menu .ant-segmented-thumb {
+  color: #172235;
+  background: #fff;
+  box-shadow: 0 0 0 1px #dce2e9, 0 1px 3px #0f172a14;
+}
+
+.plan-section-menu .ant-segmented-item:has(input:focus-visible) {
+  outline: 2px solid #1d4ed8;
+  outline-offset: -2px;
+}
+
+.plan-section-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.plan-section-menu .ant-segmented-item-selected-text svg {
+  color: #1d4ed8;
+}
+
+.plan-period-controls,
+.plan-browse-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px 12px;
+}
+
+.plan-period-controls label,
+.plan-browse-controls label {
+  display: grid;
+  gap: 4px;
+  font-size: .85rem;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.plan-period-controls select {
+  height: 40px;
+  background: #fff;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  padding: 0 8px;
+  font: inherit;
+  color: #0f172a;
+}
+
+.plan-period-controls input {
+  width: 90px;
+}
+
+.plan-browse-controls label {
+  max-width: 180px;
+}
+
+.plan-editor,
+.plan-browse-controls {
+  margin-block: 10px;
+}
+
+.plan-activity-details > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.plan-activity-details[open] > summary {
+  margin-bottom: 8px;
+}
+
+.plan-audit-head h3.ant-typography {
+  margin: 0;
+}
+
+.plan-audit-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 110px), 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 700px) {
+  .plan-workspace-shell .plan-antd-nav .ant-segmented-item-label {
+    padding-inline: 6px;
+    font-size: 12px;
+  }
+
+  .plan-workspace-shell .plan-section-menu {
+    width: 100%;
+  }
+
+  .plan-workspace-shell .plan-section-menu .ant-segmented-item {
+    flex: 1 0 auto;
+  }
+
+  .plan-section-label {
+    flex-direction: column;
+    gap: 2px;
+    min-height: 46px;
+  }
+
+  .plan-section-suffix {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .plan-subworkspace .plan-antd-nav .ant-segmented-item-label {
+    display: grid;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .plan-period-controls {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .plan-period-controls input,
+  .plan-period-controls select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .plan-browse-controls label {
+    flex: 1 1 120px;
+  }
+
+  .plan-audit-head {
+    flex-direction: row;
+    align-items: center;
+  }
+}
