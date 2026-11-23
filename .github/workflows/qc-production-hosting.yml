@@ -98,6 +98,9 @@ jobs:
       - name: Verify Users and Access Owner audit contract
         run: node --test scripts/test-native-users-access-contract.mjs
 
+      - name: Verify safe Firebase Owner login diagnostics
+        run: node --test scripts/test-qc-native-login-diagnostics.mjs
+
       - name: Check TypeScript types
         run: npm run typecheck
 
