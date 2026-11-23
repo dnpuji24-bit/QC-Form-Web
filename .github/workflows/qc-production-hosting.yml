@@ -95,6 +95,9 @@ jobs:
       - name: Validate QC Multi-Paddock allocation and atomic Actual
         run: npm run test:qc:multi-paddock
 
+      - name: Verify Users and Access Owner audit contract
+        run: node --test scripts/test-native-users-access-contract.mjs
+
       - name: Check TypeScript types
         run: npm run typecheck
 

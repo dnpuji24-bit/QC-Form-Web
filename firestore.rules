@@ -64,17 +64,61 @@ service cloud.firestore {
         );
     }
 
+    // Owner edits to existing accounts are limited and require an audit record
+    // in the same transaction. No Firebase Auth provisioning or claim changes.
+    function adminManagedRole(value) {
+      return value in ['manager','admin','asisten','mandor_spraying','mandor_fertilizer','pengunjung'];
+    }
+    function adminAuditPath(auditId) {
+      return /databases/$(database)/documents/qc_admin_audit/$(auditId);
+    }
+    function adminAuditMatches(auditId, action, target, before, after) {
+      let audit = getAfter(adminAuditPath(auditId)).data;
+      return auditId is string && auditId.matches('^ua_[A-Za-z0-9_-]{20,80}$')
+        && !exists(adminAuditPath(auditId))
+        && existsAfter(adminAuditPath(auditId))
+        && audit.actorUid == request.auth.uid && audit.createdAt == request.time
+        && audit.action == action && audit.target == target
+        && audit.before == before && audit.after == after;
+    }
+    function validOwnerUserChange(uid) {
+      let next = request.resource.data;
+      let old = resource.data;
+      return nativeRegistrationOwner() && uid != request.auth.uid
+        && old.role != 'owner' && old.status in ['approved','APPROVED']
+        && adminManagedRole(next.role) && next.active is bool
+        && next.adminUpdatedBy == request.auth.uid && next.adminUpdatedAt == request.time
+        && next.diff(old).affectedKeys().hasOnly(['role','active','adminUpdatedBy','adminUpdatedAt','adminAuditId'])
+        && ((next.role != old.role && next.active == old.active
+             && adminAuditMatches(next.adminAuditId,'setRole',uid,old.role,next.role))
+         || (next.role == old.role && next.active != old.active
+             && adminAuditMatches(next.adminAuditId,'setActive',uid,
+                old.active ? 'active':'inactive',next.active ? 'active':'inactive')));
+    }
+    function validPermissionTemplate(roleId) {
+      let next = request.resource.data;
+      let modes = next.permissions;
+      return nativeRegistrationOwner() && adminManagedRole(roleId)
+        && next.role == roleId && modes is map
+        && modes.keys().hasOnly(['qc_dashboard','qc_spraying','qc_fertilizer','qc_records','qc_logs','qc_settings','data_plan_summary','data_plan_monthly','data_plan_monthly_import','data_plan_daily','data_plan_daily_import','data_plan_actual','data_plan_actual_import','data_plan_reconciliation','data_master_paddock_list','data_master_paddock_import','data_master_activity_list','data_master_activity_manage','data_master_activity_resources','data_master_activity_import','data_company','data_unit_dispatch','data_master_employees'])
+        && modes.keys().hasAll(['qc_dashboard','qc_spraying','qc_fertilizer','qc_records','qc_logs','qc_settings','data_plan_summary','data_plan_monthly','data_plan_monthly_import','data_plan_daily','data_plan_daily_import','data_plan_actual','data_plan_actual_import','data_plan_reconciliation','data_master_paddock_list','data_master_paddock_import','data_master_activity_list','data_master_activity_manage','data_master_activity_resources','data_master_activity_import','data_company','data_unit_dispatch','data_master_employees'])
+        && modes.values().hasOnly(['none','view','edit'])
+        && next.updatedAt == request.time && next.updatedBy == request.auth.uid
+        && adminAuditMatches(next.adminAuditId,'setPermissions',roleId,'template','updated');
+    }
     match /users/{uid} {
       allow read: if activeUser() && (request.auth.uid == uid || role() == 'owner');
-      allow write: if false;
+      allow create, delete: if false;
+      allow update: if validOwnerUserChange(uid);
     }
 
     match /role_access/{roleId} {
       allow read: if activeUser();
-      allow create, update: if activeUser() && role() == 'owner'
-        && roleId in ['owner','manager','admin','asisten','mandor_spraying','mandor_fertilizer','pengunjung']
-        && request.resource.data.keys().hasAll(['role','permissions','updatedAt','updatedBy']);
-      allow delete: if activeUser() && role() == 'owner' && roleId != 'owner';
+      allow create: if validPermissionTemplate(roleId)
+        && request.resource.data.keys().hasOnly(['role','permissions','updatedAt','updatedBy','adminAuditId']);
+      allow update: if validPermissionTemplate(roleId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['permissions','updatedAt','updatedBy','adminAuditId']);
+      allow delete: if false;
     }
 
     match /user_access/{uid} {
@@ -107,7 +151,23 @@ service cloud.firestore {
     }
     match /qc_admin_audit/{auditId} {
       allow read: if nativeRegistrationOwner();
-      allow write: if false;
+      allow create: if nativeRegistrationOwner()
+        && auditId.matches('^ua_[A-Za-z0-9_-]{20,80}$')
+        && request.resource.data.keys().hasOnly(['action','target','before','after','actorUid','createdAt'])
+        && request.resource.data.keys().hasAll(['action','target','before','after','actorUid','createdAt'])
+        && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.target is string
+        && request.resource.data.before is string
+        && request.resource.data.after is string
+        && ((request.resource.data.action in ['setRole','setActive']
+              && existsAfter(/databases/$(database)/documents/users/$(request.resource.data.target))
+              && getAfter(/databases/$(database)/documents/users/$(request.resource.data.target)).data.adminAuditId == auditId)
+         || (request.resource.data.action == 'setPermissions'
+              && adminManagedRole(request.resource.data.target)
+              && existsAfter(/databases/$(database)/documents/role_access/$(request.resource.data.target))
+              && getAfter(/databases/$(database)/documents/role_access/$(request.resource.data.target)).data.adminAuditId == auditId));
+      allow update, delete: if false;
     }
 
     match /firebase_registration_requests/{uid} {
