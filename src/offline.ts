@@ -6,7 +6,9 @@ import { operationalSaveEnabled, operationalQueuedRecords, flushOperationalQc } 
 import { operationalFailureForRecord } from './qcOperationalQueue.mjs'
 import { qcApi } from './api'
 import { flushQcPhotoQueue, queueQcRecordPhotos, supabaseQcPhotoPreviewEnabled } from './qcSupabasePhotos'
-import { firebaseAuth, firebaseAuthPersistenceReady } from './firebase'
+import { firebaseAuth, firebaseAuthPersistenceReady, firestoreDb } from './firebase'
+import {doc,getDocFromServer} from 'firebase/firestore'
+import {serverConfirmsPendingQc,sameQcRevision} from './qcPendingReconciliation'
 import { mirrorRecordToFirestore } from './firestoreStore'
 import { openLocalDb, QUEUE_STORE } from './localDb'
 import type { ApiResponse, QcRecord } from './types'
@@ -169,6 +171,39 @@ export async function legacyQueueInventory(){return summarizeLegacyQueue(await a
 export async function queuedRecords(){const username=currentUsername();const owned=(await allItems()).filter(item=>belongsToCurrentUser(item,username));const legacy=(qcFirestoreOnly?owned:await recoverInterruptedUploads(owned)).map(item=>item.record);const next=operationalSaveEnabled&&firebaseAuth?.currentUser?await operationalQueuedRecords():[];return [...legacy,...next.map(job=>({...job.record,saveType:job.action==='finalizeRecord'?'upload_queued':job.record.saveType==='draft'?'draft_queued':job.record.saveType==='uploaded'?'upload_queued':'ready',firestoreSaveState:'queued',...(job.lastError?{firestoreSaveError:String(job.lastError).slice(0,280)}:{})} as QcRecord))]}
 export async function discardQueuedRecord(recordId:string){if(qcFirestoreOnly)throw Error('Antrean lama dipertahankan selama cutover.');const username=currentUsername();await replaceItems((await allItems()).filter(item=>item.record.id!==recordId||!belongsToCurrentUser(item,username)))}
 export async function enqueue(action:QueueAction,record:QcRecord){if(isOperationalQcId(record.id))throw Error('QC baru tidak boleh masuk antrean lama');await enqueueInternal(action,record)}
+
+/** Verify the exact locally queued revision against the authenticated server.
+ * This performs NO Firestore writes, never creates a new QC ID, never drops a
+ * historic job, and never claims success from the browser's local cache.
+ */
+export async function verifyQueuedQcOnServer(record:QcRecord):Promise<boolean>{
+  await firebaseAuthPersistenceReady
+  if(!firestoreDb||!firebaseAuth)throw Error('Firebase tidak tersedia untuk pemeriksaan QC.')
+  if(typeof firebaseAuth.authStateReady==='function')await firebaseAuth.authStateReady()
+  if(!firebaseAuth.currentUser)throw Error('Sesi Firebase belum aktif. Masuk kembali ke akun QC yang benar sebelum memeriksa record.')
+  if(!record.id||!record.clientRevision)throw Error('Record '+(record.id||'-')+' belum memiliki revisi terverifikasi. Migrasi historis memerlukan pemeriksaan manual; data lokal tidak diubah.')
+  let snapshot
+  try{snapshot=await getDocFromServer(doc(firestoreDb,'qc_records',record.id))}
+  catch(error){
+    const message=errorMessage(error)
+    if(/permission-denied|insufficient permissions/i.test(message))throw Error('Firestore menolak pembacaan QC '+record.id+'. Pastikan akun Firebase dan izin pemilik record benar. Data lokal aman.')
+    throw Error('Verifikasi server untuk QC '+record.id+' gagal: '+message)
+  }
+  if(!snapshot.exists())return false
+  const remote={id:snapshot.id,...snapshot.data()} as QcRecord
+  if(!serverConfirmsPendingQc(record,remote))throw Error('QC '+record.id+' ada di Firestore tetapi identitas atau revisinya berbeda. Jangan timpa data; minta Owner memeriksa histori dan revisi.')
+  const confirmed:QcRecord={...record,...remote,firestoreSaveState:'confirmed',firestoreSaveError:''}
+  // Retain every legacy queue item; mark only the exact matching revision as
+  // verified so an offline refresh cannot reintroduce a false pending state.
+  const username=currentUsername()
+  for(const item of await allItems()){
+    if(item.action!=='syncRecord'||item.record.id!==record.id||!belongsToCurrentUser(item,username)||!sameQcRevision(item.record,remote))continue
+    await putItem({...item,firestoreSynced:true,lastError:'',nextAttemptAt:0,
+      record:{...item.record,firestoreSaveState:'confirmed',firestoreSaveError:''}})
+  }
+  emitUploadState(confirmed)
+  return true
+}
 
 export async function retryQueuedRecord(recordOrId:QcRecord|string,token:string):Promise<boolean>{
   const recordId=typeof recordOrId==='string'?recordOrId:recordOrId.id
