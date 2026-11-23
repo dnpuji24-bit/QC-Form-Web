@@ -10,7 +10,7 @@ css=(root/'src'/'field-ui.css').read_text(encoding='utf-8')
 
 for token in [
     "Cari Monthly Plan / Paddock",
-    "Cari seluruh sumber: PID / Plan Line / Activity / bulan / week…",
+    'aria-label="Cari Monthly Plan / Paddock"',
     "searchKey(value:unknown)",
     "replace(/[^a-z0-9]/g,'')",
     "const sourceMatches=useMemo",

@@ -1,3 +1,4 @@
+import { Button, Card, Statistic, Typography } from 'antd'
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { collection, getDocs } from 'firebase/firestore'
 import { firestoreDb } from './firebase'
@@ -138,16 +139,23 @@ export default function PlanReconciliationPanel(){
   const healthyMonthly=audit.flows.filter(x=>x.issueCount===0).length
 
   return <section>
-    <div className="section-head"><div><div className="eyebrow">REKONSILIASI PLAN</div><h2>Audit Monthly → Daily → Actual</h2><p className="muted">Halaman ini hanya membaca Firestore. Tidak ada data yang diubah. ADHOC dan SUPPORT tidak dianggap error hanya karena tidak mempunyai Monthly Plan.</p></div><button type="button" disabled={busy} onClick={()=>void load()}>{busy?'Memeriksa…':'Jalankan Audit Ulang'}</button></div>
+    <div className="section-head plan-audit-head">
+      <Typography.Title level={3}>Rekonsiliasi Plan</Typography.Title>
+      <Button disabled={busy} onClick={()=>void load()}>{busy?'Memeriksa…':'Audit Ulang'}</Button>
+    </div>
+    <details className="plan-activity-details plan-audit-details">
+      <summary>Cakupan audit</summary>
+      <p>Audit hanya membaca data. ADHOC dan SUPPORT tidak dianggap error bila tidak memiliki Monthly Plan.</p>
+    </details>
     {message&&<div className="alert">{message}</div>}
-    <div className="cards" style={{marginTop:18}}>
-      <div className="card"><span>MONTHLY</span><strong>{monthly.length}</strong></div>
-      <div className="card"><span>DAILY</span><strong>{daily.length}</strong></div>
-      <div className="card"><span>ACTUAL</span><strong>{actual.length}</strong></div>
-      <div className="card"><span>MONTHLY SEHAT</span><strong>{healthyMonthly}</strong></div>
-      <div className="card"><span>ERROR LINK</span><strong style={{color:errors?'#b91c1c':undefined}}>{errors}</strong></div>
-      <div className="card"><span>WARNING</span><strong>{warnings}</strong></div>
-      <div className="card"><span>ADHOC / SUPPORT</span><strong>{audit.dailyAdhocSupport}</strong></div>
+    <div className="plan-audit-stats">
+      <Card size="small"><Statistic title="Monthly" value={monthly.length}/></Card>
+      <Card size="small"><Statistic title="Daily" value={daily.length}/></Card>
+      <Card size="small"><Statistic title="Actual" value={actual.length}/></Card>
+      <Card size="small"><Statistic title="Monthly sehat" value={healthyMonthly}/></Card>
+      <Card size="small"><Statistic title="Error link" value={errors}/></Card>
+      <Card size="small"><Statistic title="Warning" value={warnings}/></Card>
+      <Card size="small"><Statistic title="ADHOC / SUPPORT" value={audit.dailyAdhocSupport}/></Card>
     </div>
     <div className="panel" style={{marginTop:18}}>
       <h3>Coverage Link</h3>

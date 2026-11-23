@@ -13,6 +13,6 @@ for token in [
 ]:
   assert token in panel, f"Missing activity summary token: {token}"
 assert '<option value="ALL">Semua Week</option>' in workspace
-assert "week!=='ALL'" in workspace and "Mode Semua Week" in workspace
+assert "week!=='ALL'" in workspace and "Pilih satu week untuk menambah Monthly Plan" in workspace
 assert ".monthly-activity-summary-card" in css
 print("Monthly active-period activity summary is clickable and All Week mode is available safely.")

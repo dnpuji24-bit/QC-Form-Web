@@ -5,10 +5,11 @@ monthly=(root/'src'/'MonthlyPlanWorkspace.tsx').read_text(encoding='utf-8')
 daily=(root/'src'/'DailyPlanWebEntryPanel.tsx').read_text(encoding='utf-8')
 actual=(root/'src'/'ActualPlanWebEntryPanel.tsx').read_text(encoding='utf-8')
 css=(root/'src'/'field-ui.css').read_text(encoding='utf-8')
+plan_css=(root/'src'/'antd-portal.css').read_text(encoding='utf-8')
 
 for token in [
-    "premium-period-selector",
-    "monthly-period-badge",
+    "plan-period-card",
+    "plan-period-controls",
 ]:
     assert token in monthly, f'Missing Monthly precision UI token: {token}'
 
@@ -36,7 +37,6 @@ assert "daily-form-group-head" not in actual, "Actual must use the same styled g
 for token in [
     "Precision Plan UI system",
     "--plan-control-h:40px",
-    ".premium-period-selector",
     ".daily-mobile-workspace .daily-single-form",
     ".actual-plan-entry .actual-schedule-grid",
     ".actual-plan-entry .actual-resource-grid",
@@ -46,8 +46,7 @@ for token in [
 ]:
     assert token in css, f'Missing shared precision UI CSS token: {token}'
 
-assert "grid-template-areas:" in css
-assert '"period period badge"' in css
+assert ".plan-period-controls" in plan_css and "grid-template-columns: repeat(3, minmax(0, 1fr))" in plan_css
 assert "--plan-control-h-mobile:36px" in css
 assert ".daily-draft-summary>div:last-child{grid-column:span 2}" in css
 
