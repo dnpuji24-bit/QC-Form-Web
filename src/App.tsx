@@ -1,4 +1,4 @@
-import { Menu } from 'antd'
+import { Button, Layout, Menu, Tag, Typography } from 'antd'
 import {NativeAccountSettings} from './NativeAccountSettings'
 import {QcReleaseInfo} from './qcReleaseInfo'
 import {NativeHistoricalQcCorrection,canCorrectHistoricalQc} from './NativeHistoricalQcCorrection'
@@ -217,7 +217,15 @@ export default function App(){
  return <div className="app-shell">
    {!nativePortalEnabled&&sessionNeedsVerification&&<div className="alert qc-session-verification" role="alert"><strong>Sesi Apps Script perlu diperbarui.</strong> Login Firebase dan draft QC tidak dihapus. Input QC dapat masuk antrean lokal, lalu disinkronkan setelah akses pulih. <button type="button" onClick={()=>void refreshSession()}>Coba verifikasi</button><button type="button" onClick={()=>setReloginOpen(open=>!open)}>Perbarui sesi tanpa keluar</button>{reloginOpen&&<form className="qc-session-renew-form" onSubmit={event=>void renewScriptSession(event)}><label>Kata sandi akun {user.username}<input name="password" type="password" autoComplete="current-password" required/></label><button type="submit" disabled={reloginBusy}>{reloginBusy?'Memverifikasi…':'Masuk kembali'}</button></form>}</div>}
    {!nativePortalEnabled&&firebaseReady&&!firebaseConnected&&<div className="alert qc-session-verification" role="alert"><strong>Firestore belum terhubung ke akun Firebase.</strong> QC masih bisa disimpan ke antrean lokal, tetapi belum dapat dikonfirmasi di Firestore. <button type="button" onClick={()=>setFirebaseReloginOpen(open=>!open)}>Sambungkan Firebase</button>{firebaseReloginOpen&&<form className="qc-session-renew-form" onSubmit={event=>void recoverFirebase(event)}><label>Password Firebase untuk {user.email||'akun QC'}<input name="password" type="password" autoComplete="current-password" required/></label><button type="submit" disabled={firebaseReloginBusy}>{firebaseReloginBusy?'Menghubungkan…':'Verifikasi Firebase'}</button></form>}</div>}
-    <header className="topbar qc-topbar"><div className="qc-topbar-brand"><div className="eyebrow">QUALITY CONTROL</div></div><div className="user-box"><div><strong>{user.fullName}</strong><span>{user.role.replaceAll('_',' ')}</span></div><button className="ghost logout-icon-button" onClick={()=>void logout()} aria-label="Keluar" title="Keluar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg></button></div></header><nav className="qc-antd-nav" aria-label="Navigasi utama">
+    <Layout.Header className="qc-topbar qc-chooser-header">
+      <Typography.Title level={1}>Quality Control</Typography.Title>
+      <div className="qc-chooser-account">
+        <Typography.Text strong>{user.fullName}</Typography.Text>
+        <Tag>{user.role.replaceAll('_',' ')}</Tag>
+        <Button onClick={()=>void logout()}>Keluar</Button>
+      </div>
+    </Layout.Header>
+    <nav className="qc-antd-nav" aria-label="Navigasi utama">
     <Menu mode="horizontal" selectedKeys={[view]} items={[
       ...(canViewAccess(user,'qc_dashboard') ? [{ key: 'dashboard', label: 'Dashboard', onClick: () => setView('dashboard') }] : []),
       ...(canSpray(user) ? [{ key: 'spray', label: 'Input Spraying', onClick: () => {

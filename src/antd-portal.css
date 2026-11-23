@@ -116,3 +116,37 @@
     grid-template-columns: 1fr;
   }
 }
+
+.qc-spray-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.qc-spray-heading h2.ant-typography {
+  margin: 0;
+  font-size: clamp(19px, 3vw, 28px);
+}
+
+.qc-spray-session,
+.qc-spray-source {
+  margin-bottom: 12px;
+}
+
+.qc-spray-session .session-bar {
+  background: transparent;
+}
+
+.qc-spray-session .session-bar input,
+.qc-spray-session .session-bar select {
+  min-width: 0;
+  border-radius: 8px;
+}
+
+.qc-spray-session .session-bar select {
+  min-height: 40px;
+  padding-block: 6px;
+}

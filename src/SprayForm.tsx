@@ -1,3 +1,4 @@
+import { Alert, Button, Card, Input, Typography } from 'antd'
 import { operationalSaveEnabled } from './qcOperationalAdapters'
 import { newOperationalQcId, isOperationalQcId, queueFormSession, type OperationalFormItem } from './qcOperationalFormBridge'
 import { qcFormPhotoStagingEnabled, testFormPhotos } from './qcFormPhotoStaging'
@@ -278,9 +279,20 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
   const estimatedAdjuvant=card?((n(card.adjuvantDosage)*n(card.waterRate)*n(card.area))/1000).toFixed(2):'0.00'
 
   return <section className="qc-form-shell qc-spray-form">
-    <div className="section-head"><div><div className="eyebrow">SPRAYING DAILY SESSION</div><h2>{editingUploaded?'Koreksi Spraying Uploaded':editing?'Edit Daily Session Spraying':'Input Spraying per Unit'}</h2></div><div className="row-actions">{!editing&&<button type="button" className="secondary" disabled={busy} onClick={()=>void clearInput(true)}>Clean Draft</button>}<span className="badge">Unit-centric</span></div></div>
-    <div className="panel session-bar"><label>Tanggal<input type="date" value={date} onChange={e=>{if(e.target.value!==date&&cards.some(c=>c.multiPaddockMode&&c.recordId)){setMessage('Tanggal QC Multi-Paddock tersimpan tidak boleh diubah. Buat sesi baru.');return}if(e.target.value!==date)setCards(old=>old.map(c=>({...c,dailyPlanId:'',monthlyPlanLineId:'',woSearch:'',paddock:'',activity:'',deskripsi:'',type:'',area:'',paddockWorks:c.multiPaddockMode?[blankQcPaddockWork()]:c.paddockWorks})));setDate(e.target.value)}}/></label><label>Shift<select value={shift} onChange={e=>changeShift(e.target.value)}>{shiftOptions.map(x=><option key={x} value={x}>{x}</option>)}</select></label><label>Mandor<input list="spray-resource-foremen" value={mandor} onChange={e=>setMandor(e.target.value)} placeholder="Ketik nama mandor"/><datalist id="spray-resource-foremen">{foremanOptions.map(x=><option key={x} value={x}/>)}</datalist></label><label>Asisten<select value={assistant} onChange={e=>setAssistant(e.target.value)}><option value="">Pilih…</option>{assistantOptions.map(x=><option key={x}>{x}</option>)}</select></label></div>
-    <div className={'alert qc-daily-source-status '+(dailyPlanLoading?'is-loading':'')}><strong>Sumber pekerjaan: Daily Plan</strong><span>{planStatus}</span></div>
+    <div className="qc-spray-heading">
+      <Typography.Title level={2}>{editingUploaded?'Koreksi Spraying Uploaded':editing?'Edit Daily Session Spraying':'Input Spraying per Unit'}</Typography.Title>
+      {!editing&&<Button htmlType="button" disabled={busy} onClick={()=>void clearInput(true)}>Clean Draft</Button>}
+    </div>
+    <Card className="qc-spray-session">
+      <div className="session-bar">
+        <label>Tanggal<Input type="date" value={date} onChange={e=>{if(e.target.value!==date&&cards.some(c=>c.multiPaddockMode&&c.recordId)){setMessage('Tanggal QC Multi-Paddock tersimpan tidak boleh diubah. Buat sesi baru.');return}if(e.target.value!==date)setCards(old=>old.map(c=>({...c,dailyPlanId:'',monthlyPlanLineId:'',woSearch:'',paddock:'',activity:'',deskripsi:'',type:'',area:'',paddockWorks:c.multiPaddockMode?[blankQcPaddockWork()]:c.paddockWorks})));setDate(e.target.value)}}/></label>
+        <label>Shift<select aria-label="Shift" value={shift} onChange={e=>changeShift(e.target.value)}>{shiftOptions.map(x=><option key={x} value={x}>{x}</option>)}</select></label>
+        <label>Mandor<Input list="spray-resource-foremen" value={mandor} onChange={e=>setMandor(e.target.value)} placeholder="Ketik nama mandor"/><datalist id="spray-resource-foremen">{foremanOptions.map(x=><option key={x} value={x}/>)}</datalist></label>
+        <label>Asisten<select aria-label="Asisten" value={assistant} onChange={e=>setAssistant(e.target.value)}><option value="">Pilih…</option>{assistantOptions.map(x=><option key={x}>{x}</option>)}</select></label>
+      </div>
+    </Card>
+    <Alert className="qc-spray-source" title="Sumber pekerjaan: Daily Plan"
+      description={<span role="status" aria-busy={dailyPlanLoading}>{planStatus}</span>} type="info" showIcon />
     <div className="unit-tab-shell"><div className="unit-tab-rail" role="tablist" aria-label="Daftar unit spraying">{cards.map((c,i)=><button type="button" role="tab" aria-selected={c.id===card?.id} className={`unit-tab ${c.id===card?.id?'active':''}`} key={c.id} onClick={()=>setActiveCardId(c.id)}><span>UNIT {i+1}</span><strong>{c.noUnit||'Belum dipilih'}</strong><small>{c.paddock||'Paddock -'}</small></button>)}<button type="button" className="unit-tab add-tab" onClick={addUnit}><span>+</span><strong>Tambah Unit</strong><small>Unit baru</small></button></div></div>
     {message&&<div className="alert">{message}</div>}
     {card&&<article className="unit-card active-unit-card"><div className="unit-card-head"><div><div className="eyebrow">UNIT {activeIndex+1} DARI {cards.length}</div><h3>{card.noUnit||'Unit belum dipilih'}</h3><p>{card.paddock||'Paddock -'} • {card.activity||'Activity -'}{card.saveType==='uploaded'?' • Uploaded':card.recordId?' • Draft tersimpan':''}</p></div><div className="row-actions"><button type="button" onClick={()=>duplicateCard(card)}>Duplikat</button>{cards.length>1&&!card.recordId&&<button type="button" className="danger" onClick={()=>removeCard(card)}>Hapus Unit</button>}</div></div>
