@@ -37,7 +37,7 @@ assert "await import('xlsx')" in app
 assert "Export Excel" in app
 assert "Lihat Semua" in app
 assert "record-list-toolbar" in app
-assert "dashboard-hero compact-hero" in (root/'src'/'OperationalDashboard.tsx').read_text(encoding='utf-8')
+assert "qc-dashboard-heading qc-dashboard-title" in (root/'src'/'OperationalDashboard.tsx').read_text(encoding='utf-8')
 assert "Dashboard + input overflow + Data QC toolbar follow-up" in css
 assert ".dashboard-stats .stat" in css
 assert ".qc-form-shell input" in css
@@ -49,7 +49,7 @@ assert "'Pesticide 1','Dosage','Pesticide 2','Dosage'" in app
 assert "'Tanggal','Shift','Name','Name of Assistan','Status','Start Time ','End Time'" in app
 assert "buildFertilizerExportRows" in app
 assert "recordSearchText" in app
-assert "Pencarian/filter tetap memeriksa seluruh" in app
+assert "searchable.filter" in app and "filtered.length > visibleRecords.length" in app
 assert "Export Excel QC" in app
 assert "QC final compactness + anti-clipping refinement" in css
 assert ".qc-form-shell .session-bar{grid-template-columns:repeat(2,minmax(0,1fr))!important}" in css

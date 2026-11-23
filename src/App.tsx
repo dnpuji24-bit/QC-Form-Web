@@ -375,7 +375,7 @@ function Records({records,user,loading,preset,onRefresh,onFinalize,onRetry,onRet
     <div className="record-list-toolbar">
       <div aria-live="polite">
         <strong>{filtered.length.toLocaleString('id-ID')} data cocok</strong>
-        <span>{showAll?`Menampilkan semua ${filtered.length.toLocaleString('id-ID')} data`:`Menampilkan maksimal 100 data terbaru. Pencarian/filter tetap memeriksa seluruh ${records.length.toLocaleString('id-ID')} data.`}</span>
+        {!showAll && filtered.length > visibleRecords.length && <span>Menampilkan {visibleRecords.length} terbaru</span>}
       </div>
       <div className="row-actions">
         <Button onClick={()=>setShowAll(v=>!v)}>{showAll?'Tampilkan 100 terbaru':'Lihat Semua'}</Button>

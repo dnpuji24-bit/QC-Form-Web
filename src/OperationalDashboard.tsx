@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Card, Form, Input, Select, Statistic, Table, Tag } from 'antd'
+import { Button, Card, Form, Input, Select, Statistic, Table, Tag, Typography } from 'antd'
 import type { TableColumnsType } from 'antd'
 import { onAuthStateChanged } from 'firebase/auth'
 import { firebaseAuth, firestoreDb } from './firebase'
@@ -70,15 +70,11 @@ export default function OperationalDashboard({ records, loading, onRefresh, onOp
     { title: 'Uploaded', key: 'uploaded', align: 'right', render: (_, row) => `${row.uploaded} (${Math.round(row.uploaded / row.records * 100)}%)` },
   ]
   return <section className="qc-antd-dashboard">
-    <div className="dashboard-hero compact-hero">
-      <div><div className="eyebrow">QUALITY CONTROL</div><h2>Dashboard QC</h2><p>{realtimeActive?'Ringkasan berubah otomatis saat Draft, Edit, atau Upload berubah di Firestore.':'Ringkasan pekerjaan yang sudah diinput dan status pelaporannya.'}</p></div>
+    <div className="qc-dashboard-heading qc-dashboard-title">
+      <Typography.Title level={2}>Dashboard QC</Typography.Title>
+      {realtimeActive?<Tag color="success">Pembaruan otomatis</Tag>:<YinYangRefreshButton busy={loading} label="Refresh data" onClick={onRefresh}/>}
     </div>
     <Card>
-      <div className="qc-dashboard-heading">
-        <h3>Ringkasan Pekerjaan</h3>
-        {realtimeActive?<Tag color="success">Firestore realtime aktif</Tag>:<YinYangRefreshButton busy={loading} label="Refresh data" onClick={onRefresh}/>}
-      </div>
-      {realtimeActive&&<Alert type="info" showIcon title="Dashboard mengikuti Firestore secara realtime. Tidak perlu menekan Refresh setelah Simpan Draft atau Edit." />}
       <Form component="div" layout="vertical" className="qc-dashboard-filters">
         <Form.Item label="Cari pekerjaan" htmlFor="qc-dashboard-query">
           <Input id="qc-dashboard-query" list="worked-paddocks" placeholder="Paddock, unit, activity, atau mandor" value={query} onChange={e => setQuery(e.target.value)} />

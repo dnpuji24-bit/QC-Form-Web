@@ -9,7 +9,7 @@ import { firebaseAuth } from './firebase'
 import QcSavedPhotoPicker from './QcSavedPhotoPicker'
 import type { HoldInterval, MasterData, MaterialMaster, PlanMaster, QcRecord, User } from './types'
 import { loadAllOperationalResources, mergeResourceNames, unitNumbersForUnit, type OperationalResource } from './masterOperationalResources'
-import QcWorkOrderSmartSearch from './QcWorkOrderSmartSearch'
+import QcWorkOrderSmartSearch, { QcDailyPlanDetails } from './QcWorkOrderSmartSearch'
 import QcMultiPaddockSection,{blankQcPaddockWork} from './QcMultiPaddockSection'
 import {validateQcMultiPaddock,qcWorkMap} from './qcMultiPaddock.mjs'
 import type {QcMultiPaddockWork,QcMultiMaterialSource} from './types'
@@ -124,7 +124,12 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
     else patchCard(c.id,{multiPaddockMode:false,paddockWorks:[],dailyPlanId:'',monthlyPlanLineId:'',
       area:'',paddock:'',activity:'',deskripsi:'',variety:'',type:'',woSearch:''})
   }
-  const planStatus=dailyPlanLoading||loadedPlanDate!==date&&!dailyPlanMessage?'Memuat Daily Plan…':dailyPlanMessage||(!mandor.trim()?'Pilih Mandor aktual terlebih dahulu.':sprayDailyPlans.length?sprayDailyPlans.length+' Daily Plan Spraying pada shift dan mandor ini.':'Tidak ada Daily Plan untuk kombinasi shift dan mandor ini.')+' · '+woOptions.length+' sumber Daily tersedia (termasuk yang belum memiliki WO; pilih Daily ID secara eksplisit).'
+  const planStatus = dailyPlanLoading || (!dailyPlanMessage && loadedPlanDate !== date)
+    ? 'Memuat Daily Plan…'
+    : dailyPlanMessage || (!mandor.trim() ? 'Pilih mandor aktual.'
+      : sprayDailyPlans.length ? ''
+      : woOptions.length ? 'Daily Plan untuk shift dan mandor ini kosong. Pilih sumber lain.'
+      : 'Belum ada Daily Plan pada tanggal ini.')
   function planProblem(c:SprayCard){
     if(c.multiPaddockMode){
       if(!operationalSaveEnabled)return'Multi-Paddock memerlukan simpan QC atomik.'
@@ -291,8 +296,7 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
         <label>Asisten<select aria-label="Asisten" value={assistant} onChange={e=>setAssistant(e.target.value)}><option value="">Pilih…</option>{assistantOptions.map(x=><option key={x}>{x}</option>)}</select></label>
       </div>
     </Card>
-    <Alert className="qc-entry-source" title="Sumber pekerjaan: Daily Plan"
-      description={<span role="status" aria-busy={dailyPlanLoading}>{planStatus}</span>} type="info" showIcon />
+    {planStatus && <p className="qc-entry-source" role="status" aria-busy={dailyPlanLoading}>{planStatus}</p>}
     <div className="unit-tab-shell"><div className="unit-tab-rail" role="tablist" aria-label="Daftar unit spraying">{cards.map((c,i)=><button type="button" role="tab" aria-selected={c.id===card?.id} className={`unit-tab ${c.id===card?.id?'active':''}`} key={c.id} onClick={()=>setActiveCardId(c.id)}><span>UNIT {i+1}</span><strong>{c.noUnit||'Belum dipilih'}</strong><small>{c.paddock||'Paddock -'}</small></button>)}<button type="button" className="unit-tab add-tab" onClick={addUnit}><span>+</span><strong>Tambah Unit</strong><small>Unit baru</small></button></div></div>
     {message&&<Alert className="qc-entry-feedback" title={message} type="info" showIcon />}
     {card&&<article className="unit-card active-unit-card"><div className="unit-card-head"><div><div className="eyebrow">UNIT {activeIndex+1} DARI {cards.length}</div><h3>{card.noUnit||'Unit belum dipilih'}</h3><p>{card.paddock||'Paddock -'} • {card.activity||'Activity -'}{card.saveType==='uploaded'?' • Uploaded':card.recordId?' • Draft tersimpan':''}</p></div><div className="row-actions"><Button htmlType="button" onClick={()=>duplicateCard(card)}>Duplikat</Button>{cards.length>1&&!card.recordId&&<Button htmlType="button" danger onClick={()=>removeCard(card)}>Hapus Unit</Button>}</div></div>
@@ -301,9 +305,9 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
         <label><input type="checkbox" checked={Boolean(card.multiPaddockMode)}
           disabled={busy||editingUploaded||Boolean(card.recordId)||!operationalSaveEnabled}
           onChange={e=>toggleMultiPaddock(card,e.target.checked)}/>
-          Multi-Paddock · satu unit untuk beberapa WO/PID
+          Multi-Paddock
         </label>
-        <small>{card.multiPaddockMode?'Mode aktif: satu QC unit dan Actual terpisah per WO':'Mode normal: satu Unit Card untuk satu paddock'}</small>
+
       </div>
       {card.multiPaddockMode&&<QcMultiPaddockSection kind="spray" rows={woOptions}
         works={card.paddockWorks||[]} sources={multiDisplaySources}
@@ -311,25 +315,15 @@ export default function SprayForm({token,user,master,initialRecords=[],onSaved,o
         disabled={busy||editingUploaded}
         lockedMembership={Boolean(card.recordId&&card.saveType!=='draft')}
         onChange={works=>changeMultiWorks(card,works)}/>}
-      <section hidden={card.multiPaddockMode} className="subpanel qc-daily-program"><div className="section-head"><div><div className="eyebrow">DAILY PLAN</div><h4>Program & Paddock</h4></div>{linkedDailyPlan&&<span className="badge">Terhubung {linkedDailyPlan.dailyPlanId}</span>}</div>
+      <section hidden={card.multiPaddockMode} className="subpanel qc-daily-program"><div className="section-head"><div><div className="eyebrow">DAILY PLAN</div><h4>Program & Paddock</h4></div></div>
       <div className="qc-wo-workflow"><QcWorkOrderSmartSearch rows={woOptions} value={card.woSearch||''}
         selectedId={card.dailyPlanId} disabled={busy||editingUploaded}
         onQuery={value=>typeExplicitWo(card,value)}
         onSelect={row=>selectExplicitWo(card,row)}
         onClear={()=>typeExplicitWo(card,'')}/>
-        {linkedDailyPlan&&<div className="qc-wo-summary">
-          <span><strong>WO:</strong> {linkedDailyPlan.woNumber||'Tanpa WO (Daily lama)'}</span>
-          <span><strong>Daily ID:</strong> {linkedDailyPlan.dailyPlanId}</span>
-          <span><strong>PID:</strong> {linkedDailyPlan.pid}</span>
-          <span><strong>Activity:</strong> {linkedDailyPlan.description||linkedDailyPlan.activity}</span>
-          <span><strong>Operation Code:</strong> {linkedDailyPlan.operationCode||'-'}</span>
-          <span><strong>CoA:</strong> {linkedDailyPlan.coaCode||'-'}</span>
-          <span><strong>Shift WO:</strong> {linkedDailyPlan.plannedShift||'-'}</span>
-          <span><strong>Shift Daily:</strong> {linkedDailyPlan.shift||'-'} · {linkedDailyPlan.foreman||'-'}</span>
-          <span><strong>Shift QC Aktual:</strong> {shift} · {mandor||'-'}</span>
-        </div>}
+        {linkedDailyPlan && <QcDailyPlanDetails key={linkedDailyPlan.dailyPlanId} plan={linkedDailyPlan} shift={shift} mandor={mandor} />}
         {linkedDailyPlan&&qcShiftValue(linkedDailyPlan.shift)!==qcShiftValue(shift)&&
-          <small className="qc-wo-shift-notice">Lintas shift: sumber Daily Shift {linkedDailyPlan.shift} → QC Aktual Shift {shift}. Pekerjaan dan referensi Daily tetap sama.</small>}
+          <small className="qc-wo-shift-notice">Lintas shift: sumber Daily Shift {linkedDailyPlan.shift} → QC Aktual Shift {shift}.</small>}
       </div>{qcShiftValue(shift)==='2'&&<div className="qc-daily-link-grid"><label>Daily Plan sumber Shift 1<select aria-label="Daily Plan sumber Shift 1" value={selectedCarryover?.dailyPlanId||''} onChange={e=>{const selected=selectableCarryover.find(p=>p.dailyPlanId===e.target.value);if(selected){patchCard(card.id,{activity:selected.activity,deskripsi:selected.description});choosePlan(card,selected.pid,selected)}else if(selectedCarryover){choosePlan(card,card.paddock,null)}}}><option value="">Pilih eksplisit untuk lanjut pekerjaan Shift 1…</option>{selectableCarryover.map(p=><option key={p.dailyPlanId} value={p.dailyPlanId}>{p.dailyPlanId} — {p.pid} — {p.description} — {p.foreman}</option>)}</select></label><small>DP sumber tidak berubah. Shift dan Mandor di atas tetap pelaksana aktual. Balance belum diverifikasi sistem.</small></div>}{linkedDailyPlan&&<p className="muted">Sumber DP: Shift {qcShiftValue(linkedDailyPlan.shift)} · {linkedDailyPlan.foreman}</p>}<fieldset><legend>Activity</legend><Choice values={activities} value={card.activity} onChange={value=>patchCard(card.id,{activity:value,deskripsi:'',paddock:'',variety:'',type:'',dailyPlanId:'',monthlyPlanLineId:'',woSearch:'',actualMaterials:{}})}/></fieldset><fieldset><legend>Deskripsi</legend><Choice values={descriptions} value={card.deskripsi} onChange={value=>patchCard(card.id,{deskripsi:value,paddock:'',variety:'',type:'',dailyPlanId:'',monthlyPlanLineId:'',woSearch:'',actualMaterials:{}})}/></fieldset><fieldset><legend>Paddock</legend><Choice values={paddocks} value={card.paddock} onChange={value=>{const matches=qcSessionPlanMatches(sprayDailyPlans,value,card.activity,card.deskripsi);const selected=matches.length===1?resolveQcSessionPlan(eligiblePlans,value,card.activity,card.deskripsi,matches[0].dailyPlanId):null;choosePlan(card,value,selected)}}/></fieldset>{matchingPlans.length>1&&<fieldset><legend>Pilih Daily Plan</legend><Choice values={selectablePlans.map(p=>p.dailyPlanId)} value={linkedDailyPlan?.dailyPlanId||''} onChange={value=>choosePlan(card,card.paddock,resolveQcSessionPlan(eligiblePlans,card.paddock,card.activity,card.deskripsi,value))}/></fieldset>}{card.paddock&&planProblem(card)&&<div className="alert">Daily Plan belum valid: {planProblem(card)} Input unit tetap tersimpan pada form.</div>}<div className="qc-daily-link-grid"><label>Variety<input readOnly value={linkedDailyPlan?.masterVariety||''}/></label><label>Type<input readOnly value={linkedDailyPlan?(linkedDailyPlan.type||linkedDailyPlan.activityCategory||'SPRAY'):''}/></label><label>Daily Plan ID<input readOnly value={linkedDailyPlan?.dailyPlanId||''} placeholder="Otomatis"/></label><label>Monthly Plan ID<input readOnly value={linkedDailyPlan?.monthlyPlanLineId||''} placeholder="Otomatis dari Daily Plan"/></label></div>{linkedDailyPlan?.pidNotes&&<div className="qc-daily-pid-note">ℹ️ {linkedDailyPlan.pidNotes}</div>}</section>
       <Card className="qc-entry-detail" styles={{ body: { padding: 0 } }}><section className="subpanel"><h4>Setting Sprayer</h4><div className="form-grid"><fieldset><legend>Dropper</legend><Choice values={dropperOptions} value={card.dropper} onChange={value=>patchCard(card.id,{dropper:value})}/></fieldset><fieldset className="span-2"><legend>Nozzle</legend><Choice values={nozzleOptions} value={card.nozzle} onChange={value=>patchCard(card.id,{nozzle:value})}/></fieldset><label>Droplet Size (µm)<input type="number" value={card.dropletSize} onChange={e=>patchCard(card.id,{dropletSize:e.target.value})}/></label><label>Height (m)<input type="number" step=".01" value={card.height} onChange={e=>patchCard(card.id,{height:e.target.value})}/></label><label>Row Spacing (m)<input type="number" step=".01" value={card.rowSpacing} onChange={e=>patchCard(card.id,{rowSpacing:e.target.value})}/></label><label>Speed (km/jam)<input type="number" step=".01" value={card.speed} onChange={e=>patchCard(card.id,{speed:e.target.value})}/></label></div></section></Card>
       <Card className="qc-entry-detail" styles={{ body: { padding: 0 } }}><section className="subpanel"><h4>Bahan Kimia Otomatis</h4><p className="muted">Estimated Usage = Dosis/Ha × Luas aktual unit.</p><div className="material-grid">{materials.length?materials.map((item,i)=><article className="material-card" key={`${item.slot}-${i}`}><strong>{item.slot}<br/>{item.material} <small>({item.unit||'-'})</small></strong><label>Dosis/Ha<input readOnly value={String(item.dosage||'')}/></label><label>Estimated Usage<input readOnly value={(n(item.dosage)*n(card.area)).toFixed(2)}/></label><label>Actual Used<input type="number" step=".001" value={card.actualMaterials[i]||''} onChange={e=>patchCard(card.id,{actualMaterials:{...card.actualMaterials,[i]:e.target.value}})}/></label></article>):<p className="muted">Pilih Deskripsi untuk memuat Pesticide 1–4.</p>}</div></section></Card>

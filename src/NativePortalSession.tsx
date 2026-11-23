@@ -78,5 +78,11 @@ function LegacyQueueNotice(){
  useEffect(()=>{let stopped=false;const read=()=>{void legacyQueueInventory().then(v=>{if(!stopped){setSummary(v);setFailed(false)}}).catch(()=>{if(!stopped)setFailed(true)})};read();window.addEventListener('focus',read);return()=>{stopped=true;window.removeEventListener('focus',read)}},[])
  if(failed)return <p role="alert">Antrean lama tidak dapat diperiksa. Jangan hapus data browser atau lakukan cutover.</p>
  if(!summary||!summary.total)return null
- return <aside role="status" style={{padding:12,background:'#fff5df',color:'#754700'}}>Antrean QC lama pada perangkat ini: {summary.total} (akun cocok: {summary.own}; lainnya: {summary.other}; tanpa identitas: {summary.unattributed}; konflik: {summary.conflicting}). Antrean dipertahankan, tidak dikirim atau dihapus otomatis dalam mode cutover. Selesaikan melalui versi lama dan verifikasi hasil sebelum migrasi.</aside>
+ return <details className="qc-legacy-queue-notice">
+   <summary>Antrean QC lama · {summary.total}</summary>
+   <div>
+     <p>Akun ini: {summary.own} · Akun lain: {summary.other} · Tanpa identitas: {summary.unattributed} · Konflik: {summary.conflicting}</p>
+     <p>Antrean tetap tersimpan di perangkat. Selesaikan lewat versi lama dan verifikasi hasilnya sebelum migrasi.</p>
+   </div>
+ </details>
 }

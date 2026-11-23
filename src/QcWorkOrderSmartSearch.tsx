@@ -25,7 +25,7 @@ export default function QcWorkOrderSmartSearch({rows,value,selectedId,disabled=f
   },[])
   function choose(row:QcDailyPlan){onSelect(row);setOpen(false);setActive(0)}
   return <div className="activity-smartsearch qc-work-order-search" ref={root}>
-    <label htmlFor={uid} className="activity-smartsearch-label">Pilih Daily Plan · WO / PID / Activity</label>
+    <label htmlFor={uid} className="activity-smartsearch-label">Pilih Daily Plan</label>
     <div className="activity-smartsearch-control">
       <input ref={search} id={uid} value={value||''} autoComplete="off" disabled={disabled}
         role="combobox" aria-autocomplete="list" aria-expanded={open}
@@ -56,9 +56,26 @@ export default function QcWorkOrderSmartSearch({rows,value,selectedId,disabled=f
           <span className="activity-smartsearch-meta">Operation {row.operationCode||'-'} · CoA {row.coaCode||'-'} · Shift WO {row.plannedShift||'-'} · Mandor Daily {row.foreman||'-'}</span>
         </button>)}
         {!results.length&&<div className="activity-smartsearch-empty">{value?'Tidak ada PID/Activity/Daily ID yang cocok pada tanggal dan jenis QC ini.':'Tidak ada Daily Plan pada tanggal dan jenis QC ini.'}</div>}
-        <p className="activity-smartsearch-tip">Maksimum 12 hasil. Untuk data lama tanpa WO, pilih PID dan Activity yang tersedia pada tanggal QC, lalu konfirmasi Daily ID. Shift Aktual boleh berbeda.</p>
+        <p className="activity-smartsearch-tip">Untuk Daily lama tanpa WO, pilih Daily ID yang sesuai.</p>
       </div>}
     </div>
-    <small>WO tidak wajib untuk Daily lama; PID, Activity, tanggal dan Daily ID tetap harus cocok dengan sumber. Shift dan mandor QC adalah pelaksana aktual.</small>
   </div>
+}
+
+
+export function QcDailyPlanDetails({ plan, shift, mandor }: { plan: QcDailyPlan; shift: string; mandor: string }) {
+  return <details className="qc-wo-details">
+    <summary>Detail Daily Plan · {plan.dailyPlanId}</summary>
+    <div className="qc-wo-summary">
+      <span><strong>WO:</strong> {plan.woNumber || 'Tanpa WO (Daily lama)'}</span>
+      <span><strong>PID:</strong> {plan.pid}</span>
+      <span><strong>Activity:</strong> {plan.description || plan.activity}</span>
+      {plan.operationCode && <span><strong>Operation Code:</strong> {plan.operationCode}</span>}
+      {plan.coaCode && <span><strong>CoA:</strong> {plan.coaCode}</span>}
+      {plan.plannedShift && <span><strong>Shift WO:</strong> {plan.plannedShift}</span>}
+      {plan.areaHa > 0 && <span><strong>Target:</strong> {plan.areaHa.toLocaleString('id-ID')} Ha</span>}
+      <span><strong>Shift Daily:</strong> {plan.shift || '-'} · {plan.foreman || '-'}</span>
+      <span><strong>Shift QC Aktual:</strong> {shift} · {mandor || '-'}</span>
+    </div>
+  </details>
 }
