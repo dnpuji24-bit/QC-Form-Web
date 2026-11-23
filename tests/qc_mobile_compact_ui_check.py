@@ -11,7 +11,8 @@ app=(root/'src'/'App.tsx').read_text(encoding='utf-8')
 assert 'qc-topbar' in app
 assert '<Button onClick={()=>void logout()}>Keluar</Button>' in app
 assert 'qc-records-page' in app
-assert 'data-label="Tanggal"' in app
+assert "title: 'Tanggal'" in app
+assert "'data-label': column.title" in app
 for token in [
     'Premium compact mobile QC forms',
     '.qc-form-shell .session-bar',
@@ -24,7 +25,7 @@ for token in [
     '.qc-spray-form .material-card',
     'Compact QC header + Data QC mobile',
     '.qc-records-page .qc-record-filters',
-    '.qc-records-page .table-wrap tbody tr',
+    '.qc-records-page .qc-records-table tbody tr',
     '.logout-icon-button',
 ]:
     assert token in css, f'Missing compact mobile QC style: {token}'

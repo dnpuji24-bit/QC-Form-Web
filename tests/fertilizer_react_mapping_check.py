@@ -33,7 +33,7 @@ for token in ["retryQueuedRecord(recordOrId:QcRecord|string", "enqueueInternal('
 for token in ['Upload terhenti','90_000']:
     assert token in upload_status, f'Missing stale upload UI token: {token}'
 assert 'retryQueuedRecord(record,token)' in app
-assert "uploadInfo.state==='failed'||uploadInfo.state==='queued'" in app
+assert "uploadInfo.state==='failed'||uploadInfo.state==='queued'" in compact_app
 print('Fertilizer quick-fix check: unit removal, clear-after-draft, and stale upload recovery OK')
 
 resolver=(root/'src'/'qcFertilizerProducts.ts').read_text(encoding='utf-8')

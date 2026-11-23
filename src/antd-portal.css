@@ -235,3 +235,39 @@
   min-height: 40px;
   white-space: normal;
 }
+
+.qc-records-page {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.qc-records-table {
+  overflow-x: auto;
+  border: 1px solid #dce5f1;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.qc-records-table .ant-table-content > table {
+  min-width: 850px;
+}
+
+.qc-records-table .qc-record-cell {
+  overflow-wrap: anywhere;
+}
+
+.qc-records-table .ant-btn {
+  height: auto;
+  min-height: 28px;
+  white-space: normal;
+}
+
+@media (max-width: 700px) {
+  .qc-records-table .ant-table,
+  .qc-records-table .ant-table-cell {
+    background: transparent;
+  }
+
+  .qc-records-table .ant-table-placeholder .ant-table-cell::before {
+    content: none;
+  }
+}

@@ -1,4 +1,5 @@
-import { Button, Layout, Menu, Tag, Typography } from 'antd'
+import { Button, Input, Layout, Menu, Tag, Typography } from 'antd'
+import type { TableColumnsType } from 'antd'
 import {NativeAccountSettings} from './NativeAccountSettings'
 import {QcReleaseInfo} from './qcReleaseInfo'
 import {NativeHistoricalQcCorrection,canCorrectHistoricalQc} from './NativeHistoricalQcCorrection'
@@ -32,6 +33,7 @@ import YinYangRefreshButton from './YinYangRefreshButton'
 import QcSupabasePhotoViewer from './QcSupabasePhotoViewer'
 
 const OperationalDashboard = lazy(() => import('./OperationalDashboard'))
+const QcRecordsTable = lazy(() => import('antd/es/table').then(({ default: Table }) => ({ default: Table<QcRecord> })))
 
 type View='dashboard'|'spray'|'fertilizer'|'records'|'logs'|'settings'
 type RecordPreset={type?:'all'|'spray'|'fertilizer';query?:string;saveType?:string;date?:string;mandor?:string}
@@ -299,7 +301,98 @@ function buildMultiPaddockExportRows(records:QcRecord[]):ExportCell[][]{
 
 function recordSearchText(record:QcRecord){const direct=Object.entries(record).filter(([key,value])=>!/photo|base64/i.test(key)&&(typeof value==='string'||typeof value==='number'||typeof value==='boolean')).map(([,value])=>String(value));const nested=[...(Array.isArray(record.pengisianList)?record.pengisianList:[]),...(Array.isArray(record.holdIntervals)?record.holdIntervals:[]),...(Array.isArray(record.paddockWorks)?record.paddockWorks:[]),...(Array.isArray(record.multiMaterialSources)?record.multiMaterialSources:[])].flatMap(item=>Object.entries(item as Record<string,unknown>).filter(([key,value])=>!/photo|base64/i.test(key)&&(typeof value==='string'||typeof value==='number'||typeof value==='boolean')).map(([,value])=>String(value)));return[...direct,...nested].join(' ').toLowerCase()}
 
-function Records({records,user,loading,preset,onRefresh,onFinalize,onRetry,onRetrySave,onEdit,onDelete}:{records:QcRecord[];user:User;loading:boolean;preset:RecordPreset;onRefresh:()=>void;onFinalize:(record:QcRecord)=>void;onRetry:(record:QcRecord)=>void;onRetrySave:(record:QcRecord)=>void;onEdit:(record:QcRecord)=>void;onDelete:(record:QcRecord)=>void}){const[query,setQuery]=useState(''),[type,setType]=useState<'all'|'spray'|'fertilizer'>('all'),[date,setDate]=useState(''),[mandor,setMandor]=useState(''),[saveType,setSaveType]=useState('all'),[reportRecord,setReportRecord]=useState<QcRecord|null>(null),[historicalRecord,setHistoricalRecord]=useState<QcRecord|null>(null),[showAll,setShowAll]=useState(false),[exporting,setExporting]=useState(false);useEffect(()=>{setQuery(preset.query||'');setType(preset.type||'all');setDate(preset.date||'');setMandor(preset.mandor||'');setSaveType(preset.saveType||'all')},[preset]);const mandors=useMemo(()=>[...new Set(records.map(r=>String(r.name||'')).filter(Boolean))].sort(),[records]),searchable=useMemo(()=>records.map(record=>({record,text:recordSearchText(record)})),[records]),filtered=useMemo(()=>{const needle=query.trim().toLowerCase();return searchable.filter(({record,text})=>{if(type!=='all'&&record.formType!==type)return false;if(date&&record.date!==date)return false;if(mandor&&String(record.name||'')!==mandor)return false;if(saveType==='uploaded'&&record.saveType!=='uploaded')return false;if(saveType==='pending'&&record.saveType==='uploaded')return false;return!needle||text.includes(needle)}).map(({record})=>record)},[searchable,query,type,date,mandor,saveType]);const visibleRecords=useMemo(()=>showAll?filtered:filtered.slice(0,100),[filtered,showAll]);useEffect(()=>{setShowAll(false)},[query,type,date,mandor,saveType]);async function exportExcel(){setExporting(true);try{const XLSX=await import('xlsx'),sprayRows=buildSprayExportRows(filtered),fertRows=buildFertilizerExportRows(filtered),spraySheet=XLSX.utils.aoa_to_sheet([Array.from(SPRAY_EXPORT_HEADERS),...sprayRows]),fertSheet=XLSX.utils.aoa_to_sheet([Array.from(FERTILIZER_EXPORT_HEADERS),...fertRows]),multiRows=buildMultiPaddockExportRows(filtered),workbook=XLSX.utils.book_new();const widths=(headers:readonly string[])=>headers.map(header=>({wch:/Catatan|Noted|Foto QC|Record ID/i.test(header)?34:/Name|Paddock|Activity|Deskripsi|Pesticide|Jenis Pupuk/i.test(header)?22:Math.min(18,Math.max(10,header.length+2))}));spraySheet['!cols']=widths(SPRAY_EXPORT_HEADERS);fertSheet['!cols']=widths(FERTILIZER_EXPORT_HEADERS);spraySheet['!autofilter']={ref:`A1:${XLSX.utils.encode_col(SPRAY_EXPORT_HEADERS.length-1)}${Math.max(1,sprayRows.length+1)}`};fertSheet['!autofilter']={ref:`A1:${XLSX.utils.encode_col(FERTILIZER_EXPORT_HEADERS.length-1)}${Math.max(1,fertRows.length+1)}`};XLSX.utils.book_append_sheet(workbook,spraySheet,'Form QC Spray');XLSX.utils.book_append_sheet(workbook,fertSheet,'Form QC Fertilizer');if(multiRows.length){const sheet=XLSX.utils.aoa_to_sheet([Array.from(MULTI_PADDOCK_EXPORT_HEADERS),...multiRows]);sheet['!cols']=widths(MULTI_PADDOCK_EXPORT_HEADERS);XLSX.utils.book_append_sheet(workbook,sheet,'QC Multi-Paddock')}XLSX.writeFile(workbook,`Application_QC_Form_${new Date().toISOString().slice(0,10)}.xlsx`)}finally{setExporting(false)}}function sessionSize(record:QcRecord){return records.filter(item=>(record.formType==='fertilizer'?sameFertilizerSession(record,item):sameSpraySession(record,item))).length}function pendingSessionSize(record:QcRecord){return records.filter(item=>(record.formType==='fertilizer'?sameFertilizerSession(record,item):sameSpraySession(record,item))&&canFinalize(user,item)).length}return <section className="qc-records-page"><div className="section-head qc-records-head"><div><div className="eyebrow">MONITORING</div><h2>Data QC</h2></div><YinYangRefreshButton busy={loading} label="Refresh" className="qc-refresh-button" onClick={onRefresh}/></div>{historicalRecord&&canCorrectHistoricalQc(user,historicalRecord)&&<NativeHistoricalQcCorrection key={user.firebaseUid+'|'+historicalRecord.id} record={historicalRecord} user={user} onClose={()=>setHistoricalRecord(null)} onSaved={onRefresh}/>}<div className="record-filters qc-record-filters"><input placeholder="Cari seluruh data: paddock, unit, activity, bahan, catatan…" value={query} onChange={e=>setQuery(e.target.value)}/><select value={type} onChange={e=>setType(e.target.value as typeof type)}><option value="all">Semua jenis</option><option value="spray">Spraying</option><option value="fertilizer">Fertilizer</option></select><input type="date" value={date} onChange={e=>setDate(e.target.value)}/><select value={mandor} onChange={e=>setMandor(e.target.value)}><option value="">Semua mandor</option>{mandors.map(x=><option key={x}>{x}</option>)}</select><select value={saveType} onChange={e=>setSaveType(e.target.value)}><option value="all">Semua status simpan</option><option value="uploaded">Uploaded</option><option value="pending">Draft / queue</option></select><button type="button" onClick={()=>{setQuery('');setType('all');setDate('');setMandor('');setSaveType('all')}}>Reset Filter</button></div><div className="record-list-toolbar"><div><strong>{filtered.length.toLocaleString('id-ID')} data cocok</strong><span>{showAll?`Menampilkan semua ${filtered.length.toLocaleString('id-ID')} data`:`Menampilkan maksimal 100 data terbaru. Pencarian/filter tetap memeriksa seluruh ${records.length.toLocaleString('id-ID')} data.`}</span></div><div className="row-actions"><button type="button" className="secondary" onClick={()=>setShowAll(v=>!v)}>{showAll?'Tampilkan 100 terbaru':'Lihat Semua'}</button><button type="button" className="primary" disabled={exporting||!filtered.length} onClick={()=>void exportExcel()}>{exporting?'Membuat Excel…':'Export Excel QC'}</button></div></div><div className="table-wrap"><table><thead><tr><th>Tanggal</th><th>Jenis</th><th>Paddock / Unit</th><th>Activity</th><th>Mandor</th><th>Simpan</th><th>Aksi</th></tr></thead><tbody>{visibleRecords.map(record=>{const size=sessionSize(record),pendingSize=pendingSessionSize(record),editable=record.formType==='spray'?canEditSpray(user,record):canEditFertilizer(user,record),uploadInfo=uploadStatusInfo(record);return <tr key={record.id}><td data-label="Tanggal">{record.date}</td><td data-label="Jenis">{record.formType}{size>1?` • ${size} unit`:''}</td><td data-label="Paddock / Unit">{record.multiPaddockMode?record.paddockWorks?.map(w=>w.pid).join(", ")||"Multi-Paddock":record.paddock}{record.noUnit?` / ${String(record.noUnit)}`:''}</td><td data-label="Activity">{String(record.activity||'-')}</td><td data-label="Mandor">{record.name||'-'}</td><td data-label="Simpan"><div className="status-stack"><UploadStatusPill record={record}/><small>{uploadInfo.detail}</small></div></td><td data-label="Aksi"><div className="row-actions">{editable&&<button onClick={()=>onEdit(record)}>{record.saveType==='uploaded'?'Koreksi':'Edit Session'}</button>}{canCorrectHistoricalQc(user,record)&&<button disabled={loading||historicalRecord!==null} onClick={()=>setHistoricalRecord(record)}>Koreksi Historis</button>}<button onClick={()=>setReportRecord(record)}>Laporan</button>{canFinalize(user,record)&&<button className="primary" disabled={loading} onClick={()=>onFinalize(record)}>{pendingSize>1?`Upload ${pendingSize} Unit`:'Upload'}</button>}{record.firestoreSaveState==='queued'&&<button className="secondary" disabled={loading} title={!isOperationalQcId(record.id)&&qcFirestoreOnly?'Pemeriksaan hanya membaca Firestore; migrasi QC lama memerlukan verifikasi riwayat.':'Ulang sinkronisasi dan periksa konfirmasi Firestore'} onClick={()=>onRetrySave(record)}>{!isOperationalQcId(record.id)&&qcFirestoreOnly?'Periksa Firestore':'Sinkronisasi QC'}</button>}{(uploadInfo.state==='failed'||uploadInfo.state==='queued')&&record.firestoreSaveState!=='queued'&&<button className="secondary" disabled={loading} onClick={()=>onRetry(record)}>Coba Lagi</button>}{(qcFirestoreOnly?canArchiveQc(user,record):canDelete(user))&&<button className="danger" disabled={loading} onClick={()=>onDelete(record)}>{qcFirestoreOnly?'Arsipkan':'Hapus'}</button>}</div></td></tr>})}{!filtered.length&&<tr><td colSpan={7} className="empty">Belum ada data yang cocok.</td></tr>}</tbody></table></div>{reportRecord&&<RecordReport record={reportRecord} onClose={()=>setReportRecord(null)}/>}</section>}
+function Records({records,user,loading,preset,onRefresh,onFinalize,onRetry,onRetrySave,onEdit,onDelete}:{records:QcRecord[];user:User;loading:boolean;preset:RecordPreset;onRefresh:()=>void;onFinalize:(record:QcRecord)=>void;onRetry:(record:QcRecord)=>void;onRetrySave:(record:QcRecord)=>void;onEdit:(record:QcRecord)=>void;onDelete:(record:QcRecord)=>void}){const[query,setQuery]=useState(''),[type,setType]=useState<'all'|'spray'|'fertilizer'>('all'),[date,setDate]=useState(''),[mandor,setMandor]=useState(''),[saveType,setSaveType]=useState('all'),[reportRecord,setReportRecord]=useState<QcRecord|null>(null),[historicalRecord,setHistoricalRecord]=useState<QcRecord|null>(null),[showAll,setShowAll]=useState(false),[exporting,setExporting]=useState(false);useEffect(()=>{setQuery(preset.query||'');setType(preset.type||'all');setDate(preset.date||'');setMandor(preset.mandor||'');setSaveType(preset.saveType||'all')},[preset]);const mandors=useMemo(()=>[...new Set(records.map(r=>String(r.name||'')).filter(Boolean))].sort(),[records]),searchable=useMemo(()=>records.map(record=>({record,text:recordSearchText(record)})),[records]),filtered=useMemo(()=>{const needle=query.trim().toLowerCase();return searchable.filter(({record,text})=>{if(type!=='all'&&record.formType!==type)return false;if(date&&record.date!==date)return false;if(mandor&&String(record.name||'')!==mandor)return false;if(saveType==='uploaded'&&record.saveType!=='uploaded')return false;if(saveType==='pending'&&record.saveType==='uploaded')return false;return!needle||text.includes(needle)}).map(({record})=>record)},[searchable,query,type,date,mandor,saveType]);const visibleRecords=useMemo(()=>showAll?filtered:filtered.slice(0,100),[filtered,showAll]);useEffect(()=>{setShowAll(false)},[query,type,date,mandor,saveType]);async function exportExcel(){setExporting(true);try{const XLSX=await import('xlsx'),sprayRows=buildSprayExportRows(filtered),fertRows=buildFertilizerExportRows(filtered),spraySheet=XLSX.utils.aoa_to_sheet([Array.from(SPRAY_EXPORT_HEADERS),...sprayRows]),fertSheet=XLSX.utils.aoa_to_sheet([Array.from(FERTILIZER_EXPORT_HEADERS),...fertRows]),multiRows=buildMultiPaddockExportRows(filtered),workbook=XLSX.utils.book_new();const widths=(headers:readonly string[])=>headers.map(header=>({wch:/Catatan|Noted|Foto QC|Record ID/i.test(header)?34:/Name|Paddock|Activity|Deskripsi|Pesticide|Jenis Pupuk/i.test(header)?22:Math.min(18,Math.max(10,header.length+2))}));spraySheet['!cols']=widths(SPRAY_EXPORT_HEADERS);fertSheet['!cols']=widths(FERTILIZER_EXPORT_HEADERS);spraySheet['!autofilter']={ref:`A1:${XLSX.utils.encode_col(SPRAY_EXPORT_HEADERS.length-1)}${Math.max(1,sprayRows.length+1)}`};fertSheet['!autofilter']={ref:`A1:${XLSX.utils.encode_col(FERTILIZER_EXPORT_HEADERS.length-1)}${Math.max(1,fertRows.length+1)}`};XLSX.utils.book_append_sheet(workbook,spraySheet,'Form QC Spray');XLSX.utils.book_append_sheet(workbook,fertSheet,'Form QC Fertilizer');if(multiRows.length){const sheet=XLSX.utils.aoa_to_sheet([Array.from(MULTI_PADDOCK_EXPORT_HEADERS),...multiRows]);sheet['!cols']=widths(MULTI_PADDOCK_EXPORT_HEADERS);XLSX.utils.book_append_sheet(workbook,sheet,'QC Multi-Paddock')}XLSX.writeFile(workbook,`Application_QC_Form_${new Date().toISOString().slice(0,10)}.xlsx`)}finally{setExporting(false)}}function sessionSize(record:QcRecord){return records.filter(item=>(record.formType==='fertilizer'?sameFertilizerSession(record,item):sameSpraySession(record,item))).length}function pendingSessionSize(record:QcRecord){return records.filter(item=>(record.formType==='fertilizer'?sameFertilizerSession(record,item):sameSpraySession(record,item))&&canFinalize(user,item)).length}
+
+  const columns: TableColumnsType<QcRecord> = [
+    { key: 'date', title: 'Tanggal', dataIndex: 'date', width: 108 },
+    { key: 'kind', title: 'Jenis', width: 118, render: (_, record) => {
+      const size = sessionSize(record)
+      return <>{record.formType}{size > 1 ? ` • ${size} unit` : ''}</>
+    } },
+    { key: 'paddock', title: 'Paddock / Unit', render: (_, record) => {
+      const paddock = record.multiPaddockMode
+        ? record.paddockWorks?.map(work => work.pid).join(', ') || 'Multi-Paddock'
+        : record.paddock
+      return <>{paddock}{record.noUnit ? ` / ${String(record.noUnit)}` : ''}</>
+    } },
+    { key: 'activity', title: 'Activity', render: (_, record) => String(record.activity || '-') },
+    { key: 'mandor', title: 'Mandor', render: (_, record) => record.name || '-' },
+    { key: 'status', title: 'Simpan', render: (_, record) => <div className="status-stack">
+      <UploadStatusPill record={record} />
+      <small>{uploadStatusInfo(record).detail}</small>
+    </div> },
+    { key: 'actions', title: 'Aksi', width: 235, render: (_, record) => {
+      const editable = record.formType === 'spray' ? canEditSpray(user, record) : canEditFertilizer(user, record)
+      const canUpload = canFinalize(user, record)
+      const pendingSize = canUpload ? pendingSessionSize(record) : 0
+      const uploadInfo = uploadStatusInfo(record)
+      const historicalFirestoreCheck = !isOperationalQcId(record.id) && qcFirestoreOnly
+      return <div className="row-actions">
+        {editable && <Button size="small" onClick={() => onEdit(record)}>{record.saveType === 'uploaded' ? 'Koreksi' : 'Edit Session'}</Button>}
+        {canCorrectHistoricalQc(user, record) && <Button size="small" disabled={loading || historicalRecord !== null}
+          onClick={() => setHistoricalRecord(record)}>Koreksi Historis</Button>}
+        <Button size="small" onClick={() => setReportRecord(record)}>Laporan</Button>
+        {canUpload && <Button size="small" type="primary" disabled={loading} onClick={() => onFinalize(record)}>
+          {pendingSize > 1 ? `Upload ${pendingSize} Unit` : 'Upload'}
+        </Button>}
+        {record.firestoreSaveState === 'queued' && <Button size="small" disabled={loading}
+          title={historicalFirestoreCheck ? 'Pemeriksaan hanya membaca Firestore; migrasi QC lama memerlukan verifikasi riwayat.' : 'Ulang sinkronisasi dan periksa konfirmasi Firestore'}
+          onClick={() => onRetrySave(record)}>{historicalFirestoreCheck ? 'Periksa Firestore' : 'Sinkronisasi QC'}</Button>}
+        {(uploadInfo.state === 'failed' || uploadInfo.state === 'queued') && record.firestoreSaveState !== 'queued' &&
+          <Button size="small" disabled={loading} onClick={() => onRetry(record)}>Coba Lagi</Button>}
+        {(qcFirestoreOnly ? canArchiveQc(user, record) : canDelete(user)) &&
+          <Button size="small" danger disabled={loading} onClick={() => onDelete(record)}>{qcFirestoreOnly ? 'Arsipkan' : 'Hapus'}</Button>}
+      </div>
+    } },
+  ]
+  const labeledColumns = columns.map(column => ({
+    ...column,
+    onCell: () => ({ className: 'qc-record-cell', 'data-label': column.title }),
+  }))
+
+  return <section className="qc-records-page">
+    <div className="section-head qc-records-head">
+      <div><div className="eyebrow">MONITORING</div><Typography.Title level={2}>Data QC</Typography.Title></div>
+      <YinYangRefreshButton busy={loading} label="Refresh" className="qc-refresh-button" onClick={onRefresh}/>
+    </div>
+    {historicalRecord&&canCorrectHistoricalQc(user,historicalRecord)&&<NativeHistoricalQcCorrection
+      key={user.firebaseUid+'|'+historicalRecord.id} record={historicalRecord} user={user}
+      onClose={()=>setHistoricalRecord(null)} onSaved={onRefresh}/>}
+    <div role="group" aria-label="Filter Data QC" className="record-filters qc-record-filters">
+      <Input aria-label="Cari Data QC" placeholder="Cari seluruh data: paddock, unit, activity, bahan, catatan…" value={query} onChange={e=>setQuery(e.target.value)}/>
+      <select aria-label="Jenis form" value={type} onChange={e=>setType(e.target.value as typeof type)}>
+        <option value="all">Semua jenis</option><option value="spray">Spraying</option><option value="fertilizer">Fertilizer</option>
+      </select>
+      <Input type="date" aria-label="Tanggal" value={date} onChange={e=>setDate(e.target.value)}/>
+      <select aria-label="Mandor" value={mandor} onChange={e=>setMandor(e.target.value)}>
+        <option value="">Semua mandor</option>{mandors.map(x=><option key={x}>{x}</option>)}
+      </select>
+      <select aria-label="Status simpan" value={saveType} onChange={e=>setSaveType(e.target.value)}>
+        <option value="all">Semua status simpan</option><option value="uploaded">Uploaded</option><option value="pending">Draft / queue</option>
+      </select>
+      <Button onClick={()=>{setQuery('');setType('all');setDate('');setMandor('');setSaveType('all')}}>Reset Filter</Button>
+    </div>
+    <div className="record-list-toolbar">
+      <div aria-live="polite">
+        <strong>{filtered.length.toLocaleString('id-ID')} data cocok</strong>
+        <span>{showAll?`Menampilkan semua ${filtered.length.toLocaleString('id-ID')} data`:`Menampilkan maksimal 100 data terbaru. Pencarian/filter tetap memeriksa seluruh ${records.length.toLocaleString('id-ID')} data.`}</span>
+      </div>
+      <div className="row-actions">
+        <Button onClick={()=>setShowAll(v=>!v)}>{showAll?'Tampilkan 100 terbaru':'Lihat Semua'}</Button>
+        <Button type="primary" disabled={exporting||!filtered.length} onClick={()=>void exportExcel()}>
+          {exporting?'Membuat Excel…':'Export Excel QC'}
+        </Button>
+      </div>
+    </div>
+    <div className="qc-records-table">
+      <Suspense fallback={<p role="status">Memuat tabel Data QC…</p>}>
+        <QcRecordsTable columns={labeledColumns} dataSource={visibleRecords} rowKey="id" size="small"
+          pagination={false} locale={{ emptyText: 'Belum ada data yang cocok.' }} />
+      </Suspense>
+    </div>
+    {reportRecord&&<RecordReport record={reportRecord} onClose={()=>setReportRecord(null)}/>}
+  </section>
+}
 const value=(v:unknown,unit='')=>v===undefined||v===null||v===''?'-':`${String(v)}${unit}`
 function driveImageUrl(url:string){if(!url)return'';if(url.startsWith('data:image/'))return url;const match=url.match(/\/d\/([a-zA-Z0-9_-]+)/)||url.match(/[?&]id=([a-zA-Z0-9_-]+)/);return match?`https://drive.google.com/thumbnail?id=${match[1]}&sz=w1200`:url}
 function RecordReport({record,onClose}:{record:QcRecord;onClose:()=>void}){const[busy,setBusy]=useState(false),safeName=`QC_${record.formType}_${record.date}_${record.paddock}`.replace(/[^a-z0-9_-]/gi,'_'),holds=Array.isArray(record.holdIntervals)?record.holdIntervals:[],fills=Array.isArray(record.pengisianList)&&record.pengisianList.length?record.pengisianList as Array<Record<string,unknown>>:record.formType==='fertilizer'&&(record.jenisPupuk||record.jumlah||record.hasilKerja)?[record as unknown as Record<string,unknown>]:[],downtime=Array.isArray(record.downtimeList)?record.downtimeList as Array<Record<string,unknown>>:[],fertDoses=fills.map(f=>Number(f.dosisAktual)||((Number(f.hasilKerja)||0)>0?(Number(f.jumlah)||0)/(Number(f.hasilKerja)||0):0)).filter(v=>v>0),fertAvg=Number(record.averageActualDosage)||(fertDoses.length?fertDoses.reduce((s,v)=>s+v,0)/fertDoses.length:0),fertKg=fills.reduce((s,f)=>s+(Number(f.jumlah)||0),0),fertHa=fills.reduce((s,f)=>s+(Number(f.hasilKerja)||0),0),fertWeighted=Number(record.weightedActualDosage)||(fertHa>0?fertKg/fertHa:0)

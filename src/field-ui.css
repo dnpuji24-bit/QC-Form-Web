@@ -2354,7 +2354,7 @@
   border-radius:10px;
   font-size:.76rem;
 }
-.qc-records-page .table-wrap{
+.qc-records-page .qc-records-table{
   box-shadow:0 7px 22px rgba(15,23,42,.05);
 }
 
@@ -2482,27 +2482,28 @@
     color:#475569!important;
   }
 
-  .qc-records-page .table-wrap{
+  .qc-records-page .qc-records-table{
     overflow:visible!important;
     border:0!important;
     border-radius:0!important;
     background:transparent!important;
     box-shadow:none!important;
   }
-  .qc-records-page .table-wrap table{
+  .qc-records-page .qc-records-table table{
     display:block;
     width:100%!important;
     min-width:0!important;
     background:transparent!important;
   }
-  .qc-records-page .table-wrap thead{
+  .qc-records-page .qc-records-table colgroup,
+  .qc-records-page .qc-records-table thead{
     display:none!important;
   }
-  .qc-records-page .table-wrap tbody{
+  .qc-records-page .qc-records-table tbody{
     display:grid;
     gap:7px;
   }
-  .qc-records-page .table-wrap tbody tr{
+  .qc-records-page .qc-records-table tbody tr{
     display:grid!important;
     grid-template-columns:repeat(2,minmax(0,1fr));
     gap:0;
@@ -2512,7 +2513,7 @@
     background:#fff;
     box-shadow:0 4px 14px rgba(15,23,42,.04);
   }
-  .qc-records-page .table-wrap tbody td{
+  .qc-records-page .qc-records-table tbody td{
     display:grid!important;
     align-content:start;
     gap:2px;
@@ -2524,10 +2525,10 @@
     line-height:1.2;
     overflow-wrap:anywhere;
   }
-  .qc-records-page .table-wrap tbody td:nth-child(even){
+  .qc-records-page .qc-records-table tbody td:nth-child(even){
     border-right:0;
   }
-  .qc-records-page .table-wrap tbody td::before{
+  .qc-records-page .qc-records-table tbody td::before{
     content:attr(data-label);
     display:block;
     margin-bottom:1px;
@@ -2538,12 +2539,12 @@
     letter-spacing:.07em;
     text-transform:uppercase;
   }
-  .qc-records-page .table-wrap tbody td:nth-child(6),
-  .qc-records-page .table-wrap tbody td:nth-child(7){
+  .qc-records-page .qc-records-table tbody td:nth-child(6),
+  .qc-records-page .qc-records-table tbody td:nth-child(7){
     grid-column:1/-1;
     border-right:0;
   }
-  .qc-records-page .table-wrap tbody td:nth-child(7){
+  .qc-records-page .qc-records-table tbody td:nth-child(7){
     border-bottom:0;
   }
   .qc-records-page .status-stack{
@@ -2568,7 +2569,7 @@
     border-radius:8px!important;
     font-size:.57rem!important;
   }
-  .qc-records-page .table-wrap .empty{
+  .qc-records-page .qc-records-table .ant-table-placeholder .ant-table-cell{
     grid-column:1/-1;
     display:block!important;
     padding:16px!important;
@@ -2590,7 +2591,7 @@
     height:31px!important;
     font-size:.61rem!important;
   }
-  .qc-records-page .table-wrap tbody td{
+  .qc-records-page .qc-records-table tbody td{
     padding:6px 7px!important;
     font-size:.63rem!important;
   }
