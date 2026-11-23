@@ -20,8 +20,8 @@ export default function DailyWoSmartSearch({value,selectedId,rows,loading=false,
     return()=>document.removeEventListener('pointerdown',outside)
   },[])
   const choose=(row:DailyWoChoice)=>{onSelect(row);setOpen(false);setIndex(0)}
-  return <div className="activity-smartsearch daily-wo-smartsearch" ref={ref}>
-    <label htmlFor={id} className="activity-smartsearch-label">Nomor WO — cari dahulu</label>
+  return <div className="activity-smartsearch plan-wo-search daily-wo-smartsearch" ref={ref}>
+    <label htmlFor={id} className="activity-smartsearch-label">Nomor WO</label>
     <div className="activity-smartsearch-control">
       <input ref={input} id={id} value={value} autoComplete="off" disabled={disabled}
         role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls={id+'-list'}
@@ -48,9 +48,7 @@ export default function DailyWoSmartSearch({value,selectedId,rows,loading=false,
           <span className="activity-smartsearch-meta">Operation {row.operationCode||'-'} · CoA {row.coaCode||'-'} · Rencana Shift {row.plannedShift==='ALL'?'Semua Shift':row.plannedShift||'-'} · {row.monthKey}/{row.week} · Plan ID {row.planLineId}{row.plannedDate?' · Tgl '+row.plannedDate:''}</span>
         </button>)}
         {!matches.length&&<div className="activity-smartsearch-empty">{loading?'Mencari WO lintas bulan di Firestore…':normalizeWo(value).length<2?'Ketik minimal 2 karakter atau pilih WO periode saat ini.':'WO tidak ditemukan / tidak aktif. Periksa nomor atau refresh.'}</div>}
-        <p className="activity-smartsearch-tip">Maksimal 12 hasil. Jika nomor WO berulang, pilih baris menurut PID, Plan ID, tanggal rencana, dan Shift.</p>
       </div>}
     </div>
-    <small>WO terikat pada PID dan Activity, tetapi Shift Aktual boleh berbeda dengan Shift Rencana.</small>
   </div>
 }
