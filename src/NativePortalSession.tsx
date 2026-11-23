@@ -1,7 +1,8 @@
 import {legacyQueueInventory} from './offline'
 import {useEffect,useState,type ReactNode,type FormEvent} from 'react'
 import {onIdTokenChanged,signInWithEmailAndPassword,signOut} from 'firebase/auth'
-import {firebaseAuth} from './firebase'
+import {firebaseAuth,firebaseAuthPersistenceReady} from './firebase'
+import {safeFirebaseLoginMessage,safeFirebaseProfileMessage} from './qcNativeLoginDiagnostics.mjs'
 import {readApprovedFirebaseSession} from './qcFirebaseSession'
 import {checkNativePortalConfig} from './qcNativePortalConfig'
 import {NATIVE_SESSION_MARKER} from './qcNativePortalPolicy.mjs'
@@ -31,9 +32,9 @@ export default function NativePortalSession({children}:{children:ReactNode}){
     const next=await readApprovedFirebaseSession()
     if(stopped||attempt!==generation||auth.currentUser?.uid!==uid)return
     verifiedUid=uid;publishCompatibilitySession(next);setUser(next);setReady(true)
-   }catch{
+   }catch(error){
     if(stopped||attempt!==generation)return
-    verifiedUid='';clearCompatibilitySession();setUser(null);setReady(true);setMessage('Sesi atau profil tidak dapat diverifikasi. Sambungkan internet dan masuk kembali.')
+    verifiedUid='';clearCompatibilitySession();setUser(null);setReady(true);setMessage(safeFirebaseProfileMessage(error))
    }
   }
   const stop=onIdTokenChanged(auth,()=>{void verify()})
@@ -52,11 +53,20 @@ export default function NativePortalSession({children}:{children:ReactNode}){
     const status=await submitNativeRegistration({email:String(data.get('email')||''),password:String(data.get('password')||''),username:String(data.get('username')||''),fullName:String(data.get('fullName')||''),requestedRole:String(data.get('role')) as NativeRegistrationRole},data.get('resume')==='on')
     setMessage('Status: '+status+'. Verifikasi email dan tunggu aktivasi Owner.');form.reset();setRegister(false)
    }else{
-    if(firebaseAuth.currentUser)await signOut(firebaseAuth)
+    // Do not sign out an existing authenticated session before a new login
+    // succeeds. Firebase signInWithEmailAndPassword replaces it on success.
+    // A failed retry must not discard a valid (but not-yet-hydrated) session.
+    await firebaseAuthPersistenceReady
+    if(typeof firebaseAuth.authStateReady==='function')await firebaseAuth.authStateReady()
     await signInWithEmailAndPassword(firebaseAuth,String(data.get('email')||'').trim(),String(data.get('password')||''))
     form.reset()
    }
-  }catch{setMessage('Permintaan gagal. Periksa akun, koneksi, atau konfigurasi.');form.reset()}finally{setBusy(false)}
+  }catch(error){
+    setMessage(register?'Pendaftaran belum berhasil. Periksa data dan koneksi; jangan membuat akun baru berulang-ulang.':safeFirebaseLoginMessage(error))
+    // Keep the address for correction, but do not retain a password on error.
+    const password=form.elements.namedItem('password')
+    if(password instanceof HTMLInputElement)password.value=''
+  }finally{setBusy(false)}
  }
  if(!ready)return <main className="auth-page"><p>Memverifikasi sesi Firebase…</p></main>
  if(user)return <div key={user.firebaseUid+'|'+user.role+'|'+JSON.stringify(user.permissions)}><LegacyQueueNotice/>{children}</div>
