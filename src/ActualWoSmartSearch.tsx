@@ -17,8 +17,8 @@ export default function ActualWoSmartSearch({rows,value,selectedId,disabled=fals
   return()=>document.removeEventListener('pointerdown',close)
  },[])
  function choose(row:ActualWoChoice){onSelect(row);setOpen(false);setFocusIndex(0)}
- return <div className="activity-smartsearch actual-wo-smartsearch" ref={container}>
-  <label htmlFor={id} className="activity-smartsearch-label">Nomor WO — cari dahulu</label>
+ return <div className="activity-smartsearch plan-wo-search actual-wo-smartsearch" ref={container}>
+  <label htmlFor={id} className="activity-smartsearch-label">Nomor WO</label>
   <div className="activity-smartsearch-control">
    <input ref={input} id={id} value={value} role="combobox" aria-autocomplete="list"
     aria-expanded={open} aria-controls={id+'-list'} autoComplete="off" disabled={disabled}
@@ -49,9 +49,7 @@ export default function ActualWoSmartSearch({rows,value,selectedId,disabled=fals
     {!filtered.length&&<div className="activity-smartsearch-empty">
       {value?'Tidak ada WO yang cocok pada Daily tanggal ini. Periksa tanggal atau buat Daily Plan dahulu.':'Belum ada Daily dengan WO pada tanggal ini.'}
      </div>}
-    <p className="activity-smartsearch-tip">Maksimal 12 hasil. Pilih baris Daily yang sesuai jika satu WO memiliki beberapa shift.</p>
    </div>}
   </div>
-  <small>WO diambil dari Daily Plan pada tanggal terpilih. Shift Aktual boleh berbeda dari Shift WO maupun Shift Daily.</small>
  </div>
 }

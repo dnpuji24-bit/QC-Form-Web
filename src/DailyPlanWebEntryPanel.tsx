@@ -499,8 +499,8 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
         <div className="plan-grid daily-schedule-grid">
           <label className="daily-date-field"><span>Tanggal</span><input type="date" value={state.date} onChange={e=>setState(current=>({...current,date:e.target.value}))}/></label>
           <label><span>Shift Aktual</span><input list="daily-resource-shifts" value={state.active.shift} onChange={e=>patchActive({shift:e.target.value})} placeholder="Ketik shift"/><datalist id="daily-resource-shifts">{resourceShifts.map(x=><option key={x} value={x}/>)}</datalist></label>
-          <label><span>Mandor / Foreman</span><input list="daily-resource-foremen" value={state.active.foreman} onChange={e=>patchActive({foreman:e.target.value})} placeholder="Ketik nama mandor"/><datalist id="daily-resource-foremen">{resourceForemen.map(x=><option key={x} value={x}/>)}</datalist></label>
-          <label><span>Sumber</span><select value={state.active.sourceType} disabled={!!persistedEdit}
+          <label className="plan-schedule-wide"><span>Mandor / Foreman</span><input list="daily-resource-foremen" value={state.active.foreman} onChange={e=>patchActive({foreman:e.target.value})} placeholder="Ketik nama mandor"/><datalist id="daily-resource-foremen">{resourceForemen.map(x=><option key={x} value={x}/>)}</datalist></label>
+          <label className="plan-schedule-wide"><span>Sumber</span><select value={state.active.sourceType} disabled={!!persistedEdit}
   onChange={e=>patchActive({sourceType:e.target.value as WorkDraft['sourceType'],activitySearch:'',pids:[blankPid()]})}>
   <option value="MONTHLY">MONTHLY (WO)</option><option value="ADHOC">ADHOC</option><option value="SUPPORT">SUPPORT</option>
 </select></label>

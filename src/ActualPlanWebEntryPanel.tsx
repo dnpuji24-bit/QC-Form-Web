@@ -219,14 +219,14 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
           onQuery={typeWoSearch}
           onSelect={choice=>{const found=daily.find(row=>row.id===choice.id);if(found)chooseWoDaily(found)}}
           onClear={()=>patchActive({woSearch:'',dailyId:'',dailySearch:'',area:''})}/></div>
-        <label><span>Shift Aktual</span><select value={state.active.shift||activeInfo.selected?.shift||'1'}
+        <label className="plan-schedule-wide"><span>Shift Aktual</span><select value={state.active.shift||activeInfo.selected?.shift||'1'}
           onChange={e=>patchActive({shift:e.target.value})}><option value="1">Shift 1</option><option value="2">Shift 2</option></select>
           <small>Shift Aktual boleh berbeda dari Shift WO dan Shift Daily.</small></label>
-        <label><span>Mandor / Foreman</span><input list="actual-resource-foremen" value={state.foreman} onChange={e=>setState(current=>({...current,foreman:e.target.value}))} placeholder="Ketik nama mandor"/><datalist id="actual-resource-foremen">{resourceForemen.map(x=><option key={x} value={x}/>)}</datalist></label>
+        <label className="plan-schedule-wide"><span>Mandor / Foreman</span><input list="actual-resource-foremen" value={state.foreman} onChange={e=>setState(current=>({...current,foreman:e.target.value}))} placeholder="Ketik nama mandor"/><datalist id="actual-resource-foremen">{resourceForemen.map(x=><option key={x} value={x}/>)}</datalist></label>
         <div className="plan-span-2"><details className="actual-legacy-selector"><summary>Pilih Daily / PID tanpa WO (data lama)</summary>
           <label className="daily-activity-field"><span>Daily Plan / PID</span><input list="actual-active-daily-options" value={state.active.dailySearch} onFocus={e=>e.currentTarget.select()} onChange={e=>chooseDailyValue(e.target.value)} placeholder="Ketik PID / Daily ID / kegiatan"/><datalist id="actual-active-daily-options">{activeDailyChoices.map(row=><option key={row.id} value={dailyLabel(row)}/>)}</datalist><small className="plan-search-hint">{activeInfo.selected?'Terpilih: '+dailyLabel(activeInfo.selected):state.active.dailySearch?(activeDailyChoices.length?activeDailyChoices.length+' pilihan aktif':'0 pilihan aktif — Daily yang sudah selesai disembunyikan'):'Ketik PID / Daily ID'}</small></label>
         </details></div>
-        <label><span>Kegiatan</span><input value={activeInfo.selected?.activity||''} readOnly placeholder="Mengikuti Daily Plan"/></label>
+        <label className="plan-schedule-wide"><span>Kegiatan</span><input value={activeInfo.selected?.activity||''} readOnly placeholder="Mengikuti Daily Plan"/></label>
         <label><span>Operation Code (otomatis)</span><input readOnly value={activeInfo.selected?.operationCode||'-'}/></label>
         <label><span>CoA (otomatis)</span><input readOnly value={activeInfo.selected?.coaCode||'-'}/></label>
         <label><span>Shift WO (rencana)</span><input readOnly value={activeInfo.selected?.plannedShift||'-'}/></label>
