@@ -49,22 +49,24 @@ export default function NativePortalSession({children}:{children:ReactNode}){
   const auth=firebaseAuth
   if(!auth){setMessage('Firebase tidak tersedia.');setReady(true);return}
   let stopped=false,generation=0,verifiedUid=''
-  let checkingUid='',quotaUid='',retryAfter=0
+  let checkingUid='',cooldownUid='',retryAfter=0,lastVerifiedAt=0
   const verify=async(force=false)=>{
    const uid=auth.currentUser?.uid
-   if(!force&&uid&&(checkingUid===uid||(quotaUid===uid&&Date.now()<retryAfter)))return
+   if(!force&&uid&&(checkingUid===uid||(cooldownUid===uid&&Date.now()<retryAfter)||(verifiedUid===uid&&Date.now()-lastVerifiedAt<300000)))return
    const attempt=++generation
    checkingUid=uid||''
    if(uid!==verifiedUid){clearCompatibilitySession();setUser(null);setReady(!uid);verifiedUid=''}
-   if(!uid){quotaUid='';setRetryUid('');setReady(true);return}
+   if(!uid){cooldownUid='';lastVerifiedAt=0;setRetryUid('');setReady(true);return}
    try{
     const next=await readApprovedFirebaseSession()
     if(stopped||attempt!==generation||auth.currentUser?.uid!==uid)return
-    publishCompatibilitySession(next);verifiedUid=uid;quotaUid='';setRetryUid('');setMessage('');setUser(next);setReady(true)
+    publishCompatibilitySession(next);verifiedUid=uid;lastVerifiedAt=Date.now();cooldownUid='';setRetryUid('');setMessage('');setUser(next);setReady(true)
    }catch(error){
     if(stopped||attempt!==generation||auth.currentUser?.uid!==uid)return
-    quotaUid=isProfileQuotaError(error)?uid:''
-    if(quotaUid)retryAfter=Date.now()+300000
+    const code=String((error as {code?:string})?.code||'').replace(/^firestore\//,'')
+    const transient=code==='unavailable'||code==='deadline-exceeded'
+    cooldownUid=isProfileQuotaError(error)||transient?uid:''
+    if(cooldownUid)retryAfter=Date.now()+(isProfileQuotaError(error)?300000:90000)
     setRetryUid(uid)
     verifiedUid='';clearCompatibilitySession();setUser(null);setReady(true);setMessage(safeFirebaseProfileMessage(error))
    }finally{if(attempt===generation)checkingUid=''}
@@ -74,7 +76,9 @@ export default function NativePortalSession({children}:{children:ReactNode}){
   const refresh=()=>{if(document.visibilityState==='visible')void verify()}
   window.addEventListener('focus',refresh);window.addEventListener('online',refresh)
   document.addEventListener('visibilitychange',refresh)
-  const timer=window.setInterval(()=>{if(navigator.onLine)refresh()},60000)
+  // Explicit retry remains available at all times. Avoid repeated server reads
+  // from every open tab while Firestore is degraded or quotas are constrained.
+  const timer=window.setInterval(()=>{if(navigator.onLine)refresh()},300000)
   return()=>{stopped=true;generation++;retryProfile.current=null;stop();window.clearInterval(timer);window.removeEventListener('focus',refresh);window.removeEventListener('online',refresh);document.removeEventListener('visibilitychange',refresh);clearCompatibilitySession()}
  },[])
  async function submit(event:FormEvent<HTMLFormElement>){
