@@ -163,7 +163,7 @@ export function dailyPlansToWhatsApp(rows:DailyPlanTransfer[]){
         lines.push('• '+role+': '+tidy(type)+(quantity>0?' — '+n(quantity)+' unit':''))
         const codes=selectedCodes(requirementId)
         if(codes.length)lines.push('  Kode: '+codes.join(', '))
-        else if(preferred.length)lines.push('  Kode usulan: '+[...new Set(preferred)].join(', '))
+        else if(preferred.length)lines.push('  No Unit: '+[...new Set(preferred)].join(', '))
         else lines.push('  Kode: belum ditentukan')
         if(notes.trim())lines.push('  Keterangan: '+tidy(notes))
       }

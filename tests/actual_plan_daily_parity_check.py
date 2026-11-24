@@ -47,7 +47,7 @@ for token in ['ActualComposerRequest','editActual(','duplicateActual(','composer
     assert token in workspace, f'Missing Actual main-form editor routing token: {token}'
 
 assert 'actualPlansToWhatsApp' in actions
-assert '*ACTUAL PEKERJAAN*' in actions
+assert '*ACTUAL PLAN*' in actions
 assert 'SavedActualRow' in types
 assert "setDoc(doc(db,'daily_reports',persistedEdit.id)" in web, 'Editing saved Actual must update the same document, not create a new Actual.'
 assert "actualReportId:persistedEdit.actualReportId" in web, 'Saved Actual edit must preserve Actual ID.'

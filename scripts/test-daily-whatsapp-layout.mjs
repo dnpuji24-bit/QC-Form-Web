@@ -102,7 +102,7 @@ test('WA copy includes actual primary and support unit codes once for multi-PID 
  assert.match(wa,/Support: DUMP TRUCK — 1 unit/)
  assert.match(wa,/Kode: DT123T/)
  assert.match(wa,/Keterangan: Angkut material ke paddock/)
- assert.doesNotMatch(wa,/Kode usulan: SS001|Kode usulan: DT123T/)
+ assert.doesNotMatch(wa,/No Unit:/)
  assert.equal((wa.match(/Support: DUMP TRUCK/g)||[]).length,1)
 })
 test('WA copy labels proposed codes separately when Unit Dispatch has no confirmed assignment',()=>{
@@ -110,8 +110,8 @@ test('WA copy labels proposed codes separately when Unit Dispatch has no confirm
    supportUnits:[{id:'dt-support',unitName:'DUMP TRUCK',unitRequired:1,
      unitPreferredCodes:['DT124T'],notes:''}],materials:[]}
  const wa=dailyPlansToWhatsApp([row])
- assert.match(wa,/Kode usulan: SS003/)
- assert.match(wa,/Kode usulan: DT124T/)
+ assert.match(wa,/No Unit: SS003/)
+ assert.match(wa,/No Unit: DT124T/)
  assert.doesNotMatch(wa,/Kode: SS003/)
 })
 test('WA copy remains readable for legacy records without selected codes',()=>{
