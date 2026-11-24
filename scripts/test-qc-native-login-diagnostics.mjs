@@ -38,6 +38,7 @@ test('Firestore profile denial is distinguished from credentials and never claim
   [{code:'resource-exhausted'},'Kuota Firestore'],
   [{code:'firestore/resource-exhausted'},'Kuota Firestore'],
   [{message:'AUTH_PROFILE_MISSING'},'Profil aplikasi belum tersedia'],
+  [{message:'AUTH_BROWSER_STORAGE'},'penyimpanan browser'],
   [{message:'AUTH_PROFILE_NOT_APPROVED'},'belum aktif'],
   [{message:'AUTH_PROFILE_IDENTITY_MISMATCH'},'UID/email'],
   [{message:'AUTH_PROFILE_INVALID'},'role'],

@@ -7,7 +7,10 @@ type Props={unitName:string;date:string;shift:string;required:number;preferred:s
 export default function DailyUnitAvailability({unitName,date,shift,required,preferred,onPreferred}:Props){
   const[units,setUnits]=useState<UnitNumber[]>([]),[events,setEvents]=useState<UnitEvent[]>([]),[assignments,setAssignments]=useState<UnitAssignment[]>([])
   const[error,setError]=useState(''),[loading,setLoading]=useState(false)
-  useEffect(()=>{let valid=true;setLoading(true);setError('')
+  const hasUnit=Boolean(unitName.trim())
+  useEffect(()=>{
+    if(!hasUnit)return
+    let valid=true;setLoading(true);setError('')
     async function load(){
       if(!firestoreDb)return
       const [numberSnap,eventSnap,assignedSnap]=await Promise.all([
@@ -22,7 +25,7 @@ export default function DailyUnitAvailability({unitName,date,shift,required,pref
     }
     void load().catch(e=>{if(valid)setError(e instanceof Error?e.message:'Status unit tidak tersedia.')}).finally(()=>{if(valid)setLoading(false)})
     return()=>{valid=false}
-  },[date,shift])
+  },[date,shift,hasUnit])
   const summary=useMemo(()=>{
     const range=shiftWindow(date,shift)
     const matching=units.filter(u=>unitMatchesType(u,unitName))

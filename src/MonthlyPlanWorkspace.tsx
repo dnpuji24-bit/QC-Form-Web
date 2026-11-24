@@ -15,7 +15,8 @@ function currentWeek(day:number){return day<=7?'W1':day<=15?'W2':day<=22?'W3':'W
 export default function MonthlyPlanWorkspace({user,onOpenDailyPlan,onOpenActualSource}:Props){
   const now=new Date()
   const[requestedView,setView]=useState<View>('plan')
-  const[editorOpen,setEditorOpen]=useState(false)
+  // Mount on first use, then retain the draft when the form is collapsed.
+  const[editorOpen,setEditorOpen]=useState<boolean|null>(null)
   const[year,setYear]=useState(now.getFullYear())
   const[monthNumber,setMonthNumber]=useState(now.getMonth()+1)
   const[week,setWeek]=useState(currentWeek(now.getDate()))
@@ -40,10 +41,10 @@ export default function MonthlyPlanWorkspace({user,onOpenDailyPlan,onOpenActualS
         </div>
       </Card>
       {editPlan&&week!=='ALL'&&<div className="plan-editor">
-        <Button type={editorOpen?'default':'primary'} aria-expanded={editorOpen} aria-controls="monthly-plan-editor"
+        <Button type={editorOpen?'default':'primary'} aria-expanded={editorOpen===true} aria-controls="monthly-plan-editor"
           onClick={()=>setEditorOpen(open=>!open)}>{editorOpen?'Tutup Form':'Tambah Monthly Plan'}</Button>
         <div id="monthly-plan-editor" hidden={!editorOpen}>
-          <MonthlyPlanWebEntryPanel user={user} selectedMonth={monthKey} selectedWeek={week} onSaved={()=>setRefreshKey(x=>x+1)}/>
+          {editorOpen!==null&&<MonthlyPlanWebEntryPanel user={user} selectedMonth={monthKey} selectedWeek={week} onSaved={()=>setRefreshKey(x=>x+1)}/>}
         </div>
       </div>}
       {editPlan&&week==='ALL'&&<div className="monthly-all-week-note">Pilih satu week untuk menambah Monthly Plan.</div>}

@@ -15,7 +15,7 @@ export async function readApprovedFirebaseSession(){
   if(!isApprovedFirebaseProfile(profile))throw Error('AUTH_PROFILE_NOT_APPROVED')
   const role=String(profile.role||'')
   if(!['owner','manager','admin','asisten','mandor_spraying','mandor_fertilizer','pengunjung'].includes(role))throw Error('AUTH_PROFILE_INVALID')
-  const template=(await getDocFromServer(doc(db,'role_access',role))).data()
+  const template=role==='owner'?undefined:(await getDocFromServer(doc(db,'role_access',role))).data()
   if(auth.currentUser?.uid!==current.uid)throw Error('AUTH_SESSION_CHANGED')
   return resolveFirebaseProfile({uid:current.uid,email:current.email},profile,template,PERMISSION_CATALOG.map(p=>p.key))
 }

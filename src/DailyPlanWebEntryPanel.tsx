@@ -9,7 +9,7 @@ import type { DailyComposerRequest } from './dailyPlanWorkspaceTypes'
 import { clearPlanDraft, materialLinesFromComponents, planHa, planNum, planRowId, planText, readPlanDraft, writePlanDraft } from './planInputUtils'
 import type { User } from './types'
 import { canEditAccess } from './accessControl'
-import { loadAllOperationalResources } from './masterOperationalResources'
+import { loadOperationalResources } from './masterOperationalResources'
 import YinYangRefreshButton from './YinYangRefreshButton'
 import { getPlanDocsWithCache } from './planOfflineReads'
 import DailyWoSmartSearch from './DailyWoSmartSearch'
@@ -276,7 +276,14 @@ export default function DailyPlanWebEntryPanel({user,selectedDate,onDateChange,o
     void (async()=>{for(const code of unique)await loadMonthlyWo(code)})()
   },[])
 
-  useEffect(()=>{void loadMasters();void loadAllOperationalResources().then(resources=>{setResourceUnits(resources.units.map(x=>x.name));setResourceShifts(resources.shifts.map(x=>x.name));setResourceForemen(resources.foremen.map(x=>x.name))}).catch(()=>{})},[])
+  useEffect(()=>{
+    void loadMasters()
+    void Promise.all([loadOperationalResources('unit'), loadOperationalResources('shift'), loadOperationalResources('foreman')]).then(([units, shifts, foremen])=>{
+      setResourceUnits(units.map(x=>x.name))
+      setResourceShifts(shifts.map(x=>x.name))
+      setResourceForemen(foremen.map(x=>x.name))
+    }).catch(()=>{})
+  },[])
   useEffect(()=>{void loadPeriod(state.date);onDateChange?.(state.date)},[state.date])
   useEffect(()=>{if(selectedDate&&selectedDate!==state.date)setState(current=>({...current,date:selectedDate}))},[selectedDate])
   useEffect(()=>{if(state.active.sourceType!=='MONTHLY')return;const label=state.active.activitySearch.trim(),key=searchKey(label);if(!key)return;const exact=availableMonthly.some(row=>searchKey(row.activity||row.description)===key)||activities.some(row=>row.active&&searchKey(row.activity)===key);if(exact)void loadMonthlyActivity(label)},[state.active.sourceType,state.active.activitySearch,availableMonthly,activities])

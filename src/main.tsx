@@ -13,11 +13,11 @@ const showOperationalPilot = !nativePortalEnabled && import.meta.env.VITE_QC_OPE
 const PhotoUploadTest = React.lazy(() => import('./SupabasePhotoTest'))
 const showPhotoUploadTest = !nativePortalEnabled && import.meta.env.VITE_ENABLE_SUPABASE_PHOTO_TEST === 'true' && new URLSearchParams(window.location.search).get('supabase-photo-test') === '1'
 import ReactDOM from 'react-dom/client'
-import App from './App'
-import NetworkStatus from './NetworkStatus'
+const App = React.lazy(() => import('./App'))
+const NetworkStatus = React.lazy(() => import('./NetworkStatus'))
 import SaveStatusPopup from './SaveStatusPopup'
-import UiEnhancers from './UiEnhancers'
-import PortalRouter from './PortalRouter'
+const UiEnhancers = React.lazy(() => import('./UiEnhancers'))
+const PortalRouter = React.lazy(() => import('./PortalRouter'))
 import ScrollToTopButton from './ScrollToTopButton'
 import './styles.css'
 import './theme.css'
@@ -33,14 +33,22 @@ if ('serviceWorker' in navigator) {
   })
 }
 
-const portalContent = <>
-  <App />
-  <PortalRouter />
+function PortalWorkspaces() {
+  // Keep QC drafts and the existing subscription alive when returning to the menu.
+  const [qcOpened, openQc] = React.useReducer(() => true, !nativePortalEnabled)
+  return <>
+    {qcOpened && <App />}
+    <PortalRouter onOpenQc={openQc} />
+  </>
+}
+
+const portalContent = <React.Suspense fallback={<p role="status">Memuat portal…</p>}>
+  <PortalWorkspaces />
   <NetworkStatus />
   <SaveStatusPopup />
   <UiEnhancers />
   <ScrollToTopButton />
-</>
+</React.Suspense>
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

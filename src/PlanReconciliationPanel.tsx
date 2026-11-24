@@ -24,6 +24,7 @@ export default function PlanReconciliationPanel(){
   const[daily,setDaily]=useState<DailyRow[]>([])
   const[actual,setActual]=useState<ActualRow[]>([])
   const[busy,setBusy]=useState(false)
+  const[hasResults,setHasResults]=useState(false)
   const[message,setMessage]=useState('')
   const[severity,setSeverity]=useState<'ALL'|Severity>('ALL')
   const[month,setMonth]=useState('ALL')
@@ -47,12 +48,11 @@ export default function PlanReconciliationPanel(){
       const mm=m.docs.map(x=>monthlyFromData(x.id,x.data() as Record<string,unknown>))
       const dd=d.docs.map(x=>dailyFromData(x.id,x.data() as Record<string,unknown>))
       const aa=a.docs.map(x=>actualFromData(x.id,x.data() as Record<string,unknown>))
-      setMonthly(mm);setDaily(dd);setActual(aa)
+      setMonthly(mm);setDaily(dd);setActual(aa);setHasResults(true)
       setMessage('Audit selesai. Rekonsiliasi hanya membaca data; tidak ada record yang diubah.')
     }catch(error){setMessage(error instanceof Error?error.message:'Rekonsiliasi gagal dimuat.')}finally{setBusy(false)}
   }
 
-  useEffect(()=>{void load()},[])
 
   const audit=useMemo(()=>{
     const monthlyMap=new Map(monthly.map(x=>[x.planLineId,x]))
@@ -141,14 +141,14 @@ export default function PlanReconciliationPanel(){
   return <section>
     <div className="section-head plan-audit-head">
       <Typography.Title level={3}>Rekonsiliasi Plan</Typography.Title>
-      <Button disabled={busy} onClick={()=>void load()}>{busy?'Memeriksa…':'Audit Ulang'}</Button>
+      <Button disabled={busy} onClick={()=>void load()}>{busy?'Memeriksa…':hasResults?'Audit Ulang':'Jalankan Audit'}</Button>
     </div>
     <details className="plan-activity-details plan-audit-details">
       <summary>Cakupan audit</summary>
       <p>Audit hanya membaca data. ADHOC dan SUPPORT tidak dianggap error bila tidak memiliki Monthly Plan.</p>
     </details>
     {message&&<div className="alert">{message}</div>}
-    <div className="plan-audit-stats">
+    {hasResults&&<><div className="plan-audit-stats">
       <Card size="small"><Statistic title="Monthly" value={monthly.length}/></Card>
       <Card size="small"><Statistic title="Daily" value={daily.length}/></Card>
       <Card size="small"><Statistic title="Actual" value={actual.length}/></Card>
@@ -185,6 +185,6 @@ export default function PlanReconciliationPanel(){
       <div className="section-head"><div><h3>Ringkasan Flow per Monthly Plan</h3><p className="muted">Urutan awal menampilkan Monthly Plan dengan jumlah temuan terbanyak.</p></div><strong>{filteredFlows.length} plan</strong></div>
       <div className="table-wrap"><table><thead><tr><th>Plan ID</th><th>Bulan / Week</th><th>Company / Farm</th><th>PID</th><th>Activity</th><th>Target</th><th>Daily</th><th>Actual</th><th>Daily - Target</th><th>Actual - Target</th><th>Temuan</th></tr></thead><tbody>{pagedFlows.map(row=><tr key={row.id}><td><strong>{row.planLineId}</strong></td><td>{row.monthKey}<br/><span className="muted">{row.week}</span></td><td>{row.companyCode||'-'}<br/><span className="muted">{row.farm||'-'}</span></td><td>{row.pid}</td><td>{row.description}<br/><span className="muted">{row.activity||'-'}</span></td><td>{formatHa(row.targetAreaHa)}</td><td>{formatHa(row.dailyAreaHa)}</td><td>{formatHa(row.actualAreaHa)}</td><td style={{color:row.dailyVarianceHa>0.02?'#b91c1c':undefined}}>{formatHa(row.dailyVarianceHa)}</td><td style={{color:row.actualVarianceHa>0.02?'#b91c1c':undefined}}>{formatHa(row.actualVarianceHa)}</td><td><strong>{row.issueCount}</strong></td></tr>)}</tbody></table></div>
       {filteredFlows.length>0&&<div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap',marginTop:14}}><span className="muted">Menampilkan {(safeFlowPage-1)*PAGE_SIZE+1}–{Math.min(safeFlowPage*PAGE_SIZE,filteredFlows.length)} dari {filteredFlows.length} Monthly Plan.</span><div style={{display:'flex',gap:8,alignItems:'center'}}><button type="button" disabled={safeFlowPage<=1} onClick={()=>setFlowPage(p=>Math.max(1,p-1))}>← Sebelumnya</button><strong>Halaman {safeFlowPage} / {flowPages}</strong><button type="button" disabled={safeFlowPage>=flowPages} onClick={()=>setFlowPage(p=>Math.min(flowPages,p+1))}>Berikutnya →</button></div></div>}
-    </div>
+    </div></>}
   </section>
 }

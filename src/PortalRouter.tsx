@@ -67,7 +67,7 @@ function hasSession(){return Boolean(readStored(TOKEN_KEY)&&readUser())}
 function dataUnmAllowed(user:User|null){return Boolean(user&&canOpenDataUnm(user))}
 function qcAllowed(user:User|null){return Boolean(user&&canOpenQc(user))}
 
-export default function PortalRouter(){
+export default function PortalRouter({onOpenQc}:{onOpenQc:()=>void}){
   const[loggedIn,setLoggedIn]=useState(()=>hasSession())
   const[user,setUser]=useState<User|null>(()=>readUser())
   const[mode,setMode]=useState<PortalMode>(()=>hasSession()?((sessionStorage.getItem(MODE_KEY) as PortalMode)||'chooser'):'chooser')
@@ -132,6 +132,7 @@ export default function PortalRouter(){
   const canUsers=user?.role==='owner'
   const canSummary=Boolean(user&&canViewAccess(user,'data_plan_summary'))
   const canCalendar=Boolean(user&&(canSummary||canViewAccess(user,'data_plan_daily')||canViewAccess(user,'data_plan_actual')))
+  useEffect(()=>{if(loggedIn&&mode==='qc'&&canQc)onOpenQc()},[loggedIn,mode,canQc,onOpenQc])
   if(!loggedIn||!user)return null
 
   function choose(next:PortalMode){
@@ -145,7 +146,7 @@ export default function PortalRouter(){
     if(next!=='data-unm'){lastDataMenu.current=null;setDataView('home')}
   }
 
-  if(mode==='qc')return <button className="portal-return-button" type="button" onClick={()=>choose('chooser')} aria-label="Kembali ke menu utama">☰ Menu Utama</button>
+  if(mode==='qc'&&canQc)return <button className="portal-return-button" type="button" onClick={()=>choose('chooser')} aria-label="Kembali ke menu utama">☰ Menu Utama</button>
 
   // Both reporting tools are first-class destinations, separate from Plan input.
   // Permission checks are the same as the former Plan tabs.
