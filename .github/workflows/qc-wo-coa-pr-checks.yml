@@ -107,6 +107,9 @@ jobs:
       - name: Verify safe Firebase Owner login diagnostics
         run: node --test scripts/test-qc-native-login-diagnostics.mjs
 
+      - name: Verify resilient Owner profile read and Firestore quota diagnostics
+        run: node --test scripts/test-owner-profile-firestore-availability.mjs
+
       - name: Verify TypeScript
         run: npm run typecheck
       - name: Build React safely
