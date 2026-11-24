@@ -48,9 +48,24 @@ export async function fetchFirestoreDocumentViaREST({
     throw Object.assign(new Error('Firestore HTTPS transport unavailable'),{code:'unavailable'})
   }finally{clearTimeout(timer)}
   if(response.status===404)return undefined
-  if(!response.ok)throw Object.assign(new Error('Firestore HTTPS returned '+response.status),{
-    code:codeByStatus[response.status]||'unknown'
-  })
+  if(!response.ok){
+    // Firestore can report quota exhaustion as HTTP 403 as well as 429.
+    // Inspect only the standardized machine-readable status, never expose
+    // server error text (which could contain identifiers).
+    let googleStatus=''
+    try{
+      const failure=await response.json()
+      googleStatus=String(failure?.error?.status||'').toUpperCase()
+    }catch{}
+    const known={
+      RESOURCE_EXHAUSTED:'resource-exhausted',PERMISSION_DENIED:'permission-denied',
+      UNAVAILABLE:'unavailable',UNAUTHENTICATED:'unauthenticated',
+      DEADLINE_EXCEEDED:'deadline-exceeded',NOT_FOUND:'not-found'
+    }
+    throw Object.assign(new Error('Firestore HTTPS request unsuccessful'),{
+      code:known[googleStatus]||codeByStatus[response.status]||'unknown'
+    })
+  }
   try{
     const data=decodeFirestoreDocument(await response.json())
     if(!data)throw Error('Missing Firestore fields')
