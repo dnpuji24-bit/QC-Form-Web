@@ -11,7 +11,8 @@ export async function readApprovedFirebaseSession(){
   const current=auth.currentUser
   if(!current)throw Error('AUTH_REQUIRED')
   const profile=(await getDocFromServer(doc(db,'users',current.uid))).data()
-  if(!profile||!isApprovedFirebaseProfile(profile))throw Error('AUTH_PROFILE_NOT_APPROVED')
+  if(!profile)throw Error('AUTH_PROFILE_MISSING')
+  if(!isApprovedFirebaseProfile(profile))throw Error('AUTH_PROFILE_NOT_APPROVED')
   const role=String(profile.role||'')
   if(!['owner','manager','admin','asisten','mandor_spraying','mandor_fertilizer','pengunjung'].includes(role))throw Error('AUTH_PROFILE_INVALID')
   const template=(await getDocFromServer(doc(db,'role_access',role))).data()
