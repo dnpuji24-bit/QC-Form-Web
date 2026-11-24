@@ -21,7 +21,7 @@ const descriptions={
 }
 export function safeFirebaseLoginMessage(error){
  const code=typeof error?.code==='string'?error.code:''
- if(Object.hasOwn(descriptions,code))return descriptions[code]+' (Kode: '+code+')'
+ if(Object.prototype.hasOwnProperty.call(descriptions,code))return descriptions[code]+' (Kode: '+code+')'
  if(code.startsWith('auth/')&&/^auth\/[a-z0-9-]{1,70}$/.test(code))
    return 'Firebase Authentication menolak permintaan. Sampaikan kode berikut untuk pemeriksaan lebih lanjut: '+code
  if(error?.message==='QC_NATIVE_CONFIG_INVALID')return 'Konfigurasi portal Firebase belum lengkap. Hubungi administrator.'
@@ -30,10 +30,12 @@ export function safeFirebaseLoginMessage(error){
 export function safeFirebaseProfileMessage(error){
  const code=typeof error?.code==='string'?error.code:''
  const cause=typeof error?.message==='string'?error.message:''
+ if(cause==='AUTH_BROWSER_STORAGE')
+   return 'Sesi belum dapat disimpan di perangkat. Periksa ruang kosong dan izin penyimpanan browser, lalu tekan Periksa ulang akses akun.'
  if(isProfileQuotaError(error))
    return 'Kuota Firestore terlampaui. Akses profil bisa diperiksa kembali setelah kuota tersedia.'
  if(cause==='AUTH_PROFILE_MISSING')
-   return 'Profil aplikasi belum tersedia untuk akun ini. Hubungi Owner untuk memeriksa aktivasi akun.'
+   return 'Profil aplikasi belum tersedia untuk akun yang tertera. Periksa emailnya. Jika sudah benar, minta Owner memeriksa profil akun ini.'
  if(code==='permission-denied'||code==='firestore/permission-denied')
    return 'Firebase Authentication mungkin sudah menerima login, tetapi Firestore menolak akses profil. Periksa status pengguna Owner dan Firestore Rules. (Kode: permission-denied)'
  if(code==='unavailable'||code==='firestore/unavailable')

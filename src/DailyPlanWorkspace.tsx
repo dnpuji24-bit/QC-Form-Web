@@ -13,7 +13,8 @@ type View='plan'|'import'
 
 export default function DailyPlanWorkspace({user,onCopyToActual,jumpRequest}:Props){
   const[requestedView,setView]=useState<View>('plan')
-  const[editorOpen,setEditorOpen]=useState(false)
+  // Mount on first use, then retain the draft when the form is collapsed.
+  const[editorOpen,setEditorOpen]=useState<boolean|null>(null)
   const[selectedDate,setSelectedDate]=useState(jumpRequest?.date||new Date().toISOString().slice(0,10))
   const[refreshKey,setRefreshKey]=useState(0)
   const[composerRequest,setComposerRequest]=useState<DailyComposerRequest>(null)
@@ -33,10 +34,10 @@ export default function DailyPlanWorkspace({user,onCopyToActual,jumpRequest}:Pro
     {view==='plan'?<div className="period-workspace">
       <div className="plan-browse-controls">
         <label>Tanggal <Input type="date" value={selectedDate} onChange={event=>{if(event.target.value)setSelectedDate(event.target.value)}}/></label>
-        {editPlan&&<Button type={editorOpen?'default':'primary'} aria-expanded={editorOpen}
+        {editPlan&&<Button type={editorOpen?'default':'primary'} aria-expanded={editorOpen===true}
           aria-controls="daily-plan-editor" onClick={()=>setEditorOpen(open=>!open)}>{editorOpen?'Tutup Form':'Buka Form Daily'}</Button>}
       </div>
-      {editPlan&&<div id="daily-plan-editor" hidden={!editorOpen}><DailyPlanWebEntryPanel user={user} selectedDate={selectedDate} onDateChange={setSelectedDate} onSaved={changed} composerRequest={composerRequest} onComposerRequestHandled={()=>setComposerRequest(null)}/></div>}
+      {editPlan&&<div id="daily-plan-editor" hidden={!editorOpen}>{editorOpen!==null&&<DailyPlanWebEntryPanel user={user} selectedDate={selectedDate} onDateChange={setSelectedDate} onSaved={changed} composerRequest={composerRequest} onComposerRequestHandled={()=>setComposerRequest(null)}/>}</div>}
       {!editPlan&&<div className="alert">Mode Hanya Lihat: input dan perubahan Daily Plan dinonaktifkan.</div>}
       <DailyPlanListPanel user={user} onCopyToActual={onCopyToActual} selectedDate={selectedDate} compact refreshKey={refreshKey} focusMonthlyPlanLineId={monthlyFocus} focusPid={jumpRequest?.pid||''} onClearMonthlyFocus={()=>setMonthlyFocus('')} onChanged={changed} onEditGroup={group=>{setEditorOpen(true);setComposerRequest({mode:'edit-saved',group})}} onDuplicateGroup={group=>{setEditorOpen(true);setComposerRequest({mode:'duplicate-saved',group})}} readOnly={!editPlan}/>
     </div>:(editImport?<DailyPlanImportPanel user={user}/>:<div className="panel"><div className="alert">Mode Hanya Lihat: Update / Import Excel dinonaktifkan.</div></div>)}

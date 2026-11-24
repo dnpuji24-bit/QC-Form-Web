@@ -5,7 +5,7 @@ import DailyActionIcon from './DailyPlanActionIcon'
 import { actualPlansToWhatsApp } from './actualPlanActions'
 import type { ActualComposerRequest, SavedActualRow } from './actualPlanWorkspaceTypes'
 import { aggregateMaterials, clearPlanDraft, materialLinesFromComponents, planHa, planNum, planRowId, planText, readPlanDraft, writePlanDraft, type PlanMaterialLine } from './planInputUtils'
-import { loadAllOperationalResources } from './masterOperationalResources'
+import { loadOperationalResources } from './masterOperationalResources'
 import type { User } from './types'
 import { canEditAccess } from './accessControl'
 import YinYangRefreshButton from './YinYangRefreshButton'
@@ -73,7 +73,12 @@ export default function ActualPlanWebEntryPanel({user,prefillDailyPlanIds=[],sel
       setActuals(a.docs.map(x=>{const r=x.data() as Record<string,unknown>;return{id:x.id,actualReportId:planText(r.actualReportId||x.id),dailyPlanId:planText(r.dailyPlanId),date:planText(r.date),actualAreaHa:planNum(r.actualAreaHa),planningOrder:planNum(r.planningOrder),workGroupId:planText(r.workGroupId)}}))
     }catch(e){setMessage(e instanceof Error?e.message:'Data Actual periode gagal dimuat.')}finally{setBusy(false)}
   }
-  useEffect(()=>{void loadAllOperationalResources().then(resources=>{setResourceUnits(resources.units.map(x=>x.name));setResourceForemen(resources.foremen.map(x=>x.name))}).catch(()=>{})},[])
+  useEffect(()=>{
+    void Promise.all([loadOperationalResources('unit'), loadOperationalResources('foreman')]).then(([units, foremen])=>{
+      setResourceUnits(units.map(x=>x.name))
+      setResourceForemen(foremen.map(x=>x.name))
+    }).catch(()=>{})
+  },[])
   useEffect(()=>{void load(state.date);onDateChange?.(state.date)},[state.date])
   useEffect(()=>{if(selectedDate&&selectedDate!==state.date)setState(current=>({...current,date:selectedDate}))},[selectedDate])
   useEffect(()=>{writePlanDraft(draftKey,state)},[state,draftKey])

@@ -13,7 +13,8 @@ type View='plan'|'import'
 
 export default function ActualPlanWorkspace({user,prefillDailyPlanIds=[],jumpRequest=null}:Props){
   const[requestedView,setView]=useState<View>('plan')
-  const[editorOpen,setEditorOpen]=useState(false)
+  // Mount on first use, then retain the draft when the form is collapsed.
+  const[editorOpen,setEditorOpen]=useState<boolean|null>(null)
   const[selectedDate,setSelectedDate]=useState(new Date().toISOString().slice(0,10))
   const[refreshKey,setRefreshKey]=useState(0)
   const[composerRequest,setComposerRequest]=useState<ActualComposerRequest>(null)
@@ -34,10 +35,10 @@ export default function ActualPlanWorkspace({user,prefillDailyPlanIds=[],jumpReq
     {view==='plan'?<div className="period-workspace">
       <div className="plan-browse-controls">
         <label>Tanggal <Input type="date" value={selectedDate} onChange={event=>{if(event.target.value)setSelectedDate(event.target.value)}}/></label>
-        {editPlan&&<Button type={editorOpen?'default':'primary'} aria-expanded={editorOpen}
+        {editPlan&&<Button type={editorOpen?'default':'primary'} aria-expanded={editorOpen===true}
           aria-controls="actual-plan-editor" onClick={()=>setEditorOpen(open=>!open)}>{editorOpen?'Tutup Form':'Buka Form Actual'}</Button>}
       </div>
-      {editPlan&&<div id="actual-plan-editor" hidden={!editorOpen}><ActualPlanWebEntryPanel user={user} prefillDailyPlanIds={prefillDailyPlanIds} selectedDate={selectedDate} onDateChange={setSelectedDate} onSaved={()=>setRefreshKey(x=>x+1)} composerRequest={composerRequest} onComposerRequestHandled={()=>setComposerRequest(null)}/></div>}
+      {editPlan&&<div id="actual-plan-editor" hidden={!editorOpen}>{editorOpen!==null&&<ActualPlanWebEntryPanel user={user} prefillDailyPlanIds={prefillDailyPlanIds} selectedDate={selectedDate} onDateChange={setSelectedDate} onSaved={()=>setRefreshKey(x=>x+1)} composerRequest={composerRequest} onComposerRequestHandled={()=>setComposerRequest(null)}/>}</div>}
       {!editPlan&&<div className="alert">Mode Hanya Lihat: input dan perubahan Actual Plan dinonaktifkan.</div>}
       <ActualPlanListPanel user={user} selectedDate={selectedDate} compact refreshKey={refreshKey} onEditActual={editActual} onDuplicateActual={duplicateActual} onChanged={()=>setRefreshKey(x=>x+1)} readOnly={!editPlan} jumpRequest={jumpRequest}/>
     </div>:(editImport?<ActualPlanImportPanel user={user}/>:<div className="panel"><div className="alert">Mode Hanya Lihat: Update / Import Excel dinonaktifkan.</div></div>)}
