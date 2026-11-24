@@ -9,7 +9,7 @@ const descriptions={
   'auth/missing-password':'Password belum diisi.',
   'auth/too-many-requests':'Firebase membatasi percobaan login sementara. Jangan mencoba berulang-ulang; ikuti proses pemulihan akun bila diperlukan.',
   'auth/user-disabled':'Akun Firebase Authentication dinonaktifkan. Owner perlu memeriksa status akun melalui konsol Firebase.',
-  'auth/network-request-failed':'Permintaan ke Firebase gagal karena koneksi atau pemblokiran jaringan. Periksa jaringan, VPN, dan domain Google/Firebase yang diizinkan.',
+  'auth/network-request-failed':'Firebase belum dapat dijangkau. Coba ganti antara data seluler dan Wi-Fi, lalu masuk kembali.',
   'auth/operation-not-allowed':'Metode login email/password belum diaktifkan dalam Firebase Authentication.',
   'auth/unauthorized-domain':'Domain halaman belum diizinkan untuk autentikasi Firebase.',
   'auth/invalid-api-key':'Konfigurasi Firebase Authentication tidak valid.',
@@ -30,12 +30,16 @@ export function safeFirebaseLoginMessage(error){
 export function safeFirebaseProfileMessage(error){
  const code=typeof error?.code==='string'?error.code:''
  const cause=typeof error?.message==='string'?error.message:''
+ if(isProfileQuotaError(error))
+   return 'Kuota Firestore terlampaui. Akses profil bisa diperiksa kembali setelah kuota tersedia.'
+ if(cause==='AUTH_PROFILE_MISSING')
+   return 'Profil aplikasi belum tersedia untuk akun ini. Hubungi Owner untuk memeriksa aktivasi akun.'
  if(code==='permission-denied'||code==='firestore/permission-denied')
    return 'Firebase Authentication mungkin sudah menerima login, tetapi Firestore menolak akses profil. Periksa status pengguna Owner dan Firestore Rules. (Kode: permission-denied)'
  if(code==='unavailable'||code==='firestore/unavailable')
    return 'Firebase Authentication aktif, tetapi profil Firestore tidak dapat diakses karena layanan/koneksi belum tersedia. (Kode: unavailable)'
  if(cause==='AUTH_PROFILE_NOT_APPROVED')
-   return 'Akun Firebase dikenali, tetapi profil aplikasi belum aktif atau belum disetujui. Periksa field active dan status di Firestore /users.'
+   return 'Profil aplikasi belum aktif atau belum disetujui. Hubungi Owner untuk memeriksa status akun.'
  if(cause==='AUTH_PROFILE_IDENTITY_MISMATCH')
    return 'Akun Firebase dikenali, tetapi UID/email tidak cocok dengan profil Firestore. Perlu pemeriksaan Owner tanpa mengubah data.'
  if(cause==='AUTH_PROFILE_INVALID')
@@ -43,4 +47,7 @@ export function safeFirebaseProfileMessage(error){
  if(cause==='AUTH_SESSION_CHANGED'||cause==='AUTH_REQUIRED')
    return 'Sesi Firebase berubah saat memverifikasi profil. Ulangi login dengan akun yang benar.'
  return 'Sesi Firebase telah terbentuk, tetapi profil aplikasi belum dapat dikonfirmasi. Periksa koneksi dan izin Firestore; jangan hapus data browser.'
+}
+export function isProfileQuotaError(error){
+ return error?.code==='resource-exhausted'||error?.code==='firestore/resource-exhausted'
 }

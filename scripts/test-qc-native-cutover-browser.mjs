@@ -88,10 +88,15 @@ if(mode==='--browser'){
   assert.ok(ready,'NATIVE_DEV_NOT_READY '+output.slice(-300))
   browser=await chromium.launch({headless:true})
   context=await browser.newContext({serviceWorkers:'block'})
+  let loginRequests=0
   await context.route('**/*',async route=>{
    const u=new URL(route.request().url())
    if(allowed.has(u.origin)||u.protocol==='data:'){
     visited.add(u.origin)
+    if(u.origin===authOrigin && u.pathname.endsWith('/accounts:signInWithPassword') && ++loginRequests===1){
+     await route.abort('connectionreset')
+     return
+    }
     await route.continue()
    }else{
     denied.push(u.protocol+'//'+u.host)
@@ -123,6 +128,7 @@ if(mode==='--browser'){
    await page.locator('button.primary').click()
    await page.getByRole('heading',{name:'Operational Portal'}).waitFor({timeout:30000})
    await page.getByText('UAT Native Owner',{exact:true}).first().waitFor()
+   assert.equal(loginRequests,2,'Recover once from an interrupted sign-in')
    assert.equal(await page.evaluate(()=>localStorage.getItem('qc_token')),
     'firebase-native-session-v1')
    assert.ok(visited.has(authOrigin),'FIREBASE_AUTH_EMULATOR_UNREACHED')
@@ -135,13 +141,19 @@ if(mode==='--browser'){
    assert.equal(await page.getByRole('heading',{name:'Operational Portal'}).count(),0)
    assert.equal(await page.evaluate(()=>localStorage.getItem('qc_token')),null)
   })
+  await check('approved profile recovers without another password submission',async()=>{
+   await adb.doc('users/'+uid).update({active:true,status:'approved'})
+   await page.getByRole('button',{name:'Periksa ulang akses akun'}).click()
+   await page.getByRole('heading',{name:'Operational Portal'}).waitFor({timeout:30000})
+   assert.equal(loginRequests,2)
+  })
   await check('zero network egress to Apps Script, Supabase or production Firebase',async()=>{
    assert.deepEqual(denied,[])
    // Browser entrypoint is allowed to contact only localhost Vite and demo emulators.
    for(const v of visited)assert.ok(allowed.has(v)||v==='data:')
    assert.deepEqual(errors,[])
   })
-  console.log('SUCCESS: 4 real native React login, Firestore and egress demo browser checks passed (NO production)')
+  console.log('SUCCESS: native React login, profile recovery and egress demo browser checks passed (NO production)')
  }finally{
   try{if(context)await context.close();if(browser)await browser.close()}
   finally{

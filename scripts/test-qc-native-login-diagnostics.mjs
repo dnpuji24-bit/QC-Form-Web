@@ -35,6 +35,9 @@ test('Firestore profile denial is distinguished from credentials and never claim
  const cases=[
   [{code:'permission-denied'},'Firestore menolak'],
   [{code:'unavailable'},'profil Firestore'],
+  [{code:'resource-exhausted'},'Kuota Firestore'],
+  [{code:'firestore/resource-exhausted'},'Kuota Firestore'],
+  [{message:'AUTH_PROFILE_MISSING'},'Profil aplikasi belum tersedia'],
   [{message:'AUTH_PROFILE_NOT_APPROVED'},'belum aktif'],
   [{message:'AUTH_PROFILE_IDENTITY_MISMATCH'},'UID/email'],
   [{message:'AUTH_PROFILE_INVALID'},'role'],
