@@ -113,6 +113,7 @@ jobs:
       - name: Build production React application
         run: |
           npm run build
+          node scripts/test-qc-offline-shell-build.mjs
           node scripts/write-qc-release-manifest.mjs
           test -s public/react/index.html
           test -s public/react/sw.js
