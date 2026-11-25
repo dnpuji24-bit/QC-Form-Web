@@ -49,7 +49,7 @@ export async function flushOperationalQc(forceRecordId=''){
   const {db,uid}=requireSession()
   if(nativePortalEnabled&&!canSyncVerifiedNativeUid(uid))return {sent:0,left:(await operationalQueuedRecords()).length,failures:[]}
   return flushOperationalJobs(uid,{
-    scope:'operational',forceRecordId,photoBucket:operationalPhotoBucket,acceptJob,currentUid:async()=>currentUid(),
+    scope:'operational',forceRecordId,photoBucket:operationalPhotoBucket,acceptJob,currentUid:async()=>nativePortalEnabled&&!canSyncVerifiedNativeUid(currentUid())?null:currentUid(),
     async readRecord(id:string,job:Job){
       assertUid(uid)
       if(!acceptJob(job)||id!==job.record.id)throw Error('Invalid operational job')
