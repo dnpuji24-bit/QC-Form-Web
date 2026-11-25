@@ -213,7 +213,7 @@ export async function retryQueuedRecord(recordOrId:QcRecord|string,token:string)
     if(!operationalSaveEnabled)throw Error('QC baru belum diaktifkan')
     const pending=(await operationalQueuedRecords()).find(job=>job.record.id===recordId)
     if(!pending)return false
-    const result=await flushOperationalQc()
+    const result=await flushOperationalQc(recordId)
     const failure=operationalFailureForRecord(result.failures,recordId)
     if(failure){
       emitUploadState({...pending.record,saveType:pending.record.saveType==='draft'?'draft_queued':pending.record.saveType,
