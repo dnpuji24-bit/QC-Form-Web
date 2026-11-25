@@ -10,6 +10,7 @@ import {NATIVE_SESSION_MARKER} from './qcNativePortalPolicy.mjs'
 import {nativeRegistrationRoles,submitNativeRegistration,type NativeRegistrationRole} from './qcNativeRegistration'
 import type {User} from './types'
 import OfflinePortal from './OfflinePortal'
+import {NativeOfflineContext,setVerifiedOnlineUid} from './nativeOfflineRuntime'
 import {createOfflineLease,readOfflineLease,isOfflineTransportFailure,OFFLINE_PROFILE_KEY,type OfflineLease} from './qcOfflineLease.mjs'
 
 function forgetOfflineProfile(){try{localStorage.removeItem(OFFLINE_PROFILE_KEY)}catch{}}
@@ -49,6 +50,7 @@ export default function NativePortalSession({children}:{children:ReactNode}){
  const [storageBlocked,setStorageBlocked]=useState(false)
  const retryProfile=useRef<(()=>Promise<void>)|null>(null)
  useEffect(()=>{
+  setVerifiedOnlineUid('')
   if(!clearCompatibilitySession()){setStorageBlocked(true);setReady(true);return}
   try{checkNativePortalConfig()}catch{setMessage('Konfigurasi migrasi belum lengkap.');setReady(true);return}
   const auth=firebaseAuth
@@ -65,7 +67,7 @@ export default function NativePortalSession({children}:{children:ReactNode}){
   const allowOffline=(uid:string)=>{
    const lease=leaseForCurrent()
    if(!lease||lease.user.firebaseUid!==uid)return false
-   degraded=true
+   degraded=true;setVerifiedOnlineUid('')
    setRetryUid('');setMessage('');setReady(true)
    if(verifiedUid===uid){
     // Preserve already-mounted forms and unsaved input during a disconnect.
@@ -81,10 +83,10 @@ export default function NativePortalSession({children}:{children:ReactNode}){
    if(!force&&uid&&(checkingUid===uid||(cooldownUid===uid&&Date.now()<retryAfter)||(verifiedUid===uid&&!degraded&&navigator.onLine&&Date.now()-lastVerifiedAt<300000)))return
    const attempt=++generation
    checkingUid=uid||''
-   if(uid!==verifiedUid){clearCompatibilitySession();setUser(null);setReady(!uid);verifiedUid='';setRetainedOffline(false);setOfflineLease(null)}
+   if(uid!==verifiedUid){setVerifiedOnlineUid('');clearCompatibilitySession();setUser(null);setReady(!uid);verifiedUid='';setRetainedOffline(false);setOfflineLease(null)}
    if(!uid){forgetOfflineProfile();degraded=false;cooldownUid='';lastVerifiedAt=0;checkingUid='';setRetryUid('');setReady(true);return}
    if(!navigator.onLine){
-    checkingUid=''
+    setVerifiedOnlineUid('');checkingUid=''
     if(allowOffline(uid))return
     verifiedUid='';degraded=false;clearCompatibilitySession();setUser(null);setRetainedOffline(false);setOfflineLease(null)
     setRetryUid(uid);setReady(true);setMessage('Mode offline tidak tersedia: profil belum diverifikasi di perangkat ini atau masa akses lokal telah berakhir. Sambungkan internet.')
@@ -93,7 +95,7 @@ export default function NativePortalSession({children}:{children:ReactNode}){
    try{
     const next=await readApprovedFirebaseSession()
     if(stopped||attempt!==generation||auth.currentUser?.uid!==uid)return
-    publishCompatibilitySession(next);verifiedUid=uid;lastVerifiedAt=Date.now();cooldownUid='';degraded=false
+    publishCompatibilitySession(next);setVerifiedOnlineUid(uid);verifiedUid=uid;lastVerifiedAt=Date.now();cooldownUid='';degraded=false
     const lease=createOfflineLease(next,auth.currentUser!,projectId,lastVerifiedAt)
     try{if(lease)localStorage.setItem(OFFLINE_PROFILE_KEY,JSON.stringify(lease));else forgetOfflineProfile()}catch{}
     setOfflineLease(null);setRetainedOffline(false);setRetryUid('');setMessage('');setUser(next);setReady(true)
@@ -103,6 +105,7 @@ export default function NativePortalSession({children}:{children:ReactNode}){
     const transient=code==='unavailable'||code==='deadline-exceeded'
     cooldownUid=isProfileQuotaError(error)||transient?uid:''
     if(cooldownUid)retryAfter=Date.now()+(isProfileQuotaError(error)?300000:90000)
+    setVerifiedOnlineUid('')
     if(isOfflineTransportFailure(error)&&allowOffline(uid))return
     // Explicit permission, identity, account-status, and quota failures never
     // grant a new offline session. Revoke the saved lease after a profile denial.
@@ -124,7 +127,7 @@ export default function NativePortalSession({children}:{children:ReactNode}){
   const leaseTimer=window.setInterval(()=>{
    if(degraded&&!leaseForCurrent())void verify(true)
   },30000)
-  return()=>{stopped=true;generation++;retryProfile.current=null;stop();window.clearInterval(timer);window.removeEventListener('focus',refresh);window.removeEventListener('online',reconnect);window.removeEventListener('offline',disconnect);window.clearInterval(leaseTimer);document.removeEventListener('visibilitychange',refresh);clearCompatibilitySession()}
+  return()=>{stopped=true;setVerifiedOnlineUid('');generation++;retryProfile.current=null;stop();window.clearInterval(timer);window.removeEventListener('focus',refresh);window.removeEventListener('online',reconnect);window.removeEventListener('offline',disconnect);window.clearInterval(leaseTimer);document.removeEventListener('visibilitychange',refresh);clearCompatibilitySession()}
  },[])
  async function submit(event:FormEvent<HTMLFormElement>){
   event.preventDefault();setBusy(true);setMessage('')
@@ -172,7 +175,7 @@ export default function NativePortalSession({children}:{children:ReactNode}){
  if(storageBlocked)return <main className="auth-page"><section className="auth-card"><h1>QC Form Web</h1><p role="alert">Browser memblokir penyimpanan situs. Izinkan penyimpanan atau buka portal di browser utama perangkat.</p><button type="button" onClick={()=>window.location.reload()}>Coba lagi</button></section></main>
  if(!ready)return <main className="auth-page"><p>Memverifikasi sesi Firebase…</p></main>
  if(offlineLease)return <OfflinePortal key={offlineLease.user.firebaseUid} lease={offlineLease} onRetry={async()=>{await retryProfile.current?.()}} onLogout={switchAccount}/>
- if(user)return <div key={user.firebaseUid+'|'+user.role+'|'+JSON.stringify(user.permissions)}>{retainedOffline&&<div role="status" style={{position:'relative',zIndex:100,padding:'10px 16px',background:'#fff7e6',color:'#874d00'}}>Mode offline · Sesi terakhir terverifikasi. Data mungkin tidak terbaru; simpan draft lokal dan verifikasi ulang saat online. <button type="button" onClick={()=>void retryProfile.current?.()}>Periksa koneksi</button></div>}<LegacyQueueNotice/>{children}</div>
+ if(user)return <div key={user.firebaseUid+'|'+user.role+'|'+JSON.stringify(user.permissions)}>{retainedOffline&&<div role="status" style={{position:'relative',zIndex:100,padding:'10px 16px',background:'#fff7e6',color:'#874d00'}}>Mode offline · Sesi terakhir terverifikasi. Data mungkin tidak terbaru; simpan draft lokal dan verifikasi ulang saat online. <button type="button" onClick={()=>void retryProfile.current?.()}>Periksa koneksi</button></div>}<LegacyQueueNotice/><NativeOfflineContext.Provider value={retainedOffline}>{children}</NativeOfflineContext.Provider></div>
  return <main className="auth-page"><section className="auth-card"><h1>QC Form Web</h1><p>{qcLocalUat?'Preview lokal · gunakan akun demo':'Firebase Authentication'}</p>{!recoveryUser&&<div className="segmented"><button disabled={busy} onClick={()=>setRegister(false)}>Masuk</button><button disabled={busy} onClick={()=>setRegister(true)}>Daftar</button></div>}{message&&<p role="alert">{message}</p>}
   {recoveryUser?<div className="form-stack"><p>Akun yang diperiksa <strong>{recoveryUser.email}</strong></p><button type="button" disabled={busy} onClick={async()=>{
     setBusy(true)
