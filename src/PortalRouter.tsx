@@ -3,7 +3,9 @@ import { Alert, App as AntApp, Button, Card, Layout, Tag, Typography } from 'ant
 import {firebaseAuth} from './firebase'
 import NativeUsersAccess from './NativeUsersAccess'
 import {nativePortalEnabled} from './qcNativePortalConfig'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useContext, useEffect, useMemo, useRef, useState } from 'react'
+import {NativeOfflineContext} from './nativeOfflineRuntime'
+import {OFFLINE_PROFILE_KEY} from './qcOfflineLease.mjs'
 import CompanyMasterPanel from './CompanyMasterPanel'
 import MasterActivityWorkspace from './MasterActivityWorkspace'
 import UnitDispatchWorkspace from './UnitDispatchWorkspace'
@@ -91,6 +93,7 @@ export default function PortalRouter({onOpenQc}:{onOpenQc:()=>void}){
     notification.destroy('portal-logout')
     try {
       await signOut(firebaseAuth)
+      try{localStorage.removeItem(OFFLINE_PROFILE_KEY)}catch{}
     } catch {
       notification.error({ title: 'Keluar belum berhasil', description: 'Coba kembali.', key: 'portal-logout', duration: 0 })
     } finally {
@@ -129,7 +132,8 @@ export default function PortalRouter({onOpenQc}:{onOpenQc:()=>void}){
 
   const canData=useMemo(()=>dataUnmAllowed(user),[user])
   const canQc=useMemo(()=>qcAllowed(user),[user])
-  const canUsers=user?.role==='owner'
+  const offlineMode=useContext(NativeOfflineContext)
+  const canUsers=user?.role==='owner'&&!offlineMode
   const canSummary=Boolean(user&&canViewAccess(user,'data_plan_summary'))
   const canCalendar=Boolean(user&&(canSummary||canViewAccess(user,'data_plan_daily')||canViewAccess(user,'data_plan_actual')))
   useEffect(()=>{if(loggedIn&&mode==='qc'&&canQc)onOpenQc()},[loggedIn,mode,canQc,onOpenQc])
