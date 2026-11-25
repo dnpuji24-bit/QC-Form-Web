@@ -1,5 +1,7 @@
 import {doc,getDocFromServer,setDoc,serverTimestamp} from 'firebase/firestore'
 import {firebaseAuth,firestoreDb} from './firebase'
+import {nativePortalEnabled} from './qcNativePortalConfig'
+import {canSyncVerifiedNativeUid} from './nativeOfflineRuntime'
 import {enqueueOperationalBatch,flushOperationalJobs,listOperationalJobs,type OperationalJob} from './qcOperationalQueue.mjs'
 import {commitOperationalQc,type AtomicQcInput} from './qcAtomicFirestoreAdapter'
 import type {QcSaveIntent} from './qcFormSaveIntent.mjs'
@@ -45,6 +47,7 @@ export async function operationalQueuedRecords():Promise<PersistedQcJob[]>{
 }
 export async function flushOperationalQc(){
   const {db,uid}=requireSession()
+  if(nativePortalEnabled&&!canSyncVerifiedNativeUid(uid))return {sent:0,left:(await operationalQueuedRecords()).length,failures:[]}
   return flushOperationalJobs(uid,{
     scope:'operational',photoBucket:operationalPhotoBucket,acceptJob,currentUid:async()=>currentUid(),
     async readRecord(id:string,job:Job){
