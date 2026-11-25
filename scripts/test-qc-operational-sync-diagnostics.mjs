@@ -31,7 +31,7 @@ check('UI retry no longer claims success when sync fails',()=>{
   assert.match(src,/const remains=\(await operationalQueuedRecords\(\)\)\.some/)
   assert.match(src,/firestoreSaveError:String\(job\.lastError\)/)
   const q=readFileSync(new URL('../src/qcOperationalQueue.mjs',import.meta.url),'utf8')
-  assert.match(q,/store\.put\(\{\.\.\.item,lastError:message,lastAttemptAt:Date\.now\(\)\}\)/)
+  assert.match(q,/store\.put\(\{\.\.\.item,lastError:message,lastAttemptAt:now,attempts,nextAttemptAt:now\+operationalRetryDelay/)
   assert.match(q,/if\(item\?\.record\?\.clientRevision===job\.record\.clientRevision\)/)
 })
 check('TypeScript declarations expose diagnostic helper and persisted error metadata',()=>{
