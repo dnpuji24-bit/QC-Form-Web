@@ -9,6 +9,8 @@ on:
       - 'scripts/**'
       - 'firestore.rules'
       - 'package.json'
+      - 'vite.config.ts'
+      - 'public/react/sw.js'
       - '.github/workflows/**'
 
 permissions:
@@ -117,3 +119,23 @@ jobs:
         run: npm run typecheck
       - name: Build React safely
         run: npm run build
+
+  verify-offline-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install application and demo Firebase dependencies
+        run: |
+          npm install --no-audit --no-fund
+          npm --prefix server/qc-photo-access install --no-audit --no-fund
+          npm install --prefix "$RUNNER_TEMP/qc-playwright" playwright --no-audit --no-fund
+          "$RUNNER_TEMP/qc-playwright/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Verify first login, offline reload, reconnect and revoked role in demo browser
+        run: |
+          node scripts/test-qc-native-cutover-browser.mjs --self-test
+          export QC_UAT_PLAYWRIGHT_DIR="$RUNNER_TEMP/qc-playwright"
+          npx --yes firebase-tools@14 emulators:exec --only firestore,auth --project demo-qc-photo-test --config firebase.native-cutover-browser-emulator.json "env -u GOOGLE_CLOUD_PROJECT -u FIREBASE_PROJECT_ID -u QC_UAT_MODE GCLOUD_PROJECT=demo-qc-photo-test FIRESTORE_EMULATOR_HOST=127.0.0.1:8085 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 node scripts/test-qc-native-cutover-browser.mjs --browser"
