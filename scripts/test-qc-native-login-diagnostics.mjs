@@ -26,7 +26,7 @@ test('Login does not discard authenticated user before signIn, and keeps email a
  assert.match(login,/await firebaseAuthPersistenceReady/)
  assert.match(login,/await signInWithEmailAndPassword\(firebaseAuth/)
  assert.doesNotMatch(login,/if\(firebaseAuth\.currentUser\)await signOut\(firebaseAuth\)/)
- assert.match(login,/setMessage\(register\?.*safeFirebaseLoginMessage\(error\)/)
+ assert.match(login,/setMessage\([^\n]*register\?.*safeFirebaseLoginMessage\(error\)/)
  assert.match(login,/form\.elements\.namedItem\('password'\)/)
  assert.match(login,/if\(password instanceof HTMLInputElement\)password.value=''/)
  assert.doesNotMatch(login,/Permintaan gagal\. Periksa akun, koneksi, atau konfigurasi\./)

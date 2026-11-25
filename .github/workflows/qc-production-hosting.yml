@@ -104,12 +104,16 @@ jobs:
       - name: Verify resilient Owner profile read and Firestore quota diagnostics
         run: node --test scripts/test-owner-profile-firestore-availability.mjs
 
+      - name: Verify offline menu lease and QC retry backoff
+        run: node --test scripts/test-qc-offline-verified-menu.mjs
+
       - name: Check TypeScript types
         run: npm run typecheck
 
       - name: Build production React application
         run: |
           npm run build
+          node scripts/test-qc-offline-shell-build.mjs
           node scripts/write-qc-release-manifest.mjs
           test -s public/react/index.html
           test -s public/react/sw.js

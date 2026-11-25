@@ -26,9 +26,13 @@ export default function NetworkStatus(){
     }
     window.addEventListener('online',goOnline)
     window.addEventListener('offline',goOffline)
-    const timer=window.setInterval(()=>{void(async()=>{const count=await refreshQueue();if(navigator.onLine&&count>0&&!syncInFlight)await goOnline()})()},4000)
+    // The central queue worker already performs automatic retry. This view only
+    // refreshes its count and triggers a reconnect retry, not a second polling loop.
+    const timer=window.setInterval(()=>{void refreshQueue()},15000)
+    const changed=()=>{void refreshQueue()}
+    window.addEventListener('qc:upload-state',changed);window.addEventListener('qc:queue-flushed',changed)
     void(async()=>{const count=await refreshQueue();if(navigator.onLine&&count>0)await goOnline()})()
-    return()=>{mounted=false;window.removeEventListener('online',goOnline);window.removeEventListener('offline',goOffline);window.clearInterval(timer)}
+    return()=>{mounted=false;window.removeEventListener('online',goOnline);window.removeEventListener('offline',goOffline);window.clearInterval(timer);window.removeEventListener('qc:upload-state',changed);window.removeEventListener('qc:queue-flushed',changed)}
   },[])
 
   if(online&&!syncing&&!queued)return null

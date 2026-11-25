@@ -22,8 +22,8 @@ assert.match(read('src/firebase.ts'),/connectAuthEmulator\(firebaseAuth, 'http:\
 assert.match(read('src/firebase.ts'),/connectFirestoreEmulator\(firestoreDb, '127\.0\.0\.1', 8085\)/)
 assert.match(read('src/qcLocalUat.ts'),/QC_LOCAL_UAT_REQUIRES_LOOPBACK_NATIVE_DEV/)
 assert.match(read('src/NativePortalSession.tsx'),/readApprovedFirebaseSession\(\)/)
-assert.match(read('src/qcFirebaseSession.ts'),/getDocFromServer\(doc\(db,'users',current\.uid\)\)/)
-assert.match(read('src/qcFirebaseSession.ts'),/getDocFromServer\(doc\(db,'role_access',role\)\)/)
+assert.match(read('src/qcFirebaseSession.ts'),/readVerifiedProfileDocument\('users',current\.uid\)/)
+assert.match(read('src/qcFirebaseSession.ts'),/readVerifiedProfileDocument\('role_access',role\)/)
 assert.match(read('src/api.ts'),/assertLegacyApiAllowed\(nativePortalEnabled,token\)/)
 assert.match(read('src/App.tsx'),/record\.photoBase64\|\|record\.photoDriveUrl/)
 assert.doesNotMatch(read('src/main.tsx'),/uat-unified-portal-lab|uat-owner-session-lab/)
@@ -88,11 +88,12 @@ if(mode==='--browser'){
   assert.ok(ready,'NATIVE_DEV_NOT_READY '+output.slice(-300))
   browser=await chromium.launch({headless:true})
   context=await browser.newContext({serviceWorkers:'block'})
-  let loginRequests=0
+  let loginRequests=0,backendBlocked=false
   await context.route('**/*',async route=>{
    const u=new URL(route.request().url())
    if(allowed.has(u.origin)||u.protocol==='data:'){
     visited.add(u.origin)
+    if(backendBlocked&&(u.origin===authOrigin||u.origin===firestoreOrigin)){await route.abort('internetdisconnected');return}
     if(u.origin===authOrigin && u.pathname.endsWith('/accounts:signInWithPassword') && ++loginRequests===1){
      await route.abort('connectionreset')
      return
@@ -110,6 +111,8 @@ if(mode==='--browser'){
    if(u.host!==host+':'+port&&u.host!==host+':8085')denied.push('websocket '+u.host)
   })
   await page.addInitScript(()=>{
+   // Keep local Vite reachable while emulating a disconnected Firebase backend.
+   Object.defineProperty(navigator,'onLine',{configurable:true,get:()=>sessionStorage.getItem('test-offline')!=='1'})
    // Simulate an already configured Apps Script URL without using it.
    localStorage.setItem('qc_v48_config',JSON.stringify({apiUrl:
     'https://script.google.com/macros/s/legacy-test-only/exec'}))
@@ -121,6 +124,18 @@ if(mode==='--browser'){
    await page.getByRole('heading',{name:'QC Form Web'}).waitFor({timeout:30000})
    assert.equal(await page.getByRole('heading',{name:'Operational Portal'}).count(),0)
    assert.notEqual(await page.evaluate(()=>localStorage.getItem('qc_token')),'stale-legacy-token')
+  })
+  await check('first-time offline login never grants access',async()=>{
+   backendBlocked=true
+   await page.evaluate(()=>{sessionStorage.setItem('test-offline','1');window.dispatchEvent(new Event('offline'))})
+   await page.getByLabel('Email').fill(email)
+   await page.getByLabel('Password').fill(password)
+   await page.locator('button.primary').click()
+   await page.getByText(/Login baru membutuhkan internet/).waitFor()
+   assert.equal(loginRequests,0)
+   assert.equal(await page.getByRole('heading',{name:'Operational Portal'}).count(),0)
+   backendBlocked=false
+   await page.evaluate(()=>{sessionStorage.removeItem('test-offline');window.dispatchEvent(new Event('online'))})
   })
   await check('demo Firebase Auth login reads approved Firestore identity and renders real portal',async()=>{
    await page.getByLabel('Email').fill(email)
@@ -134,12 +149,30 @@ if(mode==='--browser'){
    assert.ok(visited.has(authOrigin),'FIREBASE_AUTH_EMULATOR_UNREACHED')
    assert.ok(visited.has(firestoreOrigin),'FIRESTORE_EMULATOR_UNREACHED')
   })
+  await check('network loss retains current workspace and reload restores only the safe offline menu',async()=>{
+   await page.waitForFunction(()=>!!localStorage.getItem('qc_verified_offline_profile_v1'))
+   backendBlocked=true
+   await page.evaluate(()=>{sessionStorage.setItem('test-offline','1');window.dispatchEvent(new Event('offline'))})
+   await page.getByText(/Mode offline · Sesi terakhir terverifikasi/).waitFor()
+   await page.getByRole('heading',{name:'Operational Portal'}).waitFor()
+   await page.reload({waitUntil:'domcontentloaded'})
+   await page.getByText('Akses lokal — belum diverifikasi ulang').waitFor({timeout:30000})
+   await page.getByRole('button',{name:'Form QC',exact:true}).click()
+   await page.getByText('Antrean QC milik akun ini').waitFor()
+   assert.equal(await page.evaluate(()=>localStorage.getItem('qc_token')),null)
+   assert.equal(await page.getByRole('button',{name:'Buka Users & Access'}).count(),0)
+   backendBlocked=false
+   await page.evaluate(()=>{sessionStorage.removeItem('test-offline');window.dispatchEvent(new Event('online'))})
+   await page.getByRole('button',{name:'Buka Form QC'}).waitFor({timeout:30000})
+   assert.equal(await page.evaluate(()=>localStorage.getItem('qc_token')),'firebase-native-session-v1')
+  })
   await check('current role revocation removes native portal without legacy fallback',async()=>{
    await adb.doc('users/'+uid).update({active:false,status:'disabled'})
-   await page.evaluate(()=>window.dispatchEvent(new Event('focus')))
+   await page.evaluate(()=>window.dispatchEvent(new Event('online')))
    await page.getByRole('heading',{name:'QC Form Web'}).waitFor({timeout:30000})
    assert.equal(await page.getByRole('heading',{name:'Operational Portal'}).count(),0)
    assert.equal(await page.evaluate(()=>localStorage.getItem('qc_token')),null)
+   assert.equal(await page.evaluate(()=>localStorage.getItem('qc_verified_offline_profile_v1')),null)
   })
   await check('approved profile recovers without another password submission',async()=>{
    await adb.doc('users/'+uid).update({active:true,status:'approved'})
