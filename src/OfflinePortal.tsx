@@ -2,7 +2,6 @@ import {useEffect,useState} from 'react'
 import {Alert,Button,Card,Tag,Typography} from 'antd'
 import {firebaseAuth} from './firebase'
 import {operationalQueuedRecords} from './qcOperationalAdapters'
-import {PERMISSION_CATALOG} from './accessControl'
 import type {OfflineLease} from './qcOfflineLease.mjs'
 
 type QueueRow={id:string;date:string;paddock:string;unit:string;form:string}
