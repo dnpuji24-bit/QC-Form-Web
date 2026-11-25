@@ -118,7 +118,9 @@ jobs:
       - name: Verify TypeScript
         run: npm run typecheck
       - name: Build React safely
-        run: npm run build
+        run: |
+          npm run build
+          node scripts/test-qc-offline-shell-build.mjs
 
   verify-offline-browser:
     runs-on: ubuntu-latest
