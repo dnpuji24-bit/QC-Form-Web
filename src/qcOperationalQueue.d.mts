@@ -25,4 +25,4 @@ export function enqueueOperationalBatch<J extends OperationalJob>(jobs:J[],facto
 export function operationalFailureForRecord(failures: Array<{id:string;error:string}>|undefined,recordId:string):string
 
 export function operationalRetryDelay(attempt:number,error:unknown):number
-export function operationalRetryDue(job:{record?:{id:string};nextAttemptAt?:number},now?:number,forceRecordId?:string):boolean|string
+export function operationalRetryDue(job:{record?:{id:string};nextAttemptAt?:number},now?:number,forceRecordId?:string):boolean
