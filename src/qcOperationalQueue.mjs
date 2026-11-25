@@ -55,6 +55,15 @@ export async function listOperationalJobs(uid,factory) {
     req.onsuccess=()=>done(req.result.filter(j=>j.uploaderUid===uid).sort((a,b)=>a.createdAt-b.createdAt));
   });
 }
+// Persistent backoff prevents every open tab repeatedly hitting the same failing job.
+export function operationalRetryDelay(attempt,error){
+  const quota=/resource-exhausted|quota|too many requests|\b429\b/i.test(String(error?.code||'')+' '+String(error?.message||error||''))
+  const base=quota?300000:30000
+  return Math.min(1800000,base*2**Math.min(10,Math.max(0,Number(attempt||1)-1)))
+}
+export function operationalRetryDue(job,now=Date.now(),forceRecordId=''){
+  return (forceRecordId&&job.record?.id===forceRecordId)||!job.nextAttemptAt||job.nextAttemptAt<=now
+}
 const running=new Map();
 export function flushOperationalJobs(uid,deps,factory) {
   if (!uid) return Promise.reject(Error('Authenticated UID required'));
@@ -65,6 +74,8 @@ export function flushOperationalJobs(uid,deps,factory) {
     for(const job of (await listOperationalJobs(uid,factory)).filter(j=>deps.acceptJob?deps.acceptJob(j):true)){
       if(await deps.currentUid()!==uid)break;
       if(blocked.has(job.record.id))continue;
+      if(deps.forceRecordId&&job.record.id!==deps.forceRecordId)continue;
+      if(!operationalRetryDue(job,Date.now(),deps.forceRecordId)){blocked.add(job.record.id);continue;}
       try{
         const result=await processOperationalQcJob(job,deps);
         if(result.status!=='confirmed')throw Error('Unconfirmed commit');
@@ -80,7 +91,10 @@ export function flushOperationalJobs(uid,deps,factory) {
             req.onsuccess=()=>{
               const item=req.result
               if(item?.record?.clientRevision===job.record.clientRevision)
-                store.put({...item,lastError:message,lastAttemptAt:Date.now()})
+                {
+                  const attempts=Number(item.attempts||0)+1,now=Date.now()
+                  store.put({...item,lastError:message,lastAttemptAt:now,attempts,nextAttemptAt:now+operationalRetryDelay(attempts,error)})
+                }
               done(null)
             }
           })
