@@ -3,6 +3,8 @@ import {qcFirestoreOnly,qcFlushMode} from './qcCutover'
 import {assertLegacyQcWriteAllowed} from './qcCutoverPolicy.mjs'
 import { isOperationalQcId, queueOperationalFinalize } from './qcOperationalFormBridge'
 import { operationalSaveEnabled, operationalQueuedRecords, flushOperationalQc } from './qcOperationalAdapters'
+import {nativePortalEnabled} from './qcNativePortalConfig'
+import {canSyncVerifiedNativeUid} from './nativeOfflineRuntime'
 import { operationalFailureForRecord } from './qcOperationalQueue.mjs'
 import { qcApi } from './api'
 import { flushQcPhotoQueue, queueQcRecordPhotos, supabaseQcPhotoPreviewEnabled } from './qcSupabasePhotos'
@@ -346,7 +348,7 @@ async function flushQueueInternal(token:string):Promise<FlushResult>{
 }
 
 export async function flushQueue(token:string):Promise<FlushResult>{if(activeFlush)return activeFlush;activeFlush=flushQueueInternal(token).finally(()=>{activeFlush=null});return activeFlush}
-async function autoFlushQueue(){if(typeof window==='undefined'||!navigator.onLine)return;const token=localStorage.getItem('qc_token')||sessionStorage.getItem('qc_token')||'';if(!qcFirestoreOnly&&token===authPausedToken)return;try{await flushQueue(token)}catch(error){if(isAuthError(error))authPausedToken=token;else console.info('Auto flush antrean tertunda.',error)}}
+async function autoFlushQueue(){if(typeof window==='undefined'||!navigator.onLine)return;if(nativePortalEnabled&&!canSyncVerifiedNativeUid(firebaseAuth?.currentUser?.uid))return;const token=localStorage.getItem('qc_token')||sessionStorage.getItem('qc_token')||'';if(!qcFirestoreOnly&&token===authPausedToken)return;try{await flushQueue(token)}catch(error){if(isAuthError(error))authPausedToken=token;else console.info('Auto flush antrean tertunda.',error)}}
 if(typeof window!=='undefined'){
   window.addEventListener('online',()=>{void autoFlushQueue();if(!qcFirestoreOnly&&supabaseQcPhotoPreviewEnabled)void flushQcPhotoQueue().catch(error=>console.info('Retry foto Supabase ditunda.',error))})
   window.setInterval(()=>{void autoFlushQueue();if(!qcFirestoreOnly&&supabaseQcPhotoPreviewEnabled)void flushQcPhotoQueue().catch(error=>console.info('Retry foto Supabase ditunda.',error))},15_000)
