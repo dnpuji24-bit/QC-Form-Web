@@ -80,6 +80,7 @@ export default function NativePortalSession({children}:{children:ReactNode}){
   }
   const verify=async(force=false)=>{
    const uid=auth.currentUser?.uid
+   if(checkingUid===uid&&uid&&navigator.onLine)return
    if(!force&&uid&&(checkingUid===uid||(cooldownUid===uid&&Date.now()<retryAfter)||(verifiedUid===uid&&!degraded&&navigator.onLine&&Date.now()-lastVerifiedAt<300000)))return
    const attempt=++generation
    checkingUid=uid||''
