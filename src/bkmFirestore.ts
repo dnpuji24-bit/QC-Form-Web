@@ -1,4 +1,4 @@
-import {collection,doc,getDocFromServer,getDocsFromServer,query,where,limit,runTransaction,serverTimestamp} from 'firebase/firestore'
+import {collection,doc,getDocFromServer,getDocsFromServer,query,where,limit,runTransaction,setDoc,serverTimestamp} from 'firebase/firestore'
 import {firebaseAuth,firestoreDb} from './firebase'
 import {readApprovedFirebaseSession} from './qcFirebaseSession'
 import {canViewAccess,canEditAccess} from './accessControl'
@@ -65,6 +65,14 @@ export async function saveBkm(input:BkmDocument){
  if(rows.some(r=>r.candidate?.conflict||r.candidate?.company!==input.company.toUpperCase()))throw Error('Periksa konflik Actual dan PT sebelum menyimpan.')
  if(new Set(rows.map(r=>r.candidate!.id)).size!==rows.length)throw Error('Pekerjaan ganda tidak dapat disimpan.')
  const id=input.id||crypto.randomUUID(),ref=doc(db,COLLECTION,id)
+ // For a new UUID, do not read a non-existent owner-scoped document.
+ // Rules reject any collision because revision 1 cannot update existing data.
+ if(!input.id){
+  assertUid()
+  await setDoc(ref,{schemaVersion:1,ownerUid:uid,revision:1,date:input.date,company:input.company.toUpperCase(),division:input.division,number:input.number,rows,updatedAt:serverTimestamp(),createdAt:serverTimestamp()})
+  assertUid()
+  return {id,revision:1}
+ }
  const revision=await runTransaction(db,async tx=>{
   assertUid()
   const prev=await tx.get(ref)
