@@ -1,4 +1,4 @@
-import {useEffect,useRef,useState} from 'react'
+import {useEffect,useRef,useState,type ClipboardEvent,type KeyboardEvent} from 'react'
 import {Alert,Button,Input,Select,Typography} from 'antd'
 import * as XLSX from 'xlsx'
 import {firebaseAuth} from './firebase'
@@ -81,7 +81,8 @@ export default function BkmWorkspace({user,offlineOnly=false}:{user:User;offline
  useEffect(()=>{const update=()=>setOnline(navigator.onLine);window.addEventListener('online',update);window.addEventListener('offline',update);return()=>{window.removeEventListener('online',update);window.removeEventListener('offline',update)}},[])
  const serverAvailable=online&&!offlineOnly
  const selected=actualRows(report)
- const valid=!!report.company.trim()&&!!report.division.trim()&&selected.length>0&&new Set(idsFor(selected)).size===selected.length&&!selected.some(r=>r.candidate?.conflict||r.candidate?.company!==report.company.toUpperCase())
+ const actualIds=selected.flatMap(r=>r.candidate!.actualIds)
+ const valid=!!report.company.trim()&&!!report.division.trim()&&selected.length>0&&new Set(idsFor(selected)).size===selected.length&&new Set(actualIds).size===actualIds.length&&!selected.some(r=>r.candidate?.conflict||r.candidate?.company!==report.company.toUpperCase())
  const companies=[...new Set(candidates.map(c=>c.company))].sort()
  const scoped=candidates.filter(c=>c.company===report.company.toUpperCase())
  const woOptions=[...new Set(scoped.map(c=>c.wo).filter(Boolean))].sort().map(value=>({value,label:value}))
@@ -93,6 +94,29 @@ export default function BkmWorkspace({user,offlineOnly=false}:{user:User;offline
   if(key==='date'){requestId.current++;setBusy(false);setCandidates([]);setLoadedDate('');setLoadedAt('');setSaved([])}
  }
  function patch(i:number,patch:Partial<BkmInputRow>){setReport(old=>({...old,rows:old.rows.map((r,j)=>i===j?{...r,...patch}:r)}))}
+ function moveCell(e:KeyboardEvent<HTMLElement>,i:number,col:'bkm'|'note'){
+  if(!['ArrowUp','ArrowDown','Enter'].includes(e.key)||e.shiftKey||e.ctrlKey||e.altKey||e.metaKey)return
+  const next=i+(e.key==='ArrowUp'?-1:1)
+  const el=document.getElementById('bkm-cell-'+next+'-'+col)
+  if(el){e.preventDefault();el.focus()}
+ }
+ function pasteCells(e:ClipboardEvent<HTMLElement>,i:number,col:'bkm'|'note'){
+  const raw=e.clipboardData.getData('text/plain')
+  if(!raw.includes('\t')&&!raw.includes('\n'))return
+  e.preventDefault()
+  const rows=raw.replace(/\r/g,'').replace(/\n$/,'').split('\n').slice(0,100-i)
+  setReport(old=>{
+   const next=old.rows.map(r=>({...r}))
+   for(let offset=0;offset<rows.length;offset++){
+    const at=i+offset
+    while(next.length<=at)next.push(blank())
+    const fields=rows[offset].split('\t')
+    if(col==='bkm'){next[at].bkm=fields[0].slice(0,120);if(fields.length>1)next[at].note=fields[1].slice(0,800)}
+    else next[at].note=fields[0].slice(0,800)
+   }
+   return {...old,rows:next}
+  })
+ }
  async function load(){
   if(!serverAvailable){setError('Muat sumber memerlukan internet.');return}
   if(selected.length&&!window.confirm('Muat ulang sumber? Pilihan lama yang tidak lagi ditemukan akan dikosongkan.'))return
@@ -163,9 +187,9 @@ export default function BkmWorkspace({user,offlineOnly=false}:{user:User;offline
      <td><Select aria-label={'Paddock baris '+(i+1)} className="bkm-pid" showSearch allowClear optionFilterProp="label" value={c?.id} options={options} disabled={busy||!editable||loadedDate!==report.date} placeholder="Pilih paddock / activity" onChange={v=>{const next=available.find(x=>x.id===v)||null;patch(i,{candidate:next,note:next?.notes||''})}}/></td>
      {[c?.area,c?.hk,c?.uom,c?.target,c?.hi,c?.shi,c?.progress==null?null:format(c.progress)+'%'].map((v,j)=><td key={j} className="bkm-auto">{typeof v==='number'?format(v):v}</td>)}
      <td><Select aria-label={'WO baris '+(i+1)} className="bkm-wo" showSearch allowClear optionFilterProp="label" value={r.filterWo||undefined} placeholder="Tanpa filter" options={[...new Map([...woOptions,...(r.filterWo?[{value:r.filterWo,label:r.filterWo}]:[])].map(x=>[x.value,x])).values()]} disabled={busy||!editable||loadedDate!==report.date} onChange={v=>patch(i,{filterWo:v||'',candidate:c&&(!v||c.wo===v)?c:null})}/>{c?.wo&&<small className="bkm-source-wo">Sumber: {c.wo}</small>}</td>
-     <td><Input aria-label={'BKM baris '+(i+1)} value={r.bkm} disabled={busy||!editable} maxLength={120} placeholder="Opsional" onChange={e=>patch(i,{bkm:e.target.value})}/></td>
-     <td><Input.TextArea aria-label={'Keterangan baris '+(i+1)} value={r.note} disabled={busy||!editable} maxLength={800} autoSize={{minRows:1,maxRows:3}} onChange={e=>patch(i,{note:e.target.value})}/>{c?.warnings.map(w=><small key={w} className="bkm-warning">{w}</small>)}</td>
-     <td><Button size="small" disabled={busy||!editable} onClick={()=>patch(i,blank())}>Bersihkan</Button></td>
+     <td><Input id={'bkm-cell-'+i+'-bkm'} onKeyDown={e=>moveCell(e,i,'bkm')} onPaste={e=>pasteCells(e,i,'bkm')} aria-label={'BKM baris '+(i+1)} value={r.bkm} disabled={busy||!editable} maxLength={120} placeholder="Opsional" onChange={e=>patch(i,{bkm:e.target.value})}/></td>
+     <td><Input.TextArea id={'bkm-cell-'+i+'-note'} onKeyDown={e=>moveCell(e,i,'note')} onPaste={e=>pasteCells(e,i,'note')} aria-label={'Keterangan baris '+(i+1)} value={r.note} disabled={busy||!editable} maxLength={800} autoSize={{minRows:1,maxRows:3}} onChange={e=>patch(i,{note:e.target.value})}/>{c?.warnings.map(w=><small key={w} className="bkm-warning">{w}</small>)}</td>
+     <td><Button size="small" disabled={busy||!editable} onClick={()=>patch(i,blank())}>Bersihkan</Button><Button size="small" disabled={busy||!editable||report.rows.length>=100} onClick={()=>setReport(old=>({...old,rows:[...old.rows.slice(0,i+1),{...r,candidate:null},...old.rows.slice(i+1)]}))}>Duplikat isian</Button></td>
     </tr>})}
    </tbody><tfoot><tr><td colSpan={5}>Total</td><td>{format(total(selected,'hk'))}</td><td>Ha</td><td>{format(total(selected,'target'))}</td><td>{format(total(selected,'hi'))}</td><td>{format(total(selected,'shi'))}</td><td colSpan={5}/></tr></tfoot></table></div>
    <div className="bkm-toolbar"><Button disabled={!editable||report.rows.length>=100} onClick={()=>setReport(old=>({...old,rows:[...old.rows,blank()]}))}>+ Tambah baris</Button><Button disabled={!editable||report.rows.length<=1} onClick={()=>{if(!report.rows.at(-1)?.candidate||window.confirm('Hapus pilihan pada baris terakhir?'))setReport(old=>({...old,rows:old.rows.slice(0,-1)}))}}>Hapus baris terakhir</Button><Button disabled={busy||!editable} onClick={()=>{if(window.confirm('Buat rekap baru? Draft lokal yang sudah disimpan tetap ada sampai ditimpa.')){setReport(initial());setCandidates([]);setLoadedDate('')}}}>Rekap baru</Button></div>
