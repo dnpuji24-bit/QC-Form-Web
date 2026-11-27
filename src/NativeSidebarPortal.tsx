@@ -99,7 +99,7 @@ export default function NativeSidebarPortal(){
  const title=current==='home'?'Operational Portal':current==='users'?'Users & Access':destinations.find(d=>d.id===current)?.label||'Operational Portal'
  return <Layout className={'qc-sidebar-shell'+(collapsed?' sidebar-hidden':'')}>
   <aside className="qc-sidebar" aria-label="Menu utama">
-   <div className="qc-sidebar-brand"><strong>MSG</strong><small>Operational Portal</small></div>
+   <div className="qc-sidebar-brand"><strong>MSG</strong><small>Operational Portal</small><button className="qc-sidebar-close" aria-label="Tutup sidebar" type="button" onClick={()=>setCollapsed(true)}>×</button></div>
    <nav>
     <button type="button" className={'qc-side-item'+(current==='home'?' active':'')} onClick={()=>navigate('home')}>Beranda</button>
     {group('qc','Form QC',qc)}
@@ -109,7 +109,7 @@ export default function NativeSidebarPortal(){
    </nav>
   </aside>
   <div className="qc-sidebar-main">
-   <header className="qc-sidebar-header"><Button onClick={()=>setCollapsed(v=>!v)} aria-expanded={!collapsed} aria-label={collapsed?'Tampilkan sidebar':'Sembunyikan sidebar'}>☰</Button><Typography.Title level={2} style={{margin:0,flex:1}}>{title}</Typography.Title>{offline&&<Tag color="orange">Offline</Tag>}<span className="qc-sidebar-account">{user.fullName} · {user.role}</span><Button loading={logoutBusy} onClick={()=>void logout()}>Keluar</Button></header>
+   <header className="qc-sidebar-header"><Button onClick={()=>setCollapsed(v=>!v)} aria-expanded={!collapsed} aria-label={collapsed?'Tampilkan sidebar':'Sembunyikan sidebar'}>☰</Button><Typography.Title level={2} style={{margin:0,flex:1}}>{title}</Typography.Title>{offline&&<Tag color="orange">Offline</Tag>}<span className="qc-sidebar-account"><strong>{user.fullName}</strong> · {user.role}</span><Button loading={logoutBusy} onClick={()=>void logout()}>Keluar</Button></header>
    <main className="qc-sidebar-content">
     {error&&<Alert type="error" title={error}/>}
     {current==='home'&&<div className="qc-sidebar-home"><Typography.Title level={3}>Pilih area kerja</Typography.Title><Typography.Paragraph>Gunakan menu di sebelah kiri untuk membuka modul. Klik nama grup untuk menampilkan atau menyembunyikan submenu.</Typography.Paragraph><div className="qc-sidebar-shortcuts">
