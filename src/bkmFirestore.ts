@@ -4,8 +4,10 @@ import {readApprovedFirebaseSession} from './qcFirebaseSession'
 import {canViewAccess,canEditAccess} from './accessControl'
 import {canSyncVerifiedNativeUid} from './nativeOfflineRuntime'
 import {buildBkmCandidates,type BkmCandidate,type BkmSource} from './bkmAggregation.mjs'
-export type BkmInputRow={filterWo:string;candidate:BkmCandidate|null;bkm:string;note:string}
-export type BkmDocument={id:string;revision:number;date:string;company:string;division:string;number:string;rows:BkmInputRow[]}
+import {bkmValidQuantity,type BkmActivity,type BkmPaddock} from './bkmRealization.mjs'
+export type BkmInputRow={filterWo:string;candidate:BkmCandidate|null;bkm:string;note:string;activityFilter?:string;hiOverride?:number|null;hkOverride?:number|null}
+export type BkmMaterialEntry={pid:string;code:string;name:string;unit:string;hi:number|null;shi:number|null;wo:string;bkm:string;note:string;extra:string[]}
+export type BkmDocument={id:string;revision:number;date:string;company:string;division:string;number:string;rows:BkmInputRow[];materialEntries?:BkmMaterialEntry[];materialColumns?:string[]}
 const COLLECTION='foreman_work_recaps'
 const text=(v:unknown)=>String(v??'').trim()
 const unique=(v:string[])=>[...new Set(v.filter(Boolean))]
@@ -25,7 +27,7 @@ export async function loadBkmCandidates(date:string){
  const source=async(name:string,field:string,value:string)=>{const snap=await getDocsFromServer(query(collection(db,name),where(field,'==',value)));assertUid();return snap.docs.map(d=>({...d.data(),id:d.id}) as BkmSource)}
  const [daily,actual]=await Promise.all([source('daily_plans','date',date),source('daily_reports','date',date)])
  const lines=unique([...daily,...actual].map(r=>text(r.monthlyPlanLineId)))
- const pids=unique([...daily,...actual].map(r=>text(r.pid||r.paddockRaw)))
+ // Master paddocks are loaded explicitly on request so unplanned work can be reported without WO.
  // Query only work lines relevant to the chosen day; no collection-wide listener.
  const byValues=async(name:string,field:string,values:string[])=>{
   const out:BkmSource[]=[]
@@ -35,9 +37,9 @@ export async function loadBkmCandidates(date:string){
   }
   return [...new Map(out.map(r=>[r.id,r])).values()]
  }
- const [history,monthly,paddocks,materialSnap]=await Promise.all([
+ const [history,monthly,paddockSnap,materialSnap,activitySnap]=await Promise.all([
   byValues('daily_reports','monthlyPlanLineId',lines),byValues('monthly_plans','planLineId',lines),
-  byValues('master_paddocks','pid',pids),getDocsFromServer(collection(db,'master_materials'))
+  getDocsFromServer(collection(db,'master_paddocks')),getDocsFromServer(collection(db,'master_materials')),getDocsFromServer(collection(db,'master_activity_catalog'))
  ])
  // Older records may use the document ID itself instead of planLineId.
  for(const id of lines.filter(id=>!monthly.some(m=>text(m.planLineId||m.planCode||m.id)===id))){
@@ -47,7 +49,10 @@ export async function loadBkmCandidates(date:string){
  }
  assertUid()
  const materials=materialSnap.docs.map(d=>({...d.data(),id:d.id}) as BkmSource)
- return {candidates:buildBkmCandidates({date,daily,actual,history,monthly,paddocks,materials}),sourceCount:daily.length+actual.length,loadedAt:new Date().toISOString()}
+ const paddocks=paddockSnap.docs.map(d=>({...d.data(),id:d.id}) as BkmSource)
+ const masterActivities:BkmActivity[]=activitySnap.docs.map(d=>({...d.data(),id:d.id}) as BkmSource).filter(d=>d.active!==false&&text(d.operationCode)&&text(d.name||d.description)).map(d=>({id:d.id,operationCode:text(d.operationCode),description:text(d.name||d.description),uom:'Ha'}))
+ const masterPaddocks:BkmPaddock[]=paddocks.filter(d=>d.active!==false&&text(d.pid)&&text(d.companyCode)).map(d=>({pid:text(d.pid).toUpperCase(),company:text(d.companyCode).toUpperCase(),area:d.areaPlantedHa!=null&&Number.isFinite(Number(d.areaPlantedHa))?Number(d.areaPlantedHa):null}))
+ return {masterActivities,masterPaddocks,masterMaterials:materials.filter(m=>m.active!==false).map(m=>({code:text(m.materialCode||m.materialNumber||m.noMaterial),name:text(m.materialName),unit:text(m.unit)})).filter(m=>m.name),candidates:buildBkmCandidates({date,daily,actual,history,monthly,paddocks,materials}),sourceCount:daily.length+actual.length,loadedAt:new Date().toISOString()}
 }
 export async function listBkm(date:string){
  assertDate(date)
@@ -55,7 +60,7 @@ export async function listBkm(date:string){
  const base=collection(db,COLLECTION)
  const snap=await getDocsFromServer(user.role==='owner'?query(base,where('date','==',date),limit(200)):query(base,where('ownerUid','==',uid),where('date','==',date),limit(200)))
  assertUid()
- return snap.docs.map(d=>{const v=d.data();return {id:d.id,revision:Number(v.revision),date:text(v.date),company:text(v.company),division:text(v.division),number:text(v.number),rows:v.rows as BkmInputRow[]}}).sort((a,b)=>a.number.localeCompare(b.number,'id',{numeric:true}))
+ return snap.docs.map(d=>{const v=d.data();return {id:d.id,revision:Number(v.revision),date:text(v.date),company:text(v.company),division:text(v.division),number:text(v.number),rows:v.rows as BkmInputRow[],materialEntries:Array.isArray(v.materialEntries)?v.materialEntries as BkmMaterialEntry[]:undefined,materialColumns:Array.isArray(v.materialColumns)?v.materialColumns as string[]:undefined}}).sort((a,b)=>a.number.localeCompare(b.number,'id',{numeric:true}))
 }
 export async function saveBkm(input:BkmDocument){
  assertDate(input.date)
@@ -66,12 +71,17 @@ export async function saveBkm(input:BkmDocument){
  if(new Set(rows.map(r=>r.candidate!.id)).size!==rows.length)throw Error('Pekerjaan ganda tidak dapat disimpan.')
  const actualIds=rows.flatMap(r=>r.candidate!.actualIds)
  if(new Set(actualIds).size!==actualIds.length)throw Error('Record Actual yang sama tidak boleh masuk lebih dari sekali.')
+ if(rows.some(r=>!bkmValidQuantity(r.hiOverride)||!bkmValidQuantity(r.hkOverride)))throw Error('HI dan HK harus berupa angka tidak negatif.')
+ const materialColumns=input.materialColumns||[],materialEntries=input.materialEntries
+ if(materialColumns.length>8||materialColumns.some(c=>typeof c!=='string'||!c.trim()||c.length>60)||new Set(materialColumns.map(c=>c.trim().toLowerCase())).size!==materialColumns.length)throw Error('Nama kolom tambahan tidak valid.')
+ if(materialEntries&&(materialEntries.length>100||materialEntries.some(m=>!m.pid||!m.name||!m.unit||!bkmValidQuantity(m.hi)||!bkmValidQuantity(m.shi)||!Array.isArray(m.extra)||m.extra.length!==materialColumns.length||m.extra.some(v=>typeof v!=='string'||v.length>800))))throw Error('Periksa paddock, nama, satuan dan kuantitas Material.')
+ const materialFields={...(materialEntries!==undefined?{materialEntries,materialColumns}: {})}
  const id=input.id||crypto.randomUUID(),ref=doc(db,COLLECTION,id)
  // For a new UUID, do not read a non-existent owner-scoped document.
  // Rules reject any collision because revision 1 cannot update existing data.
  if(!input.id){
   assertUid()
-  await setDoc(ref,{schemaVersion:1,ownerUid:uid,revision:1,date:input.date,company:input.company.toUpperCase(),division:input.division,number:input.number,rows,updatedAt:serverTimestamp(),createdAt:serverTimestamp()})
+  await setDoc(ref,{schemaVersion:1,ownerUid:uid,revision:1,date:input.date,company:input.company.toUpperCase(),division:input.division,number:input.number,rows,...materialFields,updatedAt:serverTimestamp(),createdAt:serverTimestamp()})
   assertUid()
   return {id,revision:1}
  }
@@ -81,7 +91,7 @@ export async function saveBkm(input:BkmDocument){
   if(prev.exists()&&(prev.data().ownerUid!==uid&&user.role!=='owner'||prev.data().revision!==input.revision))throw Error('Dokumen telah berubah atau bukan milik akun ini. Muat ulang Data Rekap.')
   if(!prev.exists()&&input.id)throw Error('Dokumen tidak ditemukan.')
   const revision=(prev.exists()?Number(prev.data().revision):0)+1
-  const value={schemaVersion:1,ownerUid:prev.exists()?prev.data().ownerUid:uid,revision,date:input.date,company:input.company.toUpperCase(),division:input.division,number:input.number,rows,updatedAt:serverTimestamp(),createdAt:prev.exists()?prev.data().createdAt:serverTimestamp()}
+  const value={schemaVersion:1,ownerUid:prev.exists()?prev.data().ownerUid:uid,revision,date:input.date,company:input.company.toUpperCase(),division:input.division,number:input.number,rows,...materialFields,updatedAt:serverTimestamp(),createdAt:prev.exists()?prev.data().createdAt:serverTimestamp()}
   tx.set(ref,value)
   return revision
  })
