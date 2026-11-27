@@ -36,16 +36,23 @@ async function downloadExcel(report:BkmDocument){
  const a=document.createElement('a');a.href=url;a.download='Rekap-BKM-'+report.date+'.xlsx';document.body.appendChild(a)
  try{a.click()}finally{a.remove();window.setTimeout(()=>URL.revokeObjectURL(url),1000)}
 }
+// Widths in cm from B:Q of the original sheet; merged columns use summed widths.
+const opPaperWidths=[1.710972,2.769305,5.856111,2.081389,2.257778,1.569861,1.075972,2.240139,2.099028,1.781528,1.340556,2.751667,2.345972,2.451806]
+const matPaperWidths=[1.710972,2.769305,5.856111,5.909028,1.075972,2.240139,2.099028,1.781528,4.092223,4.797778]
+function PaperCols({widths}:{widths:number[]}){
+ const sum=widths.reduce((a,b)=>a+b,0)
+ return <colgroup>{widths.map((v,i)=><col key={i} style={{width:(v/sum*100)+'%'}}/>)}</colgroup>
+}
 function Paper({report}:{report:BkmDocument}){
  const ops=actualRows(report),mats=materialRows(report)
  return <div className="bkm-paper">
   <h2>REKAP BUKU KERJA MANDOR</h2>
   <div className="bkm-print-meta">{[['No',report.number],['PT',report.company],['Divisi',report.division],['Tanggal',report.date]].map(([k,v])=><div key={k}><b>{k}</b><span>: {v}</span></div>)}</div>
-  <table className="bkm-print-table"><thead><tr><th colSpan={14}>Operation</th></tr><tr><th rowSpan={3}>No</th><th colSpan={2}>Pekerjaan</th><th colSpan={2}>Field</th><th colSpan={6}>Target Kerja</th><th rowSpan={3}>No WO</th><th rowSpan={3}>No BKM</th><th rowSpan={3}>Keterangan</th></tr><tr>{opHeaders.slice(1,8).map(h=><th rowSpan={2} key={h}>{h}</th>)}<th colSpan={3}>Actual</th></tr><tr><th>HI</th><th>SHI</th><th>%</th></tr></thead>
+  <table className="bkm-print-table"><PaperCols widths={opPaperWidths}/><thead><tr><th colSpan={14}>Operation</th></tr><tr><th rowSpan={3}>No</th><th colSpan={2}>Pekerjaan</th><th colSpan={2}>Field</th><th colSpan={6}>Target Kerja</th><th rowSpan={3}>No WO</th><th rowSpan={3}>No BKM</th><th rowSpan={3}>Keterangan</th></tr><tr>{opHeaders.slice(1,8).map(h=><th rowSpan={2} key={h}>{h}</th>)}<th colSpan={3}>Actual</th></tr><tr><th>HI</th><th>SHI</th><th>%</th></tr></thead>
    <tbody>{Array.from({length:Math.max(10,ops.length)},(_,i)=><tr key={i}>{(ops[i]?values(ops[i],i):[i+1,...Array(13).fill('')]).map((v,j)=><td key={j}>{j===10&&typeof v==='number'?format(v*100)+'%':typeof v==='number'?format(v):v}</td>)}</tr>)}</tbody>
    <tfoot><tr><td colSpan={5}>Total</td><td>{format(total(ops,'hk'))}</td><td>Ha</td><td>{format(total(ops,'target'))}</td><td>{format(total(ops,'hi'))}</td><td>{format(total(ops,'shi'))}</td><td colSpan={4}/></tr></tfoot>
   </table>
-  <table className="bkm-print-table bkm-material-print"><thead><tr><th colSpan={10+(report.materialColumns?.length||0)}>Material</th></tr><tr>{[...matHeaders,...(report.materialColumns||[])].map(h=><th key={h}>{h}</th>)}</tr></thead>
+  <table className="bkm-print-table bkm-material-print"><PaperCols widths={[...matPaperWidths,...(report.materialColumns||[]).map(()=>2.5)]}/><thead><tr><th colSpan={10+(report.materialColumns?.length||0)}>Material</th></tr><tr>{[...matHeaders,...(report.materialColumns||[])].map(h=><th key={h}>{h}</th>)}</tr></thead>
    <tbody>{Array.from({length:Math.max(10,mats.length)},(_,i)=>{const m=mats[i];return <tr key={i}>{(m?materialValues(m,i):[i+1,...Array(9+(report.materialColumns?.length||0)).fill('')]).map((v,j)=><td key={j}>{typeof v==='number'?format(v):v}</td>)}</tr>})}</tbody>
   </table>
   <table className="bkm-sign"><thead><tr><th>Disetujui Oleh</th><th>Diverifikasi oleh,</th><th>Dibuat oleh,</th></tr></thead><tbody><tr><td/><td/><td/></tr></tbody><tfoot><tr><th>General Manager</th><th>Manager</th><th>Asisten</th></tr></tfoot></table>
