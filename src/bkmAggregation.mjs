@@ -37,7 +37,7 @@ export function buildBkmCandidates({date,daily=[],actual=[],history=[],monthly=[
   const targets=candidates.length===1?candidates:candidates.filter(m=>label(m)===label(source))
   const target=targets.length===1?targets[0]:null
   // Never sum a repeated WO across independent Monthly Plan lines.
-  const related=line(source)?all.filter(r=>line(r)===line(source)&&pid(r)===pid(source)&&(!company(r)||company(r)===company(source))&&label(r)===label(source)):current
+  const related=line(source)?all.filter(r=>line(r)===line(source)&&pid(r)===pid(source)&&(!company(r)||company(r)===company(source))&&(label(r)===label(source)||(!r.operationCode&&key(r.description||r.activity)===key(source.description||source.activity)))):current
   const distinct=rows=>[...new Map(rows.map(r=>[actualKey(r),r])).values()]
   const hiRows=distinct(current),shiRows=distinct(related)
   const hasOverlap=rows=>{
