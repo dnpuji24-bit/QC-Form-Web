@@ -761,12 +761,7 @@ service cloud.firestore {
         && d.keys().hasAll(['schemaVersion','ownerUid','revision','date','company','division','number','rows','createdAt','updatedAt'])
         && d.schemaVersion == 1 && d.ownerUid is string
         && d.revision is int && d.revision > 0
-        && d.date is string && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}
-      allow read, write: if false;
-    }
-  }
-}
-)
+        && d.date is string && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && d.company is string && d.company.size() > 0 && d.company.size() <= 120
         && d.division is string && d.division.size() > 0 && d.division.size() <= 120
         && d.number is string && d.number.size() <= 120
