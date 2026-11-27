@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState,type ClipboardEvent,type KeyboardEvent} from 'react'
-import {Alert,Button,Input,InputNumber,Select,Typography} from 'antd'
+import {Alert,Button,Input,InputNumber,Select,Typography,Tooltip,Popover,message as antdMessage} from 'antd'
 import {firebaseAuth} from './firebase'
 import {canEditAccess} from './accessControl'
 import {bkmAvailableCandidates,type BkmCandidate} from './bkmAggregation.mjs'
@@ -8,6 +8,10 @@ import {loadBkmCandidates,listBkm,saveBkm,type BkmDocument,type BkmInputRow,type
 import type {User} from './types'
 import './bkm.css'
 
+function ToolbarIcon({name}:{name:'save'|'excel'|'print'|'info'|'check'}){
+ const paths={save:'M5 3h12l4 4v14H3V3h2zm2 0v7h10V3M7 21v-7h10v7',excel:'M5 3h10l4 4v14H5z M15 3v5h4 M8 11l5 7m0-7l-5 7',print:'M7 8V3h10v5M7 17H3V8h18v9h-4M7 13h10v8H7z M17 11h1',info:'M12 11v6m0-10h.01 M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',check:'m5 12 4 4L19 6'}
+ return <svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={paths[name]}/></svg>
+}
 const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')}
 const blank=():BkmInputRow=>({filterWo:'',candidate:null,bkm:'',note:''})
 const initial=():BkmDocument=>({id:'',revision:0,date:today(),company:'',division:'UnM',number:'',rows:Array.from({length:10},blank)})
@@ -71,7 +75,13 @@ export default function BkmWorkspace({user,offlineOnly=false}:{user:User;offline
  const [saved,setSaved]=useState<BkmDocument[]>([])
  const [view,setView]=useState<'input'|'data'|'preview'>('input')
  const [busy,setBusy]=useState(false)
- const [message,setMessage]=useState('')
+ const [notice,noticeHolder]=antdMessage.useMessage()
+ const [saving,setSaving]=useState(false)
+ const [saveConfirmed,setSaveConfirmed]=useState(false)
+ const saveLock=useRef(false)
+ const successTimer=useRef<number|undefined>(undefined)
+ const setMessage=(value:string)=>{if(value)void notice.open({type:value.includes('disimpan dan dikonfirmasi')||value.includes('Draft lokal tersimpan')?'success':'info',content:value,duration:4,key:'bkm-feedback'});else notice.destroy('bkm-feedback')}
+ useEffect(()=>()=>{if(successTimer.current!==undefined)window.clearTimeout(successTimer.current)},[])
  const [error,setError]=useState('')
  const requestId=useRef(0)
  const editable=canEditAccess(user,'data_plan_actual')
@@ -141,11 +151,12 @@ export default function BkmWorkspace({user,offlineOnly=false}:{user:User;offline
   }catch(e){setError(e instanceof Error?e.message:'Draft lokal tidak dapat disimpan.')}
  }
  async function save(){
-  if(!serverAvailable||!editable||!valid)return
+  if(!serverAvailable||!editable||!valid||busy||saveLock.current)return
+  saveLock.current=true;setSaving(true);setSaveConfirmed(false)
   setBusy(true);setError('');setMessage('')
-  try{const result=await saveBkm({...report,...(report.materialEntries?{materialEntries:materialRows(report)}:{})});setReport(old=>({...old,...result}));setMessage('Rekap BKM disimpan dan dikonfirmasi oleh Firestore.')}
+  try{const result=await saveBkm({...report,...(report.materialEntries?{materialEntries:materialRows(report)}:{})});setReport(old=>({...old,...result}));setMessage('Rekap BKM disimpan dan dikonfirmasi oleh Firestore.');setSaveConfirmed(true);if(successTimer.current!==undefined)window.clearTimeout(successTimer.current);successTimer.current=window.setTimeout(()=>setSaveConfirmed(false),2200)}
   catch(e){setError(e instanceof Error?e.message:'Simpan belum berhasil. Draft tidak dihapus.')}
-  finally{setBusy(false)}
+  finally{saveLock.current=false;setSaving(false);setBusy(false)}
  }
  async function showSaved(){
   if(!serverAvailable){setError('Data Rekap server membutuhkan koneksi.');return}
@@ -174,14 +185,20 @@ export default function BkmWorkspace({user,offlineOnly=false}:{user:User;offline
   },100)
  }
  return <section className="bkm-workspace">
+  {noticeHolder}
   {!serverAvailable&&<Alert type="warning" showIcon title="Mode offline · hanya draft BKM akun ini" description="Data sumber baru dan penyimpanan Firestore memerlukan koneksi. Draft lokal yang tersimpan tetap dapat diedit dan dicetak."/>}
-  <div className="bkm-toolbar">
-   <Button type={view==='input'?'primary':'default'} onClick={()=>setView('input')}>Input Rekap BKM</Button>
-   <Button disabled={!serverAvailable} type={view==='data'?'primary':'default'} loading={busy&&view==='data'} onClick={()=>void showSaved()}>Data Rekap BKM</Button>
-   <Button type={view==='preview'?'primary':'default'} onClick={()=>setView('preview')}>Preview</Button>
-   <Button disabled={busy||!valid} onClick={print}>Print / PDF</Button><Button disabled={busy||!valid} onClick={()=>{void downloadExcel(report).catch(e=>setError(e instanceof Error?e.message:"Export Excel gagal."))}}>Export Excel</Button>
+  <div className="bkm-toolbar bkm-top-toolbar">
+   <div className="bkm-tabs">
+    <Button aria-label="Input Rekap BKM" aria-pressed={view==='input'} type={view==='input'?'primary':'default'} onClick={()=>setView('input')}>Input</Button>
+    <Button aria-label="Data Rekap BKM" aria-pressed={view==='data'} disabled={!serverAvailable} type={view==='data'?'primary':'default'} loading={busy&&view==='data'} onClick={()=>void showSaved()}>Data Rekap</Button>
+    <Button aria-pressed={view==='preview'} type={view==='preview'?'primary':'default'} onClick={()=>setView('preview')}>Preview</Button>
+   </div>
+   <div className="bkm-output-actions">
+    <Tooltip title="Export Excel"><span><Button className="bkm-icon-button bkm-excel-button" aria-label="Export Excel" icon={<ToolbarIcon name="excel"/>} disabled={busy||!valid} onClick={()=>{void downloadExcel(report).catch(e=>setError(e instanceof Error?e.message:"Export Excel gagal."))}}/></span></Tooltip>
+    <Tooltip title="Print / PDF"><span><Button className="bkm-icon-button bkm-print-button" aria-label="Print / PDF" icon={<ToolbarIcon name="print"/>} disabled={busy||!valid} onClick={print}/></span></Tooltip>
+   </div>
   </div>
-  {error&&<Alert type="error" title={error} showIcon/>}{message&&<Alert type="info" title={message} showIcon/>}
+  {error&&<Alert type="error" title={error} showIcon closable onClose={()=>setError('')}/>}
   {view==='data'?<><div className="bkm-toolbar"><label>Tanggal <input type="date" disabled={busy} value={report.date} onChange={e=>patchHeader('date',e.target.value)}/></label><Button onClick={()=>void showSaved()} loading={busy}>Cari rekap</Button></div><div className="bkm-grid-scroll"><table className="bkm-grid"><thead><tr><th>No</th><th>PT</th><th>Divisi</th><th>Tanggal</th><th>Pekerjaan</th><th>Aksi</th></tr></thead><tbody>{saved.map(d=><tr key={d.id}><td>{d.number||'—'}</td><td>{d.company}</td><td>{d.division}</td><td>{d.date}</td><td>{d.rows.length}</td><td><Button onClick={()=>openSaved(d)}>Buka</Button></td></tr>)}</tbody></table></div>{!saved.length&&!busy&&<p>Belum ada rekap yang ditampilkan pada tanggal ini.</p>}</>:view==='preview'?<Paper report={report}/>:<>
    <Typography.Title level={4} style={{textAlign:'center'}}>REKAP BUKU KERJA MANDOR</Typography.Title>
    <div className="bkm-header-fields">
@@ -190,9 +207,16 @@ export default function BkmWorkspace({user,offlineOnly=false}:{user:User;offline
     <label>Divisi <Input disabled={busy} value={report.division} maxLength={120} onChange={e=>patchHeader('division',e.target.value)}/></label>
     <label>Tanggal <input type="date" disabled={busy} value={report.date} onChange={e=>patchHeader('date',e.target.value)}/></label>
    </div>
-   <div className="bkm-toolbar"><Button disabled={!serverAvailable} loading={busy} onClick={()=>void load()}>Muat sumber tanggal</Button><Button disabled={busy||!editable} onClick={localSave}>Simpan draft lokal</Button><Button type="primary" disabled={busy||!serverAvailable||!editable||!valid} loading={busy} onClick={()=>void save()}>Simpan Rekap</Button>{loadedAt&&<small>Sumber: {new Date(loadedAt).toLocaleString('id-ID')}</small>}</div>
-   <Alert type="warning" showIcon title="No WO dan No BKM boleh kosong" description="Pilih WO dan/atau Description dari Master Activity, lalu paddock. HI dan HK dapat diisi manual untuk rekap saja. SHI = sisa target setelah actual sebelum tanggal laporan + HI. Persentase dapat melebihi 100%. Riwayat berasal dari Actual Plan sebelum tanggal laporan, bukan rekap BKM sebelumnya. Input HI/HK tidak mengubah Actual Plan. Tanpa WO, target, SHI dan persen kosong. Divisi adalah label laporan."/>
-   <div className="bkm-grid-scroll"><table className="bkm-grid bkm-operation"><thead><tr><th colSpan={15}>Operation</th></tr><tr><th rowSpan={3}>No</th><th colSpan={2}>Pekerjaan</th><th colSpan={2}>Field</th><th colSpan={6}>Target Kerja</th><th rowSpan={3}>No WO</th><th rowSpan={3}>No BKM</th><th rowSpan={3}>Keterangan</th><th rowSpan={3}>Aksi</th></tr><tr>{opHeaders.slice(1,8).map(h=><th rowSpan={2} key={h}>{h}</th>)}<th colSpan={3}>Actual</th></tr><tr><th>HI</th><th>SHI</th><th>%</th></tr></thead><tbody>
+   <div className="bkm-toolbar bkm-input-toolbar">
+    <div className="bkm-input-actions">
+     <Button aria-label="Muat sumber tanggal" disabled={!serverAvailable||busy} loading={busy&&!saving} onClick={()=>void load()}><span className="bkm-desktop-label">Muat sumber tanggal</span><span className="bkm-mobile-label">Muat sumber</span></Button>
+     <Button aria-label="Simpan draft lokal" disabled={busy||!editable} onClick={localSave}><span className="bkm-desktop-label">Simpan draft lokal</span><span className="bkm-mobile-label">Draft lokal</span></Button>
+     <Tooltip title={saving?'Sedang menyimpan':!serverAvailable?'Simpan Rekap memerlukan internet':!editable?'Tidak memiliki izin edit':!valid?'Lengkapi data sebelum menyimpan':'Simpan Rekap'}><span><Button className={'bkm-icon-button bkm-save-button'+(saveConfirmed?' bkm-save-confirmed':'')} aria-label="Simpan Rekap" type="primary" disabled={busy||!serverAvailable||!editable||!valid} loading={saving} icon={<ToolbarIcon name={saveConfirmed?'check':'save'}/>} onClick={()=>void save()}/></span></Tooltip>
+     <Popover trigger="click" title="Petunjuk Rekap BKM" content={<div className="bkm-help-content">No WO dan No BKM boleh kosong. Pilih WO dan/atau Description, lalu paddock. HI/HK hanya untuk rekap. SHI = sisa target setelah actual sebelumnya + HI. Pencapaian dapat melebihi 100%. Riwayat berasal dari Actual Plan, bukan BKM sebelumnya. Tanpa WO, target, SHI dan persen kosong. Divisi adalah label laporan.</div>}><Button className="bkm-icon-button bkm-info-button" aria-label="Petunjuk Rekap BKM" icon={<ToolbarIcon name="info"/>}/></Popover>
+    </div>
+    {loadedAt&&<small className="bkm-source-time">Sumber: {new Date(loadedAt).toLocaleString('id-ID')}</small>}
+   </div>
+   <div className="bkm-grid-scroll"><table className="bkm-grid bkm-operation bkm-entry-grid"><thead><tr><th colSpan={15}>Operation</th></tr><tr><th className="bkm-frozen-no" rowSpan={3}>No</th><th colSpan={2}>Pekerjaan</th><th colSpan={2}>Field</th><th colSpan={6}>Target Kerja</th><th rowSpan={3}>No WO</th><th rowSpan={3}>No BKM</th><th rowSpan={3}>Keterangan</th><th rowSpan={3}>Aksi</th></tr><tr>{opHeaders.slice(1,8).map(h=><th rowSpan={2} key={h}>{h}</th>)}<th colSpan={3}>Actual</th></tr><tr><th>HI</th><th>SHI</th><th>%</th></tr></thead><tbody>
     {report.rows.map((r,i)=>{const c=r.candidate;const activityFilter=r.activityFilter||''
      const eligible=bkmAvailableCandidates(candidates,report.company,r.filterWo,ids,c?.id||'').filter(x=>!activityFilter||x.operationCode===activityFilter)
      const chosenActivity=masterActivities.find(a=>a.operationCode===activityFilter)
@@ -209,10 +233,10 @@ export default function BkmWorkspace({user,offlineOnly=false}:{user:User;offline
      <td><Button size="small" disabled={busy||!editable} onClick={()=>patch(i,blank())}>Bersihkan</Button><Button size="small" disabled={busy||!editable||report.rows.length>=100} onClick={()=>setReport(old=>({...old,rows:[...old.rows.slice(0,i+1),{...r,candidate:null,hiOverride:null,hkOverride:null},...old.rows.slice(i+1)]}))}>Duplikat isian</Button></td>
     </tr>})}
    </tbody><tfoot><tr><td colSpan={5}>Total</td><td>{format(total(selected,'hk'))}</td><td>Ha</td><td>{format(total(selected,'target'))}</td><td>{format(total(selected,'hi'))}</td><td>{format(total(selected,'shi'))}</td><td colSpan={5}/></tr></tfoot></table></div>
-   <div className="bkm-toolbar"><Button disabled={!editable||report.rows.length>=100} onClick={()=>setReport(old=>({...old,rows:[...old.rows,blank()]}))}>+ Tambah baris</Button><Button disabled={!editable||report.rows.length<=1} onClick={()=>{if(!report.rows.at(-1)?.candidate||window.confirm('Hapus pilihan pada baris terakhir?'))setReport(old=>({...old,rows:old.rows.slice(0,-1)}))}}>Hapus baris terakhir</Button><Button disabled={busy||!editable} onClick={()=>{if(window.confirm('Buat rekap baru? Draft lokal yang sudah disimpan tetap ada sampai ditimpa.')){setReport(initial());setCandidates([]);setLoadedDate('')}}}>Rekap baru</Button></div>
+   <div className="bkm-toolbar"><Button disabled={!editable||report.rows.length>=100} onClick={()=>setReport(old=>({...old,rows:[...old.rows,blank()]}))}>+ Tambah baris</Button><Button disabled={!editable||report.rows.length<=1} onClick={()=>{if(!report.rows.at(-1)?.candidate||window.confirm('Hapus pilihan pada baris terakhir?'))setReport(old=>({...old,rows:old.rows.slice(0,-1)}))}}>Hapus baris terakhir</Button><Button disabled={busy||!editable} onClick={()=>{if(window.confirm('Buat rekap baru? Draft lokal yang sudah disimpan tetap ada sampai ditimpa.')){setReport(initial());setCandidates([]);setLoadedDate('');setLoadedAt('')}}}>Rekap baru</Button></div>
    <div className="bkm-toolbar"><Button disabled={busy||!editable||gridMaterials.length>=100} onClick={()=>setReport(old=>({...old,materialEntries:[...gridMaterials,blankMaterial(materialColumns.length)]}))}>+ Tambah baris Material</Button><Button disabled={busy||!editable} onClick={()=>{if(window.confirm('Ganti isian Material dengan alokasi QC yang terverifikasi?'))setReport(old=>({...old,materialEntries:autoMaterial(old)}))}}>Ambil Material dari QC</Button><Input style={{width:180}} value={newColumn} onChange={e=>setNewColumn(e.target.value)} maxLength={60} placeholder="Nama kolom tambahan"/><Button disabled={busy||!editable||!newColumn.trim()||materialColumns.length>=8||[...matHeaders,...materialColumns,'Aksi'].some(v=>v.toLowerCase()===newColumn.trim().toLowerCase())} onClick={addMaterialColumn}>+ Tambah kolom</Button></div>
    <datalist id="bkm-master-materials">{masterMaterials.map((m,i)=><option key={i} value={m.name}/>)}</datalist>
-   <div className="bkm-grid-scroll"><table className="bkm-grid"><thead><tr><th colSpan={11+materialColumns.length}>Material</th></tr><tr>{[...matHeaders,...materialColumns,'Aksi'].map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{gridMaterials.map((m,i)=><tr key={i}>
+   <div className="bkm-grid-scroll"><table className="bkm-grid bkm-entry-grid bkm-material-entry"><thead><tr><th colSpan={11+materialColumns.length}>Material</th></tr><tr>{[...matHeaders,...materialColumns,'Aksi'].map((h,i)=><th className={i===0?'bkm-frozen-no':undefined} key={h}>{h}</th>)}</tr></thead><tbody>{gridMaterials.map((m,i)=><tr key={i}>
     <td>{i+1}</td><td><Input aria-label={'Material Paddock '+(i+1)} value={m.pid} disabled={busy||!editable} onChange={e=>editMaterial(i,{pid:e.target.value})}/></td>
     <td><Input aria-label={'No Material '+(i+1)} value={m.code} disabled={busy||!editable} onChange={e=>editMaterial(i,{code:e.target.value})}/></td>
     <td><Input aria-label={'Nama Material '+(i+1)} list="bkm-master-materials" value={m.name} disabled={busy||!editable} onChange={e=>{const name=e.target.value,match=masterMaterials.filter(x=>x.name===name);editMaterial(i,{name,...(match.length===1?{code:match[0].code,unit:match[0].unit}:{})})}}/></td>
