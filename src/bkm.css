@@ -53,3 +53,60 @@
 .bkm-print-table:not(.bkm-material-print) thead tr:first-child th,.bkm-material-print thead tr:first-child th{height:18px}
 .bkm-material-print thead tr:nth-child(2) th{height:44px}
 .bkm-sign th{font-weight:400}
+
+/* Compact BKM-only desktop/mobile toolbar. No global portal or print changes. */
+.bkm-workspace{container-type:inline-size;gap:8px}
+.bkm-workspace>h4.ant-typography{margin:4px 0 8px;font-size:18px}
+.bkm-workspace .ant-btn{min-height:36px}
+.bkm-top-toolbar,.bkm-input-toolbar{justify-content:space-between;gap:8px}
+.bkm-tabs,.bkm-output-actions,.bkm-input-actions{display:flex;align-items:center;gap:6px;min-width:0}
+.bkm-top-toolbar .bkm-tabs{flex-wrap:wrap}
+.bkm-output-actions{margin-left:auto}
+.bkm-input-actions{flex-wrap:wrap}
+.bkm-source-time{font-size:11px;color:#526176;white-space:normal;margin-left:auto;text-align:right}
+.bkm-header-fields{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:12px;padding:10px}
+.bkm-header-fields>label{min-width:0}
+.bkm-header-fields .ant-input,.bkm-header-fields .ant-select,.bkm-header-fields input[type=date]{width:100%;height:40px;min-height:40px;min-width:0;box-sizing:border-box}
+.bkm-header-fields .ant-select .ant-select-selector{height:100%}
+.bkm-header-fields input[type=date]{color:#172033}
+.bkm-workspace .ant-btn-primary:not(:disabled){color:#fff}
+.bkm-workspace .bkm-icon-button{width:36px;min-width:36px;height:36px;padding:0;display:inline-flex;justify-content:center;align-items:center;box-shadow:none}
+.bkm-workspace .bkm-save-button:not(:disabled){color:#fff;background:#002060;border-color:#002060}
+.bkm-workspace .bkm-save-button:not(:disabled):hover{background:#193d79;border-color:#193d79;color:#fff}
+.bkm-workspace .bkm-save-button.bkm-save-confirmed:not(:disabled){background:#15803d;border-color:#15803d;color:#fff}
+.bkm-workspace .bkm-excel-button:not(:disabled){background:#217346;border-color:#217346;color:#fff}
+.bkm-workspace .bkm-print-button:not(:disabled){background:#475569;border-color:#475569;color:#fff}
+.bkm-workspace .bkm-icon-button:disabled,.bkm-workspace .ant-btn-primary:disabled{background:#e5e7eb;border-color:#d1d5db;color:#6b7280;cursor:not-allowed}
+.bkm-workspace .bkm-icon-button svg{display:block;flex:none}
+.bkm-help-content{max-width:min(330px,75vw);font-size:12px;line-height:1.5}
+.bkm-mobile-label{display:none}
+.bkm-entry-grid{border-collapse:separate;border-spacing:0;border-top:1px solid #000;border-left:1px solid #000}
+.bkm-entry-grid th,.bkm-entry-grid td{border-top:0;border-left:0}
+.bkm-entry-grid tbody td{height:36px;padding:2px 5px;background:#fff}
+.bkm-entry-grid tbody td.bkm-auto{background:#f7f8fa}
+.bkm-entry-grid tbody td:first-child{position:sticky;left:0;z-index:2;background:#d9d9d9;color:#000;text-align:center;min-width:34px;box-shadow:1px 0 0 #9ca3af}
+.bkm-entry-grid thead .bkm-frozen-no{position:sticky;left:0;z-index:4;background:#002060;min-width:34px}
+.bkm-entry-grid tbody .ant-select,.bkm-entry-grid tbody .ant-input,.bkm-entry-grid tbody .ant-input-number{min-height:30px}
+.bkm-entry-grid tbody .ant-btn{min-height:28px}
+@container (max-width:760px){
+ .bkm-header-fields{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .bkm-source-time{flex-basis:100%;text-align:left;margin-left:0}
+ .bkm-input-actions{width:100%}
+ .bkm-input-actions>.ant-btn:not(.bkm-icon-button){flex:1;min-width:0;padding-inline:8px}
+ .bkm-workspace .ant-btn,.bkm-workspace .bkm-icon-button{min-height:40px;height:40px}
+ .bkm-workspace .bkm-icon-button{width:40px;min-width:40px}
+ .bkm-desktop-label{display:none}
+ .bkm-mobile-label{display:inline}
+ .bkm-entry-grid tbody td{height:40px}
+ .bkm-tabs .ant-btn{padding-inline:8px;font-size:12px}
+ .bkm-top-toolbar{gap:6px}
+ .bkm-output-actions{gap:4px}
+ .bkm-entry-grid tbody .ant-btn{height:auto;min-height:28px}
+}
+@container (max-width:320px){
+ .bkm-tabs{gap:3px}
+ .bkm-tabs .ant-btn{padding-inline:5px}
+ .bkm-input-actions{gap:4px}
+ .bkm-input-actions>.ant-btn:not(.bkm-icon-button){font-size:11px;padding-inline:4px}
+}
+@media print{body.qc-bkm-print .bkm-workspace{container-type:normal}}
