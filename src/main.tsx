@@ -18,6 +18,7 @@ const NetworkStatus = React.lazy(() => import('./NetworkStatus'))
 import SaveStatusPopup from './SaveStatusPopup'
 const UiEnhancers = React.lazy(() => import('./UiEnhancers'))
 const PortalRouter = React.lazy(() => import('./PortalRouter'))
+const NativeSidebarPortal = React.lazy(() => import('./NativeSidebarPortal'))
 import ScrollToTopButton from './ScrollToTopButton'
 import './styles.css'
 import './theme.css'
@@ -36,6 +37,7 @@ if ('serviceWorker' in navigator) {
 function PortalWorkspaces() {
   // Keep QC drafts and the existing subscription alive when returning to the menu.
   const [qcOpened, openQc] = React.useReducer(() => true, !nativePortalEnabled)
+  if(nativePortalEnabled)return <NativeSidebarPortal/>
   return <>
     {qcOpened && <App />}
     <PortalRouter onOpenQc={openQc} />

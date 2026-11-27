@@ -8,8 +8,9 @@ import PlanOfflineBanner from './PlanOfflineBanner'
 import type { User } from './types'
 import { canViewAccess } from './accessControl'
 
-type Props={user:User}
-type Tab='monthly'|'daily'|'actual'|'reconciliation'
+export type PlanTab='monthly'|'daily'|'actual'|'reconciliation'
+type Tab=PlanTab
+type Props={user:User;embedded?:boolean;requestedTab?:PlanTab;onTabChange?:(tab:PlanTab)=>void}
 export type PlanWorkspaceHandle={goBack:()=>boolean}
 
 const planMenu = [
@@ -19,8 +20,8 @@ const planMenu = [
   { value: 'reconciliation', label: 'Rekonsiliasi', icon: 'M4 8h15m-4-4 4 4-4 4M20 16H5m4-4-4 4 4 4' },
 ] as const
 
-const PlanWorkspace=forwardRef<PlanWorkspaceHandle,Props>(function PlanWorkspace({user},ref){
-  const[tab,setTab]=useState<Tab>('monthly'),[actualPrefill,setActualPrefill]=useState<string[]>([]),[dailyJump,setDailyJump]=useState<{date:string;monthlyPlanLineId:string;pid:string}|null>(null),[actualJump,setActualJump]=useState<{monthlyPlanLineId:string;actualReportIds:string[];label:string}|null>(null)
+const PlanWorkspace=forwardRef<PlanWorkspaceHandle,Props>(function PlanWorkspace({user,embedded=false,requestedTab,onTabChange},ref){
+  const[tab,setTab]=useState<Tab>(requestedTab||'monthly'),[actualPrefill,setActualPrefill]=useState<string[]>([]),[dailyJump,setDailyJump]=useState<{date:string;monthlyPlanLineId:string;pid:string}|null>(null),[actualJump,setActualJump]=useState<{monthlyPlanLineId:string;actualReportIds:string[];label:string}|null>(null)
   const tabHistoryRef=useRef<Tab[]>([])
   const allowed=useMemo(()=>({
     monthly:canViewAccess(user,'data_plan_monthly')||canViewAccess(user,'data_plan_monthly_import'),
@@ -28,6 +29,8 @@ const PlanWorkspace=forwardRef<PlanWorkspaceHandle,Props>(function PlanWorkspace
     actual:canViewAccess(user,'data_plan_actual')||canViewAccess(user,'data_plan_actual_import'),
     reconciliation:canViewAccess(user,'data_plan_reconciliation'),
   }),[user])
+  useEffect(()=>{if(requestedTab&&allowed[requestedTab])setTab(requestedTab)},[requestedTab,allowed])
+  useEffect(()=>{if(embedded)onTabChange?.(tab)},[tab])
   function navigateTab(next:Tab){
     if(next===tab||!allowed[next])return
     tabHistoryRef.current.push(tab)
@@ -50,7 +53,7 @@ const PlanWorkspace=forwardRef<PlanWorkspaceHandle,Props>(function PlanWorkspace
   },[tab,allowed])
   return <section className="plan-workspace-shell">
     <PlanOfflineBanner/>
-    <Segmented<Tab> className="plan-antd-nav plan-section-menu" aria-label="Menu Plan" name="plan-section" tabIndex={-1} value={tab}
+    {!embedded&&<Segmented<Tab> className="plan-antd-nav plan-section-menu" aria-label="Menu Plan" name="plan-section" tabIndex={-1} value={tab}
       options={planMenu.filter(item=>allowed[item.value]).map(({ value, label, icon })=>{
         const [name, suffix] = label.split(' ')
         return {
@@ -62,7 +65,7 @@ const PlanWorkspace=forwardRef<PlanWorkspaceHandle,Props>(function PlanWorkspace
           </span>,
         }
       })}
-      onChange={next => { if(next==='daily')setDailyJump(null); navigateTab(next) }} />
+      onChange={next => { if(next==='daily')setDailyJump(null); navigateTab(next) }} />}
     <div key={tab} className="ui-view-transition plan-tab-transition">
       {allowed[tab] && (tab==='monthly'?<MonthlyPlanWorkspace user={user} onOpenDailyPlan={request=>{setDailyJump(request);navigateTab('daily')}} onOpenActualSource={request=>{setActualJump(request);setActualPrefill([]);navigateTab('actual')}}/>:tab==='daily'?<DailyPlanWorkspace user={user} jumpRequest={dailyJump} onCopyToActual={ids=>{setActualPrefill(ids);navigateTab('actual')}}/>:tab==='actual'?<ActualPlanWorkspace user={user} prefillDailyPlanIds={actualPrefill} jumpRequest={actualJump}/>:<PlanReconciliationPanel/>)}
     </div>

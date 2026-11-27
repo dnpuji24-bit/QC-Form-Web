@@ -115,6 +115,14 @@ jobs:
       - name: Verify offline menu lease and QC retry backoff
         run: node --test scripts/test-qc-offline-verified-menu.mjs
 
+      - name: Verify Rekap BKM source aggregation
+        run: node --test scripts/test-bkm-aggregation.mjs
+
+      - name: Verify BKM report access in demo Firestore
+        run: |
+          npm install --no-save --no-package-lock @firebase/rules-unit-testing@5
+          npx --yes firebase-tools@14 emulators:exec --only firestore --project demo-qc-bkm --config firebase.native-cutover-browser-emulator.json "node scripts/test-bkm-rules-emulator.mjs"
+
       - name: Verify TypeScript
         run: npm run typecheck
       - name: Build React safely

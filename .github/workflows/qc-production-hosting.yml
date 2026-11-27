@@ -107,6 +107,9 @@ jobs:
       - name: Verify offline menu lease and QC retry backoff
         run: node --test scripts/test-qc-offline-verified-menu.mjs
 
+      - name: Verify Rekap BKM source aggregation
+        run: node --test scripts/test-bkm-aggregation.mjs
+
       - name: Check TypeScript types
         run: npm run typecheck
 
