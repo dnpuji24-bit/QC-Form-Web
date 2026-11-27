@@ -6,11 +6,11 @@
 .bkm-header-fields input[type=date],.bkm-toolbar input[type=date]{border:1px solid #d9d9d9;border-radius:6px;min-height:32px;padding:5px 8px;background:#fff}
 .bkm-grid-scroll{overflow:auto;max-height:70vh;max-width:100%;border:1px solid #d2d5db;background:#fff}
 .bkm-grid{border-collapse:collapse;min-width:100%;width:max-content;font-size:12px;color:#172033}
-.bkm-grid th,.bkm-grid td{border:1px solid #c4c4cb;padding:4px 6px;vertical-align:middle;text-align:left}
-.bkm-grid thead{position:sticky;top:0;z-index:3;background:#34243f;color:white}
-.bkm-grid thead th{text-align:center;background:#34243f;color:#fff;white-space:nowrap}
+.bkm-grid th,.bkm-grid td{border:1px solid #000;padding:4px 6px;vertical-align:middle;text-align:left}
+.bkm-grid thead{position:sticky;top:0;z-index:3;background:#002060;color:white}
+.bkm-grid thead th{text-align:center;background:#002060;color:#fff;border-color:#fff;white-space:nowrap}
 .bkm-grid td{min-height:32px;height:32px}
-.bkm-grid td.bkm-auto{background:#f2f4f7;min-width:62px}
+.bkm-grid td.bkm-auto{background:#f7f8fa;min-width:62px}
 .bkm-grid td:nth-child(3){min-width:140px;max-width:250px;white-space:normal}
 .bkm-operation td:nth-child(12){min-width:150px}
 .bkm-operation td:nth-child(13){min-width:120px}
@@ -18,21 +18,21 @@
 .bkm-pid{width:250px}.bkm-wo{width:150px}
 .bkm-source-wo,.bkm-warning{display:block;font-size:10px;margin-top:4px;line-height:1.4}
 .bkm-warning{color:#9a3412}
-.bkm-grid tfoot{font-weight:650;background:#e9edf4}
-.bkm-paper{background:#fff;color:#111;border:1px solid #d0d0d0;padding:18px;min-width:0;overflow:auto}
+.bkm-grid tfoot{font-weight:650;background:#fff}
+.bkm-paper{font-family:'Aptos Narrow','Arial Narrow',Arial,sans-serif;background:#fff;color:#111;border:1px solid #d0d0d0;padding:18px;min-width:0;overflow:auto}
 .bkm-paper h2{text-align:center;font-size:14px;margin:0 0 12px;font-weight:800}
 .bkm-print-meta{font-size:11px;margin-bottom:10px;display:grid;gap:3px}
 .bkm-print-meta>div{display:flex;gap:6px}.bkm-print-meta b{width:55px}
 .bkm-print-table{border-collapse:collapse;width:100%;font-size:9px;table-layout:auto;margin-bottom:10px}
-.bkm-print-table th,.bkm-print-table td,.bkm-sign td,.bkm-sign th{border:1px solid #555;padding:3px 4px;text-align:center;vertical-align:middle}
-.bkm-print-table th{background:#34243f;color:#fff;font-weight:600}
+.bkm-print-table th,.bkm-print-table td,.bkm-sign td,.bkm-sign th{border:1px solid #000;padding:3px 4px;text-align:center;vertical-align:middle}
+.bkm-print-table th{background:#002060;color:#fff;font-weight:700;border-color:#fff}
 .bkm-print-table td{height:17px;overflow-wrap:anywhere}
 .bkm-print-table td:nth-child(3),.bkm-print-table td:last-child{text-align:left}
 .bkm-print-table tfoot{font-weight:700}
-.bkm-sign{border-collapse:collapse;width:50%;margin-left:auto;font-size:10px;page-break-inside:avoid}
+.bkm-sign{border-collapse:collapse;width:45%;margin-left:auto;font-size:10px;page-break-inside:avoid}
 .bkm-sign tbody td{height:50px}
 @media print{
- @page{size:A4 landscape;margin:9mm}
+ @page{size:A4 landscape;margin:8mm 18mm}
  body.qc-bkm-print,body.qc-bkm-print #root{height:auto!important;overflow:visible!important;background:#fff!important}
  body.qc-bkm-print *{visibility:hidden!important}
  body.qc-bkm-print .bkm-paper,body.qc-bkm-print .bkm-paper *{visibility:visible!important}
@@ -41,3 +41,15 @@
  body.qc-bkm-print .qc-sidebar,body.qc-bkm-print .qc-sidebar-header,body.qc-bkm-print .bkm-toolbar{display:none!important}
  .bkm-print-table thead{display:table-header-group}.bkm-print-table tr{break-inside:avoid}.bkm-sign{break-inside:avoid}
 }
+
+/* Palette and numbering from the uploaded BKM template, scoped to BKM only. */
+.bkm-workspace{--bkm-navy:#002060;--bkm-grey:#d9d9d9;font-family:'Aptos Narrow','Arial Narrow',Arial,sans-serif}
+.bkm-operation tbody td:first-child,.bkm-print-table:not(.bkm-material-print) tbody td:first-child{background:#d9d9d9;text-align:center;color:#000}
+.bkm-workspace .ant-btn-primary{background:#002060;border-color:#002060}
+.bkm-workspace .ant-btn-primary:not(:disabled):hover{background:#193d79;border-color:#193d79}
+.bkm-workspace .ant-select-selector,.bkm-workspace .ant-input,.bkm-workspace .ant-input-number{border-radius:3px}
+.bkm-print-table{table-layout:fixed}
+.bkm-print-table th,.bkm-print-table td{white-space:normal;overflow-wrap:anywhere}
+.bkm-print-table:not(.bkm-material-print) thead tr:first-child th,.bkm-material-print thead tr:first-child th{height:18px}
+.bkm-material-print thead tr:nth-child(2) th{height:44px}
+.bkm-sign th{font-weight:400}
