@@ -757,7 +757,7 @@ service cloud.firestore {
     }
     function validBkmSnapshot() {
       let d = request.resource.data;
-      return d.keys().hasOnly(['schemaVersion','ownerUid','revision','date','company','division','number','rows','createdAt','updatedAt'])
+      return d.keys().hasOnly(['schemaVersion','ownerUid','revision','date','company','division','number','rows','materialEntries','materialColumns','createdAt','updatedAt'])
         && d.keys().hasAll(['schemaVersion','ownerUid','revision','date','company','division','number','rows','createdAt','updatedAt'])
         && d.schemaVersion == 1 && d.ownerUid is string
         && d.revision is int && d.revision > 0
@@ -766,6 +766,10 @@ service cloud.firestore {
         && d.division is string && d.division.size() > 0 && d.division.size() <= 120
         && d.number is string && d.number.size() <= 120
         && d.rows is list && d.rows.size() > 0 && d.rows.size() <= 100
+        && (!d.keys().hasAny(['materialEntries','materialColumns'])
+          || (d.keys().hasAll(['materialEntries','materialColumns'])
+            && d.materialEntries is list && d.materialEntries.size() <= 100
+            && d.materialColumns is list && d.materialColumns.size() <= 8))
         && d.updatedAt == request.time;
     }
     match /foreman_work_recaps/{reportId} {

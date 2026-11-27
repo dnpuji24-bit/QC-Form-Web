@@ -24,5 +24,7 @@ try{
  await assertFails(updateDoc(ref('asisten1'),{revision:2,number:'stale',updatedAt:serverTimestamp()}))
  await assertFails(deleteDoc(ref('owner1')))
  assert.equal((await getDoc(ref('asisten1'))).data().number,'BKM-1')
+ await assertSucceeds(updateDoc(ref('owner1'),{revision:3,materialEntries:[{pid:'J-012',name:'NK',unit:'Kg',hi:15,extra:['ISS-001']}],materialColumns:['No Issue'],updatedAt:serverTimestamp()}))
+ await assertFails(updateDoc(ref('owner1'),{revision:4,materialColumns:Array(9).fill('x'),updatedAt:serverTimestamp()}))
  console.log('PASS: BKM snapshot ownership, optional number, edit permission, revision and delete protection')
 }finally{await env.cleanup()}
