@@ -111,10 +111,38 @@
 }
 @media print{body.qc-bkm-print .bkm-workspace{container-type:normal}}
 
-/* Cell controls never overlap their neighbouring spreadsheet cells. */
-.bkm-operation tbody td:nth-child(3){width:245px;min-width:245px;max-width:245px}
-.bkm-operation tbody td:nth-child(4){width:180px;min-width:180px;max-width:180px}
-.bkm-operation tbody td:nth-child(7){width:64px;min-width:64px;max-width:64px}
-.bkm-operation .bkm-desc,.bkm-operation .bkm-pid{display:flex;width:100%;min-width:0;max-width:100%;box-sizing:border-box}
-.bkm-operation .bkm-desc .ant-select-selection-item,.bkm-operation .bkm-pid .ant-select-selection-item{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Excel-like entry sheet; column geometry is defined in EntryCols. */
+.bkm-workspace .bkm-entry-grid{table-layout:fixed;min-width:0;font-size:12px;line-height:1.25}
+.bkm-workspace .bkm-entry-grid th,.bkm-workspace .bkm-entry-grid td{box-sizing:border-box;min-width:0;max-width:none;width:auto;white-space:normal;overflow-wrap:anywhere;padding:2px 4px}
+.bkm-workspace .bkm-entry-grid thead th{font-size:11px;line-height:1.2;padding:3px 2px}
+.bkm-workspace .bkm-entry-grid thead tr:first-child th{height:20px}
+.bkm-workspace .bkm-entry-grid tbody td{height:25px;min-height:25px;padding:0 3px;vertical-align:middle}
+.bkm-workspace .bkm-entry-grid tbody td:first-child{min-width:0}
+.bkm-workspace .bkm-entry-grid tbody .ant-select,.bkm-workspace .bkm-entry-grid tbody .ant-input,.bkm-workspace .bkm-entry-grid tbody .ant-input-number{box-sizing:border-box;width:100%;min-width:0;max-width:100%;min-height:22px;height:22px;font-size:12px;line-height:20px;border:0;border-radius:0;box-shadow:none;background:transparent}
+.bkm-workspace .bkm-entry-grid tbody .ant-select .ant-select-selector{min-height:22px;height:22px!important;padding:0 2px!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;font-size:12px}
+.bkm-workspace .bkm-entry-grid tbody .ant-select-selection-item,.bkm-workspace .bkm-entry-grid tbody .ant-select-selection-placeholder{font-size:12px;line-height:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bkm-workspace .bkm-entry-grid tbody .ant-select-arrow,.bkm-workspace .bkm-entry-grid tbody .ant-select-clear{font-size:9px;inset-inline-end:3px}
+.bkm-workspace .bkm-entry-grid tbody .ant-select-selection-search-input,.bkm-workspace .bkm-entry-grid tbody .ant-input-number-input{height:22px!important;font-size:12px;line-height:20px;padding:0 2px}
+.bkm-workspace .bkm-entry-grid tbody .ant-input{padding:0 2px}
+.bkm-workspace .bkm-entry-grid tbody .ant-input-number-input{text-align:right}
+.bkm-workspace .bkm-entry-grid tbody textarea.ant-input{height:auto;min-height:22px;line-height:20px;resize:none}
+.bkm-workspace .bkm-entry-grid tbody td:focus-within{outline:2px solid #217346;outline-offset:-2px;position:relative;z-index:1}
+.bkm-workspace .bkm-entry-grid tbody td:first-child{position:sticky;z-index:2}
+.bkm-workspace .bkm-entry-grid tbody td.bkm-auto{background:#f7f8fa}
+.bkm-workspace .bkm-entry-grid tbody .ant-select-disabled,.bkm-workspace .bkm-entry-grid tbody .ant-input-disabled,.bkm-workspace .bkm-entry-grid tbody .ant-input-number-disabled{color:#64748b;background:transparent!important;cursor:not-allowed}
+.bkm-workspace .bkm-operation tbody td:nth-child(5),.bkm-workspace .bkm-operation tbody td:nth-child(8),.bkm-workspace .bkm-operation tbody td:nth-child(10),.bkm-workspace .bkm-operation tbody td:nth-child(11){text-align:right;font-variant-numeric:tabular-nums}
+.bkm-workspace .bkm-operation tbody td:nth-child(7){text-align:center}
+.bkm-workspace .bkm-has-wo .ant-select-selection-placeholder{color:#172033}
+.bkm-cell-actions,.bkm-note-cell{display:flex;align-items:center;gap:1px;min-width:0}
+.bkm-note-cell>.ant-input{flex:1;min-width:0}
+.bkm-workspace .bkm-entry-grid .bkm-cell-action{width:22px;min-width:22px;height:22px;min-height:22px;padding:0;border:0;box-shadow:none}
+.bkm-workspace .bkm-entry-grid .bkm-cell-action svg{width:13px;height:13px}
+.bkm-workspace .bkm-entry-grid .bkm-warning-icon{color:#a16207}
 .bkm-option-detail{display:block;font-size:11px;color:#64748b;white-space:normal}
+@container (max-width:760px){
+ .bkm-workspace .bkm-entry-grid tbody td{height:32px}
+ .bkm-workspace .bkm-entry-grid tbody .ant-select,.bkm-workspace .bkm-entry-grid tbody .ant-input,.bkm-workspace .bkm-entry-grid tbody .ant-input-number{min-height:28px;height:28px}
+ .bkm-workspace .bkm-entry-grid tbody .ant-select .ant-select-selector{min-height:28px;height:28px!important}
+ .bkm-workspace .bkm-entry-grid tbody .ant-input-number-input,.bkm-workspace .bkm-entry-grid tbody .ant-select-selection-search-input{height:28px!important}
+ .bkm-workspace .bkm-entry-grid .bkm-cell-action{height:28px;min-height:28px}
+}
