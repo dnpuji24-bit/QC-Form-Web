@@ -3,6 +3,7 @@ import {Alert,Button,Card,Tag,Typography} from 'antd'
 import {firebaseAuth} from './firebase'
 import {operationalQueuedRecords} from './qcOperationalAdapters'
 import type {OfflineLease} from './qcOfflineLease.mjs'
+import BkmWorkspace from './BkmWorkspace'
 
 type QueueRow={id:string;date:string;paddock:string;unit:string;form:string}
 const entries=[
@@ -10,6 +11,7 @@ const entries=[
  {key:'monthly',title:'Monthly Plan',permissions:['data_plan_monthly','data_plan_monthly_import']},
  {key:'daily',title:'Daily Plan',permissions:['data_plan_daily','data_plan_daily_import']},
  {key:'actual',title:'Actual Plan',permissions:['data_plan_actual','data_plan_actual_import']},
+ {key:'bkm',title:'Rekap BKM',permissions:['data_plan_actual']},
  {key:'summary',title:'Summary & Calendar',permissions:['data_plan_summary','data_plan_daily','data_plan_actual']},
  {key:'units',title:'Unit Management',permissions:['data_unit_dispatch']},
  {key:'paddock',title:'Master Paddock',permissions:['data_master_paddock_list']},
@@ -49,7 +51,7 @@ export default function OfflinePortal({lease,onRetry,onLogout}:{lease:OfflineLea
   <Alert type="warning" showIcon message="Akses lokal — belum diverifikasi ulang"
    description={'Izin terakhir diverifikasi '+new Date(lease.verifiedAt).toLocaleString('id-ID')+'. Berlaku sampai '+new Date(lease.expiresAt).toLocaleString('id-ID')+'. Ini bukan login Firebase baru. Data server dan pengaturan pengguna membutuhkan koneksi; antrean lokal tidak dihapus.'}/>
   {chosen?<Card title={chosen.title} extra={<Button onClick={()=>setSelected('')}>Menu Utama</Button>}>
-    {chosen.key==='qc'&&canSeeQueue?<><Alert type="info" message="Antrean QC milik akun ini" description="Belum merupakan konfirmasi Firestore. Input dan edit form penuh tersedia setelah verifikasi online atau pada workspace yang sudah dibuka sebelum koneksi putus."/>
+    {chosen.key==='bkm'?<BkmWorkspace user={user} offlineOnly/>:chosen.key==='qc'&&canSeeQueue?<><Alert type="info" message="Antrean QC milik akun ini" description="Belum merupakan konfirmasi Firestore. Input dan edit form penuh tersedia setelah verifikasi online atau pada workspace yang sudah dibuka sebelum koneksi putus."/>
      <Button loading={busy} onClick={()=>void loadQueue()} style={{margin:'12px 0'}}>Muat ulang antrean lokal</Button>
      {error&&<Alert type="error" message={error}/>}
      {!busy&&!rows.length&&<Typography.Paragraph>Belum ada antrean operasional yang dapat ditampilkan.</Typography.Paragraph>}
