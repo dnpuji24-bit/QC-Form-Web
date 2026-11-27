@@ -57,12 +57,15 @@ export function buildBkmCandidates({date,daily=[],actual=[],history=[],monthly=[
   const targetHa=target?n(target.targetAreaHa):null
   const hi=conflict?null:sum(hiRows,'actualAreaHa')
   const shi=conflict||!line(source)?null:sum(shiRows,'actualAreaHa')
-  const hk=hiRows.length&&!hiRows.some(r=>qc(r)||n(r.manpower)===null)?sum(hiRows,'manpower'):null
+  const hk=hiRows.length&&!hiRows.some(r=>qc(r)||n(r.manpower)===null||(r.workGroupId&&today.some(other=>other.workGroupId===r.workGroupId&&pid(other)!==pid(r))))?sum(hiRows,'manpower'):null
   const notes=[...new Set(hiRows.map(r=>text(r.notes)).filter(Boolean))]
   const mMap=new Map()
   if(!conflict){
    for(const r of shiRows.filter(qc)){
     for(const m of Array.isArray(r.materials)?r.materials:[]){
+     // Existing single-paddock QC payloads may be plan dose × actual area.
+     // Only explicit multi-paddock allocations carry a measured source filling ID.
+     if(!text(m.sourceFillingId))continue
      const name=text(m.material||m.materialName),unit=text(m.unit||m.doseUnit),qty=n(m.totalMaterial)
      if(!name||!unit||qty===null)continue
      const k=JSON.stringify([key(name),key(unit)])
@@ -80,7 +83,7 @@ export function buildBkmCandidates({date,daily=[],actual=[],history=[],monthly=[
   if(!line(source))warnings.push('Tidak ada identitas Monthly Plan; SHI tidak dihitung')
   if(line(source)&&!target)warnings.push('Target Monthly Plan tidak ditemukan atau ambigu')
   if(hk===null&&hiRows.length)warnings.push('HK aktual tidak lengkap (QC otomatis tidak mencatat HK)')
-  if(shiRows.some(r=>!qc(r)&&Array.isArray(r.materials)&&r.materials.length))warnings.push('Material Actual manual berbasis dosis; tidak dihitung sebagai penggunaan terverifikasi')
+  if(shiRows.some(r=>Array.isArray(r.materials)&&r.materials.some(m=>!qc(r)||!text(m.sourceFillingId))))warnings.push('Sebagian material masih berbasis dosis; tidak dihitung sebagai penggunaan terverifikasi')
   if(master.length!==1)warnings.push('Luas Master Paddock tidak ditemukan atau ambigu')
   out.push({id,company:company(source),pid:pid(source),wo:text(source.woNumber||target?.woNumber),operationCode:text(source.operationCode||target?.operationCode),description:text(source.description||source.activity||target?.description),area,hk,uom:'Ha',target:targetHa,hi,shi,progress:shi!==null&&targetHa!==null&&targetHa>0?shi/targetHa*100:null,notes:notes.join(' · '),warnings,conflict,actualIds:hiRows.map(r=>r.id),material:[...mMap.values()]})
  }
