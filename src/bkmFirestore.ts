@@ -5,7 +5,7 @@ import {canViewAccess,canEditAccess} from './accessControl'
 import {canSyncVerifiedNativeUid} from './nativeOfflineRuntime'
 import {buildBkmCandidates,type BkmCandidate,type BkmSource} from './bkmAggregation.mjs'
 import {bkmValidQuantity,type BkmActivity,type BkmPaddock} from './bkmRealization.mjs'
-export type BkmInputRow={filterWo:string;candidate:BkmCandidate|null;bkm:string;note:string;activityFilter?:string;hiOverride?:number|null;hkOverride?:number|null}
+export type BkmInputRow={filterWo:string;candidate:BkmCandidate|null;bkm:string;note:string;activityFilter?:string;hiOverride?:number|null;hiManual?:boolean;hkOverride?:number|null}
 export type BkmMaterialEntry={pid:string;code:string;name:string;unit:string;hi:number|null;shi:number|null;wo:string;bkm:string;note:string;extra:string[]}
 export type BkmDocument={id:string;revision:number;date:string;company:string;division:string;number:string;rows:BkmInputRow[];materialEntries?:BkmMaterialEntry[];materialColumns?:string[]}
 const COLLECTION='foreman_work_recaps'
@@ -71,7 +71,7 @@ export async function saveBkm(input:BkmDocument){
  if(new Set(rows.map(r=>r.candidate!.id)).size!==rows.length)throw Error('Pekerjaan ganda tidak dapat disimpan.')
  const actualIds=rows.flatMap(r=>r.candidate!.actualIds)
  if(new Set(actualIds).size!==actualIds.length)throw Error('Record Actual yang sama tidak boleh masuk lebih dari sekali.')
- if(rows.some(r=>!bkmValidQuantity(r.hiOverride)||!bkmValidQuantity(r.hkOverride)))throw Error('HI dan HK harus berupa angka tidak negatif.')
+ if(rows.some(r=>!bkmValidQuantity(r.hiOverride)||!bkmValidQuantity(r.hkOverride)||(r.hiManual!==undefined&&typeof r.hiManual!=='boolean')))throw Error('HI dan HK harus berupa angka tidak negatif.')
  const materialColumns=input.materialColumns||[],materialEntries=input.materialEntries
  if(materialColumns.length>8||materialColumns.some(c=>typeof c!=='string'||!c.trim()||c.length>60)||new Set(materialColumns.map(c=>c.trim().toLowerCase())).size!==materialColumns.length)throw Error('Nama kolom tambahan tidak valid.')
  if(materialEntries&&(materialEntries.length>100||materialEntries.some(m=>!m.pid||!m.name||!m.unit||!bkmValidQuantity(m.hi)||!bkmValidQuantity(m.shi)||!Array.isArray(m.extra)||m.extra.length!==materialColumns.length||m.extra.some(v=>typeof v!=='string'||v.length>800))))throw Error('Periksa paddock, nama, satuan dan kuantitas Material.')
