@@ -110,3 +110,11 @@
  .bkm-input-actions>.ant-btn:not(.bkm-icon-button){font-size:11px;padding-inline:4px}
 }
 @media print{body.qc-bkm-print .bkm-workspace{container-type:normal}}
+
+/* Cell controls never overlap their neighbouring spreadsheet cells. */
+.bkm-operation tbody td:nth-child(3){width:245px;min-width:245px;max-width:245px}
+.bkm-operation tbody td:nth-child(4){width:180px;min-width:180px;max-width:180px}
+.bkm-operation tbody td:nth-child(7){width:64px;min-width:64px;max-width:64px}
+.bkm-operation .bkm-desc,.bkm-operation .bkm-pid{display:flex;width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+.bkm-operation .bkm-desc .ant-select-selection-item,.bkm-operation .bkm-pid .ant-select-selection-item{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bkm-option-detail{display:block;font-size:11px;color:#64748b;white-space:normal}
