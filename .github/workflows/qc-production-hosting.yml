@@ -108,7 +108,7 @@ jobs:
         run: node --test scripts/test-qc-offline-verified-menu.mjs
 
       - name: Verify Rekap BKM source aggregation
-        run: node --test scripts/test-bkm-aggregation.mjs scripts/test-bkm-realization.mjs
+        run: node --test scripts/test-bkm-aggregation.mjs scripts/test-bkm-realization.mjs scripts/test-bkm-template-workbook.mjs
 
       - name: Check TypeScript types
         run: npm run typecheck
