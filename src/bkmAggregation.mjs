@@ -10,20 +10,21 @@ const label=r=>key(r.operationCode)||key(r.description||r.activity)
 const company=r=>key(r.companyCode)
 const qc=r=>key(r.sourceOrigin)==='QC'||!!r.qcRecordId
 const cancelled=r=>r.cancelled===true||key(r.status).includes('CANCEL')
-const actualKey=r=>text(r.qcRecordId)?'qc:'+text(r.qcRecordId)+'|'+text(r.qcWorkId||r.id):'actual:'+text(r.actualReportId||r.id)
+const actualKey=r=>text(r.qcRecordId)?'qc:'+text(r.qcRecordId)+'|'+text(r.qcWorkId||'single'):'actual:'+text(r.actualReportId||r.id)
 const identity=r=>JSON.stringify([company(r),pid(r),line(r)?'monthly:'+line(r):'daily:'+text(r.dailyPlanId||r.id),label(r)])
 export function buildBkmCandidates({date,daily=[],actual=[],history=[],monthly=[],paddocks=[],materials=[]}){
  const dailyById=new Map(daily.map(r=>[text(r.dailyPlanId||r.id),r]))
  const enrich=r=>{
   const d=dailyById.get(text(r.dailyPlanId))
-  if(!d||pid(d)!==pid(r))return r
-  return {...r,companyCode:r.companyCode||d.companyCode,operationCode:r.operationCode||d.operationCode,
-   description:r.description||d.description,woNumber:r.woNumber||d.woNumber,monthlyPlanLineId:r.monthlyPlanLineId||d.monthlyPlanLineId}
+  const linked=d&&pid(d)===pid(r)?d:null
+  const master=paddocks.filter(p=>pid(p)===pid(r))
+  return {...r,companyCode:r.companyCode||linked?.companyCode||(master.length===1?master[0].companyCode:''),operationCode:r.operationCode||linked?.operationCode,
+   description:r.description||linked?.description,woNumber:r.woNumber||linked?.woNumber,monthlyPlanLineId:r.monthlyPlanLineId||linked?.monthlyPlanLineId}
  }
  const today=unique(actual).map(enrich).filter(r=>r.date===date&&!cancelled(r)&&pid(r)&&label(r))
  const all=unique([...history,...actual]).map(enrich).filter(r=>r.date&&r.date<=date&&!cancelled(r))
  const groups=new Map()
- for(const row of [...daily.filter(r=>r.date===date&&!cancelled(r)),...today]){
+ for(const row of [...daily.map(enrich).filter(r=>r.date===date&&!cancelled(r)),...today]){
   if(!pid(row)||!label(row)||!company(row))continue
   const id=identity(row)
   if(!groups.has(id))groups.set(id,row)
