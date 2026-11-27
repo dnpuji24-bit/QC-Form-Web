@@ -60,7 +60,8 @@
     "firebase": "latest",
     "html2canvas": "latest",
     "jspdf": "latest",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "exceljs": "4.4.0"
   },
   "devDependencies": {
     "@types/react": "latest",
