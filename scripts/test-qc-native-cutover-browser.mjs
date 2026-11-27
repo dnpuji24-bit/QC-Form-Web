@@ -59,7 +59,7 @@ if(mode==='--browser'){
    username:'uat-owner',fullName:'UAT Native Owner',email,firebaseUid:uid,testOnly:true})
   await adb.doc('role_access/owner').set({role:'owner',permissions:{
    qc_dashboard:'view',qc_spraying:'edit',qc_records:'view',
-   data_plan_monthly:'view',data_plan_daily:'view',data_plan_summary:'view'
+   data_plan_monthly:'view',data_plan_daily:'view',data_plan_summary:'view',data_plan_actual:'edit'
   },updatedBy:uid,updatedAt:'2026-11-22T00:00:00.000Z',testOnly:true})
   await adb.doc('master_paddocks/uat-p1').set({testOnly:true,pid:'uat-p1',active:true,area:10})
   await adb.doc('master_activities/uat-a1').set({testOnly:true,activity:'UAT spray',active:true})
@@ -148,6 +148,35 @@ if(mode==='--browser'){
     'firebase-native-session-v1')
    assert.ok(visited.has(authOrigin),'FIREBASE_AUTH_EMULATOR_UNREACHED')
    assert.ok(visited.has(firestoreOrigin),'FIRESTORE_EMULATOR_UNREACHED')
+  })
+  await check('collapsible sidebar opens BKM and saves a separate dated recap',async()=>{
+   const day='2026-11-27'
+   const row={companyCode:'GPA',pid:'BKM-001',monthlyPlanLineId:'BKM-L1',woNumber:'WO-BKM-1',activity:'Fertilizer',description:'Top Dressing C',operationCode:'107241',date:day}
+   await adb.doc('master_paddocks/BKM-001').set({pid:'BKM-001',companyCode:'GPA',areaPlantedHa:25})
+   await adb.doc('monthly_plans/BKM-L1').set({...row,planLineId:'BKM-L1',targetAreaHa:20})
+   await adb.doc('daily_plans/BKM-D1').set({...row,dailyPlanId:'BKM-D1',shift:'1'})
+   await adb.doc('daily_reports/BKM-A1').set({...row,dailyPlanId:'BKM-D1',actualReportId:'BKM-A1',shift:'1',actualAreaHa:5,manpower:3,sourceOrigin:'WEB'})
+   await page.getByRole('button',{name:'Plan',exact:true}).click()
+   assert.equal(await page.getByRole('button',{name:'Rekap BKM',exact:true}).count(),0)
+   await page.getByRole('button',{name:'Plan',exact:true}).click()
+   await page.getByRole('button',{name:'Rekap BKM',exact:true}).click()
+   await page.getByRole('heading',{name:'REKAP BUKU KERJA MANDOR',exact:true}).waitFor()
+   await page.locator('.bkm-header-fields input[type=date]').fill(day)
+   await page.getByRole('button',{name:'Muat sumber tanggal'}).click()
+   await page.getByText('1 pekerjaan dari 2 record harian. Pilih PT dan pekerjaan.').waitFor({timeout:30000})
+   await page.getByLabel('Paddock baris 1',{exact:true}).click()
+   await page.getByText('BKM-001 — Top Dressing C · WO-BKM-1',{exact:true}).first().click()
+   await page.getByRole('button',{name:'Simpan Rekap',exact:true}).click()
+   await page.getByText('Rekap BKM disimpan dan dikonfirmasi oleh Firestore.').waitFor({timeout:30000})
+   const saved=await adb.collection('foreman_work_recaps').get()
+   assert.equal(saved.size,1)
+   const result=saved.docs[0].data().rows[0]
+   assert.equal(result.bkm,'');assert.equal(result.filterWo,'');assert.equal(result.candidate.hi,5)
+   assert.equal(result.candidate.shi,5);assert.equal(result.candidate.progress,25)
+   assert.equal((await adb.collection('daily_reports').get()).size,1)
+   await page.getByRole('button',{name:'Sembunyikan sidebar'}).click()
+   await page.getByRole('button',{name:'Tampilkan sidebar'}).click()
+   await page.getByRole('button',{name:'Beranda',exact:true}).click()
   })
   await check('network loss retains current workspace and reload restores only the safe offline menu',async()=>{
    await page.waitForFunction(()=>!!localStorage.getItem('qc_verified_offline_profile_v1'))
