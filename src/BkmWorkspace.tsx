@@ -63,7 +63,7 @@ function Paper({report}:{report:BkmDocument}){
   <table className="bkm-sign"><thead><tr><th>Disetujui Oleh</th><th>Diverifikasi oleh,</th><th>Dibuat oleh,</th></tr></thead><tbody><tr><td/><td/><td/></tr></tbody><tfoot><tr><th>GM</th><th>Manager</th><th>Asisten</th></tr></tfoot></table>
  </div>
 }
-export default function BkmWorkspace({user}:{user:User}){
+export default function BkmWorkspace({user,offlineOnly=false}:{user:User;offlineOnly?:boolean}){
  const uid=user.firebaseUid||''
  const draftKey='qc_bkm_draft_v1:'+firebaseAuth?.app.options.projectId+':'+uid
  const [report,setReport]=useState<BkmDocument>(()=>{try{const v=JSON.parse(localStorage.getItem(draftKey)||'null');return v?.date&&Array.isArray(v.rows)?v:initial()}catch{return initial()}})
@@ -77,6 +77,9 @@ export default function BkmWorkspace({user}:{user:User}){
  const [error,setError]=useState('')
  const requestId=useRef(0)
  const editable=canEditAccess(user,'data_plan_actual')
+ const [online,setOnline]=useState(()=>navigator.onLine)
+ useEffect(()=>{const update=()=>setOnline(navigator.onLine);window.addEventListener('online',update);window.addEventListener('offline',update);return()=>{window.removeEventListener('online',update);window.removeEventListener('offline',update)}},[])
+ const serverAvailable=online&&!offlineOnly
  const selected=actualRows(report)
  const valid=!!report.company.trim()&&!!report.division.trim()&&selected.length>0&&new Set(idsFor(selected)).size===selected.length&&!selected.some(r=>r.candidate?.conflict||r.candidate?.company!==report.company.toUpperCase())
  const companies=[...new Set(candidates.map(c=>c.company))].sort()
@@ -91,6 +94,7 @@ export default function BkmWorkspace({user}:{user:User}){
  }
  function patch(i:number,patch:Partial<BkmInputRow>){setReport(old=>({...old,rows:old.rows.map((r,j)=>i===j?{...r,...patch}:r)}))}
  async function load(){
+  if(!serverAvailable){setError('Muat sumber memerlukan internet.');return}
   if(selected.length&&!window.confirm('Muat ulang sumber? Pilihan lama yang tidak lagi ditemukan akan dikosongkan.'))return
   const token=++requestId.current,date=report.date
   setBusy(true);setError('');setMessage('')
@@ -110,13 +114,14 @@ export default function BkmWorkspace({user}:{user:User}){
   }catch(e){setError(e instanceof Error?e.message:'Draft lokal tidak dapat disimpan.')}
  }
  async function save(){
-  if(!editable||!valid)return
+  if(!serverAvailable||!editable||!valid)return
   setBusy(true);setError('');setMessage('')
   try{const result=await saveBkm(report);setReport(old=>({...old,...result}));setMessage('Rekap BKM disimpan dan dikonfirmasi oleh Firestore.')}
   catch(e){setError(e instanceof Error?e.message:'Simpan belum berhasil. Draft tidak dihapus.')}
   finally{setBusy(false)}
  }
  async function showSaved(){
+  if(!serverAvailable){setError('Data Rekap server membutuhkan koneksi.');return}
   setView('data');setBusy(true);setError('')
   try{setSaved(await listBkm(report.date))}
   catch(e){setError(e instanceof Error?e.message:'Data Rekap belum dapat dibaca.')}
@@ -134,9 +139,10 @@ export default function BkmWorkspace({user}:{user:User}){
   },100)
  }
  return <section className="bkm-workspace">
+  {!serverAvailable&&<Alert type="warning" showIcon title="Mode offline · hanya draft BKM akun ini" description="Data sumber baru dan penyimpanan Firestore memerlukan koneksi. Draft lokal yang pernah disimpan tetap dapat dibuka, diedit keterangannya, dan dicetak."/>}
   <div className="bkm-toolbar">
    <Button type={view==='input'?'primary':'default'} onClick={()=>setView('input')}>Input Rekap BKM</Button>
-   <Button type={view==='data'?'primary':'default'} loading={busy&&view==='data'} onClick={()=>void showSaved()}>Data Rekap BKM</Button>
+   <Button disabled={!serverAvailable} type={view==='data'?'primary':'default'} loading={busy&&view==='data'} onClick={()=>void showSaved()}>Data Rekap BKM</Button>
    <Button type={view==='preview'?'primary':'default'} onClick={()=>setView('preview')}>Preview</Button>
    <Button disabled={busy||!valid} onClick={print}>Print / PDF</Button><Button disabled={busy||!valid} onClick={()=>downloadExcel(report)}>Export Excel</Button>
   </div>
@@ -149,7 +155,7 @@ export default function BkmWorkspace({user}:{user:User}){
     <label>Divisi <Input disabled={busy} value={report.division} maxLength={120} onChange={e=>patchHeader('division',e.target.value)}/></label>
     <label>Tanggal <input type="date" disabled={busy} value={report.date} onChange={e=>patchHeader('date',e.target.value)}/></label>
    </div>
-   <div className="bkm-toolbar"><Button loading={busy} onClick={()=>void load()}>Muat sumber tanggal</Button><Button disabled={busy||!editable} onClick={localSave}>Simpan draft lokal</Button><Button type="primary" disabled={busy||!editable||!valid} loading={busy} onClick={()=>void save()}>Simpan Rekap</Button>{loadedAt&&<small>Sumber: {new Date(loadedAt).toLocaleString('id-ID')}</small>}</div>
+   <div className="bkm-toolbar"><Button disabled={!serverAvailable} loading={busy} onClick={()=>void load()}>Muat sumber tanggal</Button><Button disabled={busy||!editable} onClick={localSave}>Simpan draft lokal</Button><Button type="primary" disabled={busy||!serverAvailable||!editable||!valid} loading={busy} onClick={()=>void save()}>Simpan Rekap</Button>{loadedAt&&<small>Sumber: {new Date(loadedAt).toLocaleString('id-ID')}</small>}</div>
    <Alert type="warning" showIcon title="No WO dan No BKM boleh kosong" description="Pilih WO untuk memfilter paddock, atau pilih paddock + activity langsung. Angka berasal dari Actual Plan dan Monthly Plan terkait. Divisi adalah label laporan (belum filter sumber); HK yang belum lengkap dan material berbasis dosis tidak dianggap aktual. SHI hanya untuk identitas Monthly Plan yang jelas."/>
    <div className="bkm-grid-scroll"><table className="bkm-grid bkm-operation"><thead><tr><th colSpan={15}>Operation</th></tr><tr><th rowSpan={3}>No</th><th colSpan={2}>Pekerjaan</th><th colSpan={2}>Field</th><th colSpan={6}>Target Kerja</th><th rowSpan={3}>No WO</th><th rowSpan={3}>No BKM</th><th rowSpan={3}>Keterangan</th><th rowSpan={3}>Aksi</th></tr><tr>{opHeaders.slice(1,8).map(h=><th rowSpan={2} key={h}>{h}</th>)}<th colSpan={3}>Actual</th></tr><tr><th>HI</th><th>SHI</th><th>%</th></tr></thead><tbody>
     {report.rows.map((r,i)=>{const c=r.candidate;const available=bkmAvailableCandidates(candidates,report.company,r.filterWo,ids,c?.id||'');const options=[...new Map([...available,...(c?[c]:[])].map(x=>[x.id,x])).values()].map(x=>({value:x.id,label:x.pid+' — '+x.description+(x.wo?' · '+x.wo:'')}));return <tr key={i}>
