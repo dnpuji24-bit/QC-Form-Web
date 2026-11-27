@@ -64,6 +64,8 @@ export async function saveBkm(input:BkmDocument){
  if(!input.company.trim()||!input.division.trim()||!rows.length||rows.length>100)throw Error('PT, Divisi dan 1–100 pekerjaan diperlukan.')
  if(rows.some(r=>r.candidate?.conflict||r.candidate?.company!==input.company.toUpperCase()))throw Error('Periksa konflik Actual dan PT sebelum menyimpan.')
  if(new Set(rows.map(r=>r.candidate!.id)).size!==rows.length)throw Error('Pekerjaan ganda tidak dapat disimpan.')
+ const actualIds=rows.flatMap(r=>r.candidate!.actualIds)
+ if(new Set(actualIds).size!==actualIds.length)throw Error('Record Actual yang sama tidak boleh masuk lebih dari sekali.')
  const id=input.id||crypto.randomUUID(),ref=doc(db,COLLECTION,id)
  // For a new UUID, do not read a non-existent owner-scoped document.
  // Rules reject any collision because revision 1 cannot update existing data.
