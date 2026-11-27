@@ -1,6 +1,5 @@
 import {useEffect,useRef,useState,type ClipboardEvent,type KeyboardEvent} from 'react'
 import {Alert,Button,Input,InputNumber,Select,Typography} from 'antd'
-import * as XLSX from 'xlsx'
 import {firebaseAuth} from './firebase'
 import {canEditAccess} from './accessControl'
 import {bkmAvailableCandidates,type BkmCandidate} from './bkmAggregation.mjs'
@@ -26,33 +25,16 @@ const total=(rows:BkmInputRow[],field:'hk'|'target'|'hi'|'shi')=>rows.length&&ro
 const values=(r:BkmInputRow,i:number)=>{const c=r.candidate,a=bkmRealization(c,r.hiOverride);return [i+1,c?.operationCode||'',c?.description||'',c?.pid||'',c?.area??'',effective(r,'hk')??'',c?.uom||'',effective(r,'target')??'',a.hi??'',a.balance??'',a.progress!=null?a.progress/100:'',c?.wo||'',r.bkm,notes(r)]}
 const opHeaders=['No','Opr Code','Desc','Paddock / Block','Luas Area','Jml HK','UoM','Luas WO','HI','SHI','%','No WO','No BKM','Keterangan']
 const matHeaders=['No','Block/Paddock','No Material','Nama Material','UoM','Qty HI','Qty SHI','No WO','No BKM','Keterangan']
-function downloadExcel(report:BkmDocument){
- const rows=actualRows(report),materials=materialRows(report),opCount=Math.max(10,rows.length),matCount=Math.max(8,materials.length)
- const table:(string|number|null)[][]=[
-  ['REKAP BUKU KERJA MANDOR'],['No',report.number],['PT',report.company],['Divisi',report.division],['Tanggal',report.date],['Operation'],
-  ['No','Pekerjaan','','Field','','Target Kerja','','','','','','No WO','No BKM','Keterangan'],
-  ['',...opHeaders.slice(1,8),'Actual','','','','',''],
-  ['','','','','','','','','HI','SHI','%','','',''],
-  ...Array.from({length:opCount},(_,i)=>i<rows.length?values(rows[i],i):[i+1]),
-  ['Total','','','','',total(rows,'hk'),'Ha',total(rows,'target'),total(rows,'hi'),total(rows,'shi')],
-  ['Material'],[...matHeaders,...(report.materialColumns||[])],
-  ...Array.from({length:matCount},(_,i)=>{const m=materials[i];return m?materialValues(m,i):[i+1]}),
-  [],['','','','','','','','Disetujui oleh','','Diverifikasi oleh','','Dibuat oleh'],[],[],['','','','','','','','GM','','Manager','','Asisten']
- ]
- const ws=XLSX.utils.aoa_to_sheet(table)
- const merges:XLSX.Range[]=[]
- const merge=(r:number,c:number,er:number,ec:number)=>merges.push({s:{r,c},e:{r:er,c:ec}})
- merge(0,0,0,13);merge(5,0,5,13);merge(6,0,8,0);merge(6,1,6,2);merge(6,3,6,4);merge(6,5,6,10)
- for(const c of [1,2,3,4,5,6,7])merge(7,c,8,c)
- merge(7,8,7,10);for(const c of [11,12,13])merge(6,c,8,c)
- merge(9+opCount,0,9+opCount,4);merge(10+opCount,0,10+opCount,Math.max(13,9+(report.materialColumns?.length||0)))
- const sign=13+opCount+matCount
- for(const [a,b] of [[7,8],[9,10],[11,13]]){merge(sign,a,sign,b);merge(sign+1,a,sign+2,b);merge(sign+3,a,sign+3,b)}
- ws['!merges']=merges
- ws['!cols']=[{wch:5},{wch:16},{wch:34},{wch:20},{wch:13},{wch:10},{wch:10},{wch:14},{wch:12},{wch:12},{wch:11},{wch:20},{wch:17},{wch:60},...Array.from({length:Math.max(0,10+(report.materialColumns?.length||0)-14)},()=>({wch:18}))]
- for(let i=0;i<rows.length;i++){const cell=ws[XLSX.utils.encode_cell({r:9+i,c:10})];if(cell?.t==='n')cell.z='0.00%'}
- const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Rekap BKM')
- XLSX.writeFile(wb,'Rekap-BKM-'+report.date+'.xlsx')
+async function downloadExcel(report:BkmDocument){
+ const {buildBkmWorkbook}=await import('./bkmTemplateWorkbook.mjs')
+ const rows=actualRows(report)
+ const wb=buildBkmWorkbook({number:report.number,company:report.company,division:report.division,date:report.date,
+  operations:rows.map(values),materials:materialRows(report).map(materialValues),materialColumns:report.materialColumns||[],
+  totals:['Total','','','','',total(rows,'hk'),'Ha',total(rows,'target'),total(rows,'hi'),total(rows,'shi')]})
+ const buffer=await wb.xlsx.writeBuffer()
+ const url=URL.createObjectURL(new Blob([new Uint8Array(buffer)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}))
+ const a=document.createElement('a');a.href=url;a.download='Rekap-BKM-'+report.date+'.xlsx';document.body.appendChild(a)
+ try{a.click()}finally{a.remove();window.setTimeout(()=>URL.revokeObjectURL(url),1000)}
 }
 function Paper({report}:{report:BkmDocument}){
  const ops=actualRows(report),mats=materialRows(report)
@@ -64,9 +46,9 @@ function Paper({report}:{report:BkmDocument}){
    <tfoot><tr><td colSpan={5}>Total</td><td>{format(total(ops,'hk'))}</td><td>Ha</td><td>{format(total(ops,'target'))}</td><td>{format(total(ops,'hi'))}</td><td>{format(total(ops,'shi'))}</td><td colSpan={4}/></tr></tfoot>
   </table>
   <table className="bkm-print-table bkm-material-print"><thead><tr><th colSpan={10+(report.materialColumns?.length||0)}>Material</th></tr><tr>{[...matHeaders,...(report.materialColumns||[])].map(h=><th key={h}>{h}</th>)}</tr></thead>
-   <tbody>{Array.from({length:Math.max(8,mats.length)},(_,i)=>{const m=mats[i];return <tr key={i}>{(m?materialValues(m,i):[i+1,...Array(9+(report.materialColumns?.length||0)).fill('')]).map((v,j)=><td key={j}>{typeof v==='number'?format(v):v}</td>)}</tr>})}</tbody>
+   <tbody>{Array.from({length:Math.max(10,mats.length)},(_,i)=>{const m=mats[i];return <tr key={i}>{(m?materialValues(m,i):[i+1,...Array(9+(report.materialColumns?.length||0)).fill('')]).map((v,j)=><td key={j}>{typeof v==='number'?format(v):v}</td>)}</tr>})}</tbody>
   </table>
-  <table className="bkm-sign"><thead><tr><th>Disetujui Oleh</th><th>Diverifikasi oleh,</th><th>Dibuat oleh,</th></tr></thead><tbody><tr><td/><td/><td/></tr></tbody><tfoot><tr><th>GM</th><th>Manager</th><th>Asisten</th></tr></tfoot></table>
+  <table className="bkm-sign"><thead><tr><th>Disetujui Oleh</th><th>Diverifikasi oleh,</th><th>Dibuat oleh,</th></tr></thead><tbody><tr><td/><td/><td/></tr></tbody><tfoot><tr><th>General Manager</th><th>Manager</th><th>Asisten</th></tr></tfoot></table>
  </div>
 }
 export default function BkmWorkspace({user,offlineOnly=false}:{user:User;offlineOnly?:boolean}){
@@ -96,7 +78,7 @@ export default function BkmWorkspace({user,offlineOnly=false}:{user:User;offline
  const companies=[...new Set([...candidates.map(c=>c.company),...masterPaddocks.map(p=>p.company)])].sort()
  const materialColumns=report.materialColumns||[]
  const editingMaterials=report.materialEntries??autoMaterial(report)
- const gridMaterials=[...editingMaterials,...Array.from({length:Math.max(0,8-editingMaterials.length)},()=>blankMaterial(materialColumns.length))]
+ const gridMaterials=[...editingMaterials,...Array.from({length:Math.max(0,10-editingMaterials.length)},()=>blankMaterial(materialColumns.length))]
  const [newColumn,setNewColumn]=useState('')
  const scoped=candidates.filter(c=>c.company===report.company.toUpperCase())
  const woOptions=[...new Set(scoped.map(c=>c.wo).filter(Boolean))].sort().map(value=>({value,label:value}))
@@ -190,7 +172,7 @@ export default function BkmWorkspace({user,offlineOnly=false}:{user:User;offline
    <Button type={view==='input'?'primary':'default'} onClick={()=>setView('input')}>Input Rekap BKM</Button>
    <Button disabled={!serverAvailable} type={view==='data'?'primary':'default'} loading={busy&&view==='data'} onClick={()=>void showSaved()}>Data Rekap BKM</Button>
    <Button type={view==='preview'?'primary':'default'} onClick={()=>setView('preview')}>Preview</Button>
-   <Button disabled={busy||!valid} onClick={print}>Print / PDF</Button><Button disabled={busy||!valid} onClick={()=>downloadExcel(report)}>Export Excel</Button>
+   <Button disabled={busy||!valid} onClick={print}>Print / PDF</Button><Button disabled={busy||!valid} onClick={()=>{void downloadExcel(report).catch(e=>setError(e instanceof Error?e.message:"Export Excel gagal."))}}>Export Excel</Button>
   </div>
   {error&&<Alert type="error" title={error} showIcon/>}{message&&<Alert type="info" title={message} showIcon/>}
   {view==='data'?<><div className="bkm-toolbar"><label>Tanggal <input type="date" disabled={busy} value={report.date} onChange={e=>patchHeader('date',e.target.value)}/></label><Button onClick={()=>void showSaved()} loading={busy}>Cari rekap</Button></div><div className="bkm-grid-scroll"><table className="bkm-grid"><thead><tr><th>No</th><th>PT</th><th>Divisi</th><th>Tanggal</th><th>Pekerjaan</th><th>Aksi</th></tr></thead><tbody>{saved.map(d=><tr key={d.id}><td>{d.number||'—'}</td><td>{d.company}</td><td>{d.division}</td><td>{d.date}</td><td>{d.rows.length}</td><td><Button onClick={()=>openSaved(d)}>Buka</Button></td></tr>)}</tbody></table></div>{!saved.length&&!busy&&<p>Belum ada rekap yang ditampilkan pada tanggal ini.</p>}</>:view==='preview'?<Paper report={report}/>:<>
