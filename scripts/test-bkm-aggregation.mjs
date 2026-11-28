@@ -3,6 +3,15 @@ import {test} from 'node:test'
 import {buildBkmCandidates,bkmAvailableCandidates} from '../src/bkmAggregation.mjs'
 const date='2026-11-27',past='2026-11-26'
 const line={companyCode:'GPA',pid:'J-012',monthlyPlanLineId:'P1',woNumber:'WO-1',activity:'Fertilizer',description:'Top Dressing C',operationCode:'107241'}
+test('dropdown candidates only represent the selected company and date',()=>{
+ const rows=buildBkmCandidates({date,daily:[
+  {...line,id:'selected',date},
+  {...line,id:'other-company',date,companyCode:'MNM',pid:'OTHER',woNumber:'WO-MNM'},
+  {...line,id:'other-date',date:past,pid:'OLD',woNumber:'WO-OLD'},
+ ]})
+ assert.deepEqual(bkmAvailableCandidates(rows,'GPA','').map(row=>[row.pid,row.wo]),[['J-012','WO-1']])
+ assert.deepEqual(bkmAvailableCandidates(rows,'MNM','').map(row=>[row.pid,row.wo]),[['OTHER','WO-MNM']])
+})
 const other={...line,monthlyPlanLineId:'P2',pid:'J-013'}
 const daily=[{...line,id:'D1',dailyPlanId:'D1',date,shift:'1'},{...line,id:'D2',dailyPlanId:'D2',date,shift:'2'},{...other,id:'D3',dailyPlanId:'D3',date,shift:'1'}]
 const a=(id,extra={})=>({...line,id,actualReportId:id,dailyPlanId:'D1',date,shift:'1',actualAreaHa:5,manpower:3,sourceOrigin:'WEB',...extra})

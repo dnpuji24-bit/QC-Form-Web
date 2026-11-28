@@ -757,7 +757,7 @@ service cloud.firestore {
     }
     function validBkmSnapshot() {
       let d = request.resource.data;
-      return d.keys().hasOnly(['schemaVersion','ownerUid','revision','date','company','division','number','rows','materialEntries','materialColumns','createdAt','updatedAt'])
+      return d.keys().hasOnly(['schemaVersion','ownerUid','revision','date','company','division','number','rows','materialEntries','materialColumns','operationTotal','createdAt','updatedAt'])
         && d.keys().hasAll(['schemaVersion','ownerUid','revision','date','company','division','number','rows','createdAt','updatedAt'])
         && d.schemaVersion == 1 && d.ownerUid is string
         && d.revision is int && d.revision > 0
@@ -770,7 +770,15 @@ service cloud.firestore {
           || (d.keys().hasAll(['materialEntries','materialColumns'])
             && d.materialEntries is list && d.materialEntries.size() <= 100
             && d.materialColumns is list && d.materialColumns.size() <= 8))
+        && (!d.keys().hasAny(['operationTotal']) || validBkmTotal(d.operationTotal))
         && d.updatedAt == request.time;
+    }
+    function validBkmTotal(value) {
+      return value is map && value.keys().hasOnly(['uom','hiOverride'])
+        && value.keys().hasAll(['uom','hiOverride'])
+        && value.uom is string && value.uom.size() > 0 && value.uom.size() <= 24
+        && (value.hiOverride == null || (value.hiOverride is number
+          && value.hiOverride >= 0 && value.hiOverride - value.hiOverride == 0));
     }
     match /foreman_work_recaps/{reportId} {
       allow get, list: if bkmView() && (role() == 'owner' || resource.data.ownerUid == request.auth.uid);

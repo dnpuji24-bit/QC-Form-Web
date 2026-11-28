@@ -9,11 +9,18 @@ const opCols=[2,3,5,7,8,9,10,11,12,13,14,15,16,17]
 const matCols=[2,3,5,7,10,11,12,13,14,16]
 const border=color=>({top:{style:'thin',color:{argb:color}},left:{style:'thin',color:{argb:color}},bottom:{style:'thin',color:{argb:color}},right:{style:'thin',color:{argb:color}}})
 const fill=argb=>({type:'pattern',pattern:'solid',fgColor:{argb}})
-const numberFmt='#,##0.00##'
-export function buildBkmWorkbook({number='',company='',division='',date='',operations=[],materials=[],materialColumns=[],totals=[]}){
+const numberFmt=value=>Number.isInteger(value)?'#,##0':'#,##0.00##'
+const wrapLines=(value,start,end)=>{
+ if(typeof value!=='string')return 1
+ const cm=BKM_COLUMN_CM.slice(start-1,end).reduce((sum,width)=>sum+width,0)
+ const capacity=Math.max(1,Math.floor((cm*96/2.54-8)/7.25))
+ return value.split(/\r?\n/).reduce((count,line)=>count+Math.max(1,Math.ceil(line.length/capacity)),0)
+}
+export function buildBkmWorkbook({number='',company='',division='',date='',operations=[],materials=[],materialColumns=[],totals=[],exactRowCounts=false}){
  const wb=new ExcelJS.Workbook()
  const ws=wb.addWorksheet('Rekap BKM',{views:[{showGridLines:false}],pageSetup:{paperSize:9,orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:operations.length<=10&&materials.length<=10&&materialColumns.length===0?1:0,horizontalCentered:true,margins:{left:0.708661,right:0.708661,top:0.314961,bottom:0.314961,header:0,footer:0}}})
- const opCount=Math.max(10,operations.length),matCount=Math.max(10,materials.length)
+ const minimum=exactRowCounts?0:10
+ const opCount=Math.max(minimum,operations.length),matCount=Math.max(minimum,materials.length)
  const totalRow=12+opCount,matTitle=totalRow+2,matHeader=matTitle+2,matStart=matHeader+1
  const sign=matStart+matCount+1,lastRow=sign+5,lastCol=17+materialColumns.length
  const width=cm=>(cm*96/2.54-5)/7
@@ -23,7 +30,8 @@ export function buildBkmWorkbook({number='',company='',division='',date='',opera
  function cell(r,c,value='',style={}){
   const x=ws.getCell(r,c);x.value=value==null?'':value
   x.font={name:'Aptos Narrow',size:11,color:{argb:BLACK},...style.font}
-  x.alignment={vertical:'middle',horizontal:style.horizontal||'left',wrapText:true}
+  x.alignment={vertical:'middle',horizontal:style.horizontal||'left',
+   ...(style.fitText?{wrapText:false,shrinkToFit:true}:{wrapText:true})}
   if(style.background)x.fill=fill(style.background)
   if(style.border)x.border=border(style.border)
   if(style.numFmt)x.numFmt=style.numFmt
@@ -58,16 +66,16 @@ export function buildBkmWorkbook({number='',company='',division='',date='',opera
   for(let j=0;j<opCols.length;j++){
    const c=opCols[j],end=j===1||j===2?c+1:c
    const v=j===0?i+1:row[j]??''
-   const style={...body,horizontal:[2,3,13].includes(j)?'left':([4,5,7,8,9,10].includes(j)?'right':'center'),...(j===0?{background:BKM_GREY}:{}),...([4,5,7,8,9].includes(j)?{numFmt:numberFmt}:j===10?{numFmt:'0.00%'}:{})}
+   const style={...body,fitText:[1,3,6,11,12].includes(j),horizontal:[2,3,13].includes(j)?'left':([4,5,7,8,9,10].includes(j)?'right':'center'),...(j===0?{background:BKM_GREY}:{}),...([4,5,7,8,9].includes(j)?{numFmt:numberFmt(v)}:j===10?{numFmt:'0.00%'}:{})}
    merge(r,c,r,end,v,style)
   }
-  const lines=Math.max(...row.map((v,j)=>typeof v==='string'?Math.ceil(v.length/([2,3,13].includes(j)?28:18)):1))
-  ws.getRow(r).height=Math.max(18,Math.min(180,lines*14))
+  const lines=Math.max(wrapLines(row[2],5,6),wrapLines(row[13],17,17))
+  ws.getRow(r).height=Math.max(18,Math.min(409,lines*15+3))
  }
  ws.getRow(totalRow).height=18
  merge(totalRow,2,totalRow,8,'Total',{...body,font:{bold:true}})
  for(let c=9;c<=17;c++)cell(totalRow,c,'',body)
- for(const [j,c] of [[5,9],[6,10],[7,11],[8,12],[9,13]])cell(totalRow,c,totals[j]??'',{...body,font:{bold:true},numFmt:numberFmt})
+ for(const [j,c] of [[5,9],[6,10],[7,11],[8,12],[9,13]])cell(totalRow,c,totals[j]??'',{...body,font:{bold:true},numFmt:numberFmt(totals[j])})
  merge(matTitle,2,matTitle,lastCol,'Material',head)
  ws.getRow(matTitle+1).height=3
  ws.getRow(matHeader).height=52.5
@@ -78,7 +86,7 @@ export function buildBkmWorkbook({number='',company='',division='',date='',opera
  for(let i=0;i<matCount;i++){
   const r=matStart+i,row=materials[i]||[i+1]
   ws.getRow(r).height=17
-  headers.forEach((_,j)=>merge(r,cols[j],r,ends[j],j===0?i+1:row[j]??'',{...body,horizontal:[1,2,3,9].includes(j)||j>=10?'left':[5,6].includes(j)?'right':'center',...([5,6].includes(j)?{numFmt:numberFmt}:{})}))
+  headers.forEach((_,j)=>merge(r,cols[j],r,ends[j],j===0?i+1:row[j]??'',{...body,fitText:[1,2,4,7,8].includes(j),horizontal:[1,2,3,9].includes(j)||j>=10?'left':[5,6].includes(j)?'right':'center',...([5,6].includes(j)?{numFmt:numberFmt(row[j])}:{})}))
   const lines=Math.max(...row.map((v,j)=>typeof v==='string'?Math.ceil(v.length/([3,9].includes(j)?35:20)):1))
   ws.getRow(r).height=Math.max(17,Math.min(180,lines*14))
  }
