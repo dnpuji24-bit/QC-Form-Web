@@ -183,7 +183,14 @@ function OperationCell({field,label,value,disabled,options=[],onChange,onSelect,
  return <AutoComplete {...props} className={field==='pid'&&value?'bkm-paddock-filled':undefined}
   ref={inputRef} open={open&&!disabled&&matches.length>0}
   onOpenChange={next=>{setOpen(next);if(!next)setQuery('')}} onBlur={onCommit}
-  onInputKeyDown={event=>{if(event.key==='Tab')onCommit?.()}}
+  onKeyDownCapture={event=>{
+   if(event.key!=='Tab')return
+   // Leave the cell without accepting the highlighted suggestion.
+   event.stopPropagation()
+   setOpen(false)
+   setQuery('')
+   onCommit?.()
+  }}
   defaultActiveFirstOption options={matches.map(option=>({...option,value:optionValue(option.value)}))}
   suffix={options.length>0&&<button type="button" className="bkm-dropdown-toggle" disabled={disabled}
    aria-label={'Buka pilihan '+label} aria-expanded={open&&!disabled}
