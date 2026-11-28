@@ -29,3 +29,12 @@ test('Optional quantities accept zero but not negative, infinite or non-number v
  for(const v of [null,undefined,0,1.25])assert.equal(bkmValidQuantity(v),true)
  for(const v of [-1,Infinity,NaN,'1'])assert.equal(bkmValidQuantity(v),false)
 })
+
+test('New manual HI stays blank until entered; zero is explicit; historical values are preserved',()=>{
+ const blank=bkmRealization(candidate,null,true)
+ assert.equal(blank.hi,null);assert.equal(blank.balance,null);assert.equal(blank.progress,null)
+ assert.equal(blank.prior,16.02)
+ assert.equal(bkmRealization(candidate,0,true).hi,0)
+ assert.ok(Math.abs(bkmRealization(candidate,2.5,true).balance-4.51)<1e-8)
+ assert.equal(bkmRealization(candidate,null).hi,4)
+})

@@ -24,6 +24,9 @@ test('Original ODS template geometry, colors, font, numeric values and landscape
  assert.equal(s.getCell('C12').value,'10619178')
  assert.equal(s.getCell('E12').value,'Irrigation')
  assert.equal(s.getCell('G12').value,'JAGF-3-N-006')
+ assert.equal(s.getCell('G12').alignment.shrinkToFit,true)
+ assert.notEqual(s.getCell('G12').alignment.wrapText,true)
+ assert.equal(s.getRow(12).height,18)
  assert.equal(s.getCell('H12').value,232.4004)
  assert.equal(s.getCell('L12').value,0)
  assert.equal(s.getCell('M12').value,15.862)
@@ -57,4 +60,29 @@ test('Extra operation and material rows and eight custom columns retain values a
  assert.equal(s.pageSetup.fitToWidth,1)
  assert.equal(s.pageSetup.fitToHeight,0)
  assert.ok(s.pageSetup.printArea.includes('Y48'))
+})
+
+test('Long notes expand the row without wrapping the paddock identifier',async()=>{
+ const row=[...operations[0]]
+ row[13]='Catatan lapangan yang panjang\nBaris kedua mencatat hasil pengamatan'
+ const sheet=await roundTrip({...base,operations:[row]})
+ assert.equal(sheet.getCell('Q12').value,row[13])
+ assert.equal(sheet.getCell('Q12').alignment.wrapText,true)
+ assert.ok(sheet.getRow(12).height>33)
+ assert.equal(sheet.getCell('G12').alignment.shrinkToFit,true)
+})
+
+test('Grid export preserves empty positions and exact added or removed row counts',async()=>{
+ const s=await roundTrip({...base,exactRowCounts:true,
+  operations:[...Array.from({length:11},()=>[]),operations[0]],
+  materials:[[],materials[0],[]],
+ })
+ assert.equal(s.getCell('E12').value,'')
+ assert.equal(s.getCell('E23').value,'Irrigation')
+ assert.equal(s.getCell('B24').value,'Total')
+ assert.equal(s.getCell('G29').value,'')
+ assert.equal(s.getCell('G30').value,'NK')
+ assert.equal(s.getCell('B31').value,3)
+ assert.equal(s.getCell('B32').value,null)
+ assert.equal(s.pageSetup.fitToHeight,0)
 })

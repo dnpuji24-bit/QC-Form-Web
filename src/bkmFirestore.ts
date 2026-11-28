@@ -5,9 +5,12 @@ import {canViewAccess,canEditAccess} from './accessControl'
 import {canSyncVerifiedNativeUid} from './nativeOfflineRuntime'
 import {buildBkmCandidates,type BkmCandidate,type BkmSource} from './bkmAggregation.mjs'
 import {bkmValidQuantity,type BkmActivity,type BkmPaddock} from './bkmRealization.mjs'
-export type BkmInputRow={filterWo:string;candidate:BkmCandidate|null;bkm:string;note:string;activityFilter?:string;hiOverride?:number|null;hkOverride?:number|null}
+import {bkmOperationCandidate,bkmOperationIncomplete,operationFieldLimits,type BkmOperationFields} from './bkmOperation'
+import {hasMaterial} from './bkmMaterial'
+export type BkmInputRow={filterWo:string;candidate:BkmCandidate|null;bkm:string;note:string;activityFilter?:string;hiOverride?:number|null;hiManual?:boolean;hkOverride?:number|null;operationFields?:Partial<BkmOperationFields>}
 export type BkmMaterialEntry={pid:string;code:string;name:string;unit:string;hi:number|null;shi:number|null;wo:string;bkm:string;note:string;extra:string[]}
-export type BkmDocument={id:string;revision:number;date:string;company:string;division:string;number:string;rows:BkmInputRow[];materialEntries?:BkmMaterialEntry[];materialColumns?:string[]}
+export type BkmTotalInput={uom:string;hiOverride:number|null}
+export type BkmDocument={id:string;revision:number;date:string;company:string;division:string;number:string;rows:BkmInputRow[];materialEntries?:BkmMaterialEntry[];materialColumns?:string[];operationTotal?:BkmTotalInput}
 const COLLECTION='foreman_work_recaps'
 const text=(v:unknown)=>String(v??'').trim()
 const unique=(v:string[])=>[...new Set(v.filter(Boolean))]
@@ -60,28 +63,42 @@ export async function listBkm(date:string){
  const base=collection(db,COLLECTION)
  const snap=await getDocsFromServer(user.role==='owner'?query(base,where('date','==',date),limit(200)):query(base,where('ownerUid','==',uid),where('date','==',date),limit(200)))
  assertUid()
- return snap.docs.map(d=>{const v=d.data();return {id:d.id,revision:Number(v.revision),date:text(v.date),company:text(v.company),division:text(v.division),number:text(v.number),rows:v.rows as BkmInputRow[],materialEntries:Array.isArray(v.materialEntries)?v.materialEntries as BkmMaterialEntry[]:undefined,materialColumns:Array.isArray(v.materialColumns)?v.materialColumns as string[]:undefined}}).sort((a,b)=>a.number.localeCompare(b.number,'id',{numeric:true}))
+ return snap.docs.map(d=>{const v=d.data();return {id:d.id,revision:Number(v.revision),date:text(v.date),company:text(v.company),division:text(v.division),number:text(v.number),rows:v.rows as BkmInputRow[],materialEntries:Array.isArray(v.materialEntries)?v.materialEntries as BkmMaterialEntry[]:undefined,materialColumns:Array.isArray(v.materialColumns)?v.materialColumns as string[]:undefined,operationTotal:v.operationTotal as BkmTotalInput|undefined}}).sort((a,b)=>a.number.localeCompare(b.number,'id',{numeric:true}))
 }
 export async function saveBkm(input:BkmDocument){
  assertDate(input.date)
  const {db,uid,user,assertUid}=await context(true)
- const rows=input.rows.filter(row=>row.candidate)
- if(!input.company.trim()||!input.division.trim()||!rows.length||rows.length>100)throw Error('PT, Divisi dan 1–100 pekerjaan diperlukan.')
- if(rows.some(r=>r.candidate?.conflict||r.candidate?.company!==input.company.toUpperCase()))throw Error('Periksa konflik Actual dan PT sebelum menyimpan.')
- if(new Set(rows.map(r=>r.candidate!.id)).size!==rows.length)throw Error('Pekerjaan ganda tidak dapat disimpan.')
- const actualIds=rows.flatMap(r=>r.candidate!.actualIds)
+ if(input.rows.some(row=>row.operationFields&&Object.entries(row.operationFields).some(([field,value])=>
+  !Object.hasOwn(operationFieldLimits,field)||typeof value!=='string'||value.length>operationFieldLimits[field as keyof BkmOperationFields])))throw Error('Isian kolom Operation tidak valid.')
+ if(input.rows.some(row=>bkmOperationIncomplete(row,input.company)))throw Error('Lengkapi Desc dan Paddock pada setiap baris Operation yang diisi.')
+ const operations=input.rows.flatMap(row=>{
+  const candidate=bkmOperationCandidate(row,input.company)
+  return candidate?[{row,candidate}]:[]
+ })
+ const rows=input.rows
+ if(!input.company.trim()||!input.division.trim()||!operations.length||rows.length>100)throw Error('PT, Divisi dan 1–100 pekerjaan diperlukan.')
+ if(operations.some(({candidate})=>candidate.conflict||candidate.company!==input.company.toUpperCase()))throw Error('Periksa konflik Actual dan PT sebelum menyimpan.')
+ if(new Set(operations.map(({candidate})=>candidate.id)).size!==operations.length)throw Error('Pekerjaan ganda tidak dapat disimpan.')
+ const actualIds=operations.flatMap(({candidate})=>candidate.actualIds)
  if(new Set(actualIds).size!==actualIds.length)throw Error('Record Actual yang sama tidak boleh masuk lebih dari sekali.')
- if(rows.some(r=>!bkmValidQuantity(r.hiOverride)||!bkmValidQuantity(r.hkOverride)))throw Error('HI dan HK harus berupa angka tidak negatif.')
+ if(rows.some(r=>!bkmValidQuantity(r.hiOverride)||!bkmValidQuantity(r.hkOverride)||(r.hiManual!==undefined&&typeof r.hiManual!=='boolean')))throw Error('HI dan HK harus berupa angka tidak negatif.')
  const materialColumns=input.materialColumns||[],materialEntries=input.materialEntries
  if(materialColumns.length>8||materialColumns.some(c=>typeof c!=='string'||!c.trim()||c.length>60)||new Set(materialColumns.map(c=>c.trim().toLowerCase())).size!==materialColumns.length)throw Error('Nama kolom tambahan tidak valid.')
- if(materialEntries&&(materialEntries.length>100||materialEntries.some(m=>!m.pid||!m.name||!m.unit||!bkmValidQuantity(m.hi)||!bkmValidQuantity(m.shi)||!Array.isArray(m.extra)||m.extra.length!==materialColumns.length||m.extra.some(v=>typeof v!=='string'||v.length>800))))throw Error('Periksa paddock, nama, satuan dan kuantitas Material.')
- const materialFields={...(materialEntries!==undefined?{materialEntries,materialColumns}: {})}
+ if(materialEntries&&(materialEntries.length>100||materialEntries.some(m=>
+  !bkmValidQuantity(m.hi)||!bkmValidQuantity(m.shi)||!Array.isArray(m.extra)||m.extra.length!==materialColumns.length||
+  m.extra.some(v=>typeof v!=='string'||v.length>800)||(hasMaterial(m)&&(!m.pid.trim()||!m.name.trim()||!m.unit.trim()))
+ )))throw Error('Periksa paddock, nama, satuan dan kuantitas Material.')
+ const operationTotal=input.operationTotal
+ if(operationTotal&&(!operationTotal.uom.trim()||operationTotal.uom.length>operationFieldLimits.uom||
+  !bkmValidQuantity(operationTotal.hiOverride)))throw Error('Periksa satuan dan angka Total HI.')
+ const reportFields={...(materialEntries!==undefined?{materialEntries,materialColumns}: {}),
+  ...(operationTotal?{operationTotal}:{})}
  const id=input.id||crypto.randomUUID(),ref=doc(db,COLLECTION,id)
  // For a new UUID, do not read a non-existent owner-scoped document.
  // Rules reject any collision because revision 1 cannot update existing data.
  if(!input.id){
   assertUid()
-  await setDoc(ref,{schemaVersion:1,ownerUid:uid,revision:1,date:input.date,company:input.company.toUpperCase(),division:input.division,number:input.number,rows,...materialFields,updatedAt:serverTimestamp(),createdAt:serverTimestamp()})
+  await setDoc(ref,{schemaVersion:1,ownerUid:uid,revision:1,date:input.date,company:input.company.toUpperCase(),division:input.division,number:input.number,rows,...reportFields,updatedAt:serverTimestamp(),createdAt:serverTimestamp()})
   assertUid()
   return {id,revision:1}
  }
@@ -91,7 +108,7 @@ export async function saveBkm(input:BkmDocument){
   if(prev.exists()&&(prev.data().ownerUid!==uid&&user.role!=='owner'||prev.data().revision!==input.revision))throw Error('Dokumen telah berubah atau bukan milik akun ini. Muat ulang Data Rekap.')
   if(!prev.exists()&&input.id)throw Error('Dokumen tidak ditemukan.')
   const revision=(prev.exists()?Number(prev.data().revision):0)+1
-  const value={schemaVersion:1,ownerUid:prev.exists()?prev.data().ownerUid:uid,revision,date:input.date,company:input.company.toUpperCase(),division:input.division,number:input.number,rows,...materialFields,updatedAt:serverTimestamp(),createdAt:prev.exists()?prev.data().createdAt:serverTimestamp()}
+  const value={schemaVersion:1,ownerUid:prev.exists()?prev.data().ownerUid:uid,revision,date:input.date,company:input.company.toUpperCase(),division:input.division,number:input.number,rows,...reportFields,updatedAt:serverTimestamp(),createdAt:prev.exists()?prev.data().createdAt:serverTimestamp()}
   tx.set(ref,value)
   return revision
  })

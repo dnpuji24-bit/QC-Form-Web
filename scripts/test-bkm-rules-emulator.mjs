@@ -26,5 +26,9 @@ try{
  assert.equal((await getDoc(ref('asisten1'))).data().number,'BKM-1')
  await assertSucceeds(updateDoc(ref('owner1'),{revision:3,materialEntries:[{pid:'J-012',name:'NK',unit:'Kg',hi:15,extra:['ISS-001']}],materialColumns:['No Issue'],updatedAt:serverTimestamp()}))
  await assertFails(updateDoc(ref('owner1'),{revision:4,materialColumns:Array(9).fill('x'),updatedAt:serverTimestamp()}))
+ await assertFails(updateDoc(ref('owner1'),{revision:4,operationTotal:{uom:'Jam',hiOverride:-1},updatedAt:serverTimestamp()}))
+ await assertFails(updateDoc(ref('owner1'),{revision:4,operationTotal:{uom:'Ha',hiOverride:'5'},updatedAt:serverTimestamp()}))
+ await assertSucceeds(updateDoc(ref('owner1'),{revision:4,operationTotal:{uom:'Jam',hiOverride:0},updatedAt:serverTimestamp()}))
+ assert.deepEqual((await getDoc(ref('asisten1'))).data().operationTotal,{uom:'Jam',hiOverride:0})
  console.log('PASS: BKM snapshot ownership, optional number, edit permission, revision and delete protection')
 }finally{await env.cleanup()}

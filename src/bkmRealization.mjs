@@ -1,7 +1,8 @@
 // The stored legacy candidate.shi is cumulative actual, not the displayed SHI.
-export function bkmRealization(candidate,hiOverride){
+export function bkmRealization(candidate,hiOverride,manualOnly=false){
  if(!candidate)return {hi:null,balance:null,progress:null,prior:null}
- const hi=hiOverride==null?candidate.hi:hiOverride
+ // New manual rows distinguish an empty HI from an entered zero. Legacy snapshots retain their source default.
+ const hi=hiOverride==null?(manualOnly?null:candidate.hi):hiOverride
  const prior=candidate.shi==null||candidate.hi==null?null:Math.max(0,candidate.shi-candidate.hi)
  const target=candidate.target
  if(candidate.conflict||!candidate.wo||prior==null||hi==null||target==null||target<=0)return {hi,balance:null,progress:null,prior}
