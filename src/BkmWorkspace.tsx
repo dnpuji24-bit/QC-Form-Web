@@ -180,17 +180,16 @@ function OperationCell({field,label,value,disabled,options=[],onChange,onSelect,
  const maxLength=field==='bkm'?120:operationFieldLimits[field]
  if(!onSelect)return <Input {...props} maxLength={maxLength} onChange={event=>onChange(event.target.value)}/>
  const matches=searchOperationOptions(options,query)
- return <AutoComplete {...props} className={field==='pid'&&value?'bkm-paddock-filled':undefined}
-  ref={inputRef} open={open&&!disabled&&matches.length>0}
-  onOpenChange={next=>{setOpen(next);if(!next)setQuery('')}} onBlur={onCommit}
-  onKeyDownCapture={event=>{
+ return <span style={{display:'contents'}} onKeyDownCapture={event=>{
    if(event.key!=='Tab')return
    // Leave the cell without accepting the highlighted suggestion.
    event.stopPropagation()
    setOpen(false)
    setQuery('')
    onCommit?.()
-  }}
+  }}><AutoComplete {...props} className={field==='pid'&&value?'bkm-paddock-filled':undefined}
+  ref={inputRef} open={open&&!disabled&&matches.length>0}
+  onOpenChange={next=>{setOpen(next);if(!next)setQuery('')}} onBlur={onCommit}
   defaultActiveFirstOption options={matches.map(option=>({...option,value:optionValue(option.value)}))}
   suffix={options.length>0&&<button type="button" className="bkm-dropdown-toggle" disabled={disabled}
    aria-label={'Buka pilihan '+label} aria-expanded={open&&!disabled}
@@ -205,7 +204,7 @@ function OperationCell({field,label,value,disabled,options=[],onChange,onSelect,
   filterOption={false}
   optionRender={({data})=><div>{data.label}{data.detail&&<small className="bkm-option-detail">{data.detail}</small>}</div>}
   onChange={text=>{if(!text.startsWith('\u0000')){const input=text.slice(0,maxLength);setQuery(input);setOpen(true);onChange(input)}}}
-  onSelect={(_,option)=>{setOpen(false);setQuery('');onSelect({...option,value:option.value.slice(1)})}}/>
+  onSelect={(_,option)=>{setOpen(false);setQuery('');onSelect({...option,value:option.value.slice(1)})}}/></span>
 }
 export default function BkmWorkspace({user,offlineOnly=false}:{user:User;offlineOnly?:boolean}){
  const uid=user.firebaseUid||''
